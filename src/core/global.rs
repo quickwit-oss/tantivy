@@ -1,0 +1,2 @@
+
+pub type DocId = usize;

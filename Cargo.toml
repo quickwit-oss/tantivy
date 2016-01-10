@@ -1,0 +1,10 @@
+[package]
+name = "parici"
+version = "0.1.0"
+authors = ["Paul Masurel <paul.masurel@gmail.com>"]
+
+[dependencies]
+byteorder = "0.4.2"
+itertools = "0.4.5"
+memmap = "0.2.3"
+lazy_static = "0.1.*"
