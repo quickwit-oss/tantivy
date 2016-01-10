@@ -1,8 +1,8 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-// use std::core::slice;
 use std::io::prelude::Read;
 use core::global::DocId;
+// use std::core::slice;
 // use core::schema::{Field, Term};
 // use std::slice;
 use std::vec;
@@ -11,6 +11,7 @@ pub trait Postings {
 	type IteratorType: Iterator<Item=DocId>;
 	fn iter(&self) -> Self::IteratorType;
 }
+
 
 
 #[derive(Clone)]

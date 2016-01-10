@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
-pub struct Field(&'static str);
+#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
+pub struct Field(pub &'static str);
 
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
@@ -12,7 +12,7 @@ pub struct FieldValue {
 }
 
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
+#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Term<'a> {
     pub field: &'a Field,
 	pub text: &'a str,
@@ -32,10 +32,10 @@ impl Document {
         }
     }
 
-    pub fn set(&mut self, field: &Field, text: &String) {
+    pub fn set(&mut self, field: Field, text: &str) {
         self.add(FieldValue {
-            field: (*field).clone(),
-            text: (*text).clone()
+            field: field,
+            text: String::from(text)
         });
     }
 
