@@ -1,8 +1,8 @@
 
 use std::io;
 use core::schema::Document;
-use core::schema::Term;
-use core::schema::Field ;
+use core::schema::Field;
+use core::directory::Directory;
 use core::analyzer::tokenize;
 use std::collections::{HashMap, BTreeMap};
 use core::DocId;
@@ -57,14 +57,16 @@ impl FieldWriter {
 pub struct IndexWriter {
     max_doc: usize,
     term_writers: HashMap<Field, FieldWriter>,
+	directory: Directory,
 }
 
 impl IndexWriter {
 
-    pub fn new() -> IndexWriter {
-        IndexWriter {
+    pub fn open(directory: &Directory) -> IndexWriter {
+		IndexWriter {
             max_doc: 0,
             term_writers: HashMap::new(),
+			directory: (*directory).clone(),
         }
     }
 

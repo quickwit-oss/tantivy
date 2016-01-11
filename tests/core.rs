@@ -6,6 +6,7 @@ use parici::core::postings::{VecPostings, intersection};
 use parici::core::postings::Postings;
 use parici::core::analyzer::tokenize;
 use parici::core::writer::IndexWriter;
+use parici::core::directory::Directory;
 use parici::core::schema::{Field, Document};
 
 #[test]
@@ -25,7 +26,8 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let mut index_writer = IndexWriter::new();
+    let directory = Directory::open("toto");
+    let mut index_writer = IndexWriter::open(&directory);
     let mut doc = Document::new();
     doc.set(Field("text"), &String::from("toto"));
     index_writer.add(doc);
