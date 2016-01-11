@@ -1,13 +1,14 @@
-extern crate parici;
+extern crate tantivy;
 extern crate itertools;
 
-use parici::core::DocId;
-use parici::core::postings::{VecPostings, intersection};
-use parici::core::postings::Postings;
-use parici::core::analyzer::tokenize;
-use parici::core::writer::IndexWriter;
-use parici::core::directory::Directory;
-use parici::core::schema::{Field, Document};
+use tantivy::core::DocId;
+use tantivy::core::postings::{VecPostings, intersection};
+use tantivy::core::postings::Postings;
+use tantivy::core::analyzer::tokenize;
+use tantivy::core::writer::IndexWriter;
+use tantivy::core::directory::Directory;
+use tantivy::core::schema::{Field, Document};
+use tantivy::core::reader::IndexReader;
 
 #[test]
 fn test_intersection() {
@@ -26,9 +27,15 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::open("toto");
-    let mut index_writer = IndexWriter::open(&directory);
-    let mut doc = Document::new();
-    doc.set(Field("text"), &String::from("toto"));
-    index_writer.add(doc);
+    let directory = Directory::in_mem();
+    {
+        let mut index_writer = IndexWriter::open(&directory);
+        let mut doc = Document::new();
+        doc.set(Field("text"), "toto");
+        index_writer.add(doc);
+        index_writer.sync().unwrap();
+    }
+    {
+        let index_reader = IndexReader::open(&directory);
+    }
 }
