@@ -7,6 +7,18 @@ use core::global::DocId;
 // use std::slice;
 use std::vec;
 
+
+/////////////////////////////
+
+
+pub trait PostingsWriter {
+	fn suscribe(&mut self, DocId);
+}
+
+
+////////////////////////////////////
+
+
 pub trait Postings {
 	type IteratorType: Iterator<Item=DocId>;
 	fn iter(&self) -> Self::IteratorType;

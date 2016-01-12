@@ -6,27 +6,57 @@ use core::directory::Directory;
 use core::analyzer::tokenize;
 use std::collections::{HashMap, BTreeMap};
 use core::DocId;
+use core::postings::PostingsWriter;
+use core::global::Flushable;
+use std::io::{BufWriter, Write};
+use std::mem;
+use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
-pub struct PostingsWriter {
+
+pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
 }
 
-impl PostingsWriter {
-    pub fn new()->PostingsWriter {
-        PostingsWriter {
+impl SimplePostingsWriter {
+    pub fn new() -> SimplePostingsWriter {
+        SimplePostingsWriter {
             doc_ids: Vec::new(),
         }
     }
+}
 
-	pub fn suscribe(&mut self, doc_id: DocId) {
+impl PostingsWriter for SimplePostingsWriter {
+	fn suscribe(&mut self, doc_id: DocId) {
 		self.doc_ids.push(doc_id);
 	}
 }
 
+impl Flushable for SimplePostingsWriter {
+	fn flush<W: Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+		let num_docs = self.doc_ids.len() as u64;
+		writer.write_u64::<NativeEndian>(num_docs);
+		for &doc_id in self.doc_ids.iter() {
+			writer.write_u64::<NativeEndian>(doc_id as u64);
+		}
+		Ok(1)
+	}
+}
+
 struct FieldWriter {
-    postings: Vec<PostingsWriter>,
+    postings: Vec<SimplePostingsWriter>,
     term_index: BTreeMap<String, usize>,
 }
+//
+// impl Flushable for FieldWriter {
+// 	fn flush<W: Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+// 		let num_docs = self.doc_ids.len() as u64;
+// 		writer.write_u64::<NativeEndian>(num_docs);
+// 		for &doc_id in self.doc_ids.iter() {
+// 			writer.write_u64::<NativeEndian>(doc_id as u64);
+// 		}
+// 		Ok(1)
+// 	}
+// }
 
 impl FieldWriter {
     pub fn new() -> FieldWriter {
@@ -36,7 +66,7 @@ impl FieldWriter {
         }
     }
 
-    pub fn get_postings_writer(&mut self, term_text: &str) -> &mut PostingsWriter {
+    pub fn get_postings_writer(&mut self, term_text: &str) -> &mut SimplePostingsWriter {
         match self.term_index.get(term_text) {
             Some(unord_id) => {
                 return &mut self.postings[*unord_id];
@@ -44,7 +74,7 @@ impl FieldWriter {
             None => {}
         }
         let unord_id = self.term_index.len();
-        self.postings.push(PostingsWriter::new());
+        self.postings.push(SimplePostingsWriter::new());
         self.term_index.insert(String::from(term_text), unord_id.clone());
         &mut self.postings[unord_id]
     }

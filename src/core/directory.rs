@@ -81,8 +81,7 @@ impl Segment {
 //  MemoryPointer
 
 pub trait MemoryPointer {
-    fn len(&self) -> usize;
-    fn ptr(&self) -> *const u8;
+    fn data(&self) -> &[u8];
 }
 
 /////////////////////////////////////////////////////////
@@ -94,31 +93,25 @@ pub struct ResidentMemoryPointer {
 }
 
 impl MemoryPointer for ResidentMemoryPointer {
-    fn len(&self) -> usize {
-        self.len
-    }
-    fn ptr(&self) -> *const u8 {
-        &self.data[0]
+    fn data(&self) -> &[u8] {
+        self.data.deref()
     }
 }
 
 
 
 /////////////////////////////////////////////////////////
+// MmapMemory
 //
-//
-
 
 pub struct MmapMemory(Mmap);
 
 impl MemoryPointer for MmapMemory {
-    fn len(&self) -> usize {
+    fn data(&self) -> &[u8] {
         let &MmapMemory(ref mmap) = self;
-        mmap.len()
-    }
-    fn ptr(&self) -> *const u8 {
-        let &MmapMemory(ref mmap) = self;
-        mmap.ptr()
+        unsafe {
+            mmap.as_slice()
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 extern crate tantivy;
 extern crate itertools;
+extern crate byteorder;
 
 use tantivy::core::DocId;
 use tantivy::core::postings::{VecPostings, intersection};
@@ -9,6 +10,11 @@ use tantivy::core::writer::IndexWriter;
 use tantivy::core::directory::Directory;
 use tantivy::core::schema::{Field, Document};
 use tantivy::core::reader::IndexReader;
+use tantivy::core::writer::SimplePostingsWriter;
+use tantivy::core::postings::PostingsWriter;
+use tantivy::core::global::Flushable;
+use std::io::{ BufWriter, Write };
+use std::convert::From;
 
 #[test]
 fn test_intersection() {
@@ -38,4 +44,17 @@ fn test_indexing() {
     {
         let index_reader = IndexReader::open(&directory);
     }
+}
+
+#[test]
+fn test_postings_writer() {
+    let mut postings_writer = SimplePostingsWriter::new();
+    postings_writer.suscribe(1);
+    postings_writer.suscribe(4);
+    postings_writer.suscribe(5);
+    postings_writer.suscribe(17);
+    let mut buffer: Vec<u8> = Vec::new();
+    assert_eq!(buffer.len(), 0);
+    postings_writer.flush(&mut buffer);
+    assert_eq!(buffer.len(), 5 * 8);
 }
