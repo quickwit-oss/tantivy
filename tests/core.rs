@@ -1,19 +1,21 @@
 extern crate tantivy;
 extern crate itertools;
 extern crate byteorder;
+extern crate regex;
 
 use tantivy::core::DocId;
 use tantivy::core::postings::{VecPostings, intersection};
 use tantivy::core::postings::Postings;
 use tantivy::core::analyzer::tokenize;
 use tantivy::core::writer::IndexWriter;
-use tantivy::core::directory::Directory;
+use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use tantivy::core::schema::{Field, Document};
 use tantivy::core::reader::IndexReader;
 use tantivy::core::writer::SimplePostingsWriter;
 use tantivy::core::postings::PostingsWriter;
 use tantivy::core::global::Flushable;
-use std::io::{ BufWriter, Write };
+use std::io::{ BufWriter, Write};
+use regex::Regex;
 use std::convert::From;
 
 #[test]
@@ -57,4 +59,11 @@ fn test_postings_writer() {
     assert_eq!(buffer.len(), 0);
     postings_writer.flush(&mut buffer);
     assert_eq!(buffer.len(), 5 * 8);
+}
+
+#[test]
+fn test_new_segment() {
+    let SegmentId(segment_name) = generate_segment_name();
+    let segment_ptn = Regex::new(r"^_[a-z0-9]{8}$").unwrap();
+    assert!(segment_ptn.is_match(&segment_name));
 }

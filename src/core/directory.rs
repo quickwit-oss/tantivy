@@ -9,9 +9,19 @@ use std::rc::Rc;
 use std::ops::Deref;
 use std::cell::RefCell;
 use std::sync::Arc;
+use rand::{thread_rng, Rng};
+
 
 #[derive(Clone, Debug)]
-pub struct SegmentId(String);
+pub struct SegmentId(pub String);
+
+pub fn generate_segment_name() -> SegmentId {
+    static CHARS: &'static [u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+    let random_name: String = (0..8)
+            .map(|_| thread_rng().choose(CHARS).unwrap().clone() as char)
+            .collect();
+    SegmentId( String::from("_") + &random_name)
+}
 
 pub trait Dir {
     fn get_data(&self, segment_id: &SegmentId, component: SegmentComponent) -> Result<SharedMmapMemory, io::Error>; // {
@@ -28,6 +38,10 @@ impl Directory {
             directory: self.dir.clone(),
             segment_id: segment_id.clone()
         }
+    }
+
+    pub fn new_segment(&self,) -> Segment {
+        self.segment(&generate_segment_name())
     }
 
     fn from<T: Dir + 'static>(directory: T) -> Directory {

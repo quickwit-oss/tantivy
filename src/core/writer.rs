@@ -31,32 +31,25 @@ impl PostingsWriter for SimplePostingsWriter {
 	}
 }
 
-impl Flushable for SimplePostingsWriter {
-	fn flush<W: Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
-		let num_docs = self.doc_ids.len() as u64;
-		writer.write_u64::<NativeEndian>(num_docs);
-		for &doc_id in self.doc_ids.iter() {
-			writer.write_u64::<NativeEndian>(doc_id as u64);
-		}
-		Ok(1)
-	}
-}
 
 struct FieldWriter {
     postings: Vec<SimplePostingsWriter>,
     term_index: BTreeMap<String, usize>,
 }
-//
-// impl Flushable for FieldWriter {
-// 	fn flush<W: Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
-// 		let num_docs = self.doc_ids.len() as u64;
-// 		writer.write_u64::<NativeEndian>(num_docs);
-// 		for &doc_id in self.doc_ids.iter() {
-// 			writer.write_u64::<NativeEndian>(doc_id as u64);
-// 		}
-// 		Ok(1)
-// 	}
-// }
+
+impl Flushable for SimplePostingsWriter {
+	fn flush<W: Write>(&self, writer: &mut W) -> Result<usize, io::Error> {
+		let mut num_bytes_written = 0;
+		let num_docs = self.doc_ids.len() as u64;
+		writer.write_u64::<NativeEndian>(num_docs);
+		num_bytes_written += 8;
+		for &doc_id in self.doc_ids.iter() {
+			writer.write_u64::<NativeEndian>(doc_id as u64);
+			num_bytes_written += 8;
+		}
+		Ok(num_bytes_written)
+	}
+}
 
 impl FieldWriter {
     pub fn new() -> FieldWriter {
@@ -120,6 +113,7 @@ impl IndexWriter {
     }
 
     pub fn sync(&mut self,) -> Result<(), io::Error> {
+		self.directory.new_segment();
         Ok(())
     }
 
