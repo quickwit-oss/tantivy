@@ -5,13 +5,16 @@ use core::schema::Field;
 use core::directory::Directory;
 use core::analyzer::tokenize;
 use std::collections::{HashMap, BTreeMap};
+use std::collections::{hash_map, btree_map};
 use core::DocId;
 use core::postings::PostingsWriter;
 use core::global::Flushable;
 use std::io::{BufWriter, Write};
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-
+use core::reader::IndexFlushable;
+use std::iter::Peekable;
+use core::reader::{FieldCursor, TermCursor, DocCursor};
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -30,7 +33,6 @@ impl PostingsWriter for SimplePostingsWriter {
 		self.doc_ids.push(doc_id);
 	}
 }
-
 
 struct FieldWriter {
     postings: Vec<SimplePostingsWriter>,
@@ -93,7 +95,7 @@ impl IndexWriter {
         }
     }
 
-    fn get_field_writer(&mut self, field: &Field) -> &mut FieldWriter {
+    fn get_field_writer<'a>(&'a mut self, field: &Field) -> &'a mut FieldWriter {
         if !self.term_writers.contains_key(field) {
             self.term_writers.insert((*field).clone(), FieldWriter::new());
         }
@@ -112,9 +114,164 @@ impl IndexWriter {
         self.max_doc += 1;
     }
 
+	pub fn close(self) -> ClosedIndexWriter {
+		ClosedIndexWriter {
+			index_writer: self
+		}
+	}
+
     pub fn sync(&mut self,) -> Result<(), io::Error> {
 		self.directory.new_segment();
         Ok(())
     }
 
 }
+
+pub struct ClosedIndexWriter {
+	index_writer: IndexWriter,
+}
+
+//-----------------------------------------
+// Implementation of IndexFlushable
+//
+
+//
+// impl<'a> TermCursor for CIWTermCursor<'a> {
+// 	fn doc_cursor<'a>(&'a self) -> Box<'a, TermEnum> {
+//
+// 	}
+// 	fn get(&self) -> &str {
+// 		match self.term_it.peek() {
+// 			Some((&Term))
+// 		}
+// 	}
+// 	fn next(&self) -> bool;
+// }
+
+struct CIWFieldCursor<'a> {
+	field_it: hash_map::Iter<'a, Field, FieldWriter>,
+	current: Option<(&'a Field, &'a FieldWriter)>
+}
+
+impl<'a> CIWFieldCursor<'a> {
+	fn get_field_writer(&self) -> &'a FieldWriter {
+		self.current.map(|(_, second)| second).unwrap()
+	}
+}
+
+impl<'a> Iterator for CIWFieldCursor<'a> {
+	type Item=&'a Field;
+
+	fn next(&mut self) -> Option<&'a Field> {
+		self.current = self.field_it.next();
+		self.get_field()
+	}
+}
+
+impl<'a> FieldCursor<'a> for CIWFieldCursor<'a> {
+	fn get_field(&self) -> Option<&'a Field> {
+		self.current.map(|(first, _)| first)
+	}
+
+	fn term_cursor<'b>(&'b self) -> Box<TermCursor<Item=&'b String> + 'b>  {
+		let field_writer = self.get_field_writer();
+		Box::new(CIWTermCursor {
+			postings: &field_writer.postings,
+			term_it: field_writer.term_index.iter(),
+			current: None
+		})
+	}
+}
+
+// TODO use a Term type
+
+impl IndexFlushable for ClosedIndexWriter {
+	fn field_cursor<'a>(&'a self) -> Box<FieldCursor<Item=&'a Field> + 'a> {
+		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.index_writer.term_writers.iter();
+		let current: Option<(&'a Field, &'a FieldWriter)> = None;
+		Box::new(
+			CIWFieldCursor {
+				current: current,
+				field_it: field_it
+			}
+		)
+	}
+}
+
+//////////////////////////////////
+// CIWTermCursor
+//
+struct CIWTermCursor<'a> {
+	postings: &'a Vec<SimplePostingsWriter>,
+	term_it: btree_map::Iter<'a, String, usize>,
+	current: Option<(&'a String, &'a usize)>
+}
+
+impl<'a> CIWTermCursor<'a> {
+    fn get_term_option(&self) -> Option<&'a String> {
+		self.current
+			.map(|(first, _)| first)
+	}
+}
+
+impl<'a> Iterator for CIWTermCursor<'a> {
+	type Item=&'a String;
+
+	fn next(&mut self) -> Option<&'a String> {
+		self.current = self.term_it.next();
+		self.get_term_option()
+	}
+}
+
+impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
+	fn doc_cursor<'b>(&'b self) -> Box<DocCursor<Item=DocId> + 'b> {
+		let (_, &postings_id) = self.current.unwrap();
+		unsafe {
+			let postings_writer = self.postings.get_unchecked(postings_id);
+			let docs_it = postings_writer.doc_ids.iter();
+			return Box::new(
+				CIWDocCursor {
+					docs_it: Box::new(docs_it),
+					current: None,
+				}
+			)
+		}
+	}
+
+    fn get_term(&self) -> &'a String {
+		self.get_term_option()
+			.unwrap()
+	}
+}
+
+//////////////////////////////////
+// CIWDocCursor
+//
+
+// TODO add positions
+
+struct CIWDocCursor<'a> {
+	docs_it: Box<Iterator<Item=&'a DocId> + 'a>,
+	current: Option<DocId>,
+}
+
+impl<'a> Iterator for CIWDocCursor<'a> {
+	type Item=DocId;
+
+	fn next(&mut self) -> Option<DocId> {
+		self.current = self.docs_it.next().map(|x| *x);
+		self.current
+	}
+}
+
+impl<'a> DocCursor<'a> for CIWDocCursor<'a> {
+	fn doc(&self,) -> DocId {
+		self.current.unwrap()
+	}
+}
+//
+// impl<'a> Iterator for CIWTermCursor<'a> {
+// 	type Item=&'a Term;
+//
+//
+// }

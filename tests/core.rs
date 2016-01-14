@@ -7,13 +7,17 @@ use tantivy::core::DocId;
 use tantivy::core::postings::{VecPostings, intersection};
 use tantivy::core::postings::Postings;
 use tantivy::core::analyzer::tokenize;
-use tantivy::core::writer::IndexWriter;
+use tantivy::core::reader::IndexFlushable;
+use tantivy::core::reader::DocCursor;
+use tantivy::core::writer::{IndexWriter, ClosedIndexWriter};
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use tantivy::core::schema::{Field, Document};
-use tantivy::core::reader::IndexReader;
+// use tantivy::core::reader::IndexReader;
+use std::ops::DerefMut;
 use tantivy::core::writer::SimplePostingsWriter;
 use tantivy::core::postings::PostingsWriter;
 use tantivy::core::global::Flushable;
+use tantivy::core::reader::TermCursor;
 use std::io::{ BufWriter, Write};
 use regex::Regex;
 use std::convert::From;
@@ -41,10 +45,55 @@ fn test_indexing() {
         let mut doc = Document::new();
         doc.set(Field("text"), "toto");
         index_writer.add(doc);
-        index_writer.sync().unwrap();
+        let closed_index_writer:  ClosedIndexWriter = index_writer.close();
+        let mut field_cursor = closed_index_writer.field_cursor();
+        println!("--{}---", 3);
+        loop {
+            match field_cursor.next() {
+                Some(field) => {
+                    println!("  {:?}", field);
+                    show_term_cursor(&mut *field_cursor.term_cursor());
+                },
+                None => { break; },
+            }
+        }
+        assert!(false);
+        // index_writer.sync().unwrap();
     }
     {
-        let index_reader = IndexReader::open(&directory);
+        // TODO add index opening stuff
+        // let index_reader = IndexReader::open(&directory);
+    }
+}
+
+
+fn show_term_cursor<'a>(term_cursor: &mut TermCursor<Item=&'a String>) {
+    loop {
+        match term_cursor.next() {
+            Some(term) => {
+                println!("     {:?}", term);
+                // let () = term_cursor.doc_cursor();
+                // let () = term_cursor.doc_cursor();
+                // let a = term_cursor.doc_cursor();
+                // show_doc_cursor(&mut *a);
+            },
+            None =>  {
+                break;
+            }
+        }
+    }
+}
+
+fn show_doc_cursor<'a>(doc_cursor: &'a mut DocCursor<Item=DocId>) {
+    loop {
+        match doc_cursor.next() {
+            Some(doc) => {
+                println!("       {}", doc);
+            },
+            None =>  {
+                break;
+            }
+        }
     }
 }
 
