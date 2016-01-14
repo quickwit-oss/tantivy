@@ -12,11 +12,8 @@ use core::global::Flushable;
 use std::io::{BufWriter, Write};
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use core::reader::IndexFlushable;
 use std::iter::Peekable;
-use core::reader::{FieldCursor, TermCursor, DocCursor};
-//use core::reader::FieldCursor;
-// use core::reader::TermCursor;
+use core::serial::{FieldCursor, TermCursor, DocCursor, SerializableSegment};
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -133,22 +130,11 @@ pub struct ClosedIndexWriter {
 	index_writer: IndexWriter,
 }
 
-//-----------------------------------------
-// Implementation of IndexFlushable
-//
 
+
+//-----------------------------------------
+// Implementation of SerializableSegment
 //
-// impl<'a> TermCursor for CIWTermCursor<'a> {
-// 	fn doc_cursor<'a>(&'a self) -> Box<'a, TermEnum> {
-//
-// 	}
-// 	fn get(&self) -> &str {
-// 		match self.term_it.peek() {
-// 			Some((&Term))
-// 		}
-// 	}
-// 	fn next(&self) -> bool;
-// }
 
 pub struct CIWFieldCursor<'a> {
 	field_it: hash_map::Iter<'a, Field, FieldWriter>,
@@ -190,7 +176,7 @@ impl<'a> FieldCursor<'a> for CIWFieldCursor<'a> {
 
 // TODO use a Term type
 
-impl<'a> IndexFlushable<'a> for ClosedIndexWriter {
+impl<'a> SerializableSegment<'a> for ClosedIndexWriter {
 
 	type TFieldCur = CIWFieldCursor<'a>;
 
@@ -255,7 +241,7 @@ impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
 //
 
 // TODO add positions
-//
+
 pub struct CIWDocCursor<'a> {
 	docs_it: Box<Iterator<Item=&'a DocId> + 'a>,
 	current: Option<DocId>,
@@ -275,9 +261,3 @@ impl<'a> DocCursor for CIWDocCursor<'a> {
 		self.current.unwrap()
 	}
 }
-//
-// impl<'a> Iterator for CIWTermCursor<'a> {
-// 	type Item=&'a Term;
-//
-//
-// }
