@@ -15,6 +15,8 @@ use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use core::reader::IndexFlushable;
 use std::iter::Peekable;
 use core::reader::{FieldCursor, TermCursor, DocCursor};
+//use core::reader::FieldCursor;
+// use core::reader::TermCursor;
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -148,7 +150,7 @@ pub struct ClosedIndexWriter {
 // 	fn next(&self) -> bool;
 // }
 
-struct CIWFieldCursor<'a> {
+pub struct CIWFieldCursor<'a> {
 	field_it: hash_map::Iter<'a, Field, FieldWriter>,
 	current: Option<(&'a Field, &'a FieldWriter)>
 }
@@ -169,39 +171,43 @@ impl<'a> Iterator for CIWFieldCursor<'a> {
 }
 
 impl<'a> FieldCursor<'a> for CIWFieldCursor<'a> {
+
+	type TTermCur = CIWTermCursor<'a>;
+
 	fn get_field(&self) -> Option<&'a Field> {
 		self.current.map(|(first, _)| first)
 	}
 
-	fn term_cursor<'b>(&'b self) -> Box<TermCursor<Item=&'b String> + 'b>  {
+	fn term_cursor<'b>(&'b self) -> CIWTermCursor<'b>  {
 		let field_writer = self.get_field_writer();
-		Box::new(CIWTermCursor {
+		CIWTermCursor {
 			postings: &field_writer.postings,
 			term_it: field_writer.term_index.iter(),
 			current: None
-		})
+		}
 	}
 }
 
 // TODO use a Term type
 
-impl IndexFlushable for ClosedIndexWriter {
-	fn field_cursor<'a>(&'a self) -> Box<FieldCursor<Item=&'a Field> + 'a> {
+impl<'a> IndexFlushable<'a> for ClosedIndexWriter {
+
+	type TFieldCur = CIWFieldCursor<'a>;
+
+	fn field_cursor(&'a self) -> CIWFieldCursor<'a> {
 		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.index_writer.term_writers.iter();
 		let current: Option<(&'a Field, &'a FieldWriter)> = None;
-		Box::new(
-			CIWFieldCursor {
+		CIWFieldCursor {
 				current: current,
 				field_it: field_it
-			}
-		)
+		}
 	}
 }
 
 //////////////////////////////////
 // CIWTermCursor
 //
-struct CIWTermCursor<'a> {
+pub struct CIWTermCursor<'a> {
 	postings: &'a Vec<SimplePostingsWriter>,
 	term_it: btree_map::Iter<'a, String, usize>,
 	current: Option<(&'a String, &'a usize)>
@@ -224,17 +230,17 @@ impl<'a> Iterator for CIWTermCursor<'a> {
 }
 
 impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
-	fn doc_cursor<'b>(&'b self) -> Box<DocCursor<Item=DocId> + 'b> {
+	type TDocCur = CIWDocCursor<'a>;
+
+	fn doc_cursor(&self) -> CIWDocCursor<'a> {
 		let (_, &postings_id) = self.current.unwrap();
 		unsafe {
 			let postings_writer = self.postings.get_unchecked(postings_id);
 			let docs_it = postings_writer.doc_ids.iter();
-			return Box::new(
-				CIWDocCursor {
-					docs_it: Box::new(docs_it),
-					current: None,
-				}
-			)
+			CIWDocCursor {
+				docs_it: Box::new(docs_it),
+				current: None,
+			}
 		}
 	}
 
@@ -249,8 +255,8 @@ impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
 //
 
 // TODO add positions
-
-struct CIWDocCursor<'a> {
+//
+pub struct CIWDocCursor<'a> {
 	docs_it: Box<Iterator<Item=&'a DocId> + 'a>,
 	current: Option<DocId>,
 }
@@ -264,7 +270,7 @@ impl<'a> Iterator for CIWDocCursor<'a> {
 	}
 }
 
-impl<'a> DocCursor<'a> for CIWDocCursor<'a> {
+impl<'a> DocCursor for CIWDocCursor<'a> {
 	fn doc(&self,) -> DocId {
 		self.current.unwrap()
 	}

@@ -3,39 +3,26 @@ use core::global::DocId;
 use core::schema::Field;
 
 
-//
-// pub trait DocCursor {
-//     fn get(&self) -> DocId;
-//     fn next(&self) -> bool;
-// }
 
-// pub trait TermCursor {
-//     // fn doc_cursor<'a>(&'a self) -> Box<'a, DocEnum>;
-//     fn get(&self) -> &str;
-//     fn next(&self) -> bool;
-// }
-
-
-// term is not empty
-// field
-
-
-pub trait DocCursor<'a>: Iterator<Item=DocId> {
+pub trait DocCursor: Iterator<Item=DocId> {
     fn doc(&self) -> DocId;
 }
 
 pub trait TermCursor<'a>: Iterator<Item=&'a String> {
+    type TDocCur: DocCursor;
     fn get_term(&self) -> &'a String;
-    fn doc_cursor<'b>(&'b self) -> Box<DocCursor<Item=DocId> + 'b>;
+    fn doc_cursor(&self) -> Self::TDocCur;
 }
 
 pub trait FieldCursor<'a>: Iterator<Item=&'a Field> {
+    type TTermCur: TermCursor<'a>;
     fn get_field(&self) -> Option<&'a Field>;
-    fn term_cursor<'b>(&'b self) -> Box<TermCursor<Item=&'b String> + 'b>;
+    fn term_cursor(&'a self) -> Self::TTermCur;
 }
 
-pub trait IndexFlushable {
-    fn field_cursor<'a>(&'a self) -> Box<FieldCursor<Item=&'a Field> + 'a>;
+pub trait IndexFlushable<'a> {
+    type TFieldCur: FieldCursor<'a>;
+    fn field_cursor(&'a self) -> Self::TFieldCur;
 }
 
 pub struct SegmentIndexReader {
