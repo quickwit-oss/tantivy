@@ -3,18 +3,17 @@ extern crate itertools;
 extern crate byteorder;
 extern crate regex;
 
-use tantivy::core::DocId;
 use tantivy::core::postings::{VecPostings, intersection};
 use tantivy::core::postings::Postings;
 use tantivy::core::analyzer::tokenize;
 use tantivy::core::serial::*;
+use tantivy::core::schema::*;
+use tantivy::core::global::*;
 use tantivy::core::writer::{IndexWriter, ClosedIndexWriter};
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
-use tantivy::core::schema::{Field, Document};
 use std::ops::DerefMut;
 use tantivy::core::writer::SimplePostingsWriter;
 use tantivy::core::postings::PostingsWriter;
-use tantivy::core::global::Flushable;
 use std::io::{ BufWriter, Write};
 use regex::Regex;
 use std::convert::From;
@@ -41,27 +40,29 @@ fn test_indexing() {
         let mut index_writer = IndexWriter::open(&directory);
         {
             let mut doc = Document::new();
-            doc.set(Field("text"), "toto titi");
+            doc.set(Field(1), "a b");
             index_writer.add(doc);
         }
         {
             let mut doc = Document::new();
-            doc.set(Field("text"), "titi tata");
+            doc.set(Field(1), "a b c");
             index_writer.add(doc);
         }
-        let closed_index_writer:  ClosedIndexWriter = index_writer.close();
-        let mut field_cursor = closed_index_writer.field_cursor();
+        {
+            let mut doc = Document::new();
+            doc.set(Field(1), "a b c d");
+            // TODO make iteration over Fields somehow sorted
+            index_writer.add(doc);
+        }
+        let mut closed_index_writer:  ClosedIndexWriter = index_writer.close();
+        let mut term_cursor = closed_index_writer.term_cursor();
         loop {
-            match field_cursor.next() {
-                Some(field) => {
-                    println!("  {:?}", field);
-                    show_term_cursor(field_cursor.term_cursor());
-                },
-                None => { break; },
+            if !term_cursor.advance() {
+                break;
             }
+            show_term(&term_cursor);
         }
         assert!(false);
-        // index_writer.sync().unwrap();
     }
     {
         // TODO add index opening stuff
@@ -70,45 +71,27 @@ fn test_indexing() {
 }
 
 
-fn show_term_cursor<'a, T: TermCursor<'a>>(mut term_cursor: T) {
-    loop {
-        match term_cursor.next() {
-            Some(term) => {
-                println!("    term: {:?}", term);
-                show_doc_cursor(term_cursor.doc_cursor());
-            },
-            None =>  {
-                break;
-            }
-        }
+fn show_term<'a, T: TermCursor<'a>>(term_cursor: &T) {
+    println!("{:?}", term_cursor.get_term());
+    let doc_cursor = term_cursor.doc_cursor();
+    for doc in doc_cursor {
+        println!("doc({})", doc);
     }
 }
 
-fn show_doc_cursor<'a, D: DocCursor>(mut doc_cursor: D) {
-    loop {
-        match doc_cursor.next() {
-            Some(doc) => {
-                println!("       {}", doc);
-            },
-            None =>  {
-                break;
-            }
-        }
-    }
-}
+// fn show_doc_cursor<'a, D: DocCursor>(mut doc_cursor: D) {
+//     loop {
+//         match doc_cursor.next() {
+//             Some(doc) => {
+//                 println!("       {}", doc);
+//             },
+//             None =>  {
+//                 break;
+//             }
+//         }
+//     }
+// }
 
-#[test]
-fn test_postings_writer() {
-    let mut postings_writer = SimplePostingsWriter::new();
-    postings_writer.suscribe(1);
-    postings_writer.suscribe(4);
-    postings_writer.suscribe(5);
-    postings_writer.suscribe(17);
-    let mut buffer: Vec<u8> = Vec::new();
-    assert_eq!(buffer.len(), 0);
-    postings_writer.flush(&mut buffer);
-    assert_eq!(buffer.len(), 5 * 8);
-}
 
 #[test]
 fn test_new_segment() {

@@ -1,6 +1,6 @@
 use core::directory::Directory;
 use core::global::DocId;
-use core::schema::Field;
+use core::schema::*;
 
 pub struct SegmentIndexReader {
     directory: Directory,

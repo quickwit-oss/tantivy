@@ -1,24 +1,22 @@
-use core::global::DocId;
-use core::schema::Field;
+use core::global::*;
+use core::schema::*;
 
 // Trait sufficient to serialize a segment.
 pub trait SerializableSegment<'a> {
-    type TFieldCur: FieldCursor<'a>;
-    fn field_cursor(&'a self) -> Self::TFieldCur;
+    type TermCur: TermCursor<'a>; // TODO rename TermCursorImpl
+    fn term_cursor(&'a mut self) -> Self::TermCur;
 }
 
 pub trait DocCursor: Iterator<Item=DocId> {
     fn doc(&self) -> DocId;
 }
 
-pub trait TermCursor<'a>: Iterator<Item=&'a String> {
-    type TDocCur: DocCursor;
-    fn get_term(&self) -> &'a String;
-    fn doc_cursor(&self) -> Self::TDocCur;
-}
 
-pub trait FieldCursor<'a>: Iterator<Item=&'a Field> {
-    type TTermCur: TermCursor<'a>;
-    fn get_field(&self) -> Option<&'a Field>;
-    fn term_cursor(&'a self) -> Self::TTermCur;
+// TODO make iteration over Fields somehow sorted
+// (Not only forms)
+pub trait TermCursor<'a> {
+    type DocCur: DocCursor;
+    fn advance(&mut self,) -> bool;
+    fn get_term(&self) -> Term<'a>;
+    fn doc_cursor(&self) -> Self::DocCur;
 }

@@ -1,6 +1,4 @@
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct Field(pub &'static str);
-
+use core::global::*;
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
 pub struct FieldValue {
@@ -11,7 +9,7 @@ pub struct FieldValue {
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Term<'a> {
-    pub field: &'a Field,
+    pub field: Field,
 	pub text: &'a str,
 }
 
