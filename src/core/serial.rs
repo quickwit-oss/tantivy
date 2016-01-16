@@ -11,12 +11,10 @@ pub trait DocCursor: Iterator<Item=DocId> {
     fn doc(&self) -> DocId;
 }
 
-
 // TODO make iteration over Fields somehow sorted
 // (Not only forms)
-pub trait TermCursor<'a> {
+
+pub trait TermCursor<'a>  {
     type DocCur: DocCursor;
-    fn advance(&mut self,) -> bool;
-    fn get_term(&self) -> Term<'a>;
-    fn doc_cursor(&self) -> Self::DocCur;
+    fn next(&mut self,) -> Option<(Term<'a>, Self::DocCur)>;
 }

@@ -160,6 +160,40 @@ pub struct CIWTermCursor<'a> {
 
 impl<'a> CIWTermCursor<'a> {
 
+	fn advance(&mut self,) -> bool {
+		let next_form = self.next_form();
+		if next_form {
+			true
+		}
+		else {
+			if self.next_field() {
+				self.advance()
+			}
+			else {
+				false
+			}
+		}
+	}
+
+	fn get_term(&self) -> Term<'a> {
+		Term {
+			field: self.field.clone(),
+			text: self.current_form_postings.as_ref().unwrap().form,
+		}
+	}
+
+	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
+		CIWDocCursor {
+			docs_it: self.current_form_postings
+				.as_ref()
+				.unwrap()
+				.postings
+				.doc_ids
+				.iter(),
+			current: None
+		}
+	}
+
 
 	fn next_form(&mut self,) -> bool {
 		match self.form_it.next() {
@@ -189,41 +223,17 @@ impl<'a> CIWTermCursor<'a> {
 	}
 }
 
+
 impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
 
 	type DocCur = CIWDocCursor<'a>;
 
-	fn get_term(&self) -> Term<'a> {
-		Term {
-			field: self.field.clone(),
-			text: self.current_form_postings.as_ref().unwrap().form,
-		}
-	}
-
-	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
-		CIWDocCursor {
-			docs_it: self.current_form_postings
-				.as_ref()
-				.unwrap()
-				.postings
-				.doc_ids
-				.iter(),
-			current: None
-		}
-	}
-
-	fn advance(&mut self,) -> bool {
-		let next_form = self.next_form();
-		if next_form {
-			true
+	fn next(&mut self,) -> Option<(Term<'a>, CIWDocCursor<'a>)> {
+		if self.advance() {
+			Some((self.get_term(), self.doc_cursor()))
 		}
 		else {
-			if self.next_field() {
-				self.advance()
-			}
-			else {
-				false
-			}
+			None
 		}
 	}
 }
@@ -231,7 +241,6 @@ impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
 //
 // TODO use a Term type
 //
-
 impl<'a> SerializableSegment<'a> for ClosedIndexWriter {
 
 	type TermCur = CIWTermCursor<'a>;

@@ -51,16 +51,22 @@ fn test_indexing() {
         {
             let mut doc = Document::new();
             doc.set(Field(1), "a b c d");
-            // TODO make iteration over Fields somehow sorted
             index_writer.add(doc);
         }
         let mut closed_index_writer:  ClosedIndexWriter = index_writer.close();
         let mut term_cursor = closed_index_writer.term_cursor();
         loop {
-            if !term_cursor.advance() {
-                break;
+            match term_cursor.next() {
+                Some((term, doc_it)) => {
+                    println!("{:?}", term);
+                    for doc in doc_it {
+                        println!("  doc {}", doc);
+                    }
+                },
+                None => {
+                    break;
+                }
             }
-            show_term(&term_cursor);
         }
         assert!(false);
     }
@@ -69,28 +75,6 @@ fn test_indexing() {
         // let index_reader = IndexReader::open(&directory);
     }
 }
-
-
-fn show_term<'a, T: TermCursor<'a>>(term_cursor: &T) {
-    println!("{:?}", term_cursor.get_term());
-    let doc_cursor = term_cursor.doc_cursor();
-    for doc in doc_cursor {
-        println!("doc({})", doc);
-    }
-}
-
-// fn show_doc_cursor<'a, D: DocCursor>(mut doc_cursor: D) {
-//     loop {
-//         match doc_cursor.next() {
-//             Some(doc) => {
-//                 println!("       {}", doc);
-//             },
-//             None =>  {
-//                 break;
-//             }
-//         }
-//     }
-// }
 
 
 #[test]
