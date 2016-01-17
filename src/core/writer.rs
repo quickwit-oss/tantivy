@@ -3,6 +3,7 @@ use std::io;
 use std::slice;
 use core::global::*;
 use core::schema::*;
+use core::codec::*;
 use core::directory::Directory;
 use core::analyzer::tokenize;
 use std::collections::{HashMap, BTreeMap};
@@ -13,6 +14,7 @@ use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use std::iter::Peekable;
 use core::serial::*;
+use core::error::*;
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -100,23 +102,12 @@ impl IndexWriter {
         self.max_doc += 1;
     }
 
-	pub fn close(self) -> ClosedIndexWriter {
-		ClosedIndexWriter {
-			index_writer: self
-		}
-	}
-
-    pub fn sync(&mut self,) -> Result<(), io::Error> {
-		self.directory.new_segment();
-        Ok(())
+    pub fn commit(self,) -> Result<usize> {
+		let segment = self.directory.new_segment();
+		SimpleCodec::write(&self, &segment)
     }
 
 }
-
-pub struct ClosedIndexWriter {
-	index_writer: IndexWriter,
-}
-
 
 
 
@@ -244,14 +235,14 @@ impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
 //
 // TODO use a Term type
 //
-impl<'a> SerializableSegment<'a> for ClosedIndexWriter {
+impl<'a> SerializableSegment<'a> for IndexWriter {
 
 	type TermCur = CIWTermCursor<'a>;
 
 	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
-		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.index_writer.term_writers.iter();
+		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.term_writers.iter();
 		let (field, field_writer) = field_it.next().unwrap(); // TODO handle no field
-		let mut term_cursor = CIWTermCursor {
+		let term_cursor = CIWTermCursor {
 			field_it: field_it,
 			form_it: CIWFormCursor {
 				term_it: field_writer.term_index.iter(),

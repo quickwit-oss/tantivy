@@ -10,7 +10,7 @@ use tantivy::core::serial::*;
 use tantivy::core::schema::*;
 use tantivy::core::codec::SimpleCodec;
 use tantivy::core::global::*;
-use tantivy::core::writer::{IndexWriter, ClosedIndexWriter};
+use tantivy::core::writer::IndexWriter;
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use std::ops::DerefMut;
 use tantivy::core::writer::SimplePostingsWriter;
@@ -36,7 +36,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::in_mem();
+    let directory = Directory::from("/home/paul/temp/idx");
     {
         let mut index_writer = IndexWriter::open(&directory);
         {
@@ -54,7 +54,11 @@ fn test_indexing() {
             doc.set(Field(1), "a b c d");
             index_writer.add(doc);
         }
-        let mut closed_index_writer:  ClosedIndexWriter = index_writer.close();
+        let commit_result = index_writer.commit();
+        // println!("{:?}", commit_result.err());
+        assert!(commit_result.is_ok());
+        // assert!(commit_result.is_ok());
+
         // SimpleCodec::write(closed_index_writer, output);
         // let mut term_cursor = closed_index_writer.term_cursor();
         // loop {
@@ -70,7 +74,7 @@ fn test_indexing() {
         //         }
         //     }
         // }
-        assert!(false);
+        // assert!(false);
     }
     {
         // TODO add index opening stuff
