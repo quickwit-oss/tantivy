@@ -8,5 +8,6 @@ pub mod analyzer;
 pub mod serial;
 pub mod reader;
 pub mod codec;
+pub mod error;
 
 pub use core::global::DocId;

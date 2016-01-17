@@ -8,6 +8,7 @@ use tantivy::core::postings::Postings;
 use tantivy::core::analyzer::tokenize;
 use tantivy::core::serial::*;
 use tantivy::core::schema::*;
+use tantivy::core::codec::SimpleCodec;
 use tantivy::core::global::*;
 use tantivy::core::writer::{IndexWriter, ClosedIndexWriter};
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
@@ -54,20 +55,21 @@ fn test_indexing() {
             index_writer.add(doc);
         }
         let mut closed_index_writer:  ClosedIndexWriter = index_writer.close();
-        let mut term_cursor = closed_index_writer.term_cursor();
-        loop {
-            match term_cursor.next() {
-                Some((term, doc_it)) => {
-                    println!("{:?}", term);
-                    for doc in doc_it {
-                        println!("  doc {}", doc);
-                    }
-                },
-                None => {
-                    break;
-                }
-            }
-        }
+        // SimpleCodec::write(closed_index_writer, output);
+        // let mut term_cursor = closed_index_writer.term_cursor();
+        // loop {
+        //     match term_cursor.next() {
+        //         Some((term, doc_it)) => {
+        //             println!("{:?}", term);
+        //             for doc in doc_it {
+        //                 println!("  doc {}", doc);
+        //             }
+        //         },
+        //         None => {
+        //             break;
+        //         }
+        //     }
+        // }
         assert!(false);
     }
     {

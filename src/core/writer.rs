@@ -183,11 +183,14 @@ impl<'a> CIWTermCursor<'a> {
 	}
 
 	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
+		let postings = self.current_form_postings
+			.as_ref()
+			.unwrap()
+			.postings;
+		let num_docs = postings.doc_ids.len();
 		CIWDocCursor {
-			docs_it: self.current_form_postings
-				.as_ref()
-				.unwrap()
-				.postings
+			num_docs: num_docs,
+			docs_it: postings
 				.doc_ids
 				.iter(),
 			current: None
@@ -245,7 +248,7 @@ impl<'a> SerializableSegment<'a> for ClosedIndexWriter {
 
 	type TermCur = CIWTermCursor<'a>;
 
-	fn term_cursor(&'a mut self) -> CIWTermCursor<'a> {
+	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
 		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.index_writer.term_writers.iter();
 		let (field, field_writer) = field_it.next().unwrap(); // TODO handle no field
 		let mut term_cursor = CIWTermCursor {
@@ -267,6 +270,7 @@ impl<'a> SerializableSegment<'a> for ClosedIndexWriter {
 pub struct CIWDocCursor<'a> {
 	docs_it: slice::Iter<'a, DocId>,
 	current: Option<DocId>,
+	num_docs: usize,
 }
 
 impl<'a> Iterator for CIWDocCursor<'a> {
@@ -279,7 +283,12 @@ impl<'a> Iterator for CIWDocCursor<'a> {
 }
 
 impl<'a> DocCursor for CIWDocCursor<'a> {
+
 	fn doc(&self,) -> DocId {
 		self.current.unwrap()
+	}
+
+	fn len(&self) -> usize {
+		self.num_docs
 	}
 }

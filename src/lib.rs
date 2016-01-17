@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
-
+extern crate fst;
 extern crate byteorder;
 
 extern crate rand;
