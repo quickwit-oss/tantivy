@@ -11,10 +11,10 @@ use std::io;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex, RwLock, MutexGuard};
 use std::fmt;
 use std::ops::Deref;
 use std::cell::RefCell;
-use std::sync::Arc;
 use core::error::*;
 use rand::{thread_rng, Rng};
 
@@ -30,10 +30,11 @@ pub fn generate_segment_name() -> SegmentId {
     SegmentId( String::from("_") + &random_name)
 }
 
+
 #[derive(Clone)]
 pub struct Directory {
     index_path: PathBuf,
-    mmap_cache: RefCell<HashMap<PathBuf, SharedMmapMemory >>,
+    mmap_cache: Arc<Mutex<HashMap<PathBuf, SharedMmapMemory>>>,
 }
 
 impl fmt::Debug for Directory {
@@ -58,7 +59,7 @@ impl Directory {
     pub fn from(filepath: &str) -> Directory {
         Directory {
             index_path: PathBuf::from(filepath),
-            mmap_cache: RefCell::new(HashMap::new()),
+            mmap_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -66,19 +67,19 @@ impl Directory {
         self.index_path.join(relative_path)
     }
 
-    fn segment<'a>(&'a self, segment_id: &SegmentId) -> Segment<'a> {
+    pub fn segment(&self, segment_id: &SegmentId) -> Segment {
         Segment {
-            directory: self,
+            directory: self.clone(),
             segment_id: segment_id.clone()
         }
     }
 
-    pub fn new_segment<'a>(&'a self,) -> Segment<'a> {
+    pub fn new_segment(&self,) -> Segment {
         // TODO check it does not exists
         self.segment(&generate_segment_name())
     }
 
-    fn open_writable<'a>(&self, relative_path: &PathBuf) -> Result<File> {
+    fn open_writable(&self, relative_path: &PathBuf) -> Result<File> {
         let full_path = self.resolve_path(relative_path);
         match File::create(full_path.clone()) {
             Ok(f) => Ok(f),
@@ -89,13 +90,20 @@ impl Directory {
         }
     }
 
-    fn open_readable<'a>(&self, relative_path: &PathBuf) -> Result<SharedMmapMemory> {
+    fn open_readable(&self, relative_path: &PathBuf) -> Result<SharedMmapMemory> {
         let full_path = self.resolve_path(relative_path);
-        let mut cache = self.mmap_cache.borrow_mut();
-        if !cache.contains_key(&full_path) {
-            cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
+        let mut cache_mutex = self.mmap_cache.deref();
+        match cache_mutex.lock() {
+            Ok(mut cache) => {
+                if !cache.contains_key(&full_path) {
+                    cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
+                }
+                return Ok(cache.get(&full_path).unwrap().clone())
+            },
+            Err(_) => {
+                return Err(Error::CannotAcquireLock(String::from("Cannot acquire mmap cache lock.")))
+            }
         }
-        Ok(cache.get(&full_path).unwrap().clone())
     }
 }
 
@@ -109,12 +117,12 @@ pub enum SegmentComponent {
 }
 
 #[derive(Debug)]
-pub struct Segment<'a> {
-    directory: &'a Directory,
+pub struct Segment {
+    directory: Directory,
     segment_id: SegmentId,
 }
 
-impl<'a> Segment<'a> {
+impl Segment {
     fn path_suffix(component: SegmentComponent)-> &'static str {
         match component {
             SegmentComponent::POSTINGS => ".idx",

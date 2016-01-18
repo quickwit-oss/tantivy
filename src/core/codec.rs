@@ -6,9 +6,12 @@ use core::error::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use core::directory::Segment;
 use core::directory::SegmentComponent;
+use core::reader::*;
 
 
 pub trait Codec {
+    // type SearchableSegmentImpl: SearchableSegment;
+    // fn open(segment: &Segment) -> Self::SearchableSegmentImpl;
     fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize>;
 }
 
@@ -39,9 +42,20 @@ impl SimpleCodec {
     }
 }
 
+// TODO impl packed int
+// TODO skip lists
+
 impl Codec for SimpleCodec {
+
+    // type SearchableSegmentImpl = SimpleSearchableSegment;
+    //
+    // fn open(segment: &Segment) -> SimpleSearchableSegment {
+    //     SimpleSearchableSegment::new(segment)
+    // }
+
+
     fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize> {
-        let mut term_write = try!(segment.open_writable(SegmentComponent::TERMS));
+        let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
         let mut postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));
         let term_trie_builder_result = MapBuilder::new(term_write);
         if term_trie_builder_result.is_err() {

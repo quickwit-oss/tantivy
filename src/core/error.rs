@@ -7,6 +7,7 @@ pub enum Error {
     IOError(io::ErrorKind, String),
     FileNotFound(String),
     ReadOnly(String),
+    CannotAcquireLock(String),
 }
 
 pub type Result<T> = result::Result<T, Error>;

@@ -36,7 +36,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::from("/home/paul/temp/idx");
+    let directory = Directory::from("/Users/pmasurel/temp/idx");
     {
         let mut index_writer = IndexWriter::open(&directory);
         {
@@ -55,10 +55,10 @@ fn test_indexing() {
             index_writer.add(doc);
         }
         let commit_result = index_writer.commit();
-        // println!("{:?}", commit_result.err());
-        assert!(commit_result.is_ok());
+        println!("{:?}", commit_result.err());
+        //debug_assert!(commit_result.is_ok(), commit_result);
         // assert!(commit_result.is_ok());
-
+        assert!(false);
         // SimpleCodec::write(closed_index_writer, output);
         // let mut term_cursor = closed_index_writer.term_cursor();
         // loop {
