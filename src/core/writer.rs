@@ -15,6 +15,8 @@ use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use std::iter::Peekable;
 use core::serial::*;
 use core::error::*;
+use std::cell::RefCell;
+use std::borrow::BorrowMut;
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -166,11 +168,12 @@ impl<'a> CIWTermCursor<'a> {
 		}
 	}
 
-	fn get_term(&self) -> Term<'a> {
-		Term {
-			field: self.field.clone(),
-			text: self.current_form_postings.as_ref().unwrap().form,
-		}
+	fn get_term(&self) -> Term {
+		Term::from_field_text(self.field.clone(), self.current_form_postings.as_ref().unwrap().form)
+		// Term {
+		// 	field: self.field.clone(),
+		// 	text: self.current_form_postings.as_ref().unwrap().form,
+		// }
 	}
 
 	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
@@ -218,11 +221,11 @@ impl<'a> CIWTermCursor<'a> {
 }
 
 
-impl<'a> TermCursor<'a> for CIWTermCursor<'a> {
+impl<'a> TermCursor for CIWTermCursor<'a> {
 
 	type DocCur = CIWDocCursor<'a>;
 
-	fn next(&mut self,) -> Option<(Term<'a>, CIWDocCursor<'a>)> {
+	fn next(&mut self,) -> Option<(Term, CIWDocCursor<'a>)> {
 		if self.advance() {
 			Some((self.get_term(), self.doc_cursor()))
 		}
@@ -242,7 +245,7 @@ impl<'a> SerializableSegment<'a> for IndexWriter {
 	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
 		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.term_writers.iter();
 		let (field, field_writer) = field_it.next().unwrap(); // TODO handle no field
-		let term_cursor = CIWTermCursor {
+		CIWTermCursor {
 			field_it: field_it,
 			form_it: CIWFormCursor {
 				term_it: field_writer.term_index.iter(),
@@ -250,9 +253,8 @@ impl<'a> SerializableSegment<'a> for IndexWriter {
 			},
 			field: field,
 			current_form_postings: None,
-		};
+		}
 		// TODO handle having no fields at all
-		term_cursor
 	}
 }
 

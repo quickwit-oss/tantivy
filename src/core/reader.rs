@@ -1,40 +1,46 @@
 use core::directory::Directory;
 use core::directory::Segment;
+use core::schema::Term;
+// use fst::stream::Streamer;
+use fst;
 
 pub struct SegmentIndexReader {
-    directory: Directory,
+    segment: Segment,
+    term_offsets: fst::Map,
 }
-
-
-// pub trait SearchableSegment {
+//
+// pub struct SegmentDocCursor<'a> {
+//     data: &'a [u8],
+// }
+//
+// struct SegmentTermCur<'a> {
+//     segment: &'a Segment,
+//     fst_streamer: fst::map::Stream<'a>,
+//     term: Term<'a>,
 //
 // }
 //
-// pub struct SimpleSearchableSegment {
-//     segment: Segment,
-// }
+// impl<'a> SegmentTermCur<'a> {
 //
-// impl SimpleSearchableSegment {
-//
-//     pub fn new(segment: &Segment) -> SimpleSearchableSegment {
-//         SimpleSearchableSegment {
-//             segment: segment.clone()
+//     fn next(&mut self,) -> Option<(Term<'a>, SegmentDocCursor<'a>)> {
+//         match self.fst_streamer.next() {
+//             Some(_) => None,
+//             None => None
 //         }
 //     }
 // }
 //
-// impl SearchableSegment for SimpleSearchableSegment {
-//
-//
-// }
-
-
 //
 // impl SegmentIndexReader {
 //
-//     pub fn open(directory: &Directory) -> IndexReader {
-// 		IndexReader {
-// 			directory: (*directory).clone(),
+//     fn term_cursor<'a>(&'a self) -> SegmentTermCur<'a> {
+//         let term: Term<'a> {
+//             self.
+//         };
+//         SegmentTermCur {
+//             segment: &self.segment,
+//             fst_streamer: self.term_offsets.stream(),
+//             term:
 //         }
 //     }
 //

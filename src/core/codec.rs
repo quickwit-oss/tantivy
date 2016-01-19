@@ -62,7 +62,7 @@ impl Codec for SimpleCodec {
             // TODO include cause somehow
             return Err(Error::WriteError(String::from("Failed creating the term builder")));
         }
-        let mut term_buffer: String = String::new();
+        let mut term_buffer: Vec<u8> = Vec::new();
         let mut term_trie_builder = term_trie_builder_result.unwrap();
         let mut term_cursor = index.term_cursor();
         let mut offset: usize = 0;
