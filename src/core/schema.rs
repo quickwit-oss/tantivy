@@ -31,6 +31,12 @@ impl Term {
         }
     }
 
+    pub fn from(data: &[u8]) -> Term {
+        Term {
+            data: Vec::from(data),
+        }
+    }
+
     pub fn write_into(&self, buf: &mut Vec<u8>) {
         buf.clear();
         buf.extend(&self.data);

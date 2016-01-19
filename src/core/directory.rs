@@ -18,7 +18,6 @@ use std::cell::RefCell;
 use core::error::*;
 use rand::{thread_rng, Rng};
 
-
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
 
@@ -154,5 +153,14 @@ pub struct SharedMmapMemory(Arc<Mmap>);
 impl SharedMmapMemory {
     pub fn new(mmap_memory: Mmap) -> SharedMmapMemory {
         SharedMmapMemory(Arc::new(mmap_memory))
+    }
+}
+
+impl Borrow<[u8]> for SharedMmapMemory {
+
+    fn borrow(&self) -> &[u8] {
+        let SharedMmapMemory(ref arc) = *self;
+        let mmap: &Mmap = arc.borrow();
+        unsafe { mmap.as_slice() }
     }
 }
