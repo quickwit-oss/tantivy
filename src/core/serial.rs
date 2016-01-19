@@ -9,7 +9,7 @@ pub trait SerializableSegment<'a> {
 
 pub trait DocCursor: Iterator<Item=DocId> {
     fn doc(&self) -> DocId;
-    fn len(&self) -> usize;
+    fn len(&self) -> DocId;
 }
 
 // TODO make iteration over Fields somehow sorted

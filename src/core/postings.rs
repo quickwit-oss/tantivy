@@ -57,7 +57,7 @@ impl<R: Read> Iterator for SimplePostingsIterator<R> {
 			Ok(num_bytes) => {
 				if num_bytes == 8 {
 					unsafe {
-						let val = *(*buf.as_ptr() as *const usize);
+						let val = *(*buf.as_ptr() as *const u32);
 						return Some(val)
 					}
 				}

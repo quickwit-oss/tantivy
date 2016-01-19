@@ -70,7 +70,7 @@ impl FieldWriter {
 }
 
 pub struct IndexWriter {
-    max_doc: usize,
+    max_doc: DocId,
     term_writers: HashMap<Field, FieldWriter>,
 	directory: Directory,
 }
@@ -169,11 +169,9 @@ impl<'a> CIWTermCursor<'a> {
 	}
 
 	fn get_term(&self) -> Term {
-		Term::from_field_text(self.field.clone(), self.current_form_postings.as_ref().unwrap().form)
-		// Term {
-		// 	field: self.field.clone(),
-		// 	text: self.current_form_postings.as_ref().unwrap().form,
-		// }
+		let field = self.field.clone();
+		let value = self.current_form_postings.as_ref().unwrap().form;
+		Term::from_field_text(field, value)
 	}
 
 	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
@@ -181,7 +179,7 @@ impl<'a> CIWTermCursor<'a> {
 			.as_ref()
 			.unwrap()
 			.postings;
-		let num_docs = postings.doc_ids.len();
+		let num_docs = postings.doc_ids.len() as DocId;
 		CIWDocCursor {
 			num_docs: num_docs,
 			docs_it: postings
@@ -190,7 +188,6 @@ impl<'a> CIWTermCursor<'a> {
 			current: None
 		}
 	}
-
 
 	fn next_form(&mut self,) -> bool {
 		match self.form_it.next() {
@@ -219,7 +216,6 @@ impl<'a> CIWTermCursor<'a> {
 		}
 	}
 }
-
 
 impl<'a> TermCursor for CIWTermCursor<'a> {
 
@@ -263,7 +259,7 @@ impl<'a> SerializableSegment<'a> for IndexWriter {
 pub struct CIWDocCursor<'a> {
 	docs_it: slice::Iter<'a, DocId>,
 	current: Option<DocId>,
-	num_docs: usize,
+	num_docs: DocId,
 }
 
 impl<'a> Iterator for CIWDocCursor<'a> {
@@ -281,7 +277,7 @@ impl<'a> DocCursor for CIWDocCursor<'a> {
 		self.current.unwrap()
 	}
 
-	fn len(&self) -> usize {
+	fn len(&self) -> DocId {
 		self.num_docs
 	}
 }
