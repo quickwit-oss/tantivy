@@ -28,7 +28,7 @@ impl SimpleCodec {
             },
         }
         for doc_id in doc_it {
-            println!("doc {}", doc_id);
+            println!("  Doc {}", doc_id);
             match postings.write_u32::<LittleEndian>(doc_id as u32) {
                 Ok(_) => {},
                 Err(_) => {
@@ -69,6 +69,7 @@ impl Codec for SimpleCodec {
         loop {
             match term_cursor.next() {
                 Some((term, doc_it)) => {
+                    println!("Term {}", term.text());
                     term.write_into(&mut term_buffer);
                     match term_trie_builder.insert(&term_buffer, offset as u64) {
                         Ok(_) => {}
@@ -83,6 +84,7 @@ impl Codec for SimpleCodec {
                 }
             }
         }
+        term_trie_builder.finish();
         Ok(0)
 
     }

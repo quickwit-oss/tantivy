@@ -17,6 +17,7 @@ use core::serial::*;
 use core::error::*;
 use std::cell::RefCell;
 use std::borrow::BorrowMut;
+use core::directory::Segment;
 
 pub struct SimplePostingsWriter {
 	doc_ids: Vec<DocId>,
@@ -104,9 +105,9 @@ impl IndexWriter {
         self.max_doc += 1;
     }
 
-    pub fn commit(self,) -> Result<usize> {
+    pub fn commit(self,) -> Result<(Segment, usize)> {
 		let segment = self.directory.new_segment();
-		SimpleCodec::write(&self, &segment)
+		SimpleCodec::write(&self, &segment).map(|sz| (segment, sz))
     }
 
 }

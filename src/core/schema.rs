@@ -1,6 +1,7 @@
 use core::global::*;
 use std::fmt::Write;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::string::FromUtf8Error;
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
 pub struct FieldValue {
@@ -11,7 +12,7 @@ pub struct FieldValue {
 
 #[derive(Clone,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Term {
-    pub data: Vec<u8>, // avoid copies
+    data: Vec<u8>, // avoid copies
     // pub field: Field,
 	// pub text: &'a [u8],
 }
@@ -19,6 +20,10 @@ pub struct Term {
 impl Term {
 
     // TODO avoid all these copies.
+
+    pub fn text(&self,) -> String {
+        String::from_utf8_lossy(&self.data[1..]).into_owned()
+    }
 
     pub fn from_field_text(field: Field, text: &str) -> Term {
         let mut buffer = Vec::with_capacity(1 + text.len());
