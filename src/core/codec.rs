@@ -9,15 +9,6 @@ use core::directory::SegmentComponent;
 use core::reader::*;
 
 
-pub trait Codec {
-    //
-    // type SearchableSegmentImpl: SearchableSegment;
-    //
-    // fn open(segment: &Segment) -> Self::SearchableSegmentImpl;
-
-    fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize>;
-}
-
 pub struct SimpleCodec;
 
 impl SimpleCodec {
@@ -43,21 +34,13 @@ impl SimpleCodec {
         }
         Ok(written_bytes)
     }
-}
 
-// TODO impl packed int
-// TODO skip lists
-
-impl Codec for SimpleCodec {
-
-    // type SearchableSegmentImpl = SimpleSearchableSegment;
-    //
-    // fn open(segment: &Segment) -> SimpleSearchableSegment {
-    //     SimpleSearchableSegment::new(segment)
-    // }
+    // TODO impl packed int
+    // TODO skip lists
 
 
-    fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize> {
+
+    pub fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize> {
         let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
         let mut postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));
         let term_trie_builder_result = MapBuilder::new(term_write);
