@@ -1,9 +1,9 @@
 use core::directory::Directory;
 use core::directory::Segment;
 use core::schema::Term;
-use core::directory::SharedMmapMemory;
 use fst::Streamer;
 use fst;
+// use fst::raw::{Fst, FstData};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
@@ -11,6 +11,11 @@ use core::global::DocId;
 use core::serial::{DocCursor, TermCursor};
 use core::serial::SerializableSegment;
 use core::directory::SegmentComponent;
+use fst::raw::MmapReadOnly;
+use core::error::{Result, Error};
+
+
+
 
 pub struct SegmentDocCursor<'a> {
     postings_data: Cursor<&'a [u8]>,
@@ -83,25 +88,26 @@ impl<'a> TermCursor for SegmentTermCur<'a> {
 pub struct SegmentIndexReader {
     segment: Segment,
     term_offsets: fst::Map,
-    postings_data: SharedMmapMemory,
+    postings_data: MmapReadOnly,
 }
 
 impl SegmentIndexReader {
     //
-    // fn open(&self, ) -> Result<Mmap> {
-    //
-    // }
-    //
     // pub fn open(segment: Segment) -> Result<SegmentIndexReader> {
-    //     let term_filepath = segment.get_full_path(SegmentComponent::TERMS);
-    //     let term_shared_mmap =
-    //     match fst::Map::from_path(term_filepath) {
-    //         Some()
-    //     }
-    //     let postings_shared_mmap = try!(segment.get_data(SegmentComponent::POSTINGS));
-    //     SegmentIndexReader {
-    //
-    //     }
+    //     let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
+    //     let term_offsets = match Fst::new(FstData::Mmap(term_shared_mmap)).map(fst::Map) {
+    //         Ok(term_offsets) => term_offsets,
+    //         Err(_) => {
+    //             let filepath = segment.relative_path(SegmentComponent::TERMS);
+    //             return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
+    //         }
+    //     };
+    //     let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
+    //     Ok(SegmentIndexReader {
+    //         postings_data: postings_shared_mmap,
+    //         term_offsets: term_offsets,
+    //         segment: segment,
+    //     })
     // }
 
 }
@@ -114,7 +120,7 @@ impl<'a> SerializableSegment<'a> for SegmentIndexReader {
         SegmentTermCur {
             segment: &self.segment,
             fst_streamer: self.term_offsets.stream(),
-            postings_data: self.postings_data.borrow(),
+            postings_data: unsafe { self.postings_data.borrow().as_slice() },
         }
     }
 }

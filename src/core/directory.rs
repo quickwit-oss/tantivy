@@ -1,6 +1,3 @@
-extern crate memmap;
-
-use self::memmap::{Mmap, Protection};
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -17,6 +14,8 @@ use std::ops::Deref;
 use std::cell::RefCell;
 use core::error::*;
 use rand::{thread_rng, Rng};
+// use memmap::{Mmap, Protection};
+use fst::raw::MmapReadOnly;
 
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
@@ -33,7 +32,7 @@ pub fn generate_segment_name() -> SegmentId {
 #[derive(Clone)]
 pub struct Directory {
     index_path: PathBuf,
-    mmap_cache: Arc<Mutex<HashMap<PathBuf, SharedMmapMemory>>>,
+    mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
 }
 
 impl fmt::Debug for Directory {
@@ -42,9 +41,9 @@ impl fmt::Debug for Directory {
    }
 }
 
-fn open_mmap(full_path: &PathBuf) -> Result<SharedMmapMemory> {
-    match Mmap::open_path(full_path.clone(), Protection::Read) {
-        Ok(mmapped_file) => Ok(SharedMmapMemory::new(mmapped_file)),
+fn open_mmap(full_path: &PathBuf) -> Result<MmapReadOnly> {
+    match MmapReadOnly::open_path(full_path.clone()) {
+        Ok(mmapped_file) => Ok(mmapped_file),
         Err(ioerr) => {
             // TODO add file
             let error_msg = format!("Read-Only MMap of {:?} failed", full_path);
@@ -89,7 +88,7 @@ impl Directory {
         }
     }
 
-    fn open_readable(&self, relative_path: &PathBuf) -> Result<SharedMmapMemory> {
+    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
         let full_path = self.resolve_path(relative_path);
         let mut cache_mutex = self.mmap_cache.deref();
         match cache_mutex.lock() {
@@ -97,7 +96,10 @@ impl Directory {
                 if !cache.contains_key(&full_path) {
                     cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
                 }
-                return Ok(cache.get(&full_path).unwrap().clone())
+                let mmap_readonly: &MmapReadOnly = cache.get(&full_path).unwrap();
+                // TODO remove if a proper clone is available
+                let len = unsafe { mmap_readonly.as_slice().len() };
+                return Ok(mmap_readonly.range(0, len))
             },
             Err(_) => {
                 return Err(Error::CannotAcquireLock(String::from("Cannot acquire mmap cache lock.")))
@@ -130,42 +132,19 @@ impl Segment {
         }
     }
 
-    fn get_full_path(&self, component: SegmentComponent) -> PathBuf {
-        let relative_path = self.get_relative_path(component);
-        self.directory.resolve_path(&relative_path)
-    }
-
-    fn get_relative_path(&self, component: SegmentComponent) -> PathBuf {
+    fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let SegmentId(ref segment_id_str) = self.segment_id;
         let filename = String::new() + segment_id_str + Segment::path_suffix(component);
         PathBuf::from(filename)
     }
 
-    pub fn get_data(&self, component: SegmentComponent) -> Result<SharedMmapMemory> {
-        let path = self.get_relative_path(component);
-        self.directory.open_readable(&path)
+    pub fn mmap(&self, component: SegmentComponent) -> Result<MmapReadOnly> {
+        let path = self.relative_path(component);
+        self.directory.mmap(&path)
     }
 
     pub fn open_writable(&self, component: SegmentComponent) -> Result<File> {
-        let path = self.get_relative_path(component);
+        let path = self.relative_path(component);
         self.directory.open_writable(&path)
-    }
-}
-
-#[derive(Clone)]
-pub struct SharedMmapMemory(Arc<Mmap>);
-
-impl SharedMmapMemory {
-    pub fn new(mmap_memory: Mmap) -> SharedMmapMemory {
-        SharedMmapMemory(Arc::new(mmap_memory))
-    }
-}
-
-impl Borrow<[u8]> for SharedMmapMemory {
-
-    fn borrow(&self) -> &[u8] {
-        let SharedMmapMemory(ref arc) = *self;
-        let mmap: &Mmap = arc.borrow();
-        unsafe { mmap.as_slice() }
     }
 }

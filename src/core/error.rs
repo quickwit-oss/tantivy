@@ -8,6 +8,7 @@ pub enum Error {
     FileNotFound(String),
     ReadOnly(String),
     CannotAcquireLock(String),
+    FSTFormat(String),
 }
 
 pub type Result<T> = result::Result<T, Error>;
