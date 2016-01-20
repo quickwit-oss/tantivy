@@ -10,8 +10,11 @@ use core::reader::*;
 
 
 pub trait Codec {
+    //
     // type SearchableSegmentImpl: SearchableSegment;
+    //
     // fn open(segment: &Segment) -> Self::SearchableSegmentImpl;
+
     fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize>;
 }
 
@@ -69,7 +72,7 @@ impl Codec for SimpleCodec {
         loop {
             match term_cursor.next() {
                 Some((term, doc_it)) => {
-                    println!("Term {}", term.text());
+                    println!("{:?}", term);
                     term.write_into(&mut term_buffer);
                     match term_trie_builder.insert(&term_buffer, offset as u64) {
                         Ok(_) => {}

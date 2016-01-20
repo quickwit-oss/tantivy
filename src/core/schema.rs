@@ -2,6 +2,8 @@ use core::global::*;
 use std::fmt::Write;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::string::FromUtf8Error;
+use std::str;
+use std::fmt;
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
 pub struct FieldValue {
@@ -21,8 +23,12 @@ impl Term {
 
     // TODO avoid all these copies.
 
-    pub fn text(&self,) -> String {
-        String::from_utf8_lossy(&self.data[1..]).into_owned()
+    pub fn field(&self,) -> Field {
+        Field(self.data[0])
+    }
+
+    pub fn text(&self,) -> &str {
+        str::from_utf8(&self.data[1..]).unwrap()
     }
 
     pub fn from_field_text(field: Field, text: &str) -> Term {
@@ -45,6 +51,12 @@ impl Term {
     pub fn write_into(&self, buf: &mut Vec<u8>) {
         buf.clear();
         buf.extend(&self.data);
+    }
+}
+
+impl fmt::Debug for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Term({}: {})", self.data[0], self.text())
     }
 }
 

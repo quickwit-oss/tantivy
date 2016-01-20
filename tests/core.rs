@@ -39,6 +39,7 @@ fn test_tokenizer() {
 fn test_indexing() {
     let directory = Directory::from("/Users/pmasurel/temp/idx");
     {
+        // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
         {
             let mut doc = Document::new();
@@ -65,7 +66,7 @@ fn test_indexing() {
             loop {
                 match term_cursor.next() {
                     Some((term, mut doc_cursor)) => {
-                        println!("Term {:?}", term.text());
+                        println!("{:?}", term);
                         for doc in doc_cursor {
                             println!("  Doc {}", doc);
                         }
