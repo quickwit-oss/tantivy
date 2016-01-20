@@ -132,7 +132,7 @@ impl Segment {
         }
     }
 
-    fn relative_path(&self, component: SegmentComponent) -> PathBuf {
+    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let SegmentId(ref segment_id_str) = self.segment_id;
         let filename = String::new() + segment_id_str + Segment::path_suffix(component);
         PathBuf::from(filename)

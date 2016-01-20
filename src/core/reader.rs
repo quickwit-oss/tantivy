@@ -3,7 +3,7 @@ use core::directory::Segment;
 use core::schema::Term;
 use fst::Streamer;
 use fst;
-// use fst::raw::{Fst, FstData};
+use fst::raw::Fst;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
@@ -92,23 +92,23 @@ pub struct SegmentIndexReader {
 }
 
 impl SegmentIndexReader {
-    //
-    // pub fn open(segment: Segment) -> Result<SegmentIndexReader> {
-    //     let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
-    //     let term_offsets = match Fst::new(FstData::Mmap(term_shared_mmap)).map(fst::Map) {
-    //         Ok(term_offsets) => term_offsets,
-    //         Err(_) => {
-    //             let filepath = segment.relative_path(SegmentComponent::TERMS);
-    //             return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
-    //         }
-    //     };
-    //     let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
-    //     Ok(SegmentIndexReader {
-    //         postings_data: postings_shared_mmap,
-    //         term_offsets: term_offsets,
-    //         segment: segment,
-    //     })
-    // }
+
+    pub fn open(segment: Segment) -> Result<SegmentIndexReader> {
+        let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
+        let term_offsets = match fst::Map::from_mmap(term_shared_mmap) {
+            Ok(term_offsets) => term_offsets,
+            Err(_) => {
+                let filepath = segment.relative_path(SegmentComponent::TERMS);
+                return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
+            }
+        };
+        let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
+        Ok(SegmentIndexReader {
+            postings_data: postings_shared_mmap,
+            term_offsets: term_offsets,
+            segment: segment,
+        })
+    }
 
 }
 
