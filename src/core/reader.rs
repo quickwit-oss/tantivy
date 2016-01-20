@@ -8,23 +8,9 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
 use core::global::DocId;
-use core::serial::DocCursor;
-
-pub struct SegmentIndexReader {
-    segment: Segment,
-    term_offsets: fst::Map,
-    postings_data: SharedMmapMemory,
-}
-
-impl SegmentIndexReader {
-    fn term_cursor<'a>(&'a self) -> SegmentTermCur<'a> {
-        SegmentTermCur {
-            segment: &self.segment,
-            fst_streamer: self.term_offsets.stream(),
-            postings_data: self.postings_data.borrow(),
-        }
-    }
-}
+use core::serial::{DocCursor, TermCursor};
+use core::serial::SerializableSegment;
+use core::directory::SegmentComponent;
 
 pub struct SegmentDocCursor<'a> {
     postings_data: Cursor<&'a [u8]>,
@@ -57,13 +43,17 @@ impl<'a> DocCursor for SegmentDocCursor<'a> {
     }
 }
 
-struct SegmentTermCur<'a> {
+// ------------------------
+
+pub struct SegmentTermCur<'a> {
     segment: &'a Segment,
     fst_streamer: fst::map::Stream<'a>,
     postings_data: &'a [u8],
 }
 
-impl<'a> SegmentTermCur<'a> {
+impl<'a> TermCursor for SegmentTermCur<'a> {
+
+    type DocCur = SegmentDocCursor<'a>;
 
     fn next(&mut self,) -> Option<(Term, SegmentDocCursor<'a>)> {
         match self.fst_streamer.next() {
@@ -81,6 +71,50 @@ impl<'a> SegmentTermCur<'a> {
                 Some((term, doc_cursor))
             },
             None => None
+        }
+    }
+}
+
+
+// ----------------------
+
+// TODO file structure should be in codec
+
+pub struct SegmentIndexReader {
+    segment: Segment,
+    term_offsets: fst::Map,
+    postings_data: SharedMmapMemory,
+}
+
+impl SegmentIndexReader {
+    //
+    // fn open(&self, ) -> Result<Mmap> {
+    //
+    // }
+    //
+    // pub fn open(segment: Segment) -> Result<SegmentIndexReader> {
+    //     let term_filepath = segment.get_full_path(SegmentComponent::TERMS);
+    //     let term_shared_mmap =
+    //     match fst::Map::from_path(term_filepath) {
+    //         Some()
+    //     }
+    //     let postings_shared_mmap = try!(segment.get_data(SegmentComponent::POSTINGS));
+    //     SegmentIndexReader {
+    //
+    //     }
+    // }
+
+}
+
+impl<'a> SerializableSegment<'a> for SegmentIndexReader {
+
+    type TermCur = SegmentTermCur<'a>;
+
+    fn term_cursor(&'a self) -> SegmentTermCur<'a> {
+        SegmentTermCur {
+            segment: &self.segment,
+            fst_streamer: self.term_offsets.stream(),
+            postings_data: self.postings_data.borrow(),
         }
     }
 }

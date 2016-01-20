@@ -130,6 +130,11 @@ impl Segment {
         }
     }
 
+    fn get_full_path(&self, component: SegmentComponent) -> PathBuf {
+        let relative_path = self.get_relative_path(component);
+        self.directory.resolve_path(&relative_path)
+    }
+
     fn get_relative_path(&self, component: SegmentComponent) -> PathBuf {
         let SegmentId(ref segment_id_str) = self.segment_id;
         let filename = String::new() + segment_id_str + Segment::path_suffix(component);

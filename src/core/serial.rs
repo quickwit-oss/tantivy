@@ -16,6 +16,5 @@ pub trait DocCursor: Iterator<Item=DocId> {
 
 pub trait TermCursor  {
     type DocCur: DocCursor;
-    // fn next(&mut self,) -> Option<(Term<'a>, Self::DocCur)>;
     fn next(&mut self,) -> Option<(Term, Self::DocCur)>;
 }
