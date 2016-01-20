@@ -70,9 +70,22 @@ impl FieldWriter {
     }
 }
 
-pub struct IndexWriter {
+pub struct SegmentWriter {
     max_doc: DocId,
     term_writers: HashMap<Field, FieldWriter>,
+}
+
+impl SegmentWriter {
+	fn new() -> SegmentWriter {
+		SegmentWriter {
+			max_doc: 0,
+			term_writers: HashMap::new(),
+		}
+	}
+}
+
+pub struct IndexWriter {
+	segment_writer: SegmentWriter,
 	directory: Directory,
 }
 
@@ -80,12 +93,29 @@ impl IndexWriter {
 
     pub fn open(directory: &Directory) -> IndexWriter {
 		IndexWriter {
-            max_doc: 0,
-            term_writers: HashMap::new(),
-			directory: (*directory).clone(),
-        }
+			segment_writer: SegmentWriter::new(),
+			directory: directory.clone(),
+		}
     }
 
+    pub fn add(&mut self, doc: Document) {
+        self.segment_writer.add(doc);
+    }
+
+    pub fn commit(&mut self,) -> Result<Segment> {
+		let segment = self.directory.new_segment();
+		try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
+		// At this point, the segment is written
+		// We still need to sync all of the file, as well as the parent directory.
+		try!(self.directory.sync(segment.clone()));
+		self.directory.publish_segment(segment.clone());
+		self.segment_writer = SegmentWriter::new();
+		Ok(segment)
+	}
+
+}
+
+impl SegmentWriter {
     fn get_field_writer<'a>(&'a mut self, field: &Field) -> &'a mut FieldWriter {
         if !self.term_writers.contains_key(field) {
             self.term_writers.insert((*field).clone(), FieldWriter::new());
@@ -105,10 +135,6 @@ impl IndexWriter {
         self.max_doc += 1;
     }
 
-    pub fn commit(self,) -> Result<(Segment, usize)> {
-		let segment = self.directory.new_segment();
-		SimpleCodec::write(&self, &segment).map(|sz| (segment, sz))
-    }
 
 }
 
@@ -232,16 +258,14 @@ impl<'a> TermCursor for CIWTermCursor<'a> {
 	}
 }
 
-//
-// TODO use a Term type
-//
-impl<'a> SerializableSegment<'a> for IndexWriter {
+
+impl<'a> SerializableSegment<'a> for SegmentWriter {
 
 	type TermCur = CIWTermCursor<'a>;
 
 	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
 		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.term_writers.iter();
-		let (field, field_writer) = field_it.next().unwrap(); // TODO handle no field
+		let (field, field_writer) = field_it.next().unwrap();
 		CIWTermCursor {
 			field_it: field_it,
 			form_it: CIWFormCursor {

@@ -19,6 +19,7 @@ use tantivy::core::reader::SegmentIndexReader;
 use std::io::{ BufWriter, Write};
 use regex::Regex;
 use std::convert::From;
+use std::path::PathBuf;
 
 #[test]
 fn test_intersection() {
@@ -37,7 +38,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::from("/Users/pmasurel/temp/idx");
+    let directory = Directory::from("/Users/pmasurel/temp/idx").unwrap();
     {
         // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
@@ -57,10 +58,12 @@ fn test_indexing() {
             index_writer.add(doc);
         }
 
-        let (segment, num_bytes) = index_writer.commit().unwrap();
+        let commit_result = index_writer.commit();
+        assert!(commit_result.is_ok());
         // reading the segment
         println!("------");
         {
+            let segment = commit_result.unwrap();
             let index_reader = SegmentIndexReader::open(segment).unwrap();
             let mut term_cursor = index_reader.term_cursor();
             loop {
@@ -84,6 +87,8 @@ fn test_indexing() {
         // let index_reader = IndexReader::open(&directory);
     }
 }
+
+
 
 
 #[test]

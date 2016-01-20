@@ -39,7 +39,6 @@ impl SimpleCodec {
     // TODO skip lists
 
 
-
     pub fn write<'a, I: SerializableSegment<'a>>(index: &'a I, segment: &'a Segment) -> Result<usize> {
         let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
         let mut postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));

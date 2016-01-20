@@ -98,7 +98,7 @@ impl SegmentIndexReader {
         let term_offsets = match fst::Map::from_mmap(term_shared_mmap) {
             Ok(term_offsets) => term_offsets,
             Err(_) => {
-                let filepath = segment.relative_path(SegmentComponent::TERMS);
+                let filepath = segment.relative_path(&SegmentComponent::TERMS);
                 return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
             }
         };

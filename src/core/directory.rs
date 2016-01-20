@@ -14,8 +14,8 @@ use std::ops::Deref;
 use std::cell::RefCell;
 use core::error::*;
 use rand::{thread_rng, Rng};
-// use memmap::{Mmap, Protection};
 use fst::raw::MmapReadOnly;
+// use sys::fs as fs_imp;
 
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
@@ -33,6 +33,7 @@ pub fn generate_segment_name() -> SegmentId {
 pub struct Directory {
     index_path: PathBuf,
     mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
+    segments: Vec<Segment>,
 }
 
 impl fmt::Debug for Directory {
@@ -52,13 +53,58 @@ fn open_mmap(full_path: &PathBuf) -> Result<MmapReadOnly> {
     }
 }
 
+fn sync_file(filepath: &PathBuf) -> Result<()> {
+    match File::open(filepath.clone()) {
+        Ok(fd) => {
+            match fd.sync_all() {
+                Err(err) => Err(Error::IOError(err.kind(), format!("Failed to sync {:?}", filepath))),
+                _ => Ok(())
+            }
+        },
+        Err(err) => Err(Error::IOError(err.kind(), format!("Cause: {:?}", err)))
+    }
+}
+
 impl Directory {
 
-    pub fn from(filepath: &str) -> Directory {
-        Directory {
+    // TODO find a rusty way to hide that, while keeping
+    // it visible for IndexWriters.
+    pub fn publish_segment(&mut self, segment: Segment) {
+        self.segments.push(segment.clone());
+        self.save_metas();
+    }
+
+    pub fn from(filepath: &str) -> Result<Directory> {
+        // TODO error management
+        let mut directory = Directory {
             index_path: PathBuf::from(filepath),
             mmap_cache: Arc::new(Mutex::new(HashMap::new())),
+            segments: Vec::new()
+        };
+        try!(directory.load_metas()); //< does the directory already exists?
+        Ok(directory)
+    }
+
+    pub fn load_metas(&mut self,) -> Result<()> {
+        // TODO load segment info
+        Ok(())
+    }
+
+    pub fn save_metas(&self,) -> Result<()> {
+        // TODO
+        Ok(())
+    }
+
+
+    pub fn sync(&self, segment: Segment) -> Result<()> {
+        for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
+            let relative_path = segment.relative_path(component);
+            let full_path = self.resolve_path(&relative_path);
+            try!(sync_file(&full_path));
         }
+        // syncing the directory itself
+        try!(sync_file(&self.index_path));
+        Ok(())
     }
 
     fn resolve_path(&self, relative_path: &PathBuf) -> PathBuf {
@@ -113,38 +159,38 @@ impl Directory {
 
 pub enum SegmentComponent {
     POSTINGS,
-    POSITIONS,
+    // POSITIONS,
     TERMS,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Segment {
     directory: Directory,
     segment_id: SegmentId,
 }
 
 impl Segment {
-    fn path_suffix(component: SegmentComponent)-> &'static str {
-        match component {
+    fn path_suffix(component: &SegmentComponent)-> &'static str {
+        match *component {
             SegmentComponent::POSTINGS => ".idx",
-            SegmentComponent::POSITIONS => ".pos",
+            // SegmentComponent::POSITIONS => ".pos",
             SegmentComponent::TERMS => ".term",
         }
     }
 
-    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
+    pub fn relative_path(&self, component: &SegmentComponent) -> PathBuf {
         let SegmentId(ref segment_id_str) = self.segment_id;
         let filename = String::new() + segment_id_str + Segment::path_suffix(component);
         PathBuf::from(filename)
     }
 
     pub fn mmap(&self, component: SegmentComponent) -> Result<MmapReadOnly> {
-        let path = self.relative_path(component);
+        let path = self.relative_path(&component);
         self.directory.mmap(&path)
     }
 
     pub fn open_writable(&self, component: SegmentComponent) -> Result<File> {
-        let path = self.relative_path(component);
+        let path = self.relative_path(&component);
         self.directory.open_writable(&path)
     }
 }
