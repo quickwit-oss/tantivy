@@ -15,7 +15,8 @@ use std::cell::RefCell;
 use core::error::*;
 use rand::{thread_rng, Rng};
 use fst::raw::MmapReadOnly;
-// use sys::fs as fs_imp;
+use rustc_serialize::json;
+use atomicwrites;
 
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
@@ -28,12 +29,25 @@ pub fn generate_segment_name() -> SegmentId {
     SegmentId( String::from("_") + &random_name)
 }
 
+// #[derive()]
+#[derive(Clone,Debug,RustcDecodable, RustcEncodable)]
+pub struct DirectoryMeta {
+    segments: Vec<String>
+}
+
+impl DirectoryMeta {
+    fn new() -> DirectoryMeta {
+        DirectoryMeta {
+            segments: Vec::new()
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Directory {
     index_path: PathBuf,
     mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
-    segments: Vec<Segment>,
+    metas: DirectoryMeta,
 }
 
 impl fmt::Debug for Directory {
@@ -70,7 +84,7 @@ impl Directory {
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: Segment) {
-        self.segments.push(segment.clone());
+        self.metas.segments.push(segment.segment_id.0.clone());
         self.save_metas();
     }
 
@@ -79,7 +93,7 @@ impl Directory {
         let mut directory = Directory {
             index_path: PathBuf::from(filepath),
             mmap_cache: Arc::new(Mutex::new(HashMap::new())),
-            segments: Vec::new()
+            metas: DirectoryMeta::new()
         };
         try!(directory.load_metas()); //< does the directory already exists?
         Ok(directory)
@@ -90,9 +104,21 @@ impl Directory {
         Ok(())
     }
 
+    fn meta_filepath(&self,) -> PathBuf {
+        self.resolve_path(&PathBuf::from("meta.json"))
+    }
+
     pub fn save_metas(&self,) -> Result<()> {
-        // TODO
-        Ok(())
+        let encoded = json::encode(&self.metas).unwrap();
+        let meta_filepath = self.meta_filepath();
+        let meta_file = atomicwrites::AtomicFile::new(meta_filepath, atomicwrites::AllowOverwrite);
+        let write_result = meta_file.write(|f| {
+            f.write_all(encoded.as_bytes())
+        });
+        match write_result {
+            Ok(_) => Ok(()),
+            Err(ioerr) => Err(Error::IOError(ioerr.kind(), format!("Failed to write meta file : {:?}", ioerr))),
+        }
     }
 
 
@@ -168,6 +194,8 @@ pub struct Segment {
     directory: Directory,
     segment_id: SegmentId,
 }
+
+
 
 impl Segment {
     fn path_suffix(component: &SegmentComponent)-> &'static str {
