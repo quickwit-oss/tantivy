@@ -143,166 +143,166 @@ impl SegmentWriter {
 //////////////////////////////////
 // CIWFormCursor
 //
-struct CIWFormCursor<'a> {
-	term_it: btree_map::Iter<'a, String, usize>, // term -> postings_idx
-	postings_map: &'a Vec<SimplePostingsWriter>, 	 // postings_idx -> postings
-}
-
-struct FormPostings<'a> {
-	form: &'a str,
-	postings: &'a SimplePostingsWriter,
-}
-
-impl<'a> Iterator for CIWFormCursor<'a> {
-	type Item = FormPostings<'a>;
-
-	fn next(&mut self,) -> Option<FormPostings<'a>> {
-		self.term_it.next()
-			   .map(|(form, postings_idx)| {
-			FormPostings {
-				form: form,
-				postings: unsafe { self.postings_map.get_unchecked(*postings_idx) }
-			}
-		})
-	}
-}
+// struct CIWFormCursor<'a> {
+// 	term_it: btree_map::Iter<'a, String, usize>, // term -> postings_idx
+// 	postings_map: &'a Vec<SimplePostingsWriter>, 	 // postings_idx -> postings
+// }
+//
+// struct FormPostings<'a> {
+// 	form: &'a str,
+// 	postings: &'a SimplePostingsWriter,
+// }
+//
+// impl<'a> Iterator for CIWFormCursor<'a> {
+// 	type Item = FormPostings<'a>;
+//
+// 	fn next(&mut self,) -> Option<FormPostings<'a>> {
+// 		self.term_it.next()
+// 			   .map(|(form, postings_idx)| {
+// 			FormPostings {
+// 				form: form,
+// 				postings: unsafe { self.postings_map.get_unchecked(*postings_idx) }
+// 			}
+// 		})
+// 	}
+// }
 
 //////////////////////////////////
 // CIWDocCursor
 //
-
-pub struct CIWTermCursor<'a> {
-	field_it: hash_map::Iter<'a, Field, FieldWriter>,
-	form_it: CIWFormCursor<'a>,
-	current_form_postings: Option<FormPostings<'a>>,
-	field: &'a Field,
-}
-
-impl<'a> CIWTermCursor<'a> {
-
-	fn advance(&mut self,) -> bool {
-		let next_form = self.next_form();
-		if next_form {
-			true
-		}
-		else {
-			if self.next_field() {
-				self.advance()
-			}
-			else {
-				false
-			}
-		}
-	}
-
-	fn get_term(&self) -> Term {
-		let field = self.field.clone();
-		let value = self.current_form_postings.as_ref().unwrap().form;
-		Term::from_field_text(field, value)
-	}
-
-	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
-		let postings = self.current_form_postings
-			.as_ref()
-			.unwrap()
-			.postings;
-		let num_docs = postings.doc_ids.len() as DocId;
-		CIWDocCursor {
-			num_docs: num_docs,
-			docs_it: postings
-				.doc_ids
-				.iter(),
-			current: None
-		}
-	}
-
-	fn next_form(&mut self,) -> bool {
-		match self.form_it.next() {
-			Some(form_postings) => {
-				self.current_form_postings = Some(form_postings);
-				return true;
-			},
-			None => { false }
-		}
-	}
-
-	// Advance to the next field
-	// sets up form_it to iterate on forms
-	// returns true iff there was a next field
-	fn next_field(&mut self,) -> bool {
-		match self.field_it.next() {
-			Some((field, field_writer)) => {
-				self.form_it = CIWFormCursor {
-					term_it: field_writer.term_index.iter(),
-					postings_map: &field_writer.postings,
-				};
-				self.field = field;
-				true
-			},
-			None => false,
-		}
-	}
-}
-
-impl<'a> TermCursor for CIWTermCursor<'a> {
-
-	type DocCur = CIWDocCursor<'a>;
-
-	fn next(&mut self,) -> Option<(Term, CIWDocCursor<'a>)> {
-		if self.advance() {
-			Some((self.get_term(), self.doc_cursor()))
-		}
-		else {
-			None
-		}
-	}
-}
-
-
-impl<'a> SerializableSegment<'a> for SegmentWriter {
-
-	type TermCur = CIWTermCursor<'a>;
-
-	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
-		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.term_writers.iter();
-		let (field, field_writer) = field_it.next().unwrap();
-		CIWTermCursor {
-			field_it: field_it,
-			form_it: CIWFormCursor {
-				term_it: field_writer.term_index.iter(),
-				postings_map: &field_writer.postings,
-			},
-			field: field,
-			current_form_postings: None,
-		}
-		// TODO handle having no fields at all
-	}
-}
-
-// TODO add positions
-
-pub struct CIWDocCursor<'a> {
-	docs_it: slice::Iter<'a, DocId>,
-	current: Option<DocId>,
-	num_docs: DocId,
-}
-
-impl<'a> Iterator for CIWDocCursor<'a> {
-	type Item=DocId;
-
-	fn next(&mut self) -> Option<DocId> {
-		self.current = self.docs_it.next().map(|x| *x);
-		self.current
-	}
-}
-
-impl<'a> DocCursor for CIWDocCursor<'a> {
-
-	fn doc(&self,) -> DocId {
-		self.current.unwrap()
-	}
-
-	fn len(&self) -> DocId {
-		self.num_docs
-	}
-}
+//
+// pub struct CIWTermCursor<'a> {
+// 	field_it: hash_map::Iter<'a, Field, FieldWriter>,
+// 	form_it: CIWFormCursor<'a>,
+// 	current_form_postings: Option<FormPostings<'a>>,
+// 	field: &'a Field,
+// }
+//
+// impl<'a> CIWTermCursor<'a> {
+//
+// 	fn advance(&mut self,) -> bool {
+// 		let next_form = self.next_form();
+// 		if next_form {
+// 			true
+// 		}
+// 		else {
+// 			if self.next_field() {
+// 				self.advance()
+// 			}
+// 			else {
+// 				false
+// 			}
+// 		}
+// 	}
+//
+// 	fn get_term(&self) -> Term {
+// 		let field = self.field.clone();
+// 		let value = self.current_form_postings.as_ref().unwrap().form;
+// 		Term::from_field_text(field, value)
+// 	}
+//
+// 	fn doc_cursor(&self,) -> CIWDocCursor<'a> {
+// 		let postings = self.current_form_postings
+// 			.as_ref()
+// 			.unwrap()
+// 			.postings;
+// 		let num_docs = postings.doc_ids.len() as DocId;
+// 		CIWDocCursor {
+// 			num_docs: num_docs,
+// 			docs_it: postings
+// 				.doc_ids
+// 				.iter(),
+// 			current: None
+// 		}
+// 	}
+//
+// 	fn next_form(&mut self,) -> bool {
+// 		match self.form_it.next() {
+// 			Some(form_postings) => {
+// 				self.current_form_postings = Some(form_postings);
+// 				return true;
+// 			},
+// 			None => { false }
+// 		}
+// 	}
+//
+// 	// Advance to the next field
+// 	// sets up form_it to iterate on forms
+// 	// returns true iff there was a next field
+// 	fn next_field(&mut self,) -> bool {
+// 		match self.field_it.next() {
+// 			Some((field, field_writer)) => {
+// 				self.form_it = CIWFormCursor {
+// 					term_it: field_writer.term_index.iter(),
+// 					postings_map: &field_writer.postings,
+// 				};
+// 				self.field = field;
+// 				true
+// 			},
+// 			None => false,
+// 		}
+// 	}
+// }
+//
+// impl<'a> TermCursor for CIWTermCursor<'a> {
+//
+// 	type DocCur = CIWDocCursor<'a>;
+//
+// 	fn next(&mut self,) -> Option<(Term, CIWDocCursor<'a>)> {
+// 		if self.advance() {
+// 			Some((self.get_term(), self.doc_cursor()))
+// 		}
+// 		else {
+// 			None
+// 		}
+// 	}
+// }
+//
+//
+// impl<'a> SerializableSegment<'a> for SegmentWriter {
+//
+// 	type TermCur = CIWTermCursor<'a>;
+//
+// 	fn term_cursor(&'a self) -> CIWTermCursor<'a> {
+// 		let mut field_it: hash_map::Iter<'a, Field, FieldWriter> = self.term_writers.iter();
+// 		let (field, field_writer) = field_it.next().unwrap();
+// 		CIWTermCursor {
+// 			field_it: field_it,
+// 			form_it: CIWFormCursor {
+// 				term_it: field_writer.term_index.iter(),
+// 				postings_map: &field_writer.postings,
+// 			},
+// 			field: field,
+// 			current_form_postings: None,
+// 		}
+// 		// TODO handle having no fields at all
+// 	}
+// }
+//
+// // TODO add positions
+//
+// pub struct CIWDocCursor<'a> {
+// 	docs_it: slice::Iter<'a, DocId>,
+// 	current: Option<DocId>,
+// 	num_docs: DocId,
+// }
+//
+// impl<'a> Iterator for CIWDocCursor<'a> {
+// 	type Item=DocId;
+//
+// 	fn next(&mut self) -> Option<DocId> {
+// 		self.current = self.docs_it.next().map(|x| *x);
+// 		self.current
+// 	}
+// }
+//
+// impl<'a> DocCursor for CIWDocCursor<'a> {
+//
+// 	fn doc(&self,) -> DocId {
+// 		self.current.unwrap()
+// 	}
+//
+// 	fn len(&self) -> DocId {
+// 		self.num_docs
+// 	}
+// }

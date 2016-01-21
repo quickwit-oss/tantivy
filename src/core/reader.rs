@@ -3,85 +3,17 @@ use core::directory::Segment;
 use core::schema::Term;
 use fst::Streamer;
 use fst;
+use std::io;
 use fst::raw::Fst;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
 use core::global::DocId;
-use core::serial::{DocCursor, TermCursor};
-use core::serial::SerializableSegment;
+use core::serial::*;
 use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};
 
-
-
-
-pub struct SegmentDocCursor<'a> {
-    postings_data: Cursor<&'a [u8]>,
-    num_docs: DocId,
-    current_doc: DocId,
-}
-
-impl<'a> Iterator for SegmentDocCursor<'a> {
-    type Item = DocId;
-
-    fn next(&mut self) -> Option<DocId> {
-        if self.num_docs == 0 {
-            None
-        }
-        else {
-            self.num_docs -= 1;
-            self.current_doc = self.postings_data.read_u32::<LittleEndian>().unwrap();
-            Some(self.current_doc)
-        }
-    }
-}
-
-impl<'a> DocCursor for SegmentDocCursor<'a> {
-    fn doc(&self) -> DocId{
-        self.current_doc
-    }
-
-    fn len(&self) -> DocId {
-        self.num_docs
-    }
-}
-
-// ------------------------
-
-pub struct SegmentTermCur<'a> {
-    segment: &'a Segment,
-    fst_streamer: fst::map::Stream<'a>,
-    postings_data: &'a [u8],
-}
-
-impl<'a> TermCursor for SegmentTermCur<'a> {
-
-    type DocCur = SegmentDocCursor<'a>;
-
-    fn next(&mut self,) -> Option<(Term, SegmentDocCursor<'a>)> {
-        match self.fst_streamer.next() {
-            Some((k, offset_u64)) => {
-                let term = Term::from(k);
-                let offset = offset_u64 as usize;
-                let data = &self.postings_data[offset..];
-                let mut cursor = Cursor::new(data);
-                let num_docs = cursor.read_u32::<LittleEndian>().unwrap();
-                let doc_cursor = SegmentDocCursor {
-                    postings_data: cursor,
-                    num_docs: num_docs,
-                    current_doc: 0,
-                };
-                Some((term, doc_cursor))
-            },
-            None => None
-        }
-    }
-}
-
-
-// ----------------------
 
 // TODO file structure should be in codec
 
@@ -109,18 +41,36 @@ impl SegmentIndexReader {
             segment: segment,
         })
     }
-
 }
 
-impl<'a> SerializableSegment<'a> for SegmentIndexReader {
 
-    type TermCur = SegmentTermCur<'a>;
-
-    fn term_cursor(&'a self) -> SegmentTermCur<'a> {
-        SegmentTermCur {
-            segment: &self.segment,
-            fst_streamer: self.term_offsets.stream(),
-            postings_data: unsafe { self.postings_data.borrow().as_slice() },
-        }
+fn write_postings<R: io::Read, SegSer: SegmentSerializer>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
+    for i in 0..num_docs {
+        let doc_id = cursor.read_u32::<LittleEndian>().unwrap();
+        try!(serializer.add_doc(doc_id));
     }
+    Ok(())
+}
+
+impl SerializableSegment for SegmentIndexReader {
+
+    fn write<SegSer: SegmentSerializer>(&self, serializer: &mut SegSer) -> Result<()> {
+        let mut term_offsets_it = self.term_offsets.stream();
+        loop {
+            match term_offsets_it.next() {
+                Some((term_data, offset_u64)) => {
+                    let term = Term::from(term_data);
+                    let offset = offset_u64 as usize;
+                    let data = unsafe { &self.postings_data.as_slice()[offset..] };
+                    let mut cursor = Cursor::new(data);
+                    let num_docs = cursor.read_u32::<LittleEndian>().unwrap() as DocId;
+                    try!(serializer.new_term(&term, num_docs));
+                    try!(write_postings(cursor, num_docs, serializer));
+                },
+                None => { break; }
+            }
+        }
+        Ok(())
+    }
+
 }
