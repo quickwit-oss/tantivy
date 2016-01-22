@@ -14,7 +14,6 @@ use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};
 
-
 // TODO file structure should be in codec
 
 pub struct SegmentIndexReader {

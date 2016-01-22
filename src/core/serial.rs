@@ -15,9 +15,6 @@ pub trait SerializableSegment {
 }
 
 
-// change the API to remove the lifetime, by
-// "pushing" the data to a SegmentSerializer.
-
 pub struct DebugSegmentSerializer {
     text: String,
 }
@@ -42,6 +39,7 @@ impl DebugSegmentSerializer {
     }
 }
 
+
 impl SegmentSerializer<String> for DebugSegmentSerializer {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {
         self.text.push_str(&format!("{:?}\n", term));
@@ -63,6 +61,3 @@ pub fn serialize_eq<L: SerializableSegment, R: SerializableSegment>(left: &L, ri
     let str_right = DebugSegmentSerializer::debug_string(right);
     str_left == str_right
 }
-
-
-// TODO make iteration over Fields somehow sorted

@@ -55,11 +55,9 @@ fn test_indexing() {
             doc.set(Field(1), "a b c d");
             index_writer.add(doc);
         }
-        let mut debug_serializer = DebugSegmentSerializer::new();
+        let debug_serializer = DebugSegmentSerializer::new();
         let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
-
-        let commit_result = index_writer.commit();
-        assert!(commit_result.is_ok());
+        assert!(index_writer.commit().is_ok());
         let segment = commit_result.unwrap();
         let index_reader = SegmentIndexReader::open(segment).unwrap();
         let segment_str_after_reading = DebugSegmentSerializer::debug_string(&index_reader);
