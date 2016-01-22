@@ -13,6 +13,7 @@ use core::serial::*;
 use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};
+use core::postings::Postings;
 
 // TODO file structure should be in codec
 
@@ -21,6 +22,54 @@ pub struct SegmentIndexReader {
     term_offsets: fst::Map,
     postings_data: MmapReadOnly,
 }
+
+
+pub struct SegmentPostings<'a> {
+    cursor: Cursor<&'a [u8]>,
+    doc_freq: usize,
+}
+
+impl<'a> SegmentPostings<'a> {
+
+    pub fn from_data(data: &[u8]) -> SegmentPostings {
+        let mut cursor = Cursor::new(data);
+        let doc_freq = cursor.read_u32::<LittleEndian>().unwrap() as usize;
+        SegmentPostings {
+            cursor: cursor,
+            doc_freq: doc_freq,
+        }
+    }
+}
+
+pub struct SegmentPostingsIterator<'a> {
+    cursor: Cursor<&'a [u8]>,
+    num_docs_remaining: usize,
+}
+
+impl<'a> Iterator for SegmentPostingsIterator<'a> {
+    type Item = DocId;
+
+    fn next(&mut self,) -> Option<DocId> {
+        if self.num_docs_remaining == 0 {
+            None
+        }
+        else {
+            Some(self.cursor.read_u32::<LittleEndian>().unwrap() as DocId)
+        }
+    }
+}
+
+impl<'a> Postings for SegmentPostings<'a> {
+    type IteratorType = SegmentPostingsIterator<'a>;
+    fn iter(&self) -> SegmentPostingsIterator<'a> {
+        SegmentPostingsIterator {
+            cursor: self.cursor.clone(),
+            num_docs_remaining: self.doc_freq,
+        }
+    }
+}
+
+
 
 impl SegmentIndexReader {
 
@@ -39,6 +88,18 @@ impl SegmentIndexReader {
             term_offsets: term_offsets,
             segment: segment,
         })
+    }
+
+    pub fn read_postings(&self, offset: usize) -> SegmentPostings {
+        let postings_data = unsafe {&self.postings_data.as_slice()[offset..]};
+        SegmentPostings::from_data(&postings_data)
+    }
+
+    pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings<'a>> {
+        match self.term_offsets.get(term.as_slice()) {
+            Some(offset) => Some(self.read_postings(offset as usize)),
+            None => None,
+        }
     }
 }
 
