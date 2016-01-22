@@ -16,11 +16,11 @@ pub struct SimpleCodec;
 pub struct SimpleSegmentSerializer {
     written_bytes_postings: usize,
     postings_write: File,
-    term_fst_builder: MapBuilder<File>,
+    term_fst_builder: MapBuilder<File>, // TODO find an alternative to work around the "move"
     cur_term_num_docs: DocId,
 }
 
-impl SegmentSerializer for SimpleSegmentSerializer {
+impl SegmentSerializer<()> for SimpleSegmentSerializer {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {
         self.term_fst_builder.insert(term.as_slice(), self.written_bytes_postings as u64);
         self.cur_term_num_docs = doc_freq;
@@ -48,7 +48,9 @@ impl SegmentSerializer for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn close(&mut self,) -> Result<()> {
+    fn close(self,) -> Result<()> {
+        // TODO handle errors on close
+        self.term_fst_builder.finish();
         Ok(())
     }
 }
@@ -72,7 +74,7 @@ impl SimpleCodec {
 
 
     pub fn write<I: SerializableSegment>(index: &I, segment: &Segment) -> Result<()> {
-        let mut serializer = try!(SimpleCodec::serializer(segment));
-        index.write(&mut serializer)
+        let serializer = try!(SimpleCodec::serializer(segment));
+        index.write(serializer)
     }
 }

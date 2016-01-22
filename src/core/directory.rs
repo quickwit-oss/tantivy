@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::path::Path;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fs::File;
@@ -88,7 +89,7 @@ impl Directory {
         self.save_metas();
     }
 
-    pub fn from(filepath: &str) -> Result<Directory> {
+    pub fn open(filepath: &Path) -> Result<Directory> {
         // TODO error management
         let mut directory = Directory {
             index_path: PathBuf::from(filepath),
@@ -179,6 +180,8 @@ impl Directory {
         }
     }
 }
+
+
 
 /////////////////////////
 // Segment

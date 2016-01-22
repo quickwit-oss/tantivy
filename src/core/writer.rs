@@ -55,6 +55,11 @@ impl IndexWriter {
         self.segment_writer.add(doc);
     }
 
+	// TODO remove that some day
+	pub fn current_segment_writer(&self,) -> &SegmentWriter {
+		&self.segment_writer
+	}
+
     pub fn commit(&mut self,) -> Result<Segment> {
 		let segment = self.directory.new_segment();
 		try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
@@ -119,8 +124,8 @@ impl SegmentWriter {
 }
 
 impl SerializableSegment for SegmentWriter {
-	fn write<SegSer: SegmentSerializer>(&self, serializer: &mut SegSer) -> Result<()> {
-		for (term, postings_id) in self.term_index.iter() {
+	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
+    	for (term, postings_id) in self.term_index.iter() {
 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
 			let term_docfreq = doc_ids.len() as u32;
 			serializer.new_term(&term, term_docfreq);
@@ -128,6 +133,6 @@ impl SerializableSegment for SegmentWriter {
 				serializer.add_doc(doc_id.clone());
 			}
 		}
-		Ok(())
+		serializer.close()
 	}
 }

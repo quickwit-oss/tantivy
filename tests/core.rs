@@ -1,7 +1,6 @@
 extern crate tantivy;
-extern crate itertools;
-extern crate byteorder;
 extern crate regex;
+extern crate tempdir;
 
 use tantivy::core::postings::{VecPostings, intersection};
 use tantivy::core::postings::Postings;
@@ -36,7 +35,8 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::from("/Users/pmasurel/temp/idx").unwrap();
+    let tmp_dir = tempdir::TempDir::new("test_indexing").unwrap();
+    let directory = Directory::open(tmp_dir.path()).unwrap();
     {
         // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
@@ -55,37 +55,15 @@ fn test_indexing() {
             doc.set(Field(1), "a b c d");
             index_writer.add(doc);
         }
-        let debug_serializer = DebugSegmentSerialize::new();
-        // let segment_writer = index_writer.current_segment_writer();
+        let mut debug_serializer = DebugSegmentSerializer::new();
+        let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
 
         let commit_result = index_writer.commit();
-        println!("{:?}", commit_result);
         assert!(commit_result.is_ok());
-        // reading the segment
-        println!("------");
-        // {
-        //     let segment = commit_result.unwrap();
-        //     let index_reader = SegmentIndexReader::open(segment).unwrap();
-        //     let mut term_cursor = index_reader.term_cursor();
-        //     loop {
-        //         match term_cursor.next() {
-        //             Some((term, mut doc_cursor)) => {
-        //                 println!("{:?}", term);
-        //                 for doc in doc_cursor {
-        //                     println!("  Doc {}", doc);
-        //                 }
-        //             },
-        //             None => {
-        //                 break;
-        //             },
-        //         }
-        //     }
-        // }
-        assert!(false);
-    }
-    {
-        // TODO add index opening stuff
-        // let index_reader = IndexReader::open(&directory);
+        let segment = commit_result.unwrap();
+        let index_reader = SegmentIndexReader::open(segment).unwrap();
+        let segment_str_after_reading = DebugSegmentSerializer::debug_string(&index_reader);
+        assert_eq!(segment_str_before_writing, segment_str_after_reading);
     }
 }
 

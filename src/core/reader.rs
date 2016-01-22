@@ -44,7 +44,7 @@ impl SegmentIndexReader {
 }
 
 
-fn write_postings<R: io::Read, SegSer: SegmentSerializer>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
+fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
     for i in 0..num_docs {
         let doc_id = cursor.read_u32::<LittleEndian>().unwrap();
         try!(serializer.add_doc(doc_id));
@@ -54,7 +54,7 @@ fn write_postings<R: io::Read, SegSer: SegmentSerializer>(mut cursor: R, num_doc
 
 impl SerializableSegment for SegmentIndexReader {
 
-    fn write<SegSer: SegmentSerializer>(&self, serializer: &mut SegSer) -> Result<()> {
+    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
         let mut term_offsets_it = self.term_offsets.stream();
         loop {
             match term_offsets_it.next() {
@@ -65,12 +65,12 @@ impl SerializableSegment for SegmentIndexReader {
                     let mut cursor = Cursor::new(data);
                     let num_docs = cursor.read_u32::<LittleEndian>().unwrap() as DocId;
                     try!(serializer.new_term(&term, num_docs));
-                    try!(write_postings(cursor, num_docs, serializer));
+                    try!(write_postings(cursor, num_docs, &mut serializer));
                 },
                 None => { break; }
             }
         }
-        Ok(())
+        serializer.close()
     }
 
 }
