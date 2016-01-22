@@ -116,7 +116,7 @@ impl Directory {
             f.write_all(encoded.as_bytes())
         });
         match write_result {
-            Ok(_) => Ok(()),
+            Ok(_) => { Ok(()) },
             Err(ioerr) => Err(Error::IOError(ioerr.kind(), format!("Failed to write meta file : {:?}", ioerr))),
         }
     }

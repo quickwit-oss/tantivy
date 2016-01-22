@@ -2,18 +2,7 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::prelude::Read;
 use core::global::DocId;
-// use std::core::slice;
-// use core::schema::{Field, Term};
-// use std::slice;
 use std::vec;
-
-
-/////////////////////////////
-
-
-pub trait PostingsWriter {
-	fn suscribe(&mut self, DocId);
-}
 
 
 ////////////////////////////////////

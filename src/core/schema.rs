@@ -12,17 +12,16 @@ pub struct FieldValue {
 }
 
 
-#[derive(Clone,PartialEq,PartialOrd,Eq,Hash)]
+#[derive(Clone,PartialEq,PartialOrd,Ord,Eq,Hash)]
 pub struct Term {
-    data: Vec<u8>, // avoid copies
-    // pub field: Field,
-	// pub text: &'a [u8],
+    data: Vec<u8>,
 }
 
 impl Term {
 
-    // TODO avoid all these copies.
-
+    // TODO avoid all these copies in Term.
+    // when the term is in the dictionary, there
+    // shouldn't be any copy
     pub fn field(&self,) -> Field {
         Field(self.data[0])
     }
@@ -48,9 +47,8 @@ impl Term {
         }
     }
 
-    pub fn write_into(&self, buf: &mut Vec<u8>) {
-        buf.clear();
-        buf.extend(&self.data);
+    pub fn as_slice(&self,)->&[u8] {
+        &self.data
     }
 }
 

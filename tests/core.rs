@@ -13,8 +13,6 @@ use tantivy::core::global::*;
 use tantivy::core::writer::IndexWriter;
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use std::ops::DerefMut;
-use tantivy::core::writer::SimplePostingsWriter;
-use tantivy::core::postings::PostingsWriter;
 use tantivy::core::reader::SegmentIndexReader;
 use std::io::{ BufWriter, Write};
 use regex::Regex;
@@ -57,29 +55,32 @@ fn test_indexing() {
             doc.set(Field(1), "a b c d");
             index_writer.add(doc);
         }
+        let debug_serializer = DebugSegmentSerialize::new();
+        // let segment_writer = index_writer.current_segment_writer();
 
         let commit_result = index_writer.commit();
+        println!("{:?}", commit_result);
         assert!(commit_result.is_ok());
         // reading the segment
         println!("------");
-        {
-            let segment = commit_result.unwrap();
-            let index_reader = SegmentIndexReader::open(segment).unwrap();
-            let mut term_cursor = index_reader.term_cursor();
-            loop {
-                match term_cursor.next() {
-                    Some((term, mut doc_cursor)) => {
-                        println!("{:?}", term);
-                        for doc in doc_cursor {
-                            println!("  Doc {}", doc);
-                        }
-                    },
-                    None => {
-                        break;
-                    },
-                }
-            }
-        }
+        // {
+        //     let segment = commit_result.unwrap();
+        //     let index_reader = SegmentIndexReader::open(segment).unwrap();
+        //     let mut term_cursor = index_reader.term_cursor();
+        //     loop {
+        //         match term_cursor.next() {
+        //             Some((term, mut doc_cursor)) => {
+        //                 println!("{:?}", term);
+        //                 for doc in doc_cursor {
+        //                     println!("  Doc {}", doc);
+        //                 }
+        //             },
+        //             None => {
+        //                 break;
+        //             },
+        //         }
+        //     }
+        // }
         assert!(false);
     }
     {

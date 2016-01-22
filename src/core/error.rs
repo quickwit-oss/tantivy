@@ -3,6 +3,7 @@ use std::io;
 
 #[derive(Debug)]
 pub enum Error {
+    NotImplementedYet,
     WriteError(String),
     IOError(io::ErrorKind, String),
     FileNotFound(String),
