@@ -1,5 +1,5 @@
-use std::path::PathBuf;
-use std::path::Path;
+
+use std::path::{PathBuf, Path};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fs::File;
@@ -18,6 +18,7 @@ use rand::{thread_rng, Rng};
 use fst::raw::MmapReadOnly;
 use rustc_serialize::json;
 use atomicwrites;
+use tempdir::TempDir;
 
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
@@ -44,12 +45,6 @@ impl DirectoryMeta {
     }
 }
 
-#[derive(Clone)]
-pub struct Directory {
-    index_path: PathBuf,
-    mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
-    metas: DirectoryMeta,
-}
 
 impl fmt::Debug for Directory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -80,6 +75,15 @@ fn sync_file(filepath: &PathBuf) -> Result<()> {
     }
 }
 
+
+#[derive(Clone)]
+pub struct Directory {
+    index_path: PathBuf,
+    mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
+    metas: DirectoryMeta,
+    _temp_directory: Option<Arc<TempDir>>,
+}
+
 impl Directory {
 
     // TODO find a rusty way to hide that, while keeping
@@ -90,13 +94,39 @@ impl Directory {
     }
 
     pub fn open(filepath: &Path) -> Result<Directory> {
-        // TODO error management
         let mut directory = Directory {
             index_path: PathBuf::from(filepath),
             mmap_cache: Arc::new(Mutex::new(HashMap::new())),
-            metas: DirectoryMeta::new()
+            metas: DirectoryMeta::new(),
+            _temp_directory: None,
         };
         try!(directory.load_metas()); //< does the directory already exists?
+        Ok(directory)
+    }
+
+    fn create_tempdir() -> Result<TempDir> {
+        let tempdir_res = TempDir::new("index");
+        match tempdir_res {
+            Ok(tempdir) => Ok(tempdir),
+            Err(_) => Err(Error::FileNotFound(String::from("Could not create temp directory")))
+        }
+    }
+
+    pub fn from_tempdir() -> Result<Directory> {
+        let tempdir = try!(Directory::create_tempdir());
+        let tempdir_path: PathBuf;
+        {
+            tempdir_path = PathBuf::from(tempdir.path());
+        };
+        let tempdir_arc = Arc::new(tempdir);
+        let mut directory = Directory {
+            index_path: PathBuf::from(tempdir_path),
+            mmap_cache: Arc::new(Mutex::new(HashMap::new())),
+            metas: DirectoryMeta::new(),
+            _temp_directory: Some(tempdir_arc)
+        };
+        //< does the directory already exists?
+        try!(directory.load_metas());
         Ok(directory)
     }
 

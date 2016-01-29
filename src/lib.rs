@@ -12,6 +12,8 @@ extern crate memmap;
 extern crate rand;
 extern crate regex;
 extern crate rustc_serialize;
+extern crate combine;
 extern crate atomicwrites;
+extern crate tempdir;
 
 pub mod core;
