@@ -20,6 +20,20 @@ use std::io::{ BufWriter, Write};
 use regex::Regex;
 use std::convert::From;
 use std::path::PathBuf;
+use tantivy::core::query;
+use tantivy::core::query::{parse_query, BoolExpr};
+#[test]
+fn test_parse_query() {
+    // let left = VecPostings::new(vec!(1, 3, 9));
+    // let right = VecPostings::new(vec!(3, 4, 9, 18));
+    // let inter = intersection(&left, &right);
+    // let vals: Vec<DocId> = inter.iter().collect();
+    // assert_eq!(vals, vec!(3, 9));
+    {
+        let (parsed_query, _) = parse_query("toto:titi toto:tutu").unwrap();
+        assert_eq!(parsed_query, BoolExpr::Conjunction(vec!(query::Term(String::from("toto"), String::from("titi")), query::Term(String::from("toto"), String::from("tutu")))));
+    }
+}
 
 #[test]
 fn test_intersection() {
@@ -38,7 +52,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::from("/Users/pmasurel/temp/idx").unwrap();
+    let directory = Directory::from_tempdir().unwrap();
     {
         // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
@@ -59,6 +73,7 @@ fn test_indexing() {
         }
 
         let commit_result = index_writer.commit();
+        println!("{:?}", commit_result);
         assert!(commit_result.is_ok());
         // reading the segment
         println!("------");
@@ -68,7 +83,7 @@ fn test_indexing() {
             let mut term_cursor = index_reader.term_cursor();
             loop {
                 match term_cursor.next() {
-                    Some((term, mut doc_cursor)) => {
+                    Some((term, doc_cursor)) => {
                         println!("{:?}", term);
                         for doc in doc_cursor {
                             println!("  Doc {}", doc);
@@ -80,7 +95,6 @@ fn test_indexing() {
                 }
             }
         }
-        assert!(false);
     }
     {
         // TODO add index opening stuff
