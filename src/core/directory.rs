@@ -90,6 +90,7 @@ impl Directory {
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: Segment) {
         self.metas.segments.push(segment.segment_id.0.clone());
+        println!("publish segment {:?}", self.metas.segments);
         self.save_metas();
     }
 
@@ -102,6 +103,23 @@ impl Directory {
         };
         try!(directory.load_metas()); //< does the directory already exists?
         Ok(directory)
+    }
+
+    pub fn segment_ids(&self,) -> Vec<SegmentId> {
+        println!("segids {:?}", self.metas.segments);
+        self.metas
+            .segments
+            .iter()
+            .cloned()
+            .map(SegmentId)
+            .collect()
+    }
+
+    pub fn segments(&self,) -> Vec<Segment> {
+        self.segment_ids()
+            .into_iter()
+            .map(|segment_id| self.segment(&segment_id))
+            .collect()
     }
 
     fn create_tempdir() -> Result<TempDir> {

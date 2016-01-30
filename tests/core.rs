@@ -5,20 +5,22 @@ extern crate tempdir;
 use tantivy::core::postings::{VecPostings, intersection};
 use tantivy::core::postings::Postings;
 use tantivy::core::analyzer::tokenize;
+use tantivy::core::collector::DisplayCollector;
 use tantivy::core::serial::*;
 use tantivy::core::schema::*;
 use tantivy::core::codec::SimpleCodec;
 use tantivy::core::global::*;
 use tantivy::core::writer::IndexWriter;
+use tantivy::core::searcher::Searcher;
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use std::ops::DerefMut;
-use tantivy::core::reader::SegmentIndexReader;
+use tantivy::core::reader::SegmentReader;
 use std::io::{ BufWriter, Write};
 use regex::Regex;
 use std::convert::From;
 use std::path::PathBuf;
 use tantivy::core::query;
-use tantivy::core::query::{parse_query, BoolExpr};
+use tantivy::core::query::parse_query;
 #[test]
 fn test_parse_query() {
     // let left = VecPostings::new(vec!(1, 3, 9));
@@ -28,7 +30,7 @@ fn test_parse_query() {
     // assert_eq!(vals, vec!(3, 9));
     {
         let (parsed_query, _) = parse_query("toto:titi toto:tutu").unwrap();
-        assert_eq!(parsed_query, BoolExpr::Conjunction(vec!(query::Term(String::from("toto"), String::from("titi")), query::Term(String::from("toto"), String::from("tutu")))));
+        assert_eq!(parsed_query, vec!(query::Term(String::from("toto"), String::from("titi")), query::Term(String::from("toto"), String::from("tutu"))));
     }
 }
 
@@ -74,42 +76,57 @@ fn test_indexing() {
         let commit_result = index_writer.commit();
         assert!(commit_result.is_ok());
         let segment = commit_result.unwrap();
-        let index_reader = SegmentIndexReader::open(segment).unwrap();
-        let segment_str_after_reading = DebugSegmentSerializer::debug_string(&index_reader);
+        let segment_reader = SegmentReader::open(segment).unwrap();
+        let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
         assert_eq!(segment_str_before_writing, segment_str_after_reading);
-// =======
-//
-//         let commit_result = index_writer.commit();
-//         println!("{:?}", commit_result);
-//         assert!(commit_result.is_ok());
-//         // reading the segment
-//         println!("------");
-//         {
-//             let segment = commit_result.unwrap();
-//             let index_reader = SegmentIndexReader::open(segment).unwrap();
-//             let mut term_cursor = index_reader.term_cursor();
-//             loop {
-//                 match term_cursor.next() {
-//                     Some((term, doc_cursor)) => {
-//                         println!("{:?}", term);
-//                         for doc in doc_cursor {
-//                             println!("  Doc {}", doc);
-//                         }
-//                     },
-//                     None => {
-//                         break;
-//                     },
-//                 }
-//             }
-//         }
-//     }
-//     {
-//         // TODO add index opening stuff
-//         // let index_reader = IndexReader::open(&directory);
-// >>>>>>> a515294b8df80a518a096830bfa2940b802117d8
     }
 }
 
+
+#[test]
+fn test_searcher() {
+    let directory = Directory::from_tempdir().unwrap();
+    {
+        // writing the segment
+        let mut index_writer = IndexWriter::open(&directory);
+        {
+            let mut doc = Document::new();
+            doc.set(Field(1), "af b");
+            index_writer.add(doc);
+        }
+        {
+            let mut doc = Document::new();
+            doc.set(Field(1), "a b c");
+            index_writer.add(doc);
+        }
+        {
+            let mut doc = Document::new();
+            doc.set(Field(1), "a b c d");
+            index_writer.add(doc);
+        }
+        let commit_result = index_writer.commit();
+        println!("commit result {:?}", commit_result);
+        let segment = commit_result.unwrap();
+    }
+    {
+        let searcher = Searcher::for_directory(directory);
+        let terms = vec!(Term::from_field_text(Field(1), "a"), Term::from_field_text(Field(1), "b"), );
+        // let collector = Collector;
+        let mut collector = DisplayCollector;
+        searcher.search(&terms, &mut collector);
+        assert!(false);
+    }
+
+        //
+        // let debug_serializer = DebugSegmentSerializer::new();
+        // let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
+        // let commit_result = index_writer.commit();
+        // assert!(commit_result.is_ok());
+        // let segment = commit_result.unwrap();
+        // let segment_reader = SegmentReader::open(segment).unwrap();
+        // let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
+        // assert_eq!(segment_str_before_writing, segment_str_after_reading);
+}
 
 
 

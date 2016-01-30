@@ -17,7 +17,7 @@ use core::postings::Postings;
 
 // TODO file structure should be in codec
 
-pub struct SegmentIndexReader {
+pub struct SegmentReader {
     segment: Segment,
     term_offsets: fst::Map,
     postings_data: MmapReadOnly,
@@ -40,6 +40,17 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
 
 pub struct SegmentPostingsIterator<'a> {
     cursor: Cursor<&'a [u8]>,
@@ -71,9 +82,39 @@ impl<'a> Postings for SegmentPostings<'a> {
 
 
 
-impl SegmentIndexReader {
+pub struct ConjunctionPostings<'a> {
+    segment_postings: Vec<SegmentPostings<'a>>,
+}
 
-    pub fn open(segment: Segment) -> Result<SegmentIndexReader> {
+impl<'a> Postings for ConjunctionPostings<'a> {
+    type IteratorType = ConjunctionPostingsIterator<'a>;
+    fn iter(&self) -> ConjunctionPostingsIterator<'a> {
+        ConjunctionPostingsIterator {
+            postings_it: self.segment_postings
+                .iter()
+                .map(|postings| postings.iter())
+                .collect()
+        }
+    }
+}
+
+pub struct ConjunctionPostingsIterator<'a> {
+    postings_it: Vec<SegmentPostingsIterator<'a>>,
+}
+
+impl<'a> Iterator for ConjunctionPostingsIterator<'a> {
+
+    type Item = DocId;
+
+    fn next(&mut self) -> Option<DocId> {
+        None
+    }
+}
+
+
+impl SegmentReader {
+
+    pub fn open(segment: Segment) -> Result<SegmentReader> {
         let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
         let term_offsets = match fst::Map::from_mmap(term_shared_mmap) {
             Ok(term_offsets) => term_offsets,
@@ -83,12 +124,13 @@ impl SegmentIndexReader {
             }
         };
         let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
-        Ok(SegmentIndexReader {
+        Ok(SegmentReader {
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,
             segment: segment,
         })
     }
+
 
     pub fn read_postings(&self, offset: usize) -> SegmentPostings {
         let postings_data = unsafe {&self.postings_data.as_slice()[offset..]};
@@ -101,6 +143,17 @@ impl SegmentIndexReader {
             None => None,
         }
     }
+
+    pub fn search<'a>(&'a self, terms: &Vec<Term>) -> ConjunctionPostings<'a> {
+        let segment_postings = terms
+            .iter()
+            .map(|term| self.get_term(term).unwrap())
+            .collect();
+        ConjunctionPostings {
+            segment_postings: segment_postings
+        }
+    }
+
 }
 
 
@@ -112,7 +165,7 @@ fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cu
     Ok(())
 }
 
-impl SerializableSegment for SegmentIndexReader {
+impl SerializableSegment for SegmentReader {
 
     fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
         let mut term_offsets_it = self.term_offsets.stream();

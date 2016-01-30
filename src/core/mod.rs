@@ -9,4 +9,6 @@ pub mod serial;
 pub mod reader;
 pub mod codec;
 pub mod error;
+pub mod searcher;
+pub mod collector;
 pub use core::global::DocId;

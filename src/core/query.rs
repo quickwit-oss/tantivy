@@ -7,14 +7,14 @@ pub struct Term(pub String, pub String);
 
 
 #[derive(Debug, PartialEq)]
-pub enum BoolExpr {
+pub enum BoolQuery {
     AlwaysTrue,
     Conjunction(Vec<Term>),
 }
 
 
 
-pub fn grammar<I>(input: State<I>) -> ParseResult<BoolExpr, I>
+pub fn grammar<I>(input: State<I>) -> ParseResult<Vec<Term>, I>
     where I: Stream<Item=char>
 {
     let make_term = || {
@@ -26,7 +26,6 @@ pub fn grammar<I>(input: State<I>) -> ParseResult<BoolExpr, I>
 
     // let term_seqs = (make_term(), space(), parser(grammar::<I>),).map(|t| BoolExpr::AlwaysTrue);
     sep_by1(make_term(), space())
-        .map(BoolExpr::Conjunction)
         .parse_state(input)
     // make_term().or(term_seqs).parse_state(input)
     //make_term()
@@ -56,6 +55,6 @@ pub fn grammar<I>(input: State<I>) -> ParseResult<BoolExpr, I>
     //     .parse_state(input)
 }
 
-pub fn parse_query(query_str: &str) -> Result<(BoolExpr, &str), ParseError<&str>> {
+pub fn parse_query(query_str: &str) -> Result<(Vec<Term>, &str), ParseError<&str>> {
     parser(grammar).parse(query_str)
 }
