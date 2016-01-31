@@ -85,7 +85,7 @@ pub struct Directory {
 impl Directory {
 
     fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>> {
-        match self.inner_directory.as_ref().write() {
+        match self.inner_directory.write() {
             Ok(dir) =>
                 Ok(dir),
             Err(e) =>
@@ -94,7 +94,7 @@ impl Directory {
     }
 
     fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>> {
-        match self.inner_directory.as_ref().read() {
+        match self.inner_directory.read() {
             Ok(dir) =>
                 Ok(dir),
             Err(e) =>
@@ -121,7 +121,7 @@ impl Directory {
     }
 
     pub fn load_metas(&self,) -> Result<()> {
-        match self.inner_directory.as_ref().read() {
+        match self.inner_directory.read() {
             Ok(dir) => dir.load_metas(),
             Err(e) => Err(Error::LockError(format!("Could not get read lock {:?} for directory", e)))
         }
@@ -132,7 +132,7 @@ impl Directory {
     }
 
     pub fn segments(&self,) -> Vec<Segment> {
-        match self.inner_directory.as_ref().read() {
+        match self.inner_directory.read() {
             Ok(inner) => inner
                     .segment_ids()
                     .into_iter()
