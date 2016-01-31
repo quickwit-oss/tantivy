@@ -48,7 +48,7 @@ impl DirectoryMeta {
 
 impl fmt::Debug for Directory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "Directory({:?})", self.index_path)
+       write!(f, "Directory({:?})", self.inner_directory.read().unwrap().index_path)
    }
 }
 
@@ -78,13 +78,95 @@ fn sync_file(filepath: &PathBuf) -> Result<()> {
 
 #[derive(Clone)]
 pub struct Directory {
-    index_path: PathBuf,
-    mmap_cache: Arc<Mutex<HashMap<PathBuf, MmapReadOnly>>>,
-    metas: DirectoryMeta,
-    _temp_directory: Option<Arc<TempDir>>,
+    inner_directory: Arc<RwLock<InnerDirectory>>,
 }
 
+
 impl Directory {
+    pub fn publish_segment(&mut self, segment: Segment) {
+        // self.metas.segments.push(segment.segment_id.0.clone());
+        // println!("publish segment {:?}", self.metas.segments);
+        // self.save_metas();
+        panic!();
+    }
+
+    pub fn open(filepath: &Path) -> Result<Directory> {
+        panic!();
+    }
+
+    pub fn segment_ids(&self,) -> Vec<SegmentId> {
+        panic!();
+    }
+
+    pub fn from_tempdir() -> Result<Directory> {
+        panic!();
+    }
+
+    pub fn load_metas(&mut self,) -> Result<()> {
+        panic!();
+    }
+
+    pub fn save_metas(&self,) -> Result<()> {
+        panic!();
+    }
+
+    pub fn sync(&self, segment: Segment) -> Result<()> {
+        panic!();
+    }
+
+    fn resolve_path(&self, relative_path: &PathBuf) -> PathBuf {
+        panic!();
+    }
+
+    pub fn segments(&self,) -> Vec<Segment> {
+        self.segment_ids()
+            .into_iter()
+            .map(|segment_id| self.segment(&segment_id))
+            .collect()
+    }
+
+    pub fn segment(&self, segment_id: &SegmentId) -> Segment {
+        Segment {
+            directory: self.clone(),
+            segment_id: segment_id.clone()
+        }
+    }
+
+    pub fn new_segment(&self,) -> Segment {
+        // TODO check it does not exists
+        self.segment(&generate_segment_name())
+    }
+
+    fn open_writable(&self, relative_path: &PathBuf) -> Result<File> {
+        panic!();
+    }
+
+    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
+        panic!();
+    }
+}
+
+
+struct InnerDirectory {
+    index_path: PathBuf,
+    mmap_cache: HashMap<PathBuf, MmapReadOnly>,
+    metas: DirectoryMeta,
+    _temp_directory: Option<TempDir>,
+}
+
+
+
+fn create_tempdir() -> Result<TempDir> {
+    let tempdir_res = TempDir::new("index");
+    match tempdir_res {
+        Ok(tempdir) => Ok(tempdir),
+        Err(_) => Err(Error::FileNotFound(String::from("Could not create temp directory")))
+    }
+}
+
+
+
+impl InnerDirectory {
 
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
@@ -94,10 +176,10 @@ impl Directory {
         self.save_metas();
     }
 
-    pub fn open(filepath: &Path) -> Result<Directory> {
-        let mut directory = Directory {
+    pub fn open(filepath: &Path) -> Result<InnerDirectory> {
+        let mut directory = InnerDirectory {
             index_path: PathBuf::from(filepath),
-            mmap_cache: Arc::new(Mutex::new(HashMap::new())),
+            mmap_cache: HashMap::new(),
             metas: DirectoryMeta::new(),
             _temp_directory: None,
         };
@@ -115,33 +197,17 @@ impl Directory {
             .collect()
     }
 
-    pub fn segments(&self,) -> Vec<Segment> {
-        self.segment_ids()
-            .into_iter()
-            .map(|segment_id| self.segment(&segment_id))
-            .collect()
-    }
-
-    fn create_tempdir() -> Result<TempDir> {
-        let tempdir_res = TempDir::new("index");
-        match tempdir_res {
-            Ok(tempdir) => Ok(tempdir),
-            Err(_) => Err(Error::FileNotFound(String::from("Could not create temp directory")))
-        }
-    }
-
-    pub fn from_tempdir() -> Result<Directory> {
-        let tempdir = try!(Directory::create_tempdir());
+    pub fn from_tempdir() -> Result<InnerDirectory> {
+        let tempdir = try!(create_tempdir());
         let tempdir_path: PathBuf;
         {
             tempdir_path = PathBuf::from(tempdir.path());
         };
-        let tempdir_arc = Arc::new(tempdir);
-        let mut directory = Directory {
+        let mut directory = InnerDirectory {
             index_path: PathBuf::from(tempdir_path),
-            mmap_cache: Arc::new(Mutex::new(HashMap::new())),
+            mmap_cache: HashMap::new(),
             metas: DirectoryMeta::new(),
-            _temp_directory: Some(tempdir_arc)
+            _temp_directory: Some(tempdir)
         };
         //< does the directory already exists?
         try!(directory.load_metas());
@@ -186,18 +252,6 @@ impl Directory {
         self.index_path.join(relative_path)
     }
 
-    pub fn segment(&self, segment_id: &SegmentId) -> Segment {
-        Segment {
-            directory: self.clone(),
-            segment_id: segment_id.clone()
-        }
-    }
-
-    pub fn new_segment(&self,) -> Segment {
-        // TODO check it does not exists
-        self.segment(&generate_segment_name())
-    }
-
     fn open_writable(&self, relative_path: &PathBuf) -> Result<File> {
         let full_path = self.resolve_path(relative_path);
         match File::create(full_path.clone()) {
@@ -209,23 +263,15 @@ impl Directory {
         }
     }
 
-    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
+    fn mmap(&mut self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
         let full_path = self.resolve_path(relative_path);
-        let mut cache_mutex = self.mmap_cache.deref();
-        match cache_mutex.lock() {
-            Ok(mut cache) => {
-                if !cache.contains_key(&full_path) {
-                    cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
-                }
-                let mmap_readonly: &MmapReadOnly = cache.get(&full_path).unwrap();
-                // TODO remove if a proper clone is available
-                let len = unsafe { mmap_readonly.as_slice().len() };
-                return Ok(mmap_readonly.range(0, len))
-            },
-            Err(_) => {
-                return Err(Error::CannotAcquireLock(String::from("Cannot acquire mmap cache lock.")))
-            }
+        if !self.mmap_cache.contains_key(&full_path) {
+            self.mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
         }
+        let mmap_readonly: &MmapReadOnly = self.mmap_cache.get(&full_path).unwrap();
+        // TODO remove if a proper clone is available
+        let len = unsafe { mmap_readonly.as_slice().len() };
+        Ok(mmap_readonly.range(0, len))
     }
 }
 
