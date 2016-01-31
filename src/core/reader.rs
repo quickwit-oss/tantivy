@@ -1,10 +1,12 @@
 use core::directory::Directory;
 use core::directory::Segment;
+use std::collections::BinaryHeap;
 use core::schema::Term;
 use fst::Streamer;
 use fst;
 use std::io;
 use fst::raw::Fst;
+use std::cmp::{Eq,PartialEq,Ord,PartialOrd,Ordering};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
@@ -26,7 +28,8 @@ pub struct SegmentReader {
 
 pub struct SegmentPostings<'a> {
     cursor: Cursor<&'a [u8]>,
-    doc_freq: usize,
+    num_docs_remaining: usize,
+    current_doc_id: DocId,
 }
 
 impl<'a> SegmentPostings<'a> {
@@ -36,7 +39,8 @@ impl<'a> SegmentPostings<'a> {
         let doc_freq = cursor.read_u32::<LittleEndian>().unwrap() as usize;
         SegmentPostings {
             cursor: cursor,
-            doc_freq: doc_freq,
+            num_docs_remaining: doc_freq,
+            current_doc_id: 0,
         }
     }
 }
@@ -44,20 +48,8 @@ impl<'a> SegmentPostings<'a> {
 
 
 
+impl<'a> Iterator for SegmentPostings<'a> {
 
-
-
-
-
-
-
-
-pub struct SegmentPostingsIterator<'a> {
-    cursor: Cursor<&'a [u8]>,
-    num_docs_remaining: usize,
-}
-
-impl<'a> Iterator for SegmentPostingsIterator<'a> {
     type Item = DocId;
 
     fn next(&mut self,) -> Option<DocId> {
@@ -65,51 +57,109 @@ impl<'a> Iterator for SegmentPostingsIterator<'a> {
             None
         }
         else {
-            Some(self.cursor.read_u32::<LittleEndian>().unwrap() as DocId)
-        }
-    }
-}
-
-impl<'a> Postings for SegmentPostings<'a> {
-    type IteratorType = SegmentPostingsIterator<'a>;
-    fn iter(&self) -> SegmentPostingsIterator<'a> {
-        SegmentPostingsIterator {
-            cursor: self.cursor.clone(),
-            num_docs_remaining: self.doc_freq,
+            self.current_doc_id = self.cursor.read_u32::<LittleEndian>().unwrap() as DocId;
+            Some(self.current_doc_id)
         }
     }
 }
 
 
 
-pub struct ConjunctionPostings<'a> {
-    segment_postings: Vec<SegmentPostings<'a>>,
+
+struct OrderedPostings<T: Postings> {
+    postings: T,
+    current_el: DocId,
 }
 
-impl<'a> Postings for ConjunctionPostings<'a> {
-    type IteratorType = ConjunctionPostingsIterator<'a>;
-    fn iter(&self) -> ConjunctionPostingsIterator<'a> {
-        ConjunctionPostingsIterator {
-            postings_it: self.segment_postings
-                .iter()
-                .map(|postings| postings.iter())
-                .collect()
+impl<T: Postings> OrderedPostings<T> {
+
+    pub fn get(&self,) -> DocId {
+        self.current_el
+    }
+
+    pub fn from_postings(mut postings: T) -> Option<OrderedPostings<T>> {
+        match(postings.next()) {
+            Some(doc_id) => Some(OrderedPostings {
+                postings: postings,
+                current_el: doc_id,
+            }),
+            None => None
         }
     }
 }
 
-pub struct ConjunctionPostingsIterator<'a> {
-    postings_it: Vec<SegmentPostingsIterator<'a>>,
-}
 
-impl<'a> Iterator for ConjunctionPostingsIterator<'a> {
-
+impl<T: Postings> Iterator for OrderedPostings<T> {
     type Item = DocId;
+    fn next(&mut self,) -> Option<DocId> {
+        match self.postings.next() {
+            Some(doc_id) => {
+                self.current_el = doc_id;
+                return Some(doc_id);
+            },
+            None => None
+        }
+    }
+}
 
-    fn next(&mut self) -> Option<DocId> {
+impl<T: Postings> Ord for OrderedPostings<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.current_el.cmp(&self.current_el)
+    }
+}
+
+impl<T: Postings> PartialOrd for OrderedPostings<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(other.current_el.cmp(&self.current_el))
+    }
+}
+
+impl<T: Postings> PartialEq for OrderedPostings<T> {
+    fn eq(&self, other: &Self) -> bool {
+        false
+    }
+}
+
+impl<T: Postings> Eq for OrderedPostings<T> {
+}
+
+pub struct IntersectionPostings<T: Postings> {
+    postings: BinaryHeap<OrderedPostings<T>>,
+    current_doc_id: DocId,
+}
+
+impl<T: Postings> IntersectionPostings<T> {
+    pub fn from_postings(mut postings: Vec<T>) -> IntersectionPostings<T> {
+        let mut ordered_postings = Vec::new();
+        for posting in postings.into_iter() {
+            match OrderedPostings::from_postings(posting) {
+                Some(ordered_posting) =>{
+                    ordered_postings.push(ordered_posting);
+                },
+                None => {
+                    return IntersectionPostings {
+                        postings: BinaryHeap::new(),
+                        current_doc_id: 0,
+                    }
+                }
+            }
+        }
+        IntersectionPostings {
+            postings: ordered_postings.into_iter().collect(),
+            current_doc_id: 0,
+        }
+    }
+
+}
+
+
+impl<T: Postings> Iterator for IntersectionPostings<T> {
+    type Item = DocId;
+    fn next(&mut self,) -> Option<DocId> {
         None
     }
 }
+
 
 
 impl SegmentReader {
@@ -144,14 +194,12 @@ impl SegmentReader {
         }
     }
 
-    pub fn search<'a>(&'a self, terms: &Vec<Term>) -> ConjunctionPostings<'a> {
-        let segment_postings = terms
+    pub fn search<'a>(&'a self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings<'a>> {
+        let segment_postings: Vec<SegmentPostings> = terms
             .iter()
             .map(|term| self.get_term(term).unwrap())
             .collect();
-        ConjunctionPostings {
-            segment_postings: segment_postings
-        }
+        IntersectionPostings::from_postings(segment_postings)
     }
 
 }
