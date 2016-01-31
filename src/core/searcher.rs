@@ -10,7 +10,6 @@ pub struct Searcher {
 
 impl Searcher {
     pub fn for_directory(directory: Directory) -> Searcher {
-        println!("direct {}", directory.segments().len());
         Searcher {
             segments: directory.segments()
                 .into_iter()
@@ -25,7 +24,6 @@ impl Searcher {
 impl Searcher {
 
     pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) {
-        println!("Searcher");
         for segment in &self.segments {
             let postings = segment.search(terms);
             for doc_id in postings.iter() {

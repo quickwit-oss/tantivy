@@ -9,7 +9,7 @@ use std::io;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, RwLock, MutexGuard};
+use std::sync::{Arc, Mutex, RwLock, MutexGuard, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use std::ops::Deref;
 use std::cell::RefCell;
@@ -83,46 +83,68 @@ pub struct Directory {
 
 
 impl Directory {
-    pub fn publish_segment(&mut self, segment: Segment) {
-        // self.metas.segments.push(segment.segment_id.0.clone());
-        // println!("publish segment {:?}", self.metas.segments);
-        // self.save_metas();
-        panic!();
+
+    fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>> {
+        match self.inner_directory.as_ref().write() {
+            Ok(dir) =>
+                Ok(dir),
+            Err(e) =>
+                Err(Error::LockError(format!("Could not acquire write lock on directory. {:?}", e)))
+        }
+    }
+
+    fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>> {
+        match self.inner_directory.as_ref().read() {
+            Ok(dir) =>
+                Ok(dir),
+            Err(e) =>
+                Err(Error::LockError(format!("Could not acquire read lock on directory. {:?}", e)))
+        }
+    }
+
+    pub fn publish_segment(&mut self, segment: Segment) -> Result<()> {
+        return try!(self.get_write()).publish_segment(segment);
     }
 
     pub fn open(filepath: &Path) -> Result<Directory> {
-        panic!();
-    }
-
-    pub fn segment_ids(&self,) -> Vec<SegmentId> {
-        panic!();
+        let inner_directory = try!(InnerDirectory::open(filepath));
+        Ok(Directory {
+            inner_directory: Arc::new(RwLock::new(inner_directory)),
+        })
     }
 
     pub fn from_tempdir() -> Result<Directory> {
-        panic!();
+        let inner_directory = try!(InnerDirectory::from_tempdir());
+        Ok(Directory {
+            inner_directory: Arc::new(RwLock::new(inner_directory)),
+        })
     }
 
-    pub fn load_metas(&mut self,) -> Result<()> {
-        panic!();
+    pub fn load_metas(&self,) -> Result<()> {
+        match self.inner_directory.as_ref().read() {
+            Ok(dir) => dir.load_metas(),
+            Err(e) => Err(Error::LockError(format!("Could not get read lock {:?} for directory", e)))
+        }
     }
 
-    pub fn save_metas(&self,) -> Result<()> {
-        panic!();
-    }
-
-    pub fn sync(&self, segment: Segment) -> Result<()> {
-        panic!();
-    }
-
-    fn resolve_path(&self, relative_path: &PathBuf) -> PathBuf {
-        panic!();
+    pub fn sync(&mut self, segment: Segment) -> Result<()> {
+        try!(self.get_write()).sync(segment)
     }
 
     pub fn segments(&self,) -> Vec<Segment> {
-        self.segment_ids()
-            .into_iter()
-            .map(|segment_id| self.segment(&segment_id))
-            .collect()
+        match self.inner_directory.as_ref().read() {
+            Ok(inner) => inner
+                    .segment_ids()
+                    .into_iter()
+                    .map(|segment_id| self.segment(&segment_id))
+                    .collect(),
+            Err(e) => {
+                //Err(Error::LockError(format!("Could not obtain read lock for {:?}", self)))
+                // TODO make it return a result
+                panic!("Could not work");
+            }
+        }
+
     }
 
     pub fn segment(&self, segment_id: &SegmentId) -> Segment {
@@ -138,18 +160,18 @@ impl Directory {
     }
 
     fn open_writable(&self, relative_path: &PathBuf) -> Result<File> {
-        panic!();
+        try!(self.get_read()).open_writable(relative_path)
     }
 
     fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
-        panic!();
+        try!(self.get_read()).mmap(relative_path)
     }
 }
 
 
 struct InnerDirectory {
     index_path: PathBuf,
-    mmap_cache: HashMap<PathBuf, MmapReadOnly>,
+    mmap_cache: RefCell<HashMap<PathBuf, MmapReadOnly>>,
     metas: DirectoryMeta,
     _temp_directory: Option<TempDir>,
 }
@@ -170,16 +192,16 @@ impl InnerDirectory {
 
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segment(&mut self, segment: Segment) {
+    pub fn publish_segment(&mut self, segment: Segment) -> Result<()> {
         self.metas.segments.push(segment.segment_id.0.clone());
-        println!("publish segment {:?}", self.metas.segments);
-        self.save_metas();
+        // TODO use logs
+        self.save_metas()
     }
 
     pub fn open(filepath: &Path) -> Result<InnerDirectory> {
         let mut directory = InnerDirectory {
             index_path: PathBuf::from(filepath),
-            mmap_cache: HashMap::new(),
+            mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
             _temp_directory: None,
         };
@@ -188,7 +210,6 @@ impl InnerDirectory {
     }
 
     pub fn segment_ids(&self,) -> Vec<SegmentId> {
-        println!("segids {:?}", self.metas.segments);
         self.metas
             .segments
             .iter()
@@ -199,13 +220,10 @@ impl InnerDirectory {
 
     pub fn from_tempdir() -> Result<InnerDirectory> {
         let tempdir = try!(create_tempdir());
-        let tempdir_path: PathBuf;
-        {
-            tempdir_path = PathBuf::from(tempdir.path());
-        };
+        let tempdir_path = PathBuf::from(tempdir.path());
         let mut directory = InnerDirectory {
             index_path: PathBuf::from(tempdir_path),
-            mmap_cache: HashMap::new(),
+            mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
             _temp_directory: Some(tempdir)
         };
@@ -214,7 +232,7 @@ impl InnerDirectory {
         Ok(directory)
     }
 
-    pub fn load_metas(&mut self,) -> Result<()> {
+    pub fn load_metas(&self,) -> Result<()> {
         // TODO load segment info
         Ok(())
     }
@@ -237,7 +255,7 @@ impl InnerDirectory {
     }
 
 
-    pub fn sync(&self, segment: Segment) -> Result<()> {
+    pub fn sync(&mut self, segment: Segment) -> Result<()> {
         for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
             let relative_path = segment.relative_path(component);
             let full_path = self.resolve_path(&relative_path);
@@ -263,13 +281,14 @@ impl InnerDirectory {
         }
     }
 
-    fn mmap(&mut self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
+    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly> {
         let full_path = self.resolve_path(relative_path);
-        if !self.mmap_cache.contains_key(&full_path) {
-            self.mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
+        let mut mmap_cache = self.mmap_cache.borrow_mut();
+        if !mmap_cache.contains_key(&full_path) {
+            mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
         }
-        let mmap_readonly: &MmapReadOnly = self.mmap_cache.get(&full_path).unwrap();
-        // TODO remove if a proper clone is available
+        let mmap_readonly: &MmapReadOnly = mmap_cache.get(&full_path).unwrap();
+        // // TODO remove if a proper clone is available
         let len = unsafe { mmap_readonly.as_slice().len() };
         Ok(mmap_readonly.range(0, len))
     }

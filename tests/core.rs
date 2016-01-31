@@ -105,13 +105,11 @@ fn test_searcher() {
             index_writer.add(doc);
         }
         let commit_result = index_writer.commit();
-        println!("commit result {:?}", commit_result);
         let segment = commit_result.unwrap();
     }
     {
         let searcher = Searcher::for_directory(directory);
         let terms = vec!(Term::from_field_text(Field(1), "a"), Term::from_field_text(Field(1), "b"), );
-        // let collector = Collector;
         let mut collector = DisplayCollector;
         searcher.search(&terms, &mut collector);
         assert!(false);

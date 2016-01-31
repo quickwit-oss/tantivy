@@ -7,6 +7,7 @@ pub enum Error {
     WriteError(String),
     IOError(io::ErrorKind, String),
     FileNotFound(String),
+    LockError(String),
     ReadOnly(String),
     CannotAcquireLock(String),
     FSTFormat(String),
