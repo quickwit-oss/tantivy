@@ -25,11 +25,12 @@ impl Searcher {
 
     pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) {
         for segment in &self.segments {
+            collector.set_segment(&segment);
             let postings = segment.search(terms);
             for doc_id in postings {
                 collector.collect(doc_id);
             }
-            collector.set_segment(&segment);
+
         }
     }
 

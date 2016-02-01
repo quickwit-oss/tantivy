@@ -314,6 +314,11 @@ pub struct Segment {
 
 
 impl Segment {
+
+    pub fn id(&self,) -> SegmentId {
+        self.segment_id.clone()
+    }
+
     fn path_suffix(component: &SegmentComponent)-> &'static str {
         match *component {
             SegmentComponent::POSTINGS => ".idx",
