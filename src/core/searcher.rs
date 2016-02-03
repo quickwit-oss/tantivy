@@ -20,7 +20,6 @@ impl Searcher {
 }
 
 
-
 impl Searcher {
 
     pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) {
@@ -30,7 +29,6 @@ impl Searcher {
             for doc_id in postings {
                 collector.collect(doc_id);
             }
-
         }
     }
 

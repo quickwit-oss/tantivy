@@ -8,7 +8,7 @@ use std::io;
 use core::postings::IntersectionPostings;
 use fst::raw::Fst;
 use std::cmp::{Eq,PartialEq,Ord,PartialOrd,Ordering};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::borrow::Borrow;
 use std::io::Cursor;
 use core::global::DocId;
@@ -35,7 +35,7 @@ pub struct SegmentPostings<'a> {
 impl<'a> SegmentPostings<'a> {
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
-        let doc_freq = cursor.read_u32::<LittleEndian>().unwrap() as usize;
+        let doc_freq = cursor.read_u32::<BigEndian>().unwrap() as usize;
         SegmentPostings {
             cursor: cursor,
             num_docs_remaining: doc_freq,
@@ -71,7 +71,7 @@ impl<'a> Iterator for SegmentPostings<'a> {
         }
         else {
             self.num_docs_remaining -= 1;
-            Some(self.cursor.read_u32::<LittleEndian>().unwrap() as DocId)
+            Some(self.cursor.read_u32::<BigEndian>().unwrap() as DocId)
         }
     }
 }
@@ -129,7 +129,7 @@ impl SegmentReader {
 
 fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
     for i in 0..num_docs {
-        let doc_id = cursor.read_u32::<LittleEndian>().unwrap();
+        let doc_id = cursor.read_u32::<BigEndian>().unwrap();
         try!(serializer.add_doc(doc_id));
     }
     Ok(())
@@ -146,7 +146,7 @@ impl SerializableSegment for SegmentReader {
                     let offset = offset_u64 as usize;
                     let data = unsafe { &self.postings_data.as_slice()[offset..] };
                     let mut cursor = Cursor::new(data);
-                    let num_docs = cursor.read_u32::<LittleEndian>().unwrap() as DocId;
+                    let num_docs = cursor.read_u32::<BigEndian>().unwrap() as DocId;
                     try!(serializer.new_term(&term, num_docs));
                     try!(write_postings(cursor, num_docs, &mut serializer));
                 },

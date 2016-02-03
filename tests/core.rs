@@ -118,20 +118,11 @@ fn test_searcher() {
         let terms = vec!(Term::from_field_text(Field(1), "a"), Term::from_field_text(Field(1), "b"), );
         let mut collector = TestCollector::new();
         searcher.search(&terms, &mut collector);
-        let vals = format!("{:?}", collector.docs());
-        println!("{}",vals);
-        assert_eq!(vals, "");
+        let vals: Vec<DocId> = collector.docs().iter()
+            .map(|doc| doc.1)
+            .collect::<Vec<DocId>>();
+        assert_eq!(vals, [1, 2]);
     }
-
-        //
-        // let debug_serializer = DebugSegmentSerializer::new();
-        // let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
-        // let commit_result = index_writer.commit();
-        // assert!(commit_result.is_ok());
-        // let segment = commit_result.unwrap();
-        // let segment_reader = SegmentReader::open(segment).unwrap();
-        // let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
-        // assert_eq!(segment_str_before_writing, segment_str_after_reading);
 }
 
 

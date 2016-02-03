@@ -9,7 +9,7 @@ pub trait Collector {
 }
 
 #[derive(Debug)]
-pub struct DocAddress(SegmentId, DocId);
+pub struct DocAddress(pub SegmentId, pub DocId);
 
 pub struct TestCollector {
     docs: Vec<DocAddress>,
@@ -33,7 +33,6 @@ impl TestCollector {
 impl Collector for TestCollector {
 
     fn set_segment(&mut self, segment: &SegmentReader) {
-        println!("eee");
         self.current_segment = Some(segment.id());
     }
 

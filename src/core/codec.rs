@@ -3,7 +3,7 @@ use core::serial::*;
 use std::io::Write;
 use fst::MapBuilder;
 use core::error::*;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use core::directory::Segment;
 use core::directory::SegmentComponent;
 use core::reader::*;
@@ -12,6 +12,9 @@ use core::DocId;
 use std::fs::File;
 
 pub struct SimpleCodec;
+
+
+// TODO should we vint?
 
 pub struct SimpleSegmentSerializer {
     written_bytes_postings: usize,
@@ -25,7 +28,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         self.term_fst_builder.insert(term.as_slice(), self.written_bytes_postings as u64);
         self.cur_term_num_docs = doc_freq;
         // writing the size of the posting list
-        match self.postings_write.write_u32::<LittleEndian>(doc_freq) {
+        match self.postings_write.write_u32::<BigEndian>(doc_freq) {
             Ok(_) => {},
             Err(_) => {
                 let msg = String::from("Failed writing posting list length");
@@ -37,7 +40,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
     }
 
     fn add_doc(&mut self, doc_id: DocId) -> Result<()> {
-        match self.postings_write.write_u32::<LittleEndian>(doc_id as u32) {
+        match self.postings_write.write_u32::<BigEndian>(doc_id as u32) {
             Ok(_) => {},
             Err(_) => {
                 let msg = String::from("Failed while writing posting list");
