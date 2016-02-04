@@ -35,3 +35,16 @@ fn test_skip_list_builder() {
         assert_eq!(output[0], 3);
     }
 }
+
+
+#[test]
+fn test_skip_list_builder() {
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
+        skip_list_builder.insert(2, 3);
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let skip_list = SkipList::read(output.as_slice());
+    }
+
+}

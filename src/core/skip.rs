@@ -1,5 +1,9 @@
 use std::io::Write;
 use std::io::BufWriter;
+use std::io::Read;
+use std::io::Cursor;
+use std::io::SeekFrom;
+use std::io::Seek;
 use core::DocId;
 use std::ops::DerefMut;
 use serde::Serialize;
@@ -9,9 +13,6 @@ use byteorder;
 use core::error;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-
-
-// writer
 
 struct LayerBuilder {
     period: usize,
@@ -68,7 +69,6 @@ pub struct SkipListBuilder {
     period: usize,
     layers: Vec<LayerBuilder>,
 }
-
 
 enum InsertResult {
     SkipPointer(usize),
@@ -127,4 +127,48 @@ impl SkipListBuilder {
         }
         Ok(())
     }
+}
+
+
+// ---------------------------
+
+
+struct Layer<R: Read + Seek> {
+    reader: R,
+    num_items: u32,
+}
+
+impl<R: Read + Seek + Clone> Layer<R> {
+    fn read(reader: &mut R) -> Layer<R> {
+        // TODO error handling?
+        let num_items = reader.read_u32::<BigEndian>().unwrap() as u32;
+        let num_bytes = reader.read_u32::<BigEndian>().unwrap() as u32;
+        let reader_clone = reader.clone();
+        reader.seek(SeekFrom::Current(num_bytes as i64));
+        Layer {
+            reader: reader_clone,
+            num_items: num_items,
+        }
+    }
+}
+
+pub struct SkipList<R: Read + Seek> {
+    layers: Vec<Layer<R>>,
+}
+
+impl<R: Read + Seek> SkipList<R> {
+
+    pub fn read(data: &[u8]) -> SkipList<Cursor<&[u8]>> {
+        let mut cursor = Cursor::new(data);
+        // TODO error handling?
+        let num_layers = cursor.read_u8().unwrap();
+        let mut layers = Vec::new();
+        for _ in (0..num_layers) {
+            layers.push(Layer::read(&mut cursor));
+        }
+        SkipList {
+            layers: layers
+        }
+    }
+
 }
