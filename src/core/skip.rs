@@ -175,7 +175,6 @@ impl BinarySerializable for u32 {
 }
 
 
-
 struct Layer<'a, T> {
     cursor: Cursor<&'a [u8]>,
     next_id: DocId,
@@ -277,16 +276,11 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let mut next_layer_skip: Option<(DocId, u32)> = None;
         for skip_layer_id in 0..self.skip_layers.len() {
             let mut skip_layer: &mut Layer<'a, u32> = &mut self.skip_layers[skip_layer_id];
-            println!("\n\nLAYER {}", skip_layer_id);
-            println!("nextid before skip {}", skip_layer.next_id);
             match next_layer_skip {
                  Some((_, offset)) => { skip_layer.seek_offset(offset as usize); },
                  None => {}
              };
-             println!("nextid after skip {}", skip_layer.next_id);
              next_layer_skip = skip_layer.seek(doc_id);
-             println!("nextid after seek {}", skip_layer.next_id);
-             println!("--- nextlayerskip {:?}", next_layer_skip);
          }
          match next_layer_skip {
              Some((_, offset)) => { self.data_layer.seek_offset(offset as usize); },
@@ -298,13 +292,9 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
     pub fn read(data: &'a [u8]) -> SkipList<'a, T> {
         let mut cursor = Cursor::new(data);
         let offsets: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
-        println!("offsets {:?}", offsets);
         let num_layers = offsets.len();
-        println!("{} layers ", num_layers);
-
         let start_position = cursor.position() as usize;
         let layers_data: &[u8] = &data[start_position..data.len()];
-
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
             else {
@@ -312,20 +302,20 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
                 let first_layer_cursor = Cursor::new(first_layer_data);
                 Layer::read(first_layer_cursor)
             };
-        let mut skip_layers: Vec<Layer<u32>>;
-        if num_layers > 0 {
-            skip_layers = offsets.iter()
-                .zip(&offsets[1..])
-                .map(|(start, stop)| {
-                    let layer_data: &[u8] = &layers_data[*start as usize..*stop as usize];
-                    let cursor = Cursor::new(layer_data);
-                    Layer::read(cursor)
-                })
-                .collect();
-        }
-        else {
-            skip_layers = Vec::new();
-        }
+        let mut skip_layers =
+            if num_layers > 0 {
+                offsets.iter()
+                    .zip(&offsets[1..])
+                    .map(|(start, stop)| {
+                        let layer_data: &[u8] = &layers_data[*start as usize..*stop as usize];
+                        let cursor = Cursor::new(layer_data);
+                        Layer::read(cursor)
+                    })
+                    .collect()
+            }
+            else {
+                Vec::new()
+            };
         skip_layers.reverse();
         SkipList {
             skip_layers: skip_layers,
