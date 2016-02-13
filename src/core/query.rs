@@ -33,7 +33,7 @@ pub fn grammar<I>(input: State<I>) -> ParseResult<Vec<Term>, I>
     //
     // let word = many1(letter());
     //
-    // //Creates a parser which parses a char and skips any trailing whitespace
+    //Creates a parser which parses a char and skips any trailing whitespace
     // let lex_char = |c| char(c).skip(spaces());
     //
     // let comma_list = sep_by(parser(expr::<I>), lex_char(','));

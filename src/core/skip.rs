@@ -4,7 +4,7 @@ use std::io::Read;
 use std::io::Cursor;
 use std::io::SeekFrom;
 use std::io::Seek;
-use std::marker;
+use std::marker::PhantomData;
 use core::DocId;
 use std::ops::DerefMut;
 use bincode;
@@ -145,14 +145,17 @@ impl SkipListBuilder {
 }
 
 
-// the lower layer contains only the list of doc ids.
-// A docset is represented
-// SkipList<'a, Void>
+impl BinarySerializable for u32 {
+    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+        // TODO error handling
+        writer.write_u32::<BigEndian>(self.clone());
+        Ok(4)
+    }
 
-struct SkipLayer<'a, T> {
-    cursor: Cursor<&'a [u8]>,
-    num_items: u32,
-    next_item: Option<T>,
+    fn deserialize(reader: &mut Read) -> error::Result<Self> {
+        // TODO error handling
+        Ok(reader.read_u32::<BigEndian>().unwrap())
+    }
 }
 
 
@@ -184,12 +187,11 @@ fn test_rebase_cursor() {
 
 
 struct Layer<'a, T> {
-    _phantom_: marker::PhantomData<T>,
     cursor: Cursor<&'a [u8]>,
-    item_idx: usize,
+    next_item_idx: usize,
     num_items: usize,
-    cur_id: u32,
-    next_id: Option<u32>,
+    next_id: u32,
+    _phantom_: PhantomData<T>,
 }
 
 
@@ -198,60 +200,57 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     type Item = (DocId, T);
 
     fn next(&mut self,)-> Option<(DocId, T)> {
-        if self.item_idx >= self.num_items {
+        if self.next_item_idx >= self.num_items {
             None
         }
         else {
             let cur_val = T::deserialize(&mut self.cursor).unwrap();
             let cur_id = self.next_id;
-            self.item_idx += 1;
-            if self.item_idx < self.num_items - 1 {
-                self.next_id = Some(u32::deserialize(&mut self.cursor).unwrap());
+            self.next_item_idx += 1;
+            if self.next_item_idx < self.num_items {
+                self.next_id = u32::deserialize(&mut self.cursor).unwrap();
             }
-            else {
-                self.next_id = None;
-            }
-            Some((self.cur_id.clone(), cur_val))
+            Some((cur_id, cur_val))
         }
 
     }
 }
 
-impl BinarySerializable for u32 {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
-        // TODO error handling
-        writer.write_u32::<BigEndian>(self.clone());
-        Ok(4)
-    }
 
-    fn deserialize(reader: &mut Read) -> error::Result<Self> {
-        // TODO error handling
-        Ok(reader.read_u32::<BigEndian>().unwrap())
-    }
-}
 
+static EMPTY: [u8; 0] = [];
 
 
 impl<'a, T: BinarySerializable> Layer<'a, T> {
+
     fn read(cursor: &mut Cursor<&'a [u8]>) -> Layer<'a, T> {
         // TODO error handling?
         let num_items = cursor.read_u32::<BigEndian>().unwrap() as u32;
-        println!("{} items ", num_items);
+        println!("{} items", num_items);
         let num_bytes = cursor.read_u32::<BigEndian>().unwrap() as u32;
-        println!("{} bytes ", num_bytes);
+        println!("{} bytes", num_bytes);
         let mut rebased_cursor = rebase_cursor(cursor);
         cursor.seek(SeekFrom::Current(num_bytes as i64));
-        // println!("cur val {:?}", cur_val);
-        let next_id: Option<u32> = match rebased_cursor.read_u32::<BigEndian>() {
-                    Ok(val) => Some(val),
-                    Err(_) => None
-                };
+        let next_id =
+            if num_items == 0 { 0 }
+            else { rebased_cursor.read_u32::<BigEndian>().unwrap() };
+        println!("next_id {:?}", next_id);
         Layer {
             cursor: rebased_cursor,
-            item_idx: 0,
+            next_item_idx: 0,
             num_items: num_items as usize,
             next_id: next_id,
+            _phantom_: PhantomData,
+        }
+    }
 
+    fn empty() -> Layer<'a, T> {
+        Layer {
+            cursor: Cursor::new(&EMPTY),
+            next_item_idx: 0,
+            num_items: 0,
+            next_id: 0,
+            _phantom_: PhantomData,
         }
     }
 
@@ -287,11 +286,15 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let num_layers = cursor.read_u8().unwrap();
         println!("{} layers ", num_layers);
         let mut skip_layers = Vec::new();
-        for _ in (0..num_layers - 1) {
-            let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
-            skip_layers.push(skip_layer);
+        let data_layer: Layer<'a, T> =
+            if num_layers == 0 { Layer::empty() }
+            else { Layer::read(&mut cursor) };
+        if num_layers > 0 {
+            for _ in (0..num_layers - 1) {
+                let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
+                skip_layers.push(skip_layer);
+            }
         }
-        let data_layer: Layer<'a, T> = Layer::read(&mut cursor);
         SkipList {
             skip_layers: skip_layers,
             data_layer: data_layer,
