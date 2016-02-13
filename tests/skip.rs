@@ -1,14 +1,17 @@
 extern crate tantivy;
-
-use std::io::Write;
-use tantivy::core::skip::SkipListBuilder;
+extern crate byteorder;
+use std::io::{Write, Seek};
+use std::io::SeekFrom;
+use tantivy::core::skip::{SkipListBuilder, SkipList};
+use std::io::Cursor;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 #[test]
 fn test_skip_list_builder() {
     {
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
-        skip_list_builder.insert(2, 3);
+        skip_list_builder.insert(2, &3);
         skip_list_builder.write::<Vec<u8>>(&mut output);
         assert_eq!(output.len(), 17);
         assert_eq!(output[0], 1);
@@ -17,7 +20,7 @@ fn test_skip_list_builder() {
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
         for i in (0..9) {
-            skip_list_builder.insert(i, i);
+            skip_list_builder.insert(i, &i);
         }
         skip_list_builder.write::<Vec<u8>>(&mut output);
         assert_eq!(output.len(), 129);
@@ -28,7 +31,7 @@ fn test_skip_list_builder() {
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
         for i in (0..9) {
-            skip_list_builder.insert(i, ());
+            skip_list_builder.insert(i, &());
         }
         skip_list_builder.write::<Vec<u8>>(&mut output);
         assert_eq!(output.len(), 93);
@@ -36,15 +39,13 @@ fn test_skip_list_builder() {
     }
 }
 
-
 #[test]
-fn test_skip_list_builder() {
-    {
-        let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
-        skip_list_builder.insert(2, 3);
-        skip_list_builder.write::<Vec<u8>>(&mut output);
-        let skip_list = SkipList::read(output.as_slice());
-    }
-
+fn test_skip_list_reader() {
+    let mut output: Vec<u8> = Vec::new();
+    let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
+    skip_list_builder.insert(2, &3);
+    skip_list_builder.write::<Vec<u8>>(&mut output);
+    let skip_list: SkipList<u32> = SkipList::read(&mut output);
+    // assert_eq!(output.len(), 17);
+    // assert_eq!(output[0], 1);
 }
