@@ -66,7 +66,6 @@ impl LayerBuilder {
     }
 
     fn write(&self, output: &mut Write) -> Result<(), byteorder::Error> {
-        try!(output.write_u32::<BigEndian>(self.len() as u32));
         try!(output.write_all(&self.buffer));
         Ok(())
     }
@@ -182,7 +181,7 @@ impl BinarySerializable for u32 {
 
     fn deserialize(reader: &mut Read) -> error::Result<Self> {
         // TODO error handling
-        Ok(reader.read_u32::<BigEndian>().unwrap())
+        reader.read_u32::<BigEndian>().map_err(|err| error::Error::ReadError)
     }
 }
 
@@ -216,8 +215,6 @@ fn test_rebase_cursor() {
 
 struct Layer<'a, T> {
     cursor: Cursor<&'a [u8]>,
-    next_item_idx: usize,
-    num_items: usize,
     next_id: u32,
     _phantom_: PhantomData<T>,
 }
@@ -228,19 +225,22 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     type Item = (DocId, T);
 
     fn next(&mut self,)-> Option<(DocId, T)> {
-        if self.next_item_idx >= self.num_items {
+        println!("next id! {}", self.next_id);
+        println!("datalen{}", self.cursor.get_ref().len());
+        if self.next_id == u32::max_value() {
             None
         }
         else {
             let cur_val = T::deserialize(&mut self.cursor).unwrap();
             let cur_id = self.next_id;
-            self.next_item_idx += 1;
-            if self.next_item_idx < self.num_items {
-                self.next_id = u32::deserialize(&mut self.cursor).unwrap();
-            }
+            self.next_id =
+                match u32::deserialize(&mut self.cursor) {
+                    Ok(val) => val,
+                    Err(_) => u32::max_value()
+                };
+            println!("next id==> {}", self.next_id);
             Some((cur_id, cur_val))
         }
-
     }
 }
 
@@ -249,26 +249,15 @@ static EMPTY: [u8; 0] = [];
 
 impl<'a, T: BinarySerializable> Layer<'a, T> {
 
-    fn len(&self,) -> usize {
-        self.num_items
-    }
-
-    fn read(cursor: &mut Cursor<&'a [u8]>) -> Layer<'a, T> {
+    fn read(mut cursor: Cursor<&'a [u8]>) -> Layer<'a, T> {
         // TODO error handling?
-        let num_items = cursor.read_u32::<BigEndian>().unwrap() as u32;
-        println!("{} items", num_items);
-        let num_bytes = cursor.read_u32::<BigEndian>().unwrap() as u32;
-        println!("{} bytes", num_bytes);
-        let mut rebased_cursor = rebase_cursor(cursor);
-        cursor.seek(SeekFrom::Current(num_bytes as i64));
-        let next_id =
-            if num_items == 0 { 0 }
-            else { rebased_cursor.read_u32::<BigEndian>().unwrap() };
+        let next_id = match cursor.read_u32::<BigEndian>() {
+            Ok(val) => val,
+            Err(_) => u32::max_value(),
+        };
         println!("next_id {:?}", next_id);
         Layer {
-            cursor: rebased_cursor,
-            next_item_idx: 0,
-            num_items: num_items as usize,
+            cursor: cursor,
             next_id: next_id,
             _phantom_: PhantomData,
         }
@@ -277,9 +266,7 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     fn empty() -> Layer<'a, T> {
         Layer {
             cursor: Cursor::new(&EMPTY),
-            next_item_idx: 0,
-            num_items: 0,
-            next_id: 0,
+            next_id: u32::max_value(),
             _phantom_: PhantomData,
         }
     }
@@ -355,28 +342,26 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let num_layers = offsets.len();
         println!("{} layers ", num_layers);
 
-
         let start_position = cursor.position() as usize;
         let layers_data: &[u8] = &data[start_position..data.len()];
-
-        let mut cur_offset = start_position;
 
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
             else {
                 let first_layer_data: &[u8] = &layers_data[..offsets[0] as usize];
-                let mut first_layer_cursor = Cursor::new(first_layer_data);
-                Layer::read(&mut cursor)
+                let first_layer_cursor = Cursor::new(first_layer_data);
+                Layer::read(first_layer_cursor)
             };
         let mut skip_layers: Vec<Layer<u32>>;
         if num_layers > 0 {
             skip_layers = offsets.iter()
                 .zip(&offsets[1..])
                 .map(|(start, stop)| {
+                    println!("start {} stop {}", start, stop);
                     let layer_data: &[u8] = &data[*start as usize..*stop as usize];
-                    let mut cursor = Cursor::new(layer_data);
-                    let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
-                    skip_layer
+                    println!("datalen2 {}", layer_data.len());
+                    let cursor = Cursor::new(layer_data);
+                    Layer::read(cursor)
                 })
                 .collect();
         }

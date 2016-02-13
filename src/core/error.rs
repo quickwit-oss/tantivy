@@ -5,6 +5,7 @@ use std::io;
 pub enum Error {
     NotImplementedYet,
     WriteError(String),
+    ReadError,
     IOError(io::ErrorKind, String),
     FileNotFound(String),
     LockError(String),

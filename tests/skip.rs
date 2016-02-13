@@ -13,8 +13,8 @@ fn test_skip_list_builder() {
         let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
         skip_list_builder.insert(2, &3);
         skip_list_builder.write::<Vec<u8>>(&mut output);
-        assert_eq!(output.len(), 17);
-        assert_eq!(output[0], 1);
+        assert_eq!(output.len(), 16);
+        assert_eq!(output[0], 0);
     }
     {
         let mut output: Vec<u8> = Vec::new();
@@ -23,8 +23,8 @@ fn test_skip_list_builder() {
             skip_list_builder.insert(i, &i);
         }
         skip_list_builder.write::<Vec<u8>>(&mut output);
-        assert_eq!(output.len(), 129);
-        assert_eq!(output[0], 3);
+        assert_eq!(output.len(), 120);
+        assert_eq!(output[0], 0);
     }
     {
         // checking that void gets serialized to nothing.
@@ -34,8 +34,8 @@ fn test_skip_list_builder() {
             skip_list_builder.insert(i, &());
         }
         skip_list_builder.write::<Vec<u8>>(&mut output);
-        assert_eq!(output.len(), 93);
-        assert_eq!(output[0], 3);
+        assert_eq!(output.len(), 84);
+        assert_eq!(output[0], 0);
     }
 }
 
