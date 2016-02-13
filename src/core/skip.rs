@@ -217,11 +217,13 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
 }
 
 
-
 static EMPTY: [u8; 0] = [];
 
-
 impl<'a, T: BinarySerializable> Layer<'a, T> {
+
+    fn len(&self,) -> usize {
+        self.num_items
+    }
 
     fn read(cursor: &mut Cursor<&'a [u8]>) -> Layer<'a, T> {
         // TODO error handling?
@@ -271,7 +273,6 @@ pub struct SkipList<'a, T: BinarySerializable> {
 
 impl<'a, T: BinarySerializable> Iterator for SkipList<'a, T> {
 
-
     type Item = (DocId, T);
 
     fn next(&mut self,)-> Option<(DocId, T)> {
@@ -280,6 +281,45 @@ impl<'a, T: BinarySerializable> Iterator for SkipList<'a, T> {
 }
 
 impl<'a, T: BinarySerializable> SkipList<'a, T> {
+
+    pub fn seek(&mut self, doc_id: DocId) {
+        // let mut next_layer_offset: u64 = 0;
+        // for skip_layer_id in 0..self.skip_layers.len() {
+        //     println!("LAYER {}", skip_layer_id);
+        //     let mut skip_layer: &mut Layer<'a, u32> = &mut self.skip_layers[skip_layer_id];
+        //     println!("seek {}", next_layer_offset);
+        //     if next_layer_offset > 0 {
+        //         skip_layer.cursor.seek(SeekFrom::Start(next_layer_offset));
+        //         next_layer_offset = 0;
+        //     }
+        //     println!("next id {}", skip_layer.next_id);
+        //     while skip_layer.next_id < doc_id {
+        //         match skip_layer.next() {
+        //             Some((_, offset)) => {
+        //                 println!("bipoffset {}", offset);
+        //                 next_layer_offset = offset as u64;
+        //             },
+        //             None => {
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // }
+        // for skip_layer in self.skip_layers.iter() {
+        //     println!("{}", skip_layer.len());
+        // }
+        // println!("last seek {}", next_layer_offset);
+        // if next_layer_offset > 0 {
+        //     self.data_layer.cursor.seek(SeekFrom::Start(next_layer_offset));
+        // }
+        while self.data_layer.next_id < doc_id {
+            match self.data_layer.next() {
+                None => { break; },
+                _ => {}
+            }
+        }
+
+    }
 
     pub fn read(data: &'a [u8]) -> SkipList<'a, T> {
         let mut cursor = Cursor::new(data);
@@ -290,11 +330,12 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
             if num_layers == 0 { Layer::empty() }
             else { Layer::read(&mut cursor) };
         if num_layers > 0 {
-            for _ in (0..num_layers - 1) {
+            for _ in 0..(num_layers - 1) {
                 let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
                 skip_layers.push(skip_layer);
             }
         }
+        skip_layers.reverse();
         SkipList {
             skip_layers: skip_layers,
             data_layer: data_layer,
