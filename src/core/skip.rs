@@ -52,14 +52,15 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     }
 }
 
-struct LayerBuilder {
+struct LayerBuilder<T: BinarySerializable> {
     period: usize,
     buffer: Vec<u8>,
     remaining: usize,
     len: usize,
+    _phantom_: PhantomData<T>,
 }
 
-impl LayerBuilder {
+impl<T: BinarySerializable> LayerBuilder<T> {
 
     fn written_size(&self,) -> usize {
         self.buffer.len()
@@ -74,16 +75,17 @@ impl LayerBuilder {
         self.len
     }
 
-    fn with_period(period: usize) -> LayerBuilder {
+    fn with_period(period: usize) -> LayerBuilder<T> {
         LayerBuilder {
             period: period,
             buffer: Vec::new(),
             remaining: period,
             len: 0,
+            _phantom_: PhantomData,
         }
     }
 
-    fn insert<S: BinarySerializable>(&mut self, doc_id: DocId, value: &S) -> Option<(DocId, u32)> {
+    fn insert(&mut self, doc_id: DocId, value: &T) -> Option<(DocId, u32)> {
         self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u32; // TODO not sure if we want after or here
@@ -102,55 +104,77 @@ impl LayerBuilder {
 }
 
 
-pub struct SkipListBuilder {
+
+fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
+    for it in layer {
+        println!(" - {:?}", it);
+    }
+}
+
+pub fn display_skip_list<T: BinarySerializable>(skiplist: &mut SkipList<T>) {
+    println!("DataLayer");
+    display_layer(&mut skiplist.data_layer);
+    println!("SkipLayer");
+    for mut layer in skiplist.skip_layers.iter_mut() {
+        display_layer(&mut layer);
+    }
+}
+
+pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
-    layers: Vec<LayerBuilder>,
+    data_layer: LayerBuilder<T>,
+    skip_layers: Vec<LayerBuilder<u32>>,
 }
 
 
-impl SkipListBuilder {
+impl<T: BinarySerializable> SkipListBuilder<T> {
 
-    pub fn new(period: usize) -> SkipListBuilder {
+    pub fn new(period: usize) -> SkipListBuilder<T> {
         SkipListBuilder {
             period: period,
-            layers: Vec::new(),
+            data_layer: LayerBuilder::with_period(period),
+            skip_layers: Vec::new(),
         }
     }
 
-
-    fn get_layer<'a>(&'a mut self, layer_id: usize) -> &mut LayerBuilder {
-        if layer_id == self.layers.len() {
+    fn get_skip_layer<'a>(&'a mut self, layer_id: usize) -> &mut LayerBuilder<u32> {
+        if layer_id == self.skip_layers.len() {
             let layer_builder = LayerBuilder::with_period(self.period);
-            self.layers.push(layer_builder);
+            self.skip_layers.push(layer_builder);
         }
-        &mut self.layers[layer_id]
+        &mut self.skip_layers[layer_id]
     }
 
-    pub fn insert<S: BinarySerializable>(&mut self, doc_id: DocId, dest: &S) {
+    pub fn insert(&mut self, doc_id: DocId, dest: &T) {
         let mut layer_id = 0;
-        let mut skip_pointer = self.get_layer(layer_id).insert(doc_id, dest);
+        let mut skip_pointer = self.data_layer.insert(doc_id, dest);
         loop {
-            layer_id += 1;
-            println!("skip pointer {:?}", skip_pointer);
             skip_pointer = match skip_pointer {
                 Some((skip_doc_id, skip_offset)) =>
                     self
-                        .get_layer(layer_id)
+                        .get_skip_layer(layer_id)
                         .insert(skip_doc_id, &skip_offset),
                 None => { return; }
             };
+            layer_id += 1;
         }
     }
 
     pub fn write<W: Write>(self, output: &mut Write) -> error::Result<()> {
         let mut size: u32 = 0;
         let mut layer_sizes: Vec<u32> = Vec::new();
-        for layer in self.layers.iter() {
+        size += self.data_layer.buffer.len() as u32;
+        layer_sizes.push(size);
+        for layer in self.skip_layers.iter() {
             size += layer.buffer.len() as u32;
             layer_sizes.push(size);
         }
         layer_sizes.serialize(output);
-        for layer in self.layers.iter() {
+        match self.data_layer.write(output) {
+            Ok(())=> {},
+            Err(someerr)=> { return Err(error::Error::WriteError(format!("Could not write skiplist {:?}", someerr) )) }
+        }
+        for layer in self.skip_layers.iter() {
             match layer.write(output) {
                 Ok(())=> {},
                 Err(someerr)=> { return Err(error::Error::WriteError(format!("Could not write skiplist {:?}", someerr) )) }
@@ -187,7 +211,7 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     type Item = (DocId, T);
 
     fn next(&mut self,)-> Option<(DocId, T)> {
-        println!("eeeeee");
+        println!("eeeeee {}", self.next_id);
         if self.next_id == u32::max_value() {
             None
         }
@@ -295,6 +319,7 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let num_layers = offsets.len();
         let start_position = cursor.position() as usize;
         let layers_data: &[u8] = &data[start_position..data.len()];
+        println!("offsets {:?}", offsets);
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
             else {

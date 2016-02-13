@@ -10,7 +10,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 fn test_skip_list_builder() {
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
         skip_list_builder.insert(2, &3);
         skip_list_builder.write::<Vec<u8>>(&mut output);
         assert_eq!(output.len(), 16);
@@ -18,7 +18,7 @@ fn test_skip_list_builder() {
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(3);
         for i in (0..9) {
             skip_list_builder.insert(i, &i);
         }
@@ -29,7 +29,7 @@ fn test_skip_list_builder() {
     {
         // checking that void gets serialized to nothing.
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
         for i in (0..9) {
             skip_list_builder.insert(i, &());
         }
@@ -43,23 +43,22 @@ fn test_skip_list_builder() {
 fn test_skip_list_reader() {
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
         skip_list_builder.insert(2, &3);
         skip_list_builder.write::<Vec<u8>>(&mut output);
         let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
         assert_eq!(skip_list.next(), Some((2, 3)));
-        assert_eq!(skip_list.next(), None);
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(10);
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
         skip_list_builder.write::<Vec<u8>>(&mut output);
         let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
         assert_eq!(skip_list.next(), None);
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(2);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
         skip_list_builder.insert(2, &());
         skip_list_builder.insert(3, &());
         skip_list_builder.insert(5, &());
@@ -76,7 +75,7 @@ fn test_skip_list_reader() {
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(2);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
         skip_list_builder.insert(2, &());
         skip_list_builder.insert(3, &());
         skip_list_builder.insert(5, &());
@@ -93,7 +92,7 @@ fn test_skip_list_reader() {
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
         skip_list_builder.insert(2, &());
         skip_list_builder.insert(3, &());
         skip_list_builder.insert(5, &());
@@ -108,7 +107,7 @@ fn test_skip_list_reader() {
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(2);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
         skip_list_builder.insert(2, &());
         skip_list_builder.insert(3, &());
         skip_list_builder.insert(5, &());
@@ -122,7 +121,7 @@ fn test_skip_list_reader() {
     }
     {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
         for i in (0..1000) {
             skip_list_builder.insert(i, &());
         }
