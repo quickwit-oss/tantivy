@@ -29,6 +29,29 @@ impl BinarySerializable for () {
     }
 }
 
+impl<T: BinarySerializable> BinarySerializable for Vec<T> {
+    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+        let mut total_size = 0;
+        writer.write_u32::<BigEndian>(self.len() as u32);
+        total_size += 4;
+        for it in self.iter() {
+            let item_size = try!(it.serialize(writer));
+            total_size += item_size;
+        }
+        Ok(total_size)
+    }
+    fn deserialize(reader: &mut Read) -> error::Result<Vec<T>> {
+        // TODO error
+        let num_items = reader.read_u32::<BigEndian>().unwrap();
+        let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
+        for i in 0..num_items {
+            let item = try!(T::deserialize(reader));
+            items.push(item);
+        }
+        Ok(items)
+    }
+}
+
 struct LayerBuilder {
     period: usize,
     buffer: Vec<u8>,
@@ -44,7 +67,6 @@ impl LayerBuilder {
 
     fn write(&self, output: &mut Write) -> Result<(), byteorder::Error> {
         try!(output.write_u32::<BigEndian>(self.len() as u32));
-        try!(output.write_u32::<BigEndian>(self.buffer.len() as u32));
         try!(output.write_all(&self.buffer));
         Ok(())
     }
@@ -133,7 +155,13 @@ impl SkipListBuilder {
     }
 
     pub fn write<W: Write>(self, output: &mut Write) -> error::Result<()> {
-        output.write_u8(self.layers.len() as u8);
+        let mut size: u32 = 0;
+        let mut layer_sizes: Vec<u32> = Vec::new();
+        for layer in self.layers.iter() {
+            size += layer.buffer.len() as u32;
+            layer_sizes.push(size);
+        }
+        layer_sizes.serialize(output);
         for layer in self.layers.iter() {
             match layer.write(output) {
                 Ok(())=> {},
@@ -323,17 +351,37 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
 
     pub fn read(data: &'a [u8]) -> SkipList<'a, T> {
         let mut cursor = Cursor::new(data);
-        let num_layers = cursor.read_u8().unwrap();
+        let offsets: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
+        let num_layers = offsets.len();
         println!("{} layers ", num_layers);
-        let mut skip_layers = Vec::new();
+
+
+        let start_position = cursor.position() as usize;
+        let layers_data: &[u8] = &data[start_position..data.len()];
+
+        let mut cur_offset = start_position;
+
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
-            else { Layer::read(&mut cursor) };
+            else {
+                let first_layer_data: &[u8] = &layers_data[..offsets[0] as usize];
+                let mut first_layer_cursor = Cursor::new(first_layer_data);
+                Layer::read(&mut cursor)
+            };
+        let mut skip_layers: Vec<Layer<u32>>;
         if num_layers > 0 {
-            for _ in 0..(num_layers - 1) {
-                let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
-                skip_layers.push(skip_layer);
-            }
+            skip_layers = offsets.iter()
+                .zip(&offsets[1..])
+                .map(|(start, stop)| {
+                    let layer_data: &[u8] = &data[*start as usize..*stop as usize];
+                    let mut cursor = Cursor::new(layer_data);
+                    let skip_layer: Layer<'a, u32> = Layer::read(&mut cursor);
+                    skip_layer
+                })
+                .collect();
+        }
+        else {
+            skip_layers = Vec::new();
         }
         skip_layers.reverse();
         SkipList {
