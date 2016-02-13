@@ -175,39 +175,12 @@ impl BinarySerializable for u32 {
 }
 
 
-fn rebase_cursor<'a>(cursor: &Cursor<&'a [u8]>) -> Cursor<&'a [u8]>{
-    let data: &'a[u8] = *cursor.get_ref();
-    let from_idx = cursor.position() as usize;
-    let rebased_data = &data[from_idx..];
-    Cursor::new(rebased_data)
-}
-
-
-#[test]
-fn test_rebase_cursor() {
-    {
-        let a: Vec<u8> = vec!(1, 2, 3);
-        let mut cur: Cursor<&[u8]> = Cursor::new(&a);
-        assert_eq!(cur.read_u8().unwrap(), 1);
-        let mut rebased_cursor = rebase_cursor(&cur);
-        assert_eq!(cur.read_u8().unwrap(), 2);
-        assert_eq!(rebased_cursor.read_u8().unwrap(), 2);
-        assert_eq!(cur.position(), 2);
-        assert_eq!(rebased_cursor.position(), 1);
-        cur.seek(SeekFrom::Start(0));
-        assert_eq!(cur.read_u8().unwrap(), 1);
-        rebased_cursor.seek(SeekFrom::Start(0));
-        assert_eq!(rebased_cursor.read_u8().unwrap(), 2);
-    }
-}
-
 
 struct Layer<'a, T> {
     cursor: Cursor<&'a [u8]>,
     next_id: DocId,
     _phantom_: PhantomData<T>,
 }
-
 
 
 impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
@@ -283,26 +256,6 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
         val
     }
 }
-
-
-fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
-    for it in layer {
-        println!(" - {:?}", it);
-    }
-}
-
-pub fn display_skip_list<'a, T: BinarySerializable>(skip_list: &mut SkipList<'a, T>) {
-    let mut i = 0;
-    for mut layer in skip_list.skip_layers.iter_mut() {
-        println!("SkipLayer {}", i);
-        display_layer(&mut layer);
-        i += 1;
-    }
-    println!("DataLayer {}", i);
-    display_layer(&mut skip_list.data_layer);
-}
-
-
 
 pub struct SkipList<'a, T: BinarySerializable> {
     data_layer: Layer<'a, T>,
