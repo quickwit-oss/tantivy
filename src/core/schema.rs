@@ -3,6 +3,7 @@ use std::fmt::Write;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::string::FromUtf8Error;
 use std::str;
+use std::slice;
 use std::fmt;
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
@@ -83,14 +84,19 @@ impl Document {
         self.fields.push(field_value);
     }
 
-}
-
-impl IntoIterator for Document {
-    type Item = FieldValue;
-    type IntoIter = ::std::vec::IntoIter<FieldValue>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.fields.into_iter()
+    pub fn indexed_field(&self,) -> slice::Iter<FieldValue>{
+        self.fields.iter()
     }
 
+    
 }
+//
+// impl IntoIterator for Document {
+//     type Item = FieldValue;
+//     type IntoIter = ::std::vec::IntoIter<FieldValue>;
+//
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.fields.into_iter()
+//     }
+//
+// }

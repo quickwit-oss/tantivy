@@ -93,8 +93,8 @@ impl SegmentWriter {
 
     pub fn add(&mut self, doc: Document) {
         let doc_id = self.max_doc;
-        for field_value in doc {
-            let field = field_value.field;
+        for field_value in doc.indexed_field() {
+            let field = &field_value.field;
             for token in tokenize(&field_value.text) {
 				let term = Term::from_field_text(field.clone(), token);
                 self.suscribe(doc_id, term);

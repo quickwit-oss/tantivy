@@ -177,7 +177,6 @@ struct InnerDirectory {
 }
 
 
-
 fn create_tempdir() -> Result<TempDir> {
     let tempdir_res = TempDir::new("index");
     match tempdir_res {
@@ -185,7 +184,6 @@ fn create_tempdir() -> Result<TempDir> {
         Err(_) => Err(Error::FileNotFound(String::from("Could not create temp directory")))
     }
 }
-
 
 
 impl InnerDirectory {
@@ -288,7 +286,7 @@ impl InnerDirectory {
             mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
         }
         let mmap_readonly: &MmapReadOnly = mmap_cache.get(&full_path).unwrap();
-        // // TODO remove if a proper clone is available
+        // TODO remove if a proper clone is available
         let len = unsafe { mmap_readonly.as_slice().len() };
         Ok(mmap_readonly.range(0, len))
     }
