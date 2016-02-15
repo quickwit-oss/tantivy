@@ -9,6 +9,7 @@ use core::analyzer::tokenize;
 use std::collections::{HashMap, BTreeMap};
 use std::collections::{hash_map, btree_map};
 use std::io::{BufWriter, Write};
+use std::sync::Arc;
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use std::iter::Peekable;
@@ -40,19 +41,22 @@ impl PostingsWriter {
 pub struct IndexWriter {
 	segment_writer: SegmentWriter,
 	directory: Directory,
+	schema: Schema,
 }
 
 impl IndexWriter {
 
     pub fn open(directory: &Directory) -> IndexWriter {
+		let schema = directory.schema();
 		IndexWriter {
 			segment_writer: SegmentWriter::new(),
 			directory: directory.clone(),
+			schema: schema,
 		}
     }
 
     pub fn add(&mut self, doc: Document) {
-        self.segment_writer.add(doc);
+        self.segment_writer.add(doc, &self.schema);
     }
 
 	// TODO remove that some day
@@ -91,15 +95,17 @@ impl SegmentWriter {
 		}
 	}
 
-    pub fn add(&mut self, doc: Document) {
+    pub fn add(&mut self, doc: Document, schema: &Schema) {
         let doc_id = self.max_doc;
-        for field_value in doc {
-            let field = field_value.field;
-            for token in tokenize(&field_value.text) {
-				let term = Term::from_field_text(field.clone(), token);
-                self.suscribe(doc_id, term);
-            }
-        }
+        for field_value in doc.fields() {
+			let field_options = schema.get_field(field_value.field.clone());
+			if field_options.is_tokenized_indexed() {
+				for token in tokenize(&field_value.text) {
+					let term = Term::from_field_text(&field_value.field, token);
+	                self.suscribe(doc_id, term);
+	            }
+			}
+		}
         self.max_doc += 1;
     }
 

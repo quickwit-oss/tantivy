@@ -57,23 +57,29 @@ fn test_tokenizer() {
 
 #[test]
 fn test_indexing() {
-    let directory = Directory::from_tempdir().unwrap();
+    let mut schema = Schema::new();
+    let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
+    let text_field = schema.add_field("text", &text_fieldtype);
+
+    let mut directory = Directory::from_tempdir().unwrap();
+    directory.set_schema(&schema);
+
     {
         // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "af b");
+            doc.set(&text_field, "af b");
             index_writer.add(doc);
         }
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "a b c");
+            doc.set(&text_field, "a b c");
             index_writer.add(doc);
         }
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "a b c d");
+            doc.set(&text_field, "a b c d");
             index_writer.add(doc);
         }
 
@@ -91,23 +97,28 @@ fn test_indexing() {
 
 #[test]
 fn test_searcher() {
-    let directory = Directory::from_tempdir().unwrap();
+    let mut schema = Schema::new();
+    let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
+    let text_field = schema.add_field("text", &text_fieldtype);
+    let mut directory = Directory::from_tempdir().unwrap();
+    directory.set_schema(&schema);
+
     {
         // writing the segment
         let mut index_writer = IndexWriter::open(&directory);
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "af b");
+            doc.set(&text_field, "af b");
             index_writer.add(doc);
         }
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "a b c");
+            doc.set(&text_field, "a b c");
             index_writer.add(doc);
         }
         {
             let mut doc = Document::new();
-            doc.set(Field(1), "a b c d");
+            doc.set(&text_field, "a b c d");
             index_writer.add(doc);
         }
         let commit_result = index_writer.commit();
@@ -115,7 +126,7 @@ fn test_searcher() {
     }
     {
         let searcher = Searcher::for_directory(directory);
-        let terms = vec!(Term::from_field_text(Field(1), "a"), Term::from_field_text(Field(1), "b"), );
+        let terms = vec!(Term::from_field_text(&text_field, "a"), Term::from_field_text(&text_field, "b"), );
         let mut collector = TestCollector::new();
         searcher.search(&terms, &mut collector);
         let vals: Vec<DocId> = collector.docs().iter()

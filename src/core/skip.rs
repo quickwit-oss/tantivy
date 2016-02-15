@@ -65,21 +65,21 @@ impl<T: BinarySerializable> LayerBuilder<T> {
 }
 
 
-
-fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
-    for it in layer {
-        println!(" - {:?}", it);
-    }
-}
-
-pub fn display_skip_list<T: BinarySerializable>(skiplist: &mut SkipList<T>) {
-    println!("DataLayer");
-    display_layer(&mut skiplist.data_layer);
-    println!("SkipLayer");
-    for mut layer in skiplist.skip_layers.iter_mut() {
-        display_layer(&mut layer);
-    }
-}
+// 
+// fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
+//     for it in layer {
+//         println!(" - {:?}", it);
+//     }
+// }
+//
+// pub fn display_skip_list<T: BinarySerializable>(skiplist: &mut SkipList<T>) {
+//     println!("DataLayer");
+//     display_layer(&mut skiplist.data_layer);
+//     println!("SkipLayer");
+//     for mut layer in skiplist.skip_layers.iter_mut() {
+//         display_layer(&mut layer);
+//     }
+// }
 
 pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
@@ -172,7 +172,6 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     type Item = (DocId, T);
 
     fn next(&mut self,)-> Option<(DocId, T)> {
-        println!("eeeeee {}", self.next_id);
         if self.next_id == u32::max_value() {
             None
         }
@@ -280,7 +279,6 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let num_layers = offsets.len();
         let start_position = cursor.position() as usize;
         let layers_data: &[u8] = &data[start_position..data.len()];
-        println!("offsets {:?}", offsets);
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
             else {

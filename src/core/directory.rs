@@ -3,6 +3,7 @@ use std::path::{PathBuf, Path};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fs::File;
+use core::schema::Schema;
 use std::io::Write;
 use std::io::BufWriter;
 use std::io;
@@ -83,6 +84,16 @@ pub struct Directory {
 
 
 impl Directory {
+
+    pub fn schema(&self,) -> Schema {
+        self.get_read().unwrap().schema.clone()
+    }
+
+    pub fn set_schema(&mut self, schema: &Schema) {
+        self.get_write()
+            .unwrap()
+            .set_schema(schema);
+    }
 
     fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>> {
         match self.inner_directory.write() {
@@ -173,9 +184,9 @@ struct InnerDirectory {
     index_path: PathBuf,
     mmap_cache: RefCell<HashMap<PathBuf, MmapReadOnly>>,
     metas: DirectoryMeta,
+    schema: Schema,
     _temp_directory: Option<TempDir>,
 }
-
 
 
 fn create_tempdir() -> Result<TempDir> {
@@ -185,7 +196,6 @@ fn create_tempdir() -> Result<TempDir> {
         Err(_) => Err(Error::FileNotFound(String::from("Could not create temp directory")))
     }
 }
-
 
 
 impl InnerDirectory {
@@ -198,11 +208,16 @@ impl InnerDirectory {
         self.save_metas()
     }
 
+    pub fn set_schema(&mut self, schema: &Schema) {
+        self.schema = schema.clone();
+    }
+
     pub fn open(filepath: &Path) -> Result<InnerDirectory> {
         let mut directory = InnerDirectory {
             index_path: PathBuf::from(filepath),
             mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
+            schema: Schema::new(), // TODO schema
             _temp_directory: None,
         };
         try!(directory.load_metas()); //< does the directory already exists?
@@ -225,6 +240,7 @@ impl InnerDirectory {
             index_path: PathBuf::from(tempdir_path),
             mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
+            schema: Schema::new(),
             _temp_directory: Some(tempdir)
         };
         //< does the directory already exists?
@@ -288,7 +304,7 @@ impl InnerDirectory {
             mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
         }
         let mmap_readonly: &MmapReadOnly = mmap_cache.get(&full_path).unwrap();
-        // // TODO remove if a proper clone is available
+        // TODO remove if a proper clone is available
         let len = unsafe { mmap_readonly.as_slice().len() };
         Ok(mmap_readonly.range(0, len))
     }
