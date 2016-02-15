@@ -13,3 +13,4 @@ pub mod searcher;
 pub mod collector;
 pub mod skip;
 pub use core::global::DocId;
+pub mod serialize;

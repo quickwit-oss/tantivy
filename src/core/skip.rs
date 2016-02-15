@@ -7,50 +7,11 @@ use std::io::Seek;
 use std::marker::PhantomData;
 use core::DocId;
 use std::ops::DerefMut;
-use bincode;
-use byteorder;
 use core::error;
+use byteorder;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
-
-
-pub trait BinarySerializable : fmt::Debug + Sized {
-    // TODO move Result from Error.
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize>;
-    fn deserialize(reader: &mut Read) -> error::Result<Self>;
-}
-
-impl BinarySerializable for () {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
-        Ok(0)
-    }
-    fn deserialize(reader: &mut Read) -> error::Result<Self> {
-        Ok(())
-    }
-}
-
-impl<T: BinarySerializable> BinarySerializable for Vec<T> {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
-        let mut total_size = 0;
-        writer.write_u32::<BigEndian>(self.len() as u32);
-        total_size += 4;
-        for it in self.iter() {
-            let item_size = try!(it.serialize(writer));
-            total_size += item_size;
-        }
-        Ok(total_size)
-    }
-    fn deserialize(reader: &mut Read) -> error::Result<Vec<T>> {
-        // TODO error
-        let num_items = reader.read_u32::<BigEndian>().unwrap();
-        let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
-        for i in 0..num_items {
-            let item = try!(T::deserialize(reader));
-            items.push(item);
-        }
-        Ok(items)
-    }
-}
+use core::serialize::*;
 
 struct LayerBuilder<T: BinarySerializable> {
     period: usize,
@@ -89,7 +50,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u32; // TODO not sure if we want after or here
-        let mut res;
+        let res;
         if self.remaining == 0 {
             self.remaining = self.period;
             res = Some((doc_id, offset));
