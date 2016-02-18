@@ -115,7 +115,6 @@ impl SegmentWriter {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
 				while tokens.read_one(&mut term_buffer) {
 					let term = Term::from_field_text(&field_value.field, term_buffer.as_ref());
-					println!("token {:?}", term);
 					self.suscribe(doc_id, term);
 					self.num_tokens += 1;
 				}
