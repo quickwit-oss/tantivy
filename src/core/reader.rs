@@ -131,33 +131,35 @@ impl SegmentReader {
 }
 
 
-fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
-    for i in 0..num_docs {
-        let doc_id = cursor.read_u32::<BigEndian>().unwrap();
-        try!(serializer.add_doc(doc_id));
-    }
-    Ok(())
-}
-
-impl SerializableSegment for SegmentReader {
-
-    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
-        let mut term_offsets_it = self.term_offsets.stream();
-        loop {
-            match term_offsets_it.next() {
-                Some((term_data, offset_u64)) => {
-                    let term = Term::from(term_data);
-                    let offset = offset_u64 as usize;
-                    let data = unsafe { &self.postings_data.as_slice()[offset..] };
-                    let mut cursor = Cursor::new(data);
-                    let num_docs = cursor.read_u32::<BigEndian>().unwrap() as DocId;
-                    try!(serializer.new_term(&term, num_docs));
-                    try!(write_postings(cursor, num_docs, &mut serializer));
-                },
-                None => { break; }
-            }
-        }
-        serializer.close()
-    }
-
-}
+// fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
+//     // TODO remove allocation
+//     let docs = Vec::with_capacity(num_docs);
+//     for i in 0..num_docs {
+//         let doc_id = cursor.read_u32::<BigEndian>().unwrap();
+//         try!(serializer.add_doc(doc_id));
+//     }
+//     Ok(())
+// }
+//
+// impl SerializableSegment for SegmentReader {
+//
+//     fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
+//         let mut term_offsets_it = self.term_offsets.stream();
+//         loop {
+//             match term_offsets_it.next() {
+//                 Some((term_data, offset_u64)) => {
+//                     let term = Term::from(term_data);
+//                     let offset = offset_u64 as usize;
+//                     let data = unsafe { &self.postings_data.as_slice()[offset..] };
+//                     let mut cursor = Cursor::new(data);
+//                     let num_docs = cursor.read_u32::<BigEndian>().unwrap() as DocId;
+//                     try!(serializer.new_term(&term, num_docs));
+//                     try!(write_postings(cursor, num_docs, &mut serializer));
+//                 },
+//                 None => { break; }
+//             }
+//         }
+//         serializer.close()
+//     }
+//
+// }

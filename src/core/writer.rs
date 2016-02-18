@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use std::borrow::BorrowMut;
 use core::directory::Segment;
 
+
 pub struct PostingsWriter {
 	doc_ids: Vec<DocId>,
 }
@@ -149,9 +150,7 @@ impl SerializableSegment for SegmentWriter {
 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
 			let term_docfreq = doc_ids.len() as u32;
 			serializer.new_term(&term, term_docfreq);
-			for doc_id in doc_ids {
-				serializer.add_doc(doc_id.clone());
-			}
+			serializer.write_docs(&doc_ids);
 		}
 		serializer.close()
 	}

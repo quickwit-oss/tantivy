@@ -1,10 +1,13 @@
 
 use libc::size_t;
 use std::ptr;
+
 #[link(name = "simdcompression", kind = "static")]
 extern {
     fn encode_native(data: *mut u32, num_els: size_t, output: *mut u32) -> size_t;
+    fn decode_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 }
+
 
 pub struct Encoder {
     input_buffer: Vec<u32>,
@@ -25,7 +28,6 @@ impl Encoder {
             self.input_buffer.clear();
             let input_len = input.len();
             if input_len > self.input_buffer.len() {
-                // let delta_size = self.input_buffer.len() - input_len;
                 self.input_buffer = (0..input_len as u32 + 10 ).collect();
                 self.output_buffer = (0..input_len as u32 + 10).collect();
                 // TODO use resize when available
@@ -39,5 +41,45 @@ impl Encoder {
             );
             return &self.output_buffer[0..written_size];
         }
+    }
+}
+
+
+
+
+pub struct Decoder;
+
+impl Decoder {
+
+    pub fn new() -> Decoder {
+        Decoder
+    }
+
+    pub fn decode(&self,
+                  compressed_data: &[u32],
+                  uncompressed_values: &mut [u32]) -> size_t {
+        unsafe {
+            let num_elements = decode_native(
+                        compressed_data.as_ptr(),
+                        compressed_data.len() as size_t,
+                        uncompressed_values.as_mut_ptr(),
+                        uncompressed_values.len() as size_t);
+            return num_elements;
+        }
+    }
+}
+
+
+#[test]
+fn test_encode_decode() {
+    let mut encoder = Encoder::new();
+    let input: Vec<u32> = vec!(2,3,5,7,11,13,17,19,23);
+    let data = encoder.encode(&input);
+    assert_eq!(data.len(), 4);
+    let decoder = Decoder::new();
+    let mut data_output: Vec<u32> = (0..100).collect();
+    assert_eq!(9, decoder.decode(&data[0..4], &mut data_output));
+    for i in 0..9 {
+        assert_eq!(data_output[i], input[i])    ;
     }
 }

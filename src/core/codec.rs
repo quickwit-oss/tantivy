@@ -10,6 +10,7 @@ use core::reader::*;
 use core::schema::Term;
 use core::DocId;
 use std::fs::File;
+use core::simdcompression;
 
 pub struct SimpleCodec;
 
@@ -21,6 +22,7 @@ pub struct SimpleSegmentSerializer {
     postings_write: File,
     term_fst_builder: MapBuilder<File>, // TODO find an alternative to work around the "move"
     cur_term_num_docs: DocId,
+    encoder: simdcompression::Encoder,
 }
 
 impl SegmentSerializer<()> for SimpleSegmentSerializer {
@@ -39,15 +41,25 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn add_doc(&mut self, doc_id: DocId) -> Result<()> {
-        match self.postings_write.write_u32::<BigEndian>(doc_id as u32) {
-            Ok(_) => {},
-            Err(_) => {
-                let msg = String::from("Failed while writing posting list");
-                return Err(Error::WriteError(msg));
-            },
+    fn write_docs(&mut self, doc_ids: &[DocId]) -> Result<()> {
+        // TODO write_all transmuted [u8]
+        for num in self.encoder.encode(doc_ids) {
+            match self.postings_write.write_u32::<BigEndian>(num.clone() as u32) {
+                Ok(_) => {},
+                Err(_) => {
+                    let msg = String::from("Failed while writing posting list");
+                    return Err(Error::WriteError(msg));
+                },
+            }
         }
-        self.written_bytes_postings +=  4;
+        // match self.postings_write.write_u32::<BigEndian>(doc_id as u32) {
+        //     Ok(_) => {},
+        //     Err(_) => {
+        //         let msg = String::from("Failed while writing posting list");
+        //         return Err(Error::WriteError(msg));
+        //     },
+        // }
+        //self.written_bytes_postings +=  4;
         Ok(())
     }
 
@@ -72,6 +84,7 @@ impl SimpleCodec {
             postings_write: postings_write,
             term_fst_builder: term_fst_builder,
             cur_term_num_docs: 0,
+            encoder: simdcompression::Encoder::new(),
         })
     }
 

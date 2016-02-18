@@ -6,7 +6,7 @@ use std::fmt;
 
 pub trait SegmentSerializer<Output> {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()>;
-    fn add_doc(&mut self, doc_id: DocId) -> Result<()>;
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<()>; // TODO add size
     fn close(self,) -> Result<Output>;
 }
 
@@ -46,8 +46,10 @@ impl SegmentSerializer<String> for DebugSegmentSerializer {
         Ok(())
     }
 
-    fn add_doc(&mut self, doc_id: DocId) -> Result<()> {
-        self.text.push_str(&format!("   - Doc {:?}\n", doc_id));
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<()> {
+        for doc in docs {
+            self.text.push_str(&format!("   - Doc {:?}\n", doc));
+        }
         Ok(())
     }
 
