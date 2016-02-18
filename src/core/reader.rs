@@ -110,8 +110,12 @@ impl SegmentReader {
     }
 
     pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings<'a>> {
+        println!("Term {:?}", term);
         match self.term_offsets.get(term.as_slice()) {
-            Some(offset) => Some(self.read_postings(offset as usize)),
+            Some(offset) => {
+                println!("offset {}", offset);
+                Some(self.read_postings(offset as usize))
+            },
             None => None,
         }
     }
