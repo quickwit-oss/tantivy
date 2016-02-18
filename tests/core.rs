@@ -138,7 +138,7 @@ fn test_searcher() {
     }
     {
         let searcher = Searcher::for_directory(directory);
-        let terms = vec!(Term::from_field_text(&text_field, "a"), Term::from_field_text(&text_field, "b"), );
+        let terms = vec!(Term::from_field_text(&text_field, "b"), Term::from_field_text(&text_field, "a"), );
         let mut collector = TestCollector::new();
         searcher.search(&terms, &mut collector);
         let vals: Vec<DocId> = collector.docs().iter()

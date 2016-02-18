@@ -43,23 +43,26 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
     fn write_docs(&mut self, doc_ids: &[DocId]) -> Result<()> {
         // TODO write_all transmuted [u8]
-        for num in self.encoder.encode(doc_ids) {
+        let docs_data = self.encoder.encode(doc_ids);
+        match self.postings_write.write_u32::<BigEndian>(docs_data.len() as u32) {
+            Ok(_) => {}
+            Err(_) =>{
+                let msg = String::from("Failed while writing posting list");
+                return Err(Error::WriteError(msg));
+            }
+        }
+        self.written_bytes_postings += 4;
+        for num in docs_data {
             match self.postings_write.write_u32::<BigEndian>(num.clone() as u32) {
-                Ok(_) => {},
+                Ok(_) => {
+                    self.written_bytes_postings += 4;
+                },
                 Err(_) => {
                     let msg = String::from("Failed while writing posting list");
                     return Err(Error::WriteError(msg));
                 },
             }
         }
-        // match self.postings_write.write_u32::<BigEndian>(doc_id as u32) {
-        //     Ok(_) => {},
-        //     Err(_) => {
-        //         let msg = String::from("Failed while writing posting list");
-        //         return Err(Error::WriteError(msg));
-        //     },
-        // }
-        //self.written_bytes_postings +=  4;
         Ok(())
     }
 

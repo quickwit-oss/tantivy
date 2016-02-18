@@ -17,6 +17,7 @@ use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};
 use core::postings::Postings;
+use core::simdcompression::Decoder;
 
 // TODO file structure should be in codec
 
@@ -27,24 +28,37 @@ pub struct SegmentReader {
 }
 
 
-pub struct SegmentPostings<'a> {
-    cursor: Cursor<&'a [u8]>,
-    num_docs_remaining: usize,
+pub struct SegmentPostings {
+    doc_id: usize,
+    doc_ids: Vec<u32>,
 }
 
-impl<'a> SegmentPostings<'a> {
+impl SegmentPostings {
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
         let doc_freq = cursor.read_u32::<BigEndian>().unwrap() as usize;
+        println!("doc_freq {}", doc_freq);
+        let data_size = cursor.read_u32::<BigEndian>().unwrap() as usize;
+        // TODO remove allocs
+        let mut data = Vec::with_capacity(data_size);
+        for _ in 0..data_size {
+            data.push(cursor.read_u32::<BigEndian>().unwrap());
+        }
+        let mut doc_ids: Vec<u32> = (0..doc_freq as u32 ).collect();
+        let decoder = Decoder::new();
+        decoder.decode(&data, &mut doc_ids);
+        for a in doc_ids.iter() {
+            println!("uncompressed {}", a);
+        }
         SegmentPostings {
-            cursor: cursor,
-            num_docs_remaining: doc_freq,
+            doc_ids: doc_ids,
+            doc_id: 0,
         }
     }
 
 }
 
-impl<'a> Postings for SegmentPostings<'a> {
+impl Postings for SegmentPostings {
     fn skip_next(&mut self, target: DocId) -> Option<DocId> {
         loop {
             match Iterator::next(self) {
@@ -61,17 +75,18 @@ impl<'a> Postings for SegmentPostings<'a> {
 }
 
 
-impl<'a> Iterator for SegmentPostings<'a> {
+impl Iterator for SegmentPostings {
 
     type Item = DocId;
 
     fn next(&mut self,) -> Option<DocId> {
-        if self.num_docs_remaining <= 0 {
-            None
+        if self.doc_id < self.doc_ids.len() {
+            let res = Some(self.doc_ids[self.doc_id]);
+            self.doc_id += 1;
+            return res;
         }
         else {
-            self.num_docs_remaining -= 1;
-            Some(self.cursor.read_u32::<BigEndian>().unwrap() as DocId)
+            None
         }
     }
 }
@@ -109,7 +124,7 @@ impl SegmentReader {
         SegmentPostings::from_data(&postings_data)
     }
 
-    pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings<'a>> {
+    pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings> {
         println!("Term {:?}", term);
         match self.term_offsets.get(term.as_slice()) {
             Some(offset) => {
@@ -120,7 +135,7 @@ impl SegmentReader {
         }
     }
 
-    pub fn search<'a>(&'a self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings<'a>> {
+    pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
         let segment_postings: Vec<SegmentPostings> = terms
             .iter()
             .map(|term| self.get_term(term).unwrap())
