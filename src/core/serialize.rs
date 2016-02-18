@@ -35,7 +35,7 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
         // TODO error
         let num_items = reader.read_u32::<BigEndian>().unwrap();
         let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
-        for i in 0..num_items {
+        for _ in 0..num_items {
             let item = try!(T::deserialize(reader));
             items.push(item);
         }

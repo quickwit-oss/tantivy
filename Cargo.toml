@@ -2,6 +2,8 @@
 name = "tantivy"
 version = "0.1.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
+build = "build.rs"
+
 
 [dependencies]
 byteorder = "0.4.2"
@@ -19,6 +21,7 @@ combine = "1.2.0"
 tempdir = "0.3.4"
 bincode = "0.4.0"
 serde = "0.6.11"
+libc = "0.2.6"
 
-
-#![feature(step_by)]
+[build-dependencies]
+gcc = "0.3.24"

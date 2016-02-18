@@ -1,0 +1,3 @@
+[submodule "cpp/SIMDCompressionAndIntersection"]
+	path = cpp/SIMDCompressionAndIntersection
+	url = git@github.com:lemire/SIMDCompressionAndIntersection.git

@@ -6,7 +6,6 @@ lazy_static! {
     static ref WORD_PTN: Regex = Regex::new(r"[a-zA-Z0-9]+").unwrap();
 }
 
-
 pub struct TokenIter<'a> {
     text: &'a str,
     token_it: Box<Iterator<Item=(usize, usize)> + 'a>,
