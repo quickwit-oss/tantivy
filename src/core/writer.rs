@@ -5,7 +5,7 @@ use core::global::*;
 use core::schema::*;
 use core::codec::*;
 use core::directory::Directory;
-use core::analyzer::tokenize;
+use core::analyzer::SimpleTokenizer;
 use std::collections::{HashMap, BTreeMap};
 use std::collections::{hash_map, btree_map};
 use std::io::{BufWriter, Write};
@@ -79,9 +79,17 @@ impl IndexWriter {
 
 
 pub struct SegmentWriter {
+	num_tokens: usize,
     max_doc: DocId,
     postings: Vec<PostingsWriter>,
 	term_index: BTreeMap<Term, usize>,
+	tokenizer: SimpleTokenizer,
+}
+
+impl Drop for SegmentWriter {
+    fn drop(&mut self) {
+        println!("num tokens {}", self.num_tokens);
+    }
 }
 
 
@@ -89,21 +97,27 @@ impl SegmentWriter {
 
 	fn new() -> SegmentWriter {
 		SegmentWriter {
+			num_tokens: 0,
 			max_doc: 0,
 			postings: Vec::new(),
 			term_index: BTreeMap::new(),
+			tokenizer: SimpleTokenizer::new(),
 		}
 	}
 
     pub fn add(&mut self, doc: Document, schema: &Schema) {
+		let mut term_buffer = String::new();
         let doc_id = self.max_doc;
         for field_value in doc.fields() {
 			let field_options = schema.get_field(field_value.field.clone());
 			if field_options.is_tokenized_indexed() {
-				for token in tokenize(&field_value.text) {
-					let term = Term::from_field_text(&field_value.field, token);
-	                self.suscribe(doc_id, term);
-	            }
+				let mut tokens = self.tokenizer.tokenize(&field_value.text);
+				while tokens.read_one(&mut term_buffer) {
+					let term = Term::from_field_text(&field_value.field, term_buffer.as_ref());
+					println!("token {:?}", term);
+					self.suscribe(doc_id, term);
+					self.num_tokens += 1;
+				}
 			}
 		}
         self.max_doc += 1;
