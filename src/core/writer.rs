@@ -87,13 +87,6 @@ pub struct SegmentWriter {
 	tokenizer: SimpleTokenizer,
 }
 
-impl Drop for SegmentWriter {
-    fn drop(&mut self) {
-        println!("num tokens {}", self.num_tokens);
-    }
-}
-
-
 impl SegmentWriter {
 
 	fn new() -> SegmentWriter {
