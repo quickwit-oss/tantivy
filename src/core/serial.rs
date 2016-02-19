@@ -12,7 +12,7 @@ pub trait SegmentSerializer<Output> {
 }
 
 pub trait SerializableSegment {
-    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: SegSer) -> Result<Output>;
+    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output>;
 }
 
 
@@ -30,8 +30,8 @@ impl fmt::Debug for DebugSegmentSerializer {
 impl DebugSegmentSerializer {
 
     pub fn debug_string<S: SerializableSegment>(index: &S) -> String {
-        let serializer = DebugSegmentSerializer::new();
-        index.write(serializer).unwrap()
+        let mut serializer = DebugSegmentSerializer::new();
+        index.write(&mut serializer).unwrap()
     }
 
     pub fn new() -> DebugSegmentSerializer {

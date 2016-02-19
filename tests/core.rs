@@ -94,8 +94,8 @@ fn test_indexing() {
             index_writer.add(doc);
         }
 
-        let debug_serializer = DebugSegmentSerializer::new();
-        let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
+        //let debug_serializer = DebugSegmentSerializer::new();
+        //let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
         let commit_result = index_writer.commit();
         assert!(commit_result.is_ok());
         let segment = commit_result.unwrap();
