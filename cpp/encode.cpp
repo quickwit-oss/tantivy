@@ -1,7 +1,3 @@
-
-
-// /usr/bin/c++    -Wall -Wcast-align -O3 -DNDEBUG -std=c++11 -DHAVE_CXX0X -msse4.1 -march=native -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk -I/Users/pmasurel/github/FastPFor/headers    -o CMakeFiles/example.dir/example.cpp.o -c /Users/pmasurel/github/FastPFor/example.cpp
-
 #include <iostream>
 #include <stdint.h>
 
@@ -15,10 +11,6 @@ static shared_ptr<IntegerCODEC> codec =  CODECFactory::getFromName("s4-bp128-dm"
 
 
 extern "C" {
-
-
-
-
   size_t encode_native(
        uint32_t* begin,
        const size_t num_els,
@@ -29,13 +21,6 @@ extern "C" {
                           num_els,
                           output,
                           output_length);
-        {
-          size_t num_ints = output_length;
-          uint32_t* uncompressed = new uint32_t[100];
-          codec -> decodeArray(output, output_length, uncompressed, num_ints);
-          delete uncompressed;
-        }
-
         return output_length;
   }
 

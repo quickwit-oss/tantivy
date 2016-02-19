@@ -121,10 +121,8 @@ impl SegmentReader {
     }
 
     pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings> {
-        println!("Term {:?}", term);
         match self.term_offsets.get(term.as_slice()) {
             Some(offset) => {
-                println!("offset {}", offset);
                 Some(self.read_postings(offset as usize))
             },
             None => None,
@@ -132,10 +130,19 @@ impl SegmentReader {
     }
 
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
-        let segment_postings: Vec<SegmentPostings> = terms
-            .iter()
-            .map(|term| self.get_term(term).unwrap())
-            .collect();
+
+        let mut segment_postings: Vec<SegmentPostings> = Vec::new();
+        for term in terms.iter() {
+            match self.get_term(term) {
+                Some(segment_posting) => {
+                    segment_postings.push(segment_posting);
+                }
+                None => {
+                    segment_postings.clear();
+                    break;
+                }
+            }
+        }
         IntersectionPostings::from_postings(segment_postings)
     }
 
