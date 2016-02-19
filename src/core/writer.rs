@@ -8,7 +8,7 @@ use core::directory::Directory;
 use core::analyzer::SimpleTokenizer;
 use std::collections::{HashMap, BTreeMap};
 use std::collections::{hash_map, btree_map};
-use std::io::{BufWriter, Write};
+use std::io::{Write};
 use std::sync::Arc;
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
@@ -121,6 +121,7 @@ impl SegmentWriter {
 				}
 			}
 		}
+
         self.max_doc += 1;
     }
 
@@ -139,9 +140,7 @@ impl SegmentWriter {
 
 	pub fn suscribe(&mut self, doc: DocId, term: Term) {
         self.get_postings_writer(term).suscribe(doc);
-
     }
-
 }
 
 impl SerializableSegment for SegmentWriter {

@@ -24,14 +24,16 @@ impl Encoder {
     }
 
     pub fn encode(&mut self, input: &[u32]) -> &[u32] {
+        self.input_buffer.clear();
+        let input_len = input.len();
+        if input_len > self.input_buffer.len() {
+            println!("resising {}", input_len);
+            self.input_buffer = (0..input_len as u32 + 10 ).collect();
+            self.output_buffer = (0..input_len as u32 + 10).collect();
+            // TODO use resize when available
+        }
+        println!("self.input_buffer {}", self.input_buffer.len());
         unsafe {
-            self.input_buffer.clear();
-            let input_len = input.len();
-            if input_len > self.input_buffer.len() {
-                self.input_buffer = (0..input_len as u32 + 10 ).collect();
-                self.output_buffer = (0..input_len as u32 + 10).collect();
-                // TODO use resize when available
-            }
             ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
             // TODO use clone_from when available
             let written_size = encode_native(
@@ -76,9 +78,25 @@ fn test_encode_decode() {
     let input: Vec<u32> = vec!(2,3,5,7,11,13,17,19,23);
     let data = encoder.encode(&input);
     assert_eq!(data.len(), 4);
+    // let decoder = Decoder::new();
+    // let mut data_output: Vec<u32> = (0..100).collect();
+    // assert_eq!(9, decoder.decode(&data[0..4], &mut data_output));
+    // for i in 0..9 {
+    //     assert_eq!(data_output[i], input[i])    ;
+    // }
+}
+
+
+
+#[test]
+fn test_encode_decode_big() {
+    let mut encoder = Encoder::new();
+    let input: Vec<u32> = (0..1_000_000).collect();
+    let data = encoder.encode(&input);
+    assert_eq!(data.len(), 95718);
     let decoder = Decoder::new();
-    let mut data_output: Vec<u32> = (0..100).collect();
-    assert_eq!(9, decoder.decode(&data[0..4], &mut data_output));
+    let mut data_output: Vec<u32> = (0..1_000_000).collect();
+    assert_eq!(1_000_000, decoder.decode(&data[0..95718], &mut data_output));
     for i in 0..9 {
         assert_eq!(data_output[i], input[i])    ;
     }

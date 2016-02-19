@@ -29,13 +29,6 @@ extern "C" {
                           num_els,
                           output,
                           output_length);
-        {
-          size_t num_ints = output_length;
-          uint32_t* uncompressed = new uint32_t[100];
-          codec -> decodeArray(output, output_length, uncompressed, num_ints);
-          delete uncompressed;
-        }
-
         return output_length;
   }
 

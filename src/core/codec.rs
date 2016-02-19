@@ -11,6 +11,7 @@ use core::schema::Term;
 use core::DocId;
 use std::fs::File;
 use core::simdcompression;
+use core::schema::FieldValue;
 
 pub struct SimpleCodec;
 
@@ -20,12 +21,18 @@ pub struct SimpleCodec;
 pub struct SimpleSegmentSerializer {
     written_bytes_postings: usize,
     postings_write: File,
+    store_write: File,
     term_fst_builder: MapBuilder<File>, // TODO find an alternative to work around the "move"
     cur_term_num_docs: DocId,
     encoder: simdcompression::Encoder,
 }
 
 impl SegmentSerializer<()> for SimpleSegmentSerializer {
+
+    fn store_doc(&mut self, field: &mut Iterator<Item=&FieldValue>) {
+
+    }
+
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {
         self.term_fst_builder.insert(term.as_slice(), self.written_bytes_postings as u64);
         self.cur_term_num_docs = doc_freq;
@@ -80,11 +87,13 @@ impl SimpleCodec {
     fn serializer(segment: &Segment) -> Result<SimpleSegmentSerializer>  {
         let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));
+        let store_write = try!(segment.open_writable(SegmentComponent::STORE));
         let term_fst_builder_result = MapBuilder::new(term_write);
         let term_fst_builder = term_fst_builder_result.unwrap();
         Ok(SimpleSegmentSerializer {
             written_bytes_postings: 0,
             postings_write: postings_write,
+            store_write: store_write,
             term_fst_builder: term_fst_builder,
             cur_term_num_docs: 0,
             encoder: simdcompression::Encoder::new(),
