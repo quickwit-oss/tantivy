@@ -37,7 +37,6 @@ impl SegmentPostings {
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
         let doc_freq = cursor.read_u32::<BigEndian>().unwrap() as usize;
-        println!("doc_freq {}", doc_freq);
         let data_size = cursor.read_u32::<BigEndian>().unwrap() as usize;
         // TODO remove allocs
         let mut data = Vec::with_capacity(data_size);
@@ -47,9 +46,6 @@ impl SegmentPostings {
         let mut doc_ids: Vec<u32> = (0..doc_freq as u32 ).collect();
         let decoder = Decoder::new();
         decoder.decode(&data, &mut doc_ids);
-        for a in doc_ids.iter() {
-            println!("uncompressed {}", a);
-        }
         SegmentPostings {
             doc_ids: doc_ids,
             doc_id: 0,
@@ -125,10 +121,8 @@ impl SegmentReader {
     }
 
     pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings> {
-        println!("Term {:?}", term);
         match self.term_offsets.get(term.as_slice()) {
             Some(offset) => {
-                println!("offset {}", offset);
                 Some(self.read_postings(offset as usize))
             },
             None => None,
@@ -136,10 +130,19 @@ impl SegmentReader {
     }
 
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
-        let segment_postings: Vec<SegmentPostings> = terms
-            .iter()
-            .map(|term| self.get_term(term).unwrap())
-            .collect();
+
+        let mut segment_postings: Vec<SegmentPostings> = Vec::new();
+        for term in terms.iter() {
+            match self.get_term(term) {
+                Some(segment_posting) => {
+                    segment_postings.push(segment_posting);
+                }
+                None => {
+                    segment_postings.clear();
+                    break;
+                }
+            }
+        }
         IntersectionPostings::from_postings(segment_postings)
     }
 

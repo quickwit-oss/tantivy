@@ -26,16 +26,14 @@ impl Encoder {
     pub fn encode(&mut self, input: &[u32]) -> &[u32] {
         self.input_buffer.clear();
         let input_len = input.len();
-        if input_len > self.input_buffer.len() {
-            println!("resising {}", input_len);
-            self.input_buffer = (0..input_len as u32 + 10 ).collect();
-            self.output_buffer = (0..input_len as u32 + 10).collect();
+        if input_len >= self.input_buffer.len() {
+            self.input_buffer = (0..input_len as u32).collect();
+            self.output_buffer = (0..input_len as u32 + 1000).collect();
             // TODO use resize when available
         }
-        println!("self.input_buffer {}", self.input_buffer.len());
+        // TODO use clone_from when available
         unsafe {
             ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
-            // TODO use clone_from when available
             let written_size = encode_native(
                 self.input_buffer.as_mut_ptr(),
                 input_len as size_t,
@@ -61,43 +59,28 @@ impl Decoder {
                   compressed_data: &[u32],
                   uncompressed_values: &mut [u32]) -> size_t {
         unsafe {
-            let num_elements = decode_native(
+            return decode_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
                         uncompressed_values.as_mut_ptr(),
                         uncompressed_values.len() as size_t);
-            return num_elements;
         }
     }
 }
 
 
-#[test]
-fn test_encode_decode() {
-    let mut encoder = Encoder::new();
-    let input: Vec<u32> = vec!(2,3,5,7,11,13,17,19,23);
-    let data = encoder.encode(&input);
-    assert_eq!(data.len(), 4);
-    // let decoder = Decoder::new();
-    // let mut data_output: Vec<u32> = (0..100).collect();
-    // assert_eq!(9, decoder.decode(&data[0..4], &mut data_output));
-    // for i in 0..9 {
-    //     assert_eq!(data_output[i], input[i])    ;
-    // }
-}
-
 
 
 #[test]
-fn test_encode_decode_big() {
+fn test_encode_big() {
     let mut encoder = Encoder::new();
-    let input: Vec<u32> = (0..1_000_000).collect();
+    let input: Vec<u32> = (0..100000).into_iter().collect();
     let data = encoder.encode(&input);
-    assert_eq!(data.len(), 95718);
+    assert_eq!(data.len(), 9578);
     let decoder = Decoder::new();
-    let mut data_output: Vec<u32> = (0..1_000_000).collect();
-    assert_eq!(1_000_000, decoder.decode(&data[0..95718], &mut data_output));
-    for i in 0..9 {
+    let mut data_output: Vec<u32> = (0..100000).collect();
+    assert_eq!(100000, decoder.decode(&data[0..9578], &mut data_output));
+    for i in 0..100000 {
         assert_eq!(data_output[i], input[i])    ;
     }
 }

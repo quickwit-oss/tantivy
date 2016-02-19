@@ -12,14 +12,23 @@ pub struct TokenIter<'a> {
     chars: Chars<'a>,
 }
 
+
+fn append_char(c: char, term_buffer: &mut String) {
+    for c_lower in c.to_lowercase() {
+        term_buffer.push(c_lower);
+    }
+}
+
 impl<'a> TokenIter<'a> {
+
+
     pub fn read_one(&mut self, term_buffer: &mut String) -> bool {
         term_buffer.clear();
         loop {
             match self.chars.next() {
                 Some(c) => {
                     if c.is_alphanumeric() {
-                        term_buffer.push(c);
+                        append_char(c, term_buffer);
                         break;
                     }
                     else {
@@ -35,7 +44,7 @@ impl<'a> TokenIter<'a> {
             match self.chars.next() {
                 Some(c) => {
                     if c.is_alphanumeric() {
-                        term_buffer.push(c);
+                        append_char(c, term_buffer);
                     }
                     else {
                         break;
