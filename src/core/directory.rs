@@ -331,6 +331,7 @@ pub enum SegmentComponent {
     POSTINGS,
     // POSITIONS,
     TERMS,
+    STORE,
 }
 
 #[derive(Debug, Clone)]
@@ -352,6 +353,7 @@ impl Segment {
             SegmentComponent::POSTINGS => ".idx",
             // SegmentComponent::POSITIONS => ".pos",
             SegmentComponent::TERMS => ".term",
+            SegmentComponent::STORE => ".store",
         }
     }
 

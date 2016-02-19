@@ -4,11 +4,12 @@ use std::slice;
 use core::global::*;
 use core::schema::*;
 use core::codec::*;
+use std::rc::Rc;
 use core::directory::Directory;
 use core::analyzer::SimpleTokenizer;
 use std::collections::{HashMap, BTreeMap};
 use std::collections::{hash_map, btree_map};
-use std::io::{BufWriter, Write};
+use std::io::{Write};
 use std::sync::Arc;
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
@@ -40,9 +41,15 @@ impl PostingsWriter {
 }
 
 pub struct IndexWriter {
-	segment_writer: SegmentWriter,
+	segment_writer: Rc<SegmentWriter>,
 	directory: Directory,
 	schema: Schema,
+}
+
+
+ fn new_segment_writer(directory: &Directory, ) -> SegmentWriter {
+	let segment = directory.new_segment();
+	SegmentWriter::for_segment(segment)
 }
 
 impl IndexWriter {
@@ -50,14 +57,14 @@ impl IndexWriter {
     pub fn open(directory: &Directory) -> IndexWriter {
 		let schema = directory.schema();
 		IndexWriter {
-			segment_writer: SegmentWriter::new(),
+			segment_writer: Rc::new(new_segment_writer(&directory)),
 			directory: directory.clone(),
 			schema: schema,
 		}
     }
 
     pub fn add(&mut self, doc: Document) {
-        self.segment_writer.add(doc, &self.schema);
+        Rc::get_mut(&mut self.segment_writer).unwrap().add(doc, &self.schema);
     }
 
 	// TODO remove that some day
@@ -66,14 +73,27 @@ impl IndexWriter {
 	}
 
     pub fn commit(&mut self,) -> Result<Segment> {
-		let segment = self.directory.new_segment();
-		try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
-		// At this point, the segment is written
-		// We still need to sync all of the file, as well as the parent directory.
-		try!(self.directory.sync(segment.clone()));
-		self.directory.publish_segment(segment.clone());
-		self.segment_writer = SegmentWriter::new();
-		Ok(segment)
+		// TODO error handling
+		let mut segment_writer_rc = self.segment_writer.clone();
+		self.segment_writer = Rc::new(new_segment_writer(&self.directory));
+		let segment_writer_res = Rc::try_unwrap(segment_writer_rc);
+		match segment_writer_res {
+			Ok(segment_writer) => {
+				let segment = segment_writer.segment();
+				segment_writer.write_pending();
+				// write(self.segment_serializer);
+				// try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
+				// At this point, the segment is written
+				// We still need to sync all of the file, as well as the parent directory.
+				try!(self.directory.sync(segment.clone()));
+				self.directory.publish_segment(segment.clone());
+				Ok(segment)
+			},
+			Err(_) => {
+				panic!("error while acquiring segment writer.");
+			}
+		}
+
 	}
 
 }
@@ -85,17 +105,42 @@ pub struct SegmentWriter {
     postings: Vec<PostingsWriter>,
 	term_index: BTreeMap<Term, usize>,
 	tokenizer: SimpleTokenizer,
+	segment_serializer: SimpleSegmentSerializer,
 }
 
 impl SegmentWriter {
 
-	fn new() -> SegmentWriter {
+	// write on disk all of the stuff that
+	// are still on RAM.
+	// for this version, that's the term dictionary
+	// and the postings
+	fn write_pending(mut self,) -> Result<()> {
+		//self.write(&mut self.segment_serializer);
+		{
+		for (term, postings_id) in self.term_index.iter() {
+			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
+			let term_docfreq = doc_ids.len() as u32;
+			self.segment_serializer.new_term(&term, term_docfreq);
+			self.segment_serializer.write_docs(&doc_ids);
+		}
+		}
+		self.segment_serializer.close()
+	}
+
+	pub fn segment(&self,) -> Segment {
+		self.segment_serializer.segment()
+	}
+
+	fn for_segment(segment: Segment) -> SegmentWriter {
+		// TODO handle error
+		let segment_serializer = SimpleCodec::serializer(&segment).unwrap();
 		SegmentWriter {
 			num_tokens: 0,
 			max_doc: 0,
 			postings: Vec::new(),
 			term_index: BTreeMap::new(),
 			tokenizer: SimpleTokenizer::new(),
+			segment_serializer: segment_serializer,
 		}
 	}
 
@@ -113,6 +158,7 @@ impl SegmentWriter {
 				}
 			}
 		}
+
         self.max_doc += 1;
     }
 
@@ -131,19 +177,17 @@ impl SegmentWriter {
 
 	pub fn suscribe(&mut self, doc: DocId, term: Term) {
         self.get_postings_writer(term).suscribe(doc);
-
     }
-
 }
-
-impl SerializableSegment for SegmentWriter {
-	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
-    	for (term, postings_id) in self.term_index.iter() {
-			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
-			let term_docfreq = doc_ids.len() as u32;
-			serializer.new_term(&term, term_docfreq);
-			serializer.write_docs(&doc_ids);
-		}
-		serializer.close()
-	}
-}
+//
+// impl SerializableSegment for SegmentWriter {
+// 	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output> {
+//     	for (term, postings_id) in self.term_index.iter() {
+// 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
+// 			let term_docfreq = doc_ids.len() as u32;
+// 			serializer.new_term(&term, term_docfreq);
+// 			serializer.write_docs(&doc_ids);
+// 		}
+// 		serializer.close()
+// 	}
+// }

@@ -24,15 +24,14 @@ impl Encoder {
     }
 
     pub fn encode(&mut self, input: &[u32]) -> &[u32] {
-
-            self.input_buffer.clear();
-            let input_len = input.len();
-            if input_len >= self.input_buffer.len() {
-                self.input_buffer = (0..input_len as u32).collect();
-                self.output_buffer = (0..input_len as u32 + 1000).collect();
-                // TODO use resize when available
-            }
-            // TODO use clone_from when available
+        self.input_buffer.clear();
+        let input_len = input.len();
+        if input_len >= self.input_buffer.len() {
+            self.input_buffer = (0..input_len as u32).collect();
+            self.output_buffer = (0..input_len as u32 + 1000).collect();
+            // TODO use resize when available
+        }
+        // TODO use clone_from when available
         unsafe {
             ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
             let written_size = encode_native(
@@ -60,12 +59,11 @@ impl Decoder {
                   compressed_data: &[u32],
                   uncompressed_values: &mut [u32]) -> size_t {
         unsafe {
-            let num_elements = decode_native(
+            return decode_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
                         uncompressed_values.as_mut_ptr(),
                         uncompressed_values.len() as size_t);
-            return num_elements;
         }
     }
 }
@@ -78,11 +76,11 @@ fn test_encode_big() {
     let mut encoder = Encoder::new();
     let input: Vec<u32> = (0..100000).into_iter().collect();
     let data = encoder.encode(&input);
-    assert_eq!(data.len(), 4);
+    assert_eq!(data.len(), 9578);
     let decoder = Decoder::new();
-    let mut data_output: Vec<u32> = (0..10000).collect();
-    assert_eq!(10000, decoder.decode(&data[0..4], &mut data_output));
-    for i in 0..10000 {
+    let mut data_output: Vec<u32> = (0..100000).collect();
+    assert_eq!(100000, decoder.decode(&data[0..9578], &mut data_output));
+    for i in 0..100000 {
         assert_eq!(data_output[i], input[i])    ;
     }
 }
