@@ -12,11 +12,9 @@ impl Searcher {
     pub fn for_directory(directory: Directory) -> Searcher {
         let mut segment_readers: Vec<SegmentReader> = Vec::new();
         for segment in directory.segments().into_iter() {
-            println!("{:?}", segment);
             match SegmentReader::open(segment.clone()) {
                 Ok(segment_reader) => {
                     segment_readers.push(segment_reader);
-                    println!("opened {:?}", segment);
                 }
                 Err(err) => {
                     // TODO return err
