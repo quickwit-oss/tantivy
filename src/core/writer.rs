@@ -158,11 +158,11 @@ impl SegmentWriter {
 				}
 			}
 		}
-		let mut stored_field_it = doc.fields().filter(|field_value| {
+		let mut stored_fieldvalues_it = doc.fields().filter(|field_value| {
 			schema.get_field(&field_value.field)
 				  .is_stored()
 		});
-		self.segment_serializer.store_doc(&mut stored_field_it);
+		self.segment_serializer.store_doc(&mut stored_fieldvalues_it);
         self.max_doc += 1;
     }
 

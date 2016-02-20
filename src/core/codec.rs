@@ -38,8 +38,9 @@ impl SimpleSegmentSerializer {
 
 impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
-    fn store_doc(&mut self, field: &mut Iterator<Item=&FieldValue>) {
-
+    fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) {
+        let field_values: Vec<&FieldValue> = field_values_it.collect();
+        self.store_writer.store(&field_values);
     }
 
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {

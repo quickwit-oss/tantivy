@@ -65,7 +65,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
 }
 
 
-// 
+//
 // fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
 //     for it in layer {
 //         println!(" - {:?}", it);
@@ -142,20 +142,6 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
             }
         }
         Ok(())
-    }
-}
-
-
-impl BinarySerializable for u32 {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
-        // TODO error handling
-        writer.write_u32::<BigEndian>(self.clone());
-        Ok(4)
-    }
-
-    fn deserialize(reader: &mut Read) -> error::Result<Self> {
-        // TODO error handling
-        reader.read_u32::<BigEndian>().map_err(|err| error::Error::ReadError)
     }
 }
 

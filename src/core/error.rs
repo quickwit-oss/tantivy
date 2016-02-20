@@ -1,11 +1,13 @@
 use std::result;
 use std::io;
+use byteorder;
 
 #[derive(Debug)]
 pub enum Error {
     NotImplementedYet,
     WriteError(String),
     ReadError,
+    BinaryReadError(byteorder::Error),
     IOError(io::ErrorKind, String),
     FileNotFound(String),
     LockError(String),
