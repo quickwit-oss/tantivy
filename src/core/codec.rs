@@ -9,6 +9,7 @@ use core::directory::SegmentComponent;
 use core::reader::*;
 use core::schema::Term;
 use core::DocId;
+use core::store::StoreWriter;
 use std::fs::File;
 use core::simdcompression;
 use core::schema::FieldValue;
@@ -22,7 +23,7 @@ pub struct SimpleSegmentSerializer {
     segment: Segment,
     written_bytes_postings: usize,
     postings_write: File,
-    store_write: File,
+    store_writer: StoreWriter,
     term_fst_builder: MapBuilder<File>, // TODO find an alternative to work around the "move"
     cur_term_num_docs: DocId,
     encoder: simdcompression::Encoder,
@@ -102,7 +103,7 @@ impl SimpleCodec {
             segment: segment.clone(),
             written_bytes_postings: 0,
             postings_write: postings_write,
-            store_write: store_write,
+            store_writer: StoreWriter::new(store_write),
             term_fst_builder: term_fst_builder,
             cur_term_num_docs: 0,
             encoder: simdcompression::Encoder::new(),

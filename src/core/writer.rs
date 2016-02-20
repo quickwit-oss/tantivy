@@ -165,7 +165,11 @@ impl SegmentWriter {
 				}
 			}
 		}
-
+		let mut stored_field_it = doc.fields().filter(|field_value| {
+			let field_options = schema.get_field(field_value.field.clone());
+			return field_options.is_stored();
+		});
+		self.segment_serializer.store_doc(&mut stored_field_it);
         self.max_doc += 1;
     }
 
