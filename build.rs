@@ -11,7 +11,7 @@ fn main() {
                 .object("cpp/SIMDCompressionAndIntersection/simdbitpacking.o")
                 .object("cpp/SIMDCompressionAndIntersection/usimdbitpacking.o")
                 .object("cpp/SIMDCompressionAndIntersection/simdintegratedbitpacking.o")
-                .object("cpp/SIMDCompressionAndIntersection/intersection.o")
+                // .object("cpp/SIMDCompressionAndIntersection/intersection.o")
                 .object("cpp/SIMDCompressionAndIntersection/varintdecode.o")
                 .object("cpp/SIMDCompressionAndIntersection/streamvbyte.o")
                 .object("cpp/SIMDCompressionAndIntersection/simdpackedsearch.o")

@@ -85,8 +85,8 @@ impl Schema {
             })
     }
 
-    pub fn get_field(&self, field: Field) -> FieldOptions {
-        let Field(field_id) = field;
+    pub fn get_field(&self, field: &Field) -> FieldOptions {
+        let Field(field_id) = *field;
         self.field_options[field_id as usize].clone()
     }
 

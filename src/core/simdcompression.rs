@@ -2,7 +2,7 @@
 use libc::size_t;
 use std::ptr;
 
-#[link(name = "simdcompression", kind = "static")]
+// #[link(name = "simdcompression", kind = "static")]
 extern {
     fn encode_native(data: *mut u32, num_els: size_t, output: *mut u32) -> size_t;
     fn decode_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;

@@ -148,7 +148,7 @@ impl SegmentWriter {
 		let mut term_buffer = String::new();
         let doc_id = self.max_doc;
         for field_value in doc.fields() {
-			let field_options = schema.get_field(field_value.field.clone());
+			let field_options = schema.get_field(&field_value.field);
 			if field_options.is_tokenized_indexed() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
 				while tokens.read_one(&mut term_buffer) {
@@ -159,8 +159,8 @@ impl SegmentWriter {
 			}
 		}
 		let mut stored_field_it = doc.fields().filter(|field_value| {
-			let field_options = schema.get_field(field_value.field.clone());
-			return field_options.is_stored();
+			schema.get_field(&field_value.field)
+				  .is_stored()
 		});
 		self.segment_serializer.store_doc(&mut stored_field_it);
         self.max_doc += 1;
