@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::mem;
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use std::iter::Peekable;
+use core::analyzer::StreamingIterator;
 use core::serial::*;
 use core::error::*;
 use std::cell::RefCell;
@@ -151,10 +152,15 @@ impl SegmentWriter {
 			let field_options = schema.get_field(&field_value.field);
 			if field_options.is_tokenized_indexed() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
-				while tokens.read_one(&mut term_buffer) {
-					let term = Term::from_field_text(&field_value.field, term_buffer.as_ref());
-					self.suscribe(doc_id, term);
-					self.num_tokens += 1;
+				loop {
+					match tokens.next() {
+						Some(token) => {
+							let term = Term::from_field_text(&field_value.field, token);
+							self.suscribe(doc_id, term);
+							self.num_tokens += 1;
+						},
+						None => { break; }
+					}
 				}
 			}
 		}

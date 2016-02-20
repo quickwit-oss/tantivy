@@ -113,7 +113,7 @@ fn test_serialize_u8() {
         x.serialize(&mut buffer);
         assert_eq!(buffer.len(), 2);
     }
-    let mut cursor = Cursor::new(&buffer);
+    let mut cursor = Cursor::new(&buffer[..]);
     assert_eq!(3, u8::deserialize(&mut cursor).unwrap());
     assert_eq!(5, u8::deserialize(&mut cursor).unwrap());
     assert!(u8::deserialize(&mut cursor).is_err());
@@ -133,7 +133,7 @@ fn test_serialize_u32() {
         x.serialize(&mut buffer);
         assert_eq!(buffer.len(), 8);
     }
-    let mut cursor = Cursor::new(&buffer);
+    let mut cursor = Cursor::new(&buffer[..]);
     assert_eq!(3, u32::deserialize(&mut cursor).unwrap());
     assert_eq!(5, u32::deserialize(&mut cursor).unwrap());
     assert!(u32::deserialize(&mut cursor).is_err());
@@ -154,7 +154,7 @@ fn test_serialize_string() {
         assert_eq!(x.serialize(&mut buffer).unwrap(), second_length);
         assert_eq!(buffer.len(), first_length + second_length);
     }
-    let mut cursor = Cursor::new(&buffer);
+    let mut cursor = Cursor::new(&buffer[..]);
     assert_eq!("ぽよぽよ", String::deserialize(&mut cursor).unwrap());
     assert_eq!("富士さん見える。", String::deserialize(&mut cursor).unwrap());
     assert!(u32::deserialize(&mut cursor).is_err());
@@ -167,7 +167,7 @@ fn test_serialize_vec() {
     let second_length = 4 + 3 * 8;
     let vec = vec!(String::from("ぽよぽよ"), String::from("富士さん見える。"));
     assert_eq!(vec.serialize(&mut buffer).unwrap(), first_length + second_length + 4);
-    let mut cursor = Cursor::new(&buffer);
+    let mut cursor = Cursor::new(&buffer[..]);
     {
         let deser: Vec<String> = Vec::deserialize(&mut cursor).unwrap();
         assert_eq!(deser.len(), 2);

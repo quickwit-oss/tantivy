@@ -51,20 +51,6 @@ fn test_intersection() {
     }
 }
 
-#[test]
-fn test_tokenizer() {
-    let simple_tokenizer = SimpleTokenizer::new();
-    let mut term_buffer = String::new();
-    let mut term_reader = simple_tokenizer.tokenize("hello happy tax payer!");
-    assert!(term_reader.read_one(&mut term_buffer));
-    assert_eq!(term_buffer, "hello");
-    assert!(term_reader.read_one(&mut term_buffer));
-    assert_eq!(term_buffer, "happy");
-    assert!(term_reader.read_one(&mut term_buffer));
-    assert_eq!(term_buffer, "tax");
-    assert!(term_reader.read_one(&mut term_buffer));
-    assert_eq!(term_buffer, "payer");
-}
 
 #[test]
 fn test_indexing() {
