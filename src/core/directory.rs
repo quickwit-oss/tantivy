@@ -3,6 +3,7 @@ use std::path::{PathBuf, Path};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fs::File;
+use std::fs;
 use core::schema::Schema;
 use std::io::Write;
 use std::io::BufWriter;
@@ -20,6 +21,7 @@ use fst::raw::MmapReadOnly;
 use rustc_serialize::json;
 use atomicwrites;
 use tempdir::TempDir;
+use std::io::Read;
 
 #[derive(Clone, Debug)]
 pub struct SegmentId(pub String);
@@ -132,8 +134,8 @@ impl Directory {
     }
 
     pub fn load_metas(&self,) -> Result<()> {
-        match self.inner_directory.read() {
-            Ok(dir) => dir.load_metas(),
+        match self.inner_directory.write() {
+            Ok(mut dir) => { dir.load_metas() },
             Err(e) => Err(Error::LockError(format!("Could not get read lock {:?} for directory", e)))
         }
     }
@@ -248,8 +250,18 @@ impl InnerDirectory {
         Ok(directory)
     }
 
-    pub fn load_metas(&self,) -> Result<()> {
-        // TODO load segment info
+    pub fn load_metas(&mut self,) -> Result<()> {
+        let meta_filepath = self.meta_filepath();
+        let meta_data = fs::metadata(&meta_filepath);
+        if meta_data.is_err() {
+            // There is no meta data file.
+            // TODO check that the directory is empty.
+            return Ok(());
+        }
+        let mut meta_file = File::open(&meta_filepath).unwrap();
+        let mut meta_content = String::new();
+        meta_file.read_to_string(&mut meta_content);
+        self.metas = json::decode(&meta_content).unwrap();
         Ok(())
     }
 

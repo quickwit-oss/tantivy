@@ -34,6 +34,14 @@ pub struct SegmentPostings {
 }
 
 impl SegmentPostings {
+
+    pub fn empty()-> SegmentPostings {
+        SegmentPostings {
+            doc_id: 0,
+            doc_ids: Vec::new(),
+        }
+    }
+
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
         let doc_freq = cursor.read_u32::<BigEndian>().unwrap() as usize;
@@ -139,6 +147,7 @@ impl SegmentReader {
                 }
                 None => {
                     segment_postings.clear();
+                    segment_postings.push(SegmentPostings::empty());
                     break;
                 }
             }

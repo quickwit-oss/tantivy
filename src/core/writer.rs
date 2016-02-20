@@ -108,13 +108,6 @@ pub struct SegmentWriter {
 	segment_serializer: SimpleSegmentSerializer,
 }
 
-// impl Drop for SegmentWriter {
-//     fn drop(&mut self) {
-//         println!("num tokens {}", self.num_tokens);
-//     }
-// }
-
-
 impl SegmentWriter {
 
 	// write on disk all of the stuff that
