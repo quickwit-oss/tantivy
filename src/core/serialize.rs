@@ -42,6 +42,7 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     }
 }
 
+
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
         writer.write_u32::<BigEndian>(self.clone())
@@ -50,6 +51,18 @@ impl BinarySerializable for u32 {
     }
     fn deserialize(reader: &mut Read) -> error::Result<u32> {
         reader.read_u32::<BigEndian>()
+              .map_err(Error::BinaryReadError)
+    }
+}
+
+impl BinarySerializable for u64 {
+    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+        writer.write_u64::<BigEndian>(self.clone())
+              .map(|x| 4)
+              .map_err(Error::BinaryReadError)
+    }
+    fn deserialize(reader: &mut Read) -> error::Result<u64> {
+        reader.read_u64::<BigEndian>()
               .map_err(Error::BinaryReadError)
     }
 }
@@ -126,8 +139,6 @@ fn test_serialize_u32() {
     assert!(u32::deserialize(&mut cursor).is_err());
 }
 
-
-
 #[test]
 fn test_serialize_string() {
     let mut buffer: Vec<u8> = Vec::new();
@@ -148,8 +159,6 @@ fn test_serialize_string() {
     assert_eq!("富士さん見える。", String::deserialize(&mut cursor).unwrap());
     assert!(u32::deserialize(&mut cursor).is_err());
 }
-
-
 
 #[test]
 fn test_serialize_vec() {

@@ -22,6 +22,7 @@ tempdir = "0.3.4"
 bincode = "0.4.0"
 serde = "0.6.11"
 libc = "0.2.6"
+lz4 = "*"
 
 [build-dependencies]
 gcc = "0.3.24"

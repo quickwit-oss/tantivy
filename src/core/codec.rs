@@ -83,9 +83,10 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn close(self,) -> Result<()> {
+    fn close(mut self,) -> Result<()> {
         // TODO handle errors on close
         self.term_fst_builder.finish();
+        self.store_writer.close();
         Ok(())
     }
 }

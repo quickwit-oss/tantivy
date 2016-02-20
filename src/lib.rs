@@ -20,5 +20,6 @@ extern crate tempdir;
 extern crate bincode;
 extern crate serde;
 extern crate libc;
+extern crate lz4;
 
 pub mod core;
