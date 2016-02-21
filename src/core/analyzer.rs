@@ -1,50 +1,30 @@
 extern crate regex;
 
-use self::regex::Regex;
-use std::cell::RefCell;
 use std::str::Chars;
-
-lazy_static! {
-    static ref WORD_PTN: Regex = Regex::new(r"[a-zA-Z0-9]+").unwrap();
-}
 
 pub struct TokenIter<'a> {
     chars: Chars<'a>,
+    term_buffer: String,
 }
 
-
-fn append_char(c: char, term_buffer: &mut String) {
+fn append_char_lowercase(c: char, term_buffer: &mut String) {
     for c_lower in c.to_lowercase() {
         term_buffer.push(c_lower);
     }
 }
 
-impl<'a> TokenIter<'a> {
+pub trait StreamingIterator<'a, T> {
+    fn next(&'a mut self) -> Option<T>;
+}
 
 
-    pub fn read_one(&mut self, term_buffer: &mut String) -> bool {
-        term_buffer.clear();
+impl<'a, 'b> TokenIter<'b> {
+    fn consume_token(&'a mut self) -> Option<&'a str> {
         loop {
             match self.chars.next() {
                 Some(c) => {
                     if c.is_alphanumeric() {
-                        append_char(c, term_buffer);
-                        break;
-                    }
-                    else {
-                        break;
-                    }
-                },
-                None => {
-                    return false;
-                }
-            }
-        }
-        loop {
-            match self.chars.next() {
-                Some(c) => {
-                    if c.is_alphanumeric() {
-                        append_char(c, term_buffer);
+                        append_char_lowercase(c, &mut self.term_buffer);
                     }
                     else {
                         break;
@@ -55,7 +35,27 @@ impl<'a> TokenIter<'a> {
                 }
             }
         }
-        return true;
+        return Some(&self.term_buffer);
+    }
+}
+
+
+impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
+
+    fn next(&'a mut self,) -> Option<&'a str> {
+        self.term_buffer.clear();
+        // skipping non-letter characters.
+        loop {
+            match self.chars.next() {
+                Some(c) => {
+                    if c.is_alphanumeric() {
+                        append_char_lowercase(c, &mut self.term_buffer);
+                        return self.consume_token();
+                    }
+                }
+                None => { return None; }
+            }
+        }
     }
 }
 
@@ -68,8 +68,22 @@ impl SimpleTokenizer {
     }
 
     pub fn tokenize<'a>(&self, text: &'a str) -> TokenIter<'a> {
-       TokenIter {
+        TokenIter {
+           term_buffer: String::new(),
            chars: text.chars(),
-       }
+        }
    }
+}
+
+
+#[test]
+fn test_tokenizer() {
+    let simple_tokenizer = SimpleTokenizer::new();
+    let mut term_buffer = String::new();
+    let mut term_reader = simple_tokenizer.tokenize("hello, happy tax payer!");
+    assert_eq!(term_reader.next().unwrap(), "hello");
+    assert_eq!(term_reader.next().unwrap(), "happy");
+    assert_eq!(term_reader.next().unwrap(), "tax");
+    assert_eq!(term_reader.next().unwrap(), "payer");
+    assert_eq!(term_reader.next(), None);
 }
