@@ -1,15 +1,12 @@
 use core::DocId;
 use core::reader::SegmentReader;
 use core::directory::SegmentId;
-
+use core::searcher::DocAddress;
 
 pub trait Collector {
     fn set_segment(&mut self, segment: &SegmentReader);
     fn collect(&mut self, doc_id: DocId);
 }
-
-#[derive(Debug)]
-pub struct DocAddress(pub SegmentId, pub DocId);
 
 pub struct TestCollector {
     docs: Vec<DocAddress>,
@@ -28,7 +25,6 @@ impl TestCollector {
         self.docs
     }
 }
-
 
 impl Collector for TestCollector {
 

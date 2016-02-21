@@ -23,7 +23,7 @@ use atomicwrites;
 use tempdir::TempDir;
 use std::io::Read;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SegmentId(pub String);
 
 pub fn generate_segment_name() -> SegmentId {

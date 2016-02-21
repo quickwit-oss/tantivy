@@ -2,6 +2,8 @@ use core::directory::Directory;
 use core::directory::{Segment, SegmentId};
 use std::collections::BinaryHeap;
 use core::schema::Term;
+use core::store::StoreReader;
+use core::schema::Document;
 use fst::Streamer;
 use fst;
 use std::io;
@@ -25,8 +27,8 @@ pub struct SegmentReader {
     segment: Segment,
     term_offsets: fst::Map,
     postings_data: MmapReadOnly,
+    store_reader: StoreReader,
 }
-
 
 pub struct SegmentPostings {
     doc_id: usize,
@@ -95,10 +97,6 @@ impl Iterator for SegmentPostings {
     }
 }
 
-
-
-
-
 impl SegmentReader {
 
     pub fn id(&self,) -> SegmentId {
@@ -114,14 +112,19 @@ impl SegmentReader {
                 return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
             }
         };
+        let store_reader = StoreReader::new(try!(segment.mmap(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,
             segment: segment,
+            store_reader: store_reader,
         })
     }
 
+    pub fn get_doc(&self, doc_id: &DocId) -> Document {
+        self.store_reader.get(doc_id)
+    }
 
     pub fn read_postings(&self, offset: usize) -> SegmentPostings {
         let postings_data = unsafe {&self.postings_data.as_slice()[offset..]};
@@ -129,12 +132,9 @@ impl SegmentReader {
     }
 
     pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings> {
-        match self.term_offsets.get(term.as_slice()) {
-            Some(offset) => {
-                Some(self.read_postings(offset as usize))
-            },
-            None => None,
-        }
+        self.term_offsets
+            .get(term.as_slice())
+            .map(|offset| self.read_postings(offset as usize))
     }
 
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
@@ -143,9 +143,11 @@ impl SegmentReader {
         for term in terms.iter() {
             match self.get_term(term) {
                 Some(segment_posting) => {
+                    println!("term found {:?}", term);
                     segment_postings.push(segment_posting);
                 }
                 None => {
+                    println!("not found {:?}", term);
                     segment_postings.clear();
                     segment_postings.push(SegmentPostings::empty());
                     break;

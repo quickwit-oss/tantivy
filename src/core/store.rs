@@ -19,6 +19,8 @@ use std::io::Seek;
 use lz4;
 use tempfile;
 
+// TODO cache uncompressed pages
+
 const BLOCK_SIZE: usize = 262144;
 
 pub struct StoreWriter {
@@ -103,7 +105,7 @@ impl StoreWriter {
 }
 
 
-struct StoreReader {
+pub struct StoreReader {
     data: MmapReadOnly,
     offsets: Vec<OffsetIndex>,
     current_block: RefCell<Vec<u8>>,
@@ -119,10 +121,11 @@ impl StoreReader {
         Vec::deserialize(&mut cursor).unwrap()
     }
 
-    fn block_offset(&self, doc_id: DocId) -> OffsetIndex {
+    fn block_offset(&self, doc_id: &DocId) -> OffsetIndex {
         let mut offset = OffsetIndex(0, 0);
         for &OffsetIndex(first_doc_id, block_offset) in self.offsets.iter() {
-            if first_doc_id > doc_id {
+            println!("First doc id {}", first_doc_id);
+            if first_doc_id > *doc_id {
                 break;
             }
             else {
@@ -143,12 +146,13 @@ impl StoreReader {
         lz4_decoder.read_to_end(&mut current_block_mut);
     }
 
-    pub fn get(&self, doc_id: DocId) -> Document {
+    pub fn get(&self, doc_id: &DocId) -> Document {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         self.read_block(block_offset as usize);
         let mut current_block_mut = self.current_block.borrow_mut();
         let mut cursor = Cursor::new(&mut current_block_mut[..]);
-        for _ in first_doc_id..doc_id  {
+        println!("{} / {}", first_doc_id, doc_id);
+        for _ in first_doc_id..*doc_id  {
             let block_length = u32::deserialize(&mut cursor).unwrap();
             cursor.seek(SeekFrom::Current(block_length as i64));
         }
@@ -209,5 +213,7 @@ fn test_store() {
     let store_mmap = MmapReadOnly::open(&store_file).unwrap();
     let store = StoreReader::new(store_mmap);
     assert_eq!(offsets, store.offsets);
-    assert_eq!(store.get(4093).get_one(&field_title).unwrap(), "Doc 4093");
+    for i in 0..10000 {
+        assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
+    }
 }

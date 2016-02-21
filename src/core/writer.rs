@@ -155,6 +155,7 @@ impl SegmentWriter {
 				loop {
 					match tokens.next() {
 						Some(token) => {
+							// println!("TOKEN :{}:", token);
 							let term = Term::from_field_text(&field_value.field, token);
 							self.suscribe(doc_id, term);
 							self.num_tokens += 1;
