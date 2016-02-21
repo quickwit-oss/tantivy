@@ -13,6 +13,7 @@ extern crate byteorder;
 extern crate memmap;
 extern crate rand;
 extern crate regex;
+extern crate tempfile;
 extern crate rustc_serialize;
 extern crate combine;
 extern crate atomicwrites;
