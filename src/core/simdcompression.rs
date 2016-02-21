@@ -26,9 +26,9 @@ impl Encoder {
     pub fn encode(&mut self, input: &[u32]) -> &[u32] {
         self.input_buffer.clear();
         let input_len = input.len();
-        if input_len >= self.input_buffer.len() {
-            self.input_buffer = (0..input_len as u32).collect();
-            self.output_buffer = (0..input_len as u32 + 1000).collect();
+        if input_len + 10000 >= self.input_buffer.len() {
+            self.input_buffer = (0..input_len as u32 + 10000).collect();
+            self.output_buffer = (0..input_len as u32 + 10000).collect();
             // TODO use resize when available
         }
         // TODO use clone_from when available
