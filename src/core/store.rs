@@ -59,10 +59,13 @@ impl StoreWriter {
     }
 
     pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) {
-        (field_values.len() as u32).serialize(&mut self.current_block);
+        self.intermediary_buffer.clear();
+        (field_values.len() as u32).serialize(&mut self.intermediary_buffer);
         for field_value in field_values.iter() {
-            (*field_value).serialize(&mut self.current_block);
+            (*field_value).serialize(&mut self.intermediary_buffer);
         }
+        (self.intermediary_buffer.len() as u32).serialize(&mut self.current_block);
+        self.current_block.write_all(&self.intermediary_buffer[..]);
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
             self.write_and_compress_block();
@@ -140,14 +143,23 @@ impl StoreReader {
         lz4_decoder.read_to_end(&mut current_block_mut);
     }
 
-    pub fn get(&self, doc_id: DocId) -> Vec<FieldValue> {
+    pub fn get(&self, doc_id: DocId) -> Document {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         self.read_block(block_offset as usize);
-        
-        // for first_doc_id..doc_id  {
-        //
-        // }
-        Vec::new()
+        let mut current_block_mut = self.current_block.borrow_mut();
+        let mut cursor = Cursor::new(&mut current_block_mut[..]);
+        for _ in first_doc_id..doc_id  {
+            let block_length = u32::deserialize(&mut cursor).unwrap();
+            cursor.seek(SeekFrom::Current(block_length as i64));
+        }
+        let block_length = u32::deserialize(&mut cursor).unwrap();
+        let mut field_values = Vec::new();
+        let num_fields = u32::deserialize(&mut cursor).unwrap();
+        for _ in 0..num_fields {
+            let field_value = FieldValue::deserialize(&mut cursor).unwrap();
+            field_values.push(field_value);
+        }
+        Document::from(field_values)
     }
 
     pub fn new(data: MmapReadOnly) -> StoreReader {
@@ -164,19 +176,30 @@ impl StoreReader {
 #[test]
 fn test_store() {
     let offsets;
-    let mut store_file = tempfile::NamedTempFile::new().unwrap();
+    let store_file = tempfile::NamedTempFile::new().unwrap();
+    let mut schema = Schema::new();
+    let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
+    let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
+    let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
     {
-        let mut schema = Schema::new();
-        let field = schema.add_field("titi", &FieldOptions::new().set_stored());
         let mut store_writer = StoreWriter::new(store_file.reopen().unwrap());
         for i in 0..10000 {
             let mut fields: Vec<FieldValue> = Vec::new();
-            let text = format!("Doc {} he LZ4 algorithm represents the data as a series of sequences. Each sequence begins with a one byte token that is broken into two 4 bit fields. The first field represents the number of literal bytes that are to be copied to the output. The second field represents the number of bytes to copy from the already decoded output buffer (with 0 representing the minimum match length of 4 bytes). A value of 15 in either of the bitfields indicates that the length is larger and there is an extra byte of data that is to be added to the length. A value of 255 in these extra bytes indicates that yet another byte to be added. Hence arbitrary lengths are represented by a series of extra bytes containing the value 255. The string of literals comes after the token and any extra bytes needed to indicate string length. This is followed by an offset that indicates how far back in the output buffer to begin copying. The extra bytes (if any) of the match-length come at the end of the sequence.[2] Compression can be carried out in a stream or in blocks. Higher compression ratios can be achieved by investing more effort in finding the best matches. This results in both a smaller output and faster d", i);
-            let field_value = FieldValue {
-                field: field.clone(),
-                text: text,
-            };
-            fields.push(field_value);
+            {
+                let field_value = FieldValue {
+                    field: field_body.clone(),
+                    text: lorem.clone(),
+                };
+                fields.push(field_value);
+            }
+            {
+                let title_text = format!("Doc {}", i);
+                let field_value = FieldValue {
+                    field: field_title.clone(),
+                    text: title_text,
+                };
+                fields.push(field_value);
+            }
             let fields_refs: Vec<&FieldValue> = fields.iter().collect();
             store_writer.store(&fields_refs);
         }
@@ -186,6 +209,5 @@ fn test_store() {
     let store_mmap = MmapReadOnly::open(&store_file).unwrap();
     let store = StoreReader::new(store_mmap);
     assert_eq!(offsets, store.offsets);
-    println!("{:?}", store.get(143));
-    assert!(false);
+    assert_eq!(store.get(4093).get_one(&field_title).unwrap(), "Doc 4093");
 }

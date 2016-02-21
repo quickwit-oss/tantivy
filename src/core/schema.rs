@@ -182,9 +182,9 @@ impl fmt::Debug for Term {
     }
 }
 
-
+#[derive(Debug)]
 pub struct Document {
-    fields: Vec<FieldValue>,
+    field_values: Vec<FieldValue>,
 }
 
 
@@ -192,8 +192,18 @@ impl Document {
 
     pub fn new() -> Document {
         Document {
-            fields: Vec::new()
+            field_values: Vec::new()
         }
+    }
+
+    pub fn from(field_values: Vec<FieldValue>) -> Document {
+        Document {
+            field_values: field_values
+        }
+    }
+
+    pub fn len(&self,) -> usize {
+        self.field_values.len()
     }
 
     pub fn set(&mut self, field: &Field, text: &str) {
@@ -204,11 +214,26 @@ impl Document {
     }
 
     pub fn add(&mut self, field_value: FieldValue) {
-        self.fields.push(field_value);
+        self.field_values.push(field_value);
     }
 
     pub fn fields<'a>(&'a self,) -> slice::Iter<'a, FieldValue> {
-        self.fields.iter()
+        self.field_values.iter()
     }
 
+    pub fn get<'a>(&'a self, field: &Field) -> Vec<&'a String> {
+        self.field_values
+            .iter()
+            .filter(|field_value| field_value.field == *field)
+            .map(|field_value| &field_value.text)
+            .collect()
+    }
+
+    pub fn get_one<'a>(&'a self, field: &Field) -> Option<&'a String> {
+        self.field_values
+            .iter()
+            .filter(|field_value| field_value.field == *field)
+            .map(|field_value| &field_value.text)
+            .next()
+    }
 }
