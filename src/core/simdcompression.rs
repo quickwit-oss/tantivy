@@ -74,13 +74,13 @@ impl Decoder {
 #[test]
 fn test_encode_big() {
     let mut encoder = Encoder::new();
-    let input: Vec<u32> = (0..100000).into_iter().collect();
+    let input: Vec<u32> = (0..10000).into_iter().collect();
     let data = encoder.encode(&input);
-    assert_eq!(data.len(), 9578);
+    assert_eq!(data.len(), 962);
     let decoder = Decoder::new();
-    let mut data_output: Vec<u32> = (0..100000).collect();
-    assert_eq!(100000, decoder.decode(&data[0..9578], &mut data_output));
-    for i in 0..100000 {
+    let mut data_output: Vec<u32> = (0..10000).collect();
+    assert_eq!(10000, decoder.decode(&data[0..962], &mut data_output));
+    for i in 0..10000 {
         assert_eq!(data_output[i], input[i])    ;
     }
 }

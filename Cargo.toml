@@ -23,6 +23,7 @@ bincode = "0.4.0"
 serde = "0.6.11"
 libc = "0.2.6"
 lz4 = "1.13.131"
+time = "0.1.34"
 
 [build-dependencies]
 gcc = "0.3.24"

@@ -1,3 +1,4 @@
+use time::PreciseTime;
 use std::io::BufWriter;
 use std::fs::File;
 use std::fmt;
@@ -21,7 +22,7 @@ use tempfile;
 
 // TODO cache uncompressed pages
 
-const BLOCK_SIZE: usize = 262144;
+const BLOCK_SIZE: usize = 131072;
 
 pub struct StoreWriter {
     doc: DocId,
@@ -124,7 +125,6 @@ impl StoreReader {
     fn block_offset(&self, doc_id: &DocId) -> OffsetIndex {
         let mut offset = OffsetIndex(0, 0);
         for &OffsetIndex(first_doc_id, block_offset) in self.offsets.iter() {
-            println!("First doc id {}", first_doc_id);
             if first_doc_id > *doc_id {
                 break;
             }
@@ -139,7 +139,7 @@ impl StoreReader {
         let mut current_block_mut = self.current_block.borrow_mut();
         current_block_mut.clear();
         let total_buffer = unsafe {self.data.as_slice()};
-        let mut cursor = Cursor::new(total_buffer);
+        let mut cursor = Cursor::new(&total_buffer[block_offset..]);
         let block_length = u32::deserialize(&mut cursor).unwrap();
         let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
         let mut lz4_decoder = lz4::Decoder::new(Cursor::new(block_array)).unwrap();
@@ -151,7 +151,6 @@ impl StoreReader {
         self.read_block(block_offset as usize);
         let mut current_block_mut = self.current_block.borrow_mut();
         let mut cursor = Cursor::new(&mut current_block_mut[..]);
-        println!("{} / {}", first_doc_id, doc_id);
         for _ in first_doc_id..*doc_id  {
             let block_length = u32::deserialize(&mut cursor).unwrap();
             cursor.seek(SeekFrom::Current(block_length as i64));
