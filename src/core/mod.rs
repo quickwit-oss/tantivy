@@ -1,5 +1,3 @@
-
-pub mod query;
 pub mod postings;
 pub mod global;
 pub mod schema;

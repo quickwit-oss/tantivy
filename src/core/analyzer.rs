@@ -17,7 +17,6 @@ pub trait StreamingIterator<'a, T> {
     fn next(&'a mut self) -> Option<T>;
 }
 
-
 impl<'a, 'b> TokenIter<'b> {
     fn consume_token(&'a mut self) -> Option<&'a str> {
         loop {
@@ -79,11 +78,18 @@ impl SimpleTokenizer {
 #[test]
 fn test_tokenizer() {
     let simple_tokenizer = SimpleTokenizer::new();
-    let mut term_buffer = String::new();
     let mut term_reader = simple_tokenizer.tokenize("hello, happy tax payer!");
     assert_eq!(term_reader.next().unwrap(), "hello");
     assert_eq!(term_reader.next().unwrap(), "happy");
     assert_eq!(term_reader.next().unwrap(), "tax");
     assert_eq!(term_reader.next().unwrap(), "payer");
+    assert_eq!(term_reader.next(), None);
+}
+
+
+#[test]
+fn test_tokenizer_empty() {
+    let simple_tokenizer = SimpleTokenizer::new();
+    let mut term_reader = simple_tokenizer.tokenize("");
     assert_eq!(term_reader.next(), None);
 }

@@ -1,24 +1,13 @@
-
-use std::io;
-use std::slice;
-use core::global::*;
+use core::global::DocId;
 use core::schema::*;
 use core::codec::*;
 use std::rc::Rc;
 use core::directory::Directory;
 use core::analyzer::SimpleTokenizer;
-use std::collections::{HashMap, BTreeMap};
-use std::collections::{hash_map, btree_map};
-use std::io::{Write};
-use std::sync::Arc;
-use std::mem;
-use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use std::iter::Peekable;
+use std::collections::BTreeMap;
 use core::analyzer::StreamingIterator;
 use core::serial::*;
 use core::error::*;
-use std::cell::RefCell;
-use std::borrow::BorrowMut;
 use core::directory::Segment;
 
 
@@ -75,7 +64,7 @@ impl IndexWriter {
 
     pub fn commit(&mut self,) -> Result<Segment> {
 		// TODO error handling
-		let mut segment_writer_rc = self.segment_writer.clone();
+		let segment_writer_rc = self.segment_writer.clone();
 		self.segment_writer = Rc::new(new_segment_writer(&self.directory));
 		let segment_writer_res = Rc::try_unwrap(segment_writer_rc);
 		match segment_writer_res {
@@ -146,7 +135,6 @@ impl SegmentWriter {
 	}
 
     pub fn add(&mut self, doc: Document, schema: &Schema) {
-		let mut term_buffer = String::new();
         let doc_id = self.max_doc;
         for field_value in doc.fields() {
 			let field_options = schema.get_field(&field_value.field);

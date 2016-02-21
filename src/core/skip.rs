@@ -1,16 +1,13 @@
 use std::io::Write;
-use std::io::BufWriter;
 use std::io::Read;
 use std::io::Cursor;
 use std::io::SeekFrom;
 use std::io::Seek;
 use std::marker::PhantomData;
 use core::DocId;
-use std::ops::DerefMut;
 use core::error;
 use byteorder;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use std::fmt;
 use core::serialize::*;
 
 struct LayerBuilder<T: BinarySerializable> {
@@ -31,11 +28,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         try!(output.write_all(&self.buffer));
         Ok(())
     }
-
-    fn len(&self,) -> usize {
-        self.len
-    }
-
+    
     fn with_period(period: usize) -> LayerBuilder<T> {
         LayerBuilder {
             period: period,
@@ -63,23 +56,6 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         res
     }
 }
-
-
-//
-// fn display_layer<'a, T: BinarySerializable>(layer: &mut Layer<'a, T>) {
-//     for it in layer {
-//         println!(" - {:?}", it);
-//     }
-// }
-//
-// pub fn display_skip_list<T: BinarySerializable>(skiplist: &mut SkipList<T>) {
-//     println!("DataLayer");
-//     display_layer(&mut skiplist.data_layer);
-//     println!("SkipLayer");
-//     for mut layer in skiplist.skip_layers.iter_mut() {
-//         display_layer(&mut layer);
-//     }
-// }
 
 pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
@@ -291,5 +267,139 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
             skip_layers: skip_layers,
             data_layer: data_layer,
         }
+    }
+}
+
+
+
+
+#[test]
+fn test_skip_list_builder() {
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        skip_list_builder.insert(2, &3);
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        assert_eq!(output.len(), 16);
+        assert_eq!(output[0], 0);
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(3);
+        for i in 0..9 {
+            skip_list_builder.insert(i, &i);
+        }
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        assert_eq!(output.len(), 120);
+        assert_eq!(output[0], 0);
+    }
+    {
+        // checking that void gets serialized to nothing.
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
+        for i in 0..9 {
+            skip_list_builder.insert(i, &());
+        }
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        assert_eq!(output.len(), 84);
+        assert_eq!(output[0], 0);
+    }
+}
+
+#[test]
+fn test_skip_list_reader() {
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        skip_list_builder.insert(2, &3);
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next(), Some((2, 3)));
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next(), None);
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
+        skip_list_builder.insert(2, &());
+        skip_list_builder.insert(3, &());
+        skip_list_builder.insert(5, &());
+        skip_list_builder.insert(7, &());
+        skip_list_builder.insert(9, &());
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next().unwrap(), (2, ()));
+        assert_eq!(skip_list.next().unwrap(), (3, ()));
+        assert_eq!(skip_list.next().unwrap(), (5, ()));
+        assert_eq!(skip_list.next().unwrap(), (7, ()));
+        assert_eq!(skip_list.next().unwrap(), (9, ()));
+        assert_eq!(skip_list.next(), None);
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
+        skip_list_builder.insert(2, &());
+        skip_list_builder.insert(3, &());
+        skip_list_builder.insert(5, &());
+        skip_list_builder.insert(7, &());
+        skip_list_builder.insert(9, &());
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next().unwrap(), (2, ()));
+        skip_list.seek(5);
+        assert_eq!(skip_list.next().unwrap(), (5, ()));
+        assert_eq!(skip_list.next().unwrap(), (7, ()));
+        assert_eq!(skip_list.next().unwrap(), (9, ()));
+        assert_eq!(skip_list.next(), None);
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
+        skip_list_builder.insert(2, &());
+        skip_list_builder.insert(3, &());
+        skip_list_builder.insert(5, &());
+        skip_list_builder.insert(6, &());
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next().unwrap(), (2, ()));
+        skip_list.seek(6);
+        assert_eq!(skip_list.next().unwrap(), (6, ()));
+        assert_eq!(skip_list.next(), None);
+
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(2);
+        skip_list_builder.insert(2, &());
+        skip_list_builder.insert(3, &());
+        skip_list_builder.insert(5, &());
+        skip_list_builder.insert(7, &());
+        skip_list_builder.insert(9, &());
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next().unwrap(), (2, ()));
+        skip_list.seek(10);
+        assert_eq!(skip_list.next(), None);
+    }
+    {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
+        for i in 0..1000 {
+            skip_list_builder.insert(i, &());
+        }
+        skip_list_builder.insert(1004, &());
+        skip_list_builder.write::<Vec<u8>>(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        assert_eq!(skip_list.next().unwrap(), (0, ()));
+        skip_list.seek(431);
+        assert_eq!(skip_list.next().unwrap(), (431,()) );
+        skip_list.seek(1003);
+        assert_eq!(skip_list.next().unwrap(), (1004,()) );
+        assert_eq!(skip_list.next(), None);
     }
 }

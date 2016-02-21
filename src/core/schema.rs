@@ -1,17 +1,11 @@
-use core::global::*;
 use core::error;
 use std::io::Write;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::string::FromUtf8Error;
 use std::collections::HashMap;
 use std::str;
-use std::iter;
 use std::slice;
 use std::fmt;
 use std::io::Read;
 use core::serialize::BinarySerializable;
-
-
 
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub struct FieldOptions {

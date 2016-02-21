@@ -1,14 +1,9 @@
-use time::PreciseTime;
 use std::io::BufWriter;
 use std::fs::File;
-use std::fmt;
 use std::cell::RefCell;
 use core::global::DocId;
 use core::schema::Document;
-use core::schema::Field;
 use core::schema::FieldValue;
-use core::schema::FieldOptions;
-use core::schema::Schema;
 use core::error;
 use core::serialize::BinarySerializable;
 use std::io::Write;
@@ -18,7 +13,6 @@ use std::io::SeekFrom;
 use fst::raw::MmapReadOnly;
 use std::io::Seek;
 use lz4;
-use tempfile;
 
 // TODO cache uncompressed pages
 
@@ -176,43 +170,56 @@ impl StoreReader {
 }
 
 
-#[test]
-fn test_store() {
-    let offsets;
-    let store_file = tempfile::NamedTempFile::new().unwrap();
-    let mut schema = Schema::new();
-    let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
-    let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
-    let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
-    {
-        let mut store_writer = StoreWriter::new(store_file.reopen().unwrap());
-        for i in 0..10000 {
-            let mut fields: Vec<FieldValue> = Vec::new();
-            {
-                let field_value = FieldValue {
-                    field: field_body.clone(),
-                    text: lorem.clone(),
-                };
-                fields.push(field_value);
+#[cfg(test)]
+mod tests {
+
+    use tempfile;
+    use core::schema::Schema;
+    use core::schema::FieldOptions;
+    use core::schema::FieldValue;
+    use fst::raw::MmapReadOnly;
+    use core::store::StoreWriter;
+    use core::store::StoreReader;
+
+    #[test]
+    fn test_store() {
+        let offsets;
+        let store_file = tempfile::NamedTempFile::new().unwrap();
+        let mut schema = Schema::new();
+        let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
+        let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
+        let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
+        {
+            let mut store_writer = StoreWriter::new(store_file.reopen().unwrap());
+            for i in 0..10000 {
+                let mut fields: Vec<FieldValue> = Vec::new();
+                {
+                    let field_value = FieldValue {
+                        field: field_body.clone(),
+                        text: lorem.clone(),
+                    };
+                    fields.push(field_value);
+                }
+                {
+                    let title_text = format!("Doc {}", i);
+                    let field_value = FieldValue {
+                        field: field_title.clone(),
+                        text: title_text,
+                    };
+                    fields.push(field_value);
+                }
+                let fields_refs: Vec<&FieldValue> = fields.iter().collect();
+                store_writer.store(&fields_refs);
             }
-            {
-                let title_text = format!("Doc {}", i);
-                let field_value = FieldValue {
-                    field: field_title.clone(),
-                    text: title_text,
-                };
-                fields.push(field_value);
-            }
-            let fields_refs: Vec<&FieldValue> = fields.iter().collect();
-            store_writer.store(&fields_refs);
+            store_writer.close();
+            offsets =  store_writer.offsets.clone();
         }
-        store_writer.close();
-        offsets =  store_writer.offsets.clone();
+        let store_mmap = MmapReadOnly::open(&store_file).unwrap();
+        let store = StoreReader::new(store_mmap);
+        assert_eq!(offsets, store.offsets);
+        for i in 0..1000 {
+            assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
+        }
     }
-    let store_mmap = MmapReadOnly::open(&store_file).unwrap();
-    let store = StoreReader::new(store_mmap);
-    assert_eq!(offsets, store.offsets);
-    for i in 0..10000 {
-        assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
-    }
+
 }

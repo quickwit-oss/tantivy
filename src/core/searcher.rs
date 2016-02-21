@@ -7,7 +7,6 @@ use core::directory::Segment;
 use core::collector::Collector;
 use std::collections::HashMap;
 use core::schema::Term;
-use core::postings::Postings;
 use core::error::Result;
 
 pub struct Searcher {

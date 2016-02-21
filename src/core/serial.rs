@@ -1,8 +1,7 @@
 use core::global::*;
 use core::schema::*;
-use core::error::{Result, Error};
+use core::error::Result;
 use std::fmt;
-
 
 pub trait SegmentSerializer<Output> {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()>;
@@ -41,7 +40,6 @@ impl DebugSegmentSerializer {
         }
     }
 }
-
 
 impl SegmentSerializer<String> for DebugSegmentSerializer {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {

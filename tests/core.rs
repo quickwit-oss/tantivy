@@ -2,54 +2,14 @@ extern crate tantivy;
 extern crate regex;
 extern crate tempdir;
 
-use tantivy::core::postings::VecPostings;
-use tantivy::core::postings::Postings;
-use tantivy::core::analyzer::SimpleTokenizer;
 use tantivy::core::collector::TestCollector;
-use tantivy::core::serial::*;
 use tantivy::core::schema::*;
-use tantivy::core::codec::SimpleCodec;
 use tantivy::core::global::*;
-use tantivy::core::postings::IntersectionPostings;
 use tantivy::core::writer::IndexWriter;
 use tantivy::core::searcher::Searcher;
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
-use std::ops::DerefMut;
 use tantivy::core::reader::SegmentReader;
-use std::io::{ BufWriter, Write};
 use regex::Regex;
-use std::convert::From;
-use std::path::PathBuf;
-use tantivy::core::query;
-use tantivy::core::query::parse_query;
-
-
-#[test]
-fn test_parse_query() {
-    {
-        let (parsed_query, _) = parse_query("toto:titi toto:tutu").unwrap();
-        assert_eq!(parsed_query, vec!(query::Term(String::from("toto"), String::from("titi")), query::Term(String::from("toto"), String::from("tutu"))));
-    }
-}
-
-#[test]
-fn test_intersection() {
-    {
-        let left = VecPostings::new(vec!(1, 3, 9));
-        let right = VecPostings::new(vec!(3, 4, 9, 18));
-        let inter = IntersectionPostings::from_postings(vec!(left, right));
-        let vals: Vec<DocId> = inter.collect();
-        assert_eq!(vals, vec!(3, 9));
-    }
-    {
-        let a = VecPostings::new(vec!(1, 3, 9));
-        let b = VecPostings::new(vec!(3, 4, 9, 18));
-        let c = VecPostings::new(vec!(1, 5, 9, 111));
-        let inter = IntersectionPostings::from_postings(vec!(a, b, c));
-        let vals: Vec<DocId> = inter.collect();
-        assert_eq!(vals, vec!(9));
-    }
-}
 
 
 #[test]
@@ -85,7 +45,7 @@ fn test_indexing() {
         let commit_result = index_writer.commit();
         assert!(commit_result.is_ok());
         let segment = commit_result.unwrap();
-        let segment_reader = SegmentReader::open(segment).unwrap();
+        SegmentReader::open(segment).unwrap();
         // TODO ENABLE TEST
         //let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
         //assert_eq!(segment_str_before_writing, segment_str_after_reading);
@@ -133,8 +93,6 @@ fn test_searcher() {
         assert_eq!(vals, [1, 2]);
     }
 }
-
-
 
 #[test]
 fn test_new_segment() {

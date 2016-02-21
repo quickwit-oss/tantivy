@@ -1,20 +1,12 @@
-use core::directory::Directory;
 use core::directory::{Segment, SegmentId};
-use std::collections::BinaryHeap;
 use core::schema::Term;
 use core::store::StoreReader;
 use core::schema::Document;
-use fst::Streamer;
 use fst;
-use std::io;
 use core::postings::IntersectionPostings;
-use fst::raw::Fst;
-use std::cmp::{Eq,PartialEq,Ord,PartialOrd,Ordering};
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use std::borrow::Borrow;
+use byteorder::{BigEndian, ReadBytesExt};
 use std::io::Cursor;
 use core::global::DocId;
-use core::serial::*;
 use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};
@@ -143,7 +135,6 @@ impl SegmentReader {
         for term in terms.iter() {
             match self.get_term(term) {
                 Some(segment_posting) => {
-                    println!("term found {:?}", term);
                     segment_postings.push(segment_posting);
                 }
                 None => {

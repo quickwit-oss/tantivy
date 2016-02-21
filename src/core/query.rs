@@ -58,3 +58,12 @@ pub fn grammar<I>(input: State<I>) -> ParseResult<Vec<Term>, I>
 pub fn parse_query(query_str: &str) -> Result<(Vec<Term>, &str), ParseError<&str>> {
     parser(grammar).parse(query_str)
 }
+
+
+#[test]
+fn test_parse_query() {
+    {
+        let (parsed_query, _) = parse_query("toto:titi toto:tutu").unwrap();
+        assert_eq!(parsed_query, vec!(query::Term(String::from("toto"), String::from("titi")), query::Term(String::from("toto"), String::from("tutu"))));
+    }
+}

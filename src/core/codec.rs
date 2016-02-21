@@ -1,12 +1,10 @@
-use std::io;
 use core::serial::*;
 use std::io::Write;
 use fst::MapBuilder;
 use core::error::*;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian,  WriteBytesExt};
 use core::directory::Segment;
 use core::directory::SegmentComponent;
-use core::reader::*;
 use core::schema::Term;
 use core::DocId;
 use core::store::StoreWriter;

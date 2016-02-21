@@ -1,19 +1,13 @@
 
 use std::path::{PathBuf, Path};
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::fs::File;
 use std::fs;
 use core::schema::Schema;
 use std::io::Write;
-use std::io::BufWriter;
-use std::io;
-use std::borrow::Borrow;
 use std::borrow::BorrowMut;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex, RwLock, MutexGuard, RwLockWriteGuard, RwLockReadGuard};
+use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
-use std::ops::Deref;
 use std::cell::RefCell;
 use core::error::*;
 use rand::{thread_rng, Rng};
@@ -145,19 +139,14 @@ impl Directory {
     }
 
     pub fn segments(&self,) -> Vec<Segment> {
-        match self.inner_directory.read() {
-            Ok(inner) => inner
-                    .segment_ids()
-                    .into_iter()
-                    .map(|segment_id| self.segment(&segment_id))
-                    .collect(),
-            Err(e) => {
-                //Err(Error::LockError(format!("Could not obtain read lock for {:?}", self)))
-                // TODO make it return a result
-                panic!("Could not work");
-            }
-        }
-
+        // TODO handle error
+        self.inner_directory
+            .read()
+            .unwrap()
+            .segment_ids()
+            .into_iter()
+            .map(|segment_id| self.segment(&segment_id))
+            .collect()
     }
 
     pub fn segment(&self, segment_id: &SegmentId) -> Segment {
