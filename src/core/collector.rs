@@ -1,4 +1,4 @@
-use core::DocId;
+use core::schema::DocId;
 use core::reader::SegmentReader;
 use core::directory::SegmentId;
 use core::searcher::DocAddress;

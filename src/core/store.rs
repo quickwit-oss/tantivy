@@ -1,7 +1,7 @@
 use std::io::BufWriter;
 use std::fs::File;
 use std::cell::RefCell;
-use core::global::DocId;
+use core::schema::DocId;
 use core::schema::Document;
 use core::schema::FieldValue;
 use core::error;

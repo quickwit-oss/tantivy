@@ -1,4 +1,4 @@
-use core::global::DocId;
+use core::schema::DocId;
 use std::ptr;
 
 

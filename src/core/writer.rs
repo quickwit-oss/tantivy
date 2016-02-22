@@ -1,4 +1,3 @@
-use core::global::DocId;
 use core::schema::*;
 use core::codec::*;
 use std::rc::Rc;

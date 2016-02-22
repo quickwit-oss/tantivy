@@ -7,6 +7,8 @@ use std::fmt;
 use std::io::Read;
 use core::serialize::BinarySerializable;
 
+pub type DocId = u32;
+
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub struct FieldOptions {
     // untokenized_indexed: bool,

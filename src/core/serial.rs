@@ -1,4 +1,3 @@
-use core::global::*;
 use core::schema::*;
 use core::error::Result;
 use std::fmt;

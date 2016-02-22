@@ -6,7 +6,7 @@ use fst;
 use core::postings::IntersectionPostings;
 use byteorder::{BigEndian, ReadBytesExt};
 use std::io::Cursor;
-use core::global::DocId;
+use core::schema::DocId;
 use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::error::{Result, Error};

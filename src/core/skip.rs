@@ -4,7 +4,8 @@ use std::io::Cursor;
 use std::io::SeekFrom;
 use std::io::Seek;
 use std::marker::PhantomData;
-use core::DocId;
+use core::schema::Schema;
+use core::schema::DocId;
 use core::error;
 use byteorder;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -28,7 +29,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         try!(output.write_all(&self.buffer));
         Ok(())
     }
-    
+
     fn with_period(period: usize) -> LayerBuilder<T> {
         LayerBuilder {
             period: period,

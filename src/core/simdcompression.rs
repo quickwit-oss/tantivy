@@ -7,7 +7,6 @@ extern {
     fn decode_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 }
 
-
 pub struct Encoder {
     input_buffer: Vec<u32>,
     output_buffer: Vec<u32>,
@@ -66,8 +65,6 @@ impl Decoder {
         }
     }
 }
-
-
 
 
 #[test]

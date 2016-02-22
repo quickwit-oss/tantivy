@@ -6,7 +6,7 @@ use byteorder::{BigEndian,  WriteBytesExt};
 use core::directory::Segment;
 use core::directory::SegmentComponent;
 use core::schema::Term;
-use core::DocId;
+use core::schema::DocId;
 use core::store::StoreWriter;
 use std::fs::File;
 use core::simdcompression;

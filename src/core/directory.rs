@@ -28,7 +28,6 @@ pub fn generate_segment_name() -> SegmentId {
     SegmentId( String::from("_") + &random_name)
 }
 
-// #[derive()]
 #[derive(Clone,Debug,RustcDecodable, RustcEncodable)]
 pub struct DirectoryMeta {
     segments: Vec<String>
@@ -41,7 +40,6 @@ impl DirectoryMeta {
         }
     }
 }
-
 
 impl fmt::Debug for Directory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
