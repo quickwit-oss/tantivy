@@ -5,6 +5,7 @@ fn main() {
                 .cpp(true)
                 .flag("-std=c++11")
                 .flag("-O3")
+                .flag("-mssse3")
                 .include("./cpp/SIMDCompressionAndIntersection/include")
                 .object("cpp/SIMDCompressionAndIntersection/bitpacking.o")
                 .object("cpp/SIMDCompressionAndIntersection/integratedbitpacking.o")

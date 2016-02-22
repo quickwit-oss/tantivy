@@ -6,10 +6,15 @@ use std::slice;
 use std::fmt;
 use std::io::Read;
 use core::serialize::BinarySerializable;
+use rustc_serialize::Decodable;
+use rustc_serialize::Encodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::Encoder;
+
 
 pub type DocId = u32;
 
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct FieldOptions {
     // untokenized_indexed: bool,
     tokenized_indexed: bool,
@@ -46,7 +51,6 @@ impl FieldOptions {
         }
     }
 }
-
 
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
@@ -87,27 +91,63 @@ impl BinarySerializable for FieldValue {
 
 
 
-#[derive(Clone,PartialEq,PartialOrd,Ord,Eq,Hash)]
+#[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term {
     data: Vec<u8>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+struct FieldEntry {
+    name: String,
+    option: FieldOptions,
+}
+
+
+#[derive(Clone, Debug)]
 pub struct Schema {
-    fields: HashMap<String, Field>,
-    field_options: Vec<FieldOptions>,
+    fields: Vec<FieldEntry>,
+    fields_map: HashMap<String, Field>,  // transient
+    field_options: Vec<FieldOptions>,    // transient
+}
+
+impl Decodable for Schema {
+    fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
+        let mut schema = Schema::new();
+        try!(d.read_seq(|d, num_fields| {
+            for i in 0..num_fields {
+                let field_entry = try!(FieldEntry::decode(d));
+                schema.add_field(&field_entry.name, &field_entry.option);
+            }
+            Ok(())
+        }));
+        Ok(schema)
+    }
+}
+
+impl Encodable for Schema {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        try!(s.emit_seq(self.fields.len(),
+            |mut e| {
+                for (ord, field) in self.fields.iter().enumerate() {
+                    try!(e.emit_seq_elt(ord, |e| field.encode(e)));
+                }
+                Ok(())
+            }));
+        Ok(())
+    }
 }
 
 impl Schema {
     pub fn new() -> Schema {
         Schema {
-            fields: HashMap::new(),
+            fields: Vec::new(),
+            fields_map: HashMap::new(),
             field_options: Vec::new(),
         }
     }
 
     pub fn find_field_name(&self, field_name: &str) -> Option<(Field, FieldOptions)> {
-        self.fields
+        self.fields_map
             .get(field_name)
             .map(|&Field(field_id)| {
                 let field_options = self.field_options[field_id as usize].clone();
@@ -115,24 +155,25 @@ impl Schema {
             })
     }
 
-    pub fn get_field(&self, field: &Field) -> FieldOptions {
+    pub fn field(&self, fieldname: &str) -> Option<Field> {
+        self.fields_map.get(&String::from(fieldname)).map(|field| field.clone())
+    }
+
+    pub fn field_options(&self, field: &Field) -> FieldOptions {
         let Field(field_id) = *field;
         self.field_options[field_id as usize].clone()
     }
 
-    pub fn add_field(&mut self, field_name: &str, field_options: &FieldOptions) -> Field {
-        let next_field = Field(self.fields.len() as u8);
-        let field = self.fields
-                    .entry(String::from(field_name))
-                    .or_insert(next_field.clone())
-                    .clone();
-        if field == next_field {
-            self.field_options.push(field_options.clone());
-        }
-        else {
-            let Field(field_id) = field;
-            self.field_options[field_id as usize] = field_options.clone();
-        }
+    pub fn add_field(&mut self, field_name_str: &str, field_options: &FieldOptions) -> Field {
+        let field = Field(self.fields.len() as u8);
+        // TODO case if field already exists
+        let field_name = String::from(field_name_str);
+        self.fields.push(FieldEntry {
+            name: field_name.clone(),
+            option: field_options.clone(),
+        });
+        self.fields_map.insert(field_name, field.clone());
+        self.field_options.push(field_options.clone());
         field
     }
 }

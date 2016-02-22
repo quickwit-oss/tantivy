@@ -30,13 +30,21 @@ pub fn generate_segment_name() -> SegmentId {
 
 #[derive(Clone,Debug,RustcDecodable, RustcEncodable)]
 pub struct DirectoryMeta {
-    segments: Vec<String>
+    segments: Vec<String>,
+    schema: Schema,
 }
 
 impl DirectoryMeta {
     fn new() -> DirectoryMeta {
         DirectoryMeta {
-            segments: Vec::new()
+            segments: Vec::new(),
+            schema: Schema::new(),
+        }
+    }
+    fn with_schema(schema: Schema) -> DirectoryMeta {
+        DirectoryMeta {
+            segments: Vec::new(),
+            schema: schema,
         }
     }
 }
@@ -80,13 +88,7 @@ pub struct Directory {
 impl Directory {
 
     pub fn schema(&self,) -> Schema {
-        self.get_read().unwrap().schema.clone()
-    }
-
-    pub fn set_schema(&mut self, schema: &Schema) {
-        self.get_write()
-            .unwrap()
-            .set_schema(schema);
+        self.get_read().unwrap().metas.schema.clone()
     }
 
     fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>> {
@@ -99,16 +101,20 @@ impl Directory {
     }
 
     fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>> {
-        match self.inner_directory.read() {
-            Ok(dir) =>
-                Ok(dir),
-            Err(e) =>
-                Err(Error::LockError(format!("Could not acquire read lock on directory. {:?}", e)))
-        }
+        self.inner_directory.read().map_err(
+            |e| Error::LockError(format!("Could not acquire read lock on directory. {:?}", e))
+        )
     }
 
     pub fn publish_segment(&mut self, segment: Segment) -> Result<()> {
         return try!(self.get_write()).publish_segment(segment);
+    }
+
+    pub fn create(filepath: &Path, schema: Schema) -> Result<Directory> {
+        let inner_directory = try!(InnerDirectory::create(filepath, schema));
+        Ok(Directory {
+            inner_directory: Arc::new(RwLock::new(inner_directory)),
+        })
     }
 
     pub fn open(filepath: &Path) -> Result<Directory> {
@@ -173,7 +179,6 @@ struct InnerDirectory {
     index_path: PathBuf,
     mmap_cache: RefCell<HashMap<PathBuf, MmapReadOnly>>,
     metas: DirectoryMeta,
-    schema: Schema,
     _temp_directory: Option<TempDir>,
 }
 
@@ -197,8 +202,14 @@ impl InnerDirectory {
         self.save_metas()
     }
 
-    pub fn set_schema(&mut self, schema: &Schema) {
-        self.schema = schema.clone();
+    pub fn create(filepath: &Path, schema: Schema) -> Result<InnerDirectory> {
+        let mut directory = InnerDirectory {
+            index_path: PathBuf::from(filepath),
+            mmap_cache: RefCell::new(HashMap::new()),
+            metas: DirectoryMeta::with_schema(schema),
+            _temp_directory: None,
+        };
+        Ok(directory)
     }
 
     pub fn open(filepath: &Path) -> Result<InnerDirectory> {
@@ -206,7 +217,6 @@ impl InnerDirectory {
             index_path: PathBuf::from(filepath),
             mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
-            schema: Schema::new(), // TODO schema
             _temp_directory: None,
         };
         try!(directory.load_metas()); //< does the directory already exists?
@@ -229,7 +239,6 @@ impl InnerDirectory {
             index_path: PathBuf::from(tempdir_path),
             mmap_cache: RefCell::new(HashMap::new()),
             metas: DirectoryMeta::new(),
-            schema: Schema::new(),
             _temp_directory: Some(tempdir)
         };
         //< does the directory already exists?
@@ -245,6 +254,7 @@ impl InnerDirectory {
             // TODO check that the directory is empty.
             return Ok(());
         }
+
         let mut meta_file = File::open(&meta_filepath).unwrap();
         let mut meta_content = String::new();
         meta_file.read_to_string(&mut meta_content);
