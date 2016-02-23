@@ -1,9 +1,9 @@
-use core::error;
 use std::io::Write;
 use std::collections::HashMap;
 use std::str;
 use std::slice;
 use std::fmt;
+use std::io;
 use std::io::Read;
 use core::serialize::BinarySerializable;
 use rustc_serialize::Decodable;
@@ -61,25 +61,25 @@ pub struct FieldValue {
 
 
 impl BinarySerializable for Field {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let Field(field_id) = *self;
         field_id.serialize(writer)
     }
 
-    fn deserialize(reader: &mut Read) -> error::Result<Field> {
+    fn deserialize(reader: &mut Read) -> io::Result<Field> {
         u8::deserialize(reader).map(Field)
     }
 }
 
 
 impl BinarySerializable for FieldValue {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         Ok(
             try!(self.field.serialize(writer)) +
             try!(self.text.serialize(writer))
         )
     }
-    fn deserialize(reader: &mut Read) -> error::Result<Self> {
+    fn deserialize(reader: &mut Read) -> io::Result<Self> {
         let field = try!(Field::deserialize(reader));
         let text = try!(String::deserialize(reader));
         Ok(FieldValue {

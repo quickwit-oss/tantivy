@@ -7,7 +7,8 @@ use core::directory::Segment;
 use core::collector::Collector;
 use std::collections::HashMap;
 use core::schema::Term;
-use core::error::Result;
+use std::io::Error as IOError;
+use std::io::ErrorKind as IOErrorKind;
 
 pub struct Searcher {
     segments: Vec<SegmentReader>,
@@ -27,7 +28,7 @@ impl Searcher {
         segment_reader.get_doc(doc_id)
     }
 
-    fn add_segment(&mut self, segment: Segment) -> Result<()> {
+    fn add_segment(&mut self, segment: Segment) -> Result<(), IOError> {
         SegmentReader::open(segment.clone())
             .map(|segment_reader| {
                 let segment_ord = self.segments.len();
@@ -36,7 +37,7 @@ impl Searcher {
             })
     }
 
-    pub fn new() -> Searcher {
+    fn new() -> Searcher {
         Searcher {
             segments: Vec::new(),
             segments_idx: HashMap::new(),

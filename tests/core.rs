@@ -2,11 +2,10 @@ extern crate tantivy;
 extern crate regex;
 extern crate tempdir;
 
-use tantivy::core::collector::TestCollector;
 use tantivy::core::schema::*;
-use tantivy::core::global::*;
 use tantivy::core::writer::IndexWriter;
-use tantivy::core::searcher::Searcher;
+use tantivy::core::collector::Collector;
+use tantivy::core::searcher::{Searcher, DocAddress};
 use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
 use tantivy::core::reader::SegmentReader;
 use regex::Regex;
@@ -49,8 +48,7 @@ fn test_indexing() {
     let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
     let text_field = schema.add_field("text", &text_fieldtype);
 
-    let mut directory = Directory::from_tempdir().unwrap();
-    directory.set_schema(&schema);
+    let mut directory = Directory::create_from_tempdir(schema).unwrap();
 
     {
         // writing the segment
@@ -89,8 +87,7 @@ fn test_searcher() {
     let mut schema = Schema::new();
     let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
     let text_field = schema.add_field("text", &text_fieldtype);
-    let mut directory = Directory::from_tempdir().unwrap();
-    directory.set_schema(&schema);
+    let mut directory = Directory::create_from_tempdir(schema).unwrap();
 
     {
         // writing the segment
@@ -118,9 +115,11 @@ fn test_searcher() {
         let terms = vec!(Term::from_field_text(&text_field, "b"), Term::from_field_text(&text_field, "a"), );
         let mut collector = TestCollector::new();
         searcher.search(&terms, &mut collector);
-        let vals: Vec<DocId> = collector.docs().iter()
-            .map(|doc| doc.1)
-            .collect::<Vec<DocId>>();
+        let vals: Vec<DocId> = collector
+                .docs()
+                .iter()
+                .map(|doc| doc.1)
+                .collect::<Vec<DocId>>();
         assert_eq!(vals, [1, 2]);
     }
 }

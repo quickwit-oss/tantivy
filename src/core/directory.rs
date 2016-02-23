@@ -4,18 +4,20 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::fs;
 use core::schema::Schema;
+use std::collections::hash_map::Entry as HashMapEntry;
 use std::io::Write;
 use std::borrow::BorrowMut;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use std::cell::RefCell;
-use core::error;
 use rand::{thread_rng, Rng};
 use fst::raw::MmapReadOnly;
 use rustc_serialize::json;
 use atomicwrites;
 use tempdir::TempDir;
 use std::io::Read;
+use std::io::Error as IOError;
+use std::io::ErrorKind as IOErrorKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SegmentId(pub String);
@@ -55,28 +57,13 @@ impl fmt::Debug for Directory {
    }
 }
 
-
-fn open_mmap(full_path: &PathBuf) -> Result<MmapReadOnly, error::Error> {
-    match MmapReadOnly::open_path(full_path.clone()) {
-        Ok(mmapped_file) => Ok(mmapped_file),
-        Err(ioerr) => {
-            // TODO add file
-            let error_msg = format!("Read-Only MMap of {:?} failed", full_path);
-            return Err(error::Error::IOError(ioerr.kind(), error_msg));
-        }
-    }
+fn open_mmap(full_path: &PathBuf) -> Result<MmapReadOnly, IOError> {
+    MmapReadOnly::open_path(full_path.clone())
 }
 
-fn sync_file(filepath: &PathBuf) -> Result<(), error::Error> {
-    match File::open(filepath.clone()) {
-        Ok(fd) => {
-            match fd.sync_all() {
-                Err(err) => Err(error::Error::IOError(err.kind(), format!("Failed to sync {:?}", filepath))),
-                _ => Ok(())
-            }
-        },
-        Err(err) => Err(error::Error::IOError(err.kind(), format!("Cause: {:?}", err)))
-    }
+fn sync_file(filepath: &PathBuf) -> Result<(), IOError> {
+    File::open(filepath.clone())
+        .and_then(|fd| fd.sync_all())
 }
 
 
@@ -94,6 +81,8 @@ pub enum CreateError {
 
 struct DirectoryError;
 
+
+
 impl Directory {
 
     pub fn create(filepath: &Path, schema: Schema) -> Result<Directory, CreateError> {
@@ -103,7 +92,14 @@ impl Directory {
         })
     }
 
-    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<Directory, error::Error> {
+    pub fn create_from_tempdir(schema: Schema) -> Result<Directory, IOError> {
+        let inner_directory = try!(InnerDirectory::create_from_tempdir(schema));
+        Ok(Directory {
+            inner_directory: Arc::new(RwLock::new(inner_directory)),
+        })
+    }
+
+    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<Directory, IOError> {
         let inner_directory = try!(InnerDirectory::open(filepath));
         Ok(Directory {
             inner_directory: Arc::new(RwLock::new(inner_directory)),
@@ -114,42 +110,36 @@ impl Directory {
         self.get_read().unwrap().metas.schema.clone()
     }
 
-    fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>, error::Error> {
-        match self.inner_directory.write() {
-            Ok(dir) =>
-                Ok(dir),
-            Err(e) =>
-                Err(error::Error::LockError(format!("Could not acquire write lock on directory. {:?}", e)))
-        }
+    fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>, IOError> {
+        self.inner_directory
+            .write()
+            .map_err(|e| IOError::new(IOErrorKind::Other,
+                format!("Failed acquiring lock on directory.\n
+                It can happen if another thread panicked! Error was: {:?}", e) ))
     }
 
-    fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>, error::Error> {
-        self.inner_directory.read().map_err(
-            |e| error::Error::LockError(format!("Could not acquire read lock on directory. {:?}", e))
-        )
+    fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>, IOError> {
+        self.inner_directory
+            .read()
+            .map_err(|e| IOError::new(IOErrorKind::Other,
+                format!("Failed acquiring lock on directory.\n
+                It can happen if another thread panicked! Error was: {:?}", e) ))
     }
 
-    pub fn publish_segment(&mut self, segment: Segment) -> Result<(), error::Error> {
-        return try!(self.get_write()).publish_segment(segment);
+    pub fn publish_segment(&mut self, segment: Segment) -> Result<(), IOError> {
+        try!(self.get_write()).publish_segment(segment)
     }
 
 
 
-    pub fn from_tempdir() -> Result<Directory, error::Error> {
-        let inner_directory = try!(InnerDirectory::from_tempdir());
-        Ok(Directory {
-            inner_directory: Arc::new(RwLock::new(inner_directory)),
-        })
+    pub fn load_metas(&self,) -> Result<(), IOError> {
+        self.inner_directory
+            .write()
+            .unwrap() // only fail when another thread has already panicked.
+            .load_metas()
     }
 
-    pub fn load_metas(&self,) -> Result<(), error::Error> {
-        match self.inner_directory.write() {
-            Ok(mut dir) => { dir.load_metas() },
-            Err(e) => Err(error::Error::LockError(format!("Could not get read lock {:?} for directory", e)))
-        }
-    }
-
-    pub fn sync(&mut self, segment: Segment) -> Result<(), error::Error> {
+    pub fn sync(&mut self, segment: Segment) -> Result<(), IOError> {
         try!(self.get_write()).sync(segment)
     }
 
@@ -176,11 +166,11 @@ impl Directory {
         self.segment(&generate_segment_name())
     }
 
-    fn open_writable(&self, relative_path: &PathBuf) -> Result<File, error::Error> {
+    fn open_writable(&self, relative_path: &PathBuf) -> Result<File, IOError> {
         try!(self.get_read()).open_writable(relative_path)
     }
 
-    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly, error::Error> {
+    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly, IOError> {
         try!(self.get_read()).mmap(relative_path)
     }
 }
@@ -194,12 +184,8 @@ struct InnerDirectory {
 }
 
 
-fn create_tempdir() -> Result<TempDir, error::Error> {
-    let tempdir_res = TempDir::new("index");
-    match tempdir_res {
-        Ok(tempdir) => Ok(tempdir),
-        Err(_) => Err(error::Error::FileNotFound(String::from("Could not create temp directory")))
-    }
+fn create_tempdir() -> Result<TempDir, IOError> {
+    TempDir::new("index")
 }
 
 
@@ -207,7 +193,7 @@ impl InnerDirectory {
 
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segment(&mut self, segment: Segment) -> Result<(), error::Error> {
+    pub fn publish_segment(&mut self, segment: Segment) -> Result<(), IOError> {
         self.metas.segments.push(segment.segment_id.0.clone());
         // TODO use logs
         self.save_metas()
@@ -224,7 +210,19 @@ impl InnerDirectory {
         Ok(directory)
     }
 
-    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<InnerDirectory, error::Error> {
+    pub fn create_from_tempdir(schema: Schema) -> Result<InnerDirectory, IOError> {
+        let tempdir = try!(create_tempdir());
+        let tempdir_path = PathBuf::from(tempdir.path());
+        let mut directory = InnerDirectory {
+            index_path: PathBuf::from(tempdir_path),
+            mmap_cache: RefCell::new(HashMap::new()),
+            metas: DirectoryMeta::with_schema(schema),
+            _temp_directory: Some(tempdir)
+        };
+        Ok(directory)
+    }
+
+    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<InnerDirectory, IOError> {
         let mut directory = InnerDirectory {
             index_path: PathBuf::from(filepath.as_ref().as_os_str()),
             mmap_cache: RefCell::new(HashMap::new()),
@@ -244,21 +242,9 @@ impl InnerDirectory {
             .collect()
     }
 
-    pub fn from_tempdir() -> Result<InnerDirectory, error::Error> {
-        let tempdir = try!(create_tempdir());
-        let tempdir_path = PathBuf::from(tempdir.path());
-        let mut directory = InnerDirectory {
-            index_path: PathBuf::from(tempdir_path),
-            mmap_cache: RefCell::new(HashMap::new()),
-            metas: DirectoryMeta::new(),
-            _temp_directory: Some(tempdir)
-        };
-        //< does the directory already exists?
-        try!(directory.load_metas());
-        Ok(directory)
-    }
 
-    pub fn load_metas(&mut self,) -> Result<(), error::Error> {
+
+    pub fn load_metas(&mut self,) -> Result<(), IOError> {
         let meta_filepath = self.meta_filepath();
         let meta_data = fs::metadata(&meta_filepath);
         if meta_data.is_err() {
@@ -278,56 +264,45 @@ impl InnerDirectory {
         self.resolve_path(&PathBuf::from("meta.json"))
     }
 
-    pub fn save_metas(&self,) -> Result<(), error::Error> {
+    pub fn save_metas(&self,) -> Result<(), IOError> {
         let encoded = json::encode(&self.metas).unwrap();
         let meta_filepath = self.meta_filepath();
         let meta_file = atomicwrites::AtomicFile::new(meta_filepath, atomicwrites::AllowOverwrite);
-        let write_result = meta_file.write(|f| {
+        meta_file.write(|f| {
             f.write_all(encoded.as_bytes())
-        });
-        match write_result {
-            Ok(_) => { Ok(()) },
-            Err(ioerr) => Err(error::Error::IOError(ioerr.kind(), format!("Failed to write meta file : {:?}", ioerr))),
-        }
+        })
     }
 
-
-    pub fn sync(&mut self, segment: Segment) -> Result<(), error::Error> {
+    pub fn sync(&mut self, segment: Segment) -> Result<(), IOError> {
         for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
             let relative_path = segment.relative_path(component);
             let full_path = self.resolve_path(&relative_path);
             try!(sync_file(&full_path));
         }
         // syncing the directory itself
-        try!(sync_file(&self.index_path));
-        Ok(())
+        sync_file(&self.index_path)
     }
 
     fn resolve_path(&self, relative_path: &PathBuf) -> PathBuf {
         self.index_path.join(relative_path)
     }
 
-    fn open_writable(&self, relative_path: &PathBuf) -> Result<File, error::Error> {
+    fn open_writable(&self, relative_path: &PathBuf) -> Result<File, IOError> {
         let full_path = self.resolve_path(relative_path);
-        match File::create(full_path.clone()) {
-            Ok(f) => Ok(f),
-            Err(err) => {
-                let path_str = full_path.to_str().unwrap_or("<error on to_str>");
-                return Err(error::Error::IOError(err.kind(), String::from("Could not create file") + path_str))
-            }
-        }
+        File::create(full_path.clone())
     }
 
-    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly, error::Error> {
+    fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly, IOError> {
         let full_path = self.resolve_path(relative_path);
         let mut mmap_cache = self.mmap_cache.borrow_mut();
-        if !mmap_cache.contains_key(&full_path) {
-            mmap_cache.insert(full_path.clone(), try!(open_mmap(&full_path)) );
-        }
-        let mmap_readonly: &MmapReadOnly = mmap_cache.get(&full_path).unwrap();
-        // TODO remove if a proper clone is available
-        let len = unsafe { mmap_readonly.as_slice().len() };
-        Ok(mmap_readonly.range(0, len))
+        Ok(match mmap_cache.entry(full_path.clone()) {
+            HashMapEntry::Occupied(e) => e.get().clone(),
+            HashMapEntry::Vacant(vacant_entry) => {
+                let new_mmap =  try!(open_mmap(&full_path));
+                vacant_entry.insert(new_mmap.clone());
+                new_mmap
+            }
+        })
     }
 }
 
@@ -372,12 +347,12 @@ impl Segment {
         PathBuf::from(filename)
     }
 
-    pub fn mmap(&self, component: SegmentComponent) -> Result<MmapReadOnly, error::Error> {
+    pub fn mmap(&self, component: SegmentComponent) -> Result<MmapReadOnly, IOError> {
         let path = self.relative_path(&component);
         self.directory.mmap(&path)
     }
 
-    pub fn open_writable(&self, component: SegmentComponent) -> Result<File, error::Error> {
+    pub fn open_writable(&self, component: SegmentComponent) -> Result<File, IOError> {
         let path = self.relative_path(&component);
         self.directory.open_writable(&path)
     }

@@ -9,6 +9,8 @@ use core::serialize::BinarySerializable;
 use std::io::Write;
 use std::io::Read;
 use std::io::Cursor;
+use std::io::Error as IOError;
+use std::io;
 use std::io::SeekFrom;
 use fst::raw::MmapReadOnly;
 use std::io::Seek;
@@ -31,11 +33,11 @@ pub struct StoreWriter {
 struct OffsetIndex(DocId, u64);
 
 impl BinarySerializable for OffsetIndex {
-    fn serialize(&self, writer: &mut Write) -> error::Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let OffsetIndex(a, b) = *self;
         Ok(try!(a.serialize(writer)) + try!(b.serialize(writer)))
     }
-    fn deserialize(reader: &mut Read) -> error::Result<OffsetIndex> {
+    fn deserialize(reader: &mut Read) -> io::Result<OffsetIndex> {
         let a = try!(DocId::deserialize(reader));
         let b = try!(u64::deserialize(reader));
         Ok(OffsetIndex(a, b))
@@ -87,14 +89,14 @@ impl StoreWriter {
         self.current_block.clear();
     }
 
-    pub fn close(&mut self,) {
+    pub fn close(&mut self,) -> Result<(), IOError> {
         if self.current_block.len() > 0 {
             self.write_and_compress_block();
         }
         let header_offset: u64 = self.written;
         self.offsets.serialize(&mut self.writer);
         header_offset.serialize(&mut self.writer);
-        self.writer.flush();
+        self.writer.flush()
     }
 
 }

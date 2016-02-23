@@ -6,7 +6,7 @@ use core::analyzer::SimpleTokenizer;
 use std::collections::BTreeMap;
 use core::analyzer::StreamingIterator;
 use core::serial::*;
-use core::error::*;
+use std::io::Error as IOError;
 use core::directory::Segment;
 
 
@@ -61,7 +61,7 @@ impl IndexWriter {
 		&self.segment_writer
 	}
 
-    pub fn commit(&mut self,) -> Result<Segment> {
+    pub fn commit(&mut self,) -> Result<Segment, IOError> {
 		// TODO error handling
 		let segment_writer_rc = self.segment_writer.clone();
 		self.segment_writer = Rc::new(new_segment_writer(&self.directory));
@@ -103,8 +103,7 @@ impl SegmentWriter {
 	// are still on RAM.
 	// for this version, that's the term dictionary
 	// and the postings
-	fn write_pending(mut self,) -> Result<()> {
-		//self.write(&mut self.segment_serializer);
+	fn write_pending(mut self,) -> Result<(), IOError> {
 		{
 		for (term, postings_id) in self.term_index.iter() {
 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;

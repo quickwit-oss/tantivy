@@ -6,10 +6,11 @@ use std::io::Seek;
 use std::marker::PhantomData;
 use core::schema::Schema;
 use core::schema::DocId;
-use core::error;
 use byteorder;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use core::serialize::*;
+use std::io;
+
 
 struct LayerBuilder<T: BinarySerializable> {
     period: usize,
@@ -25,7 +26,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.buffer.len()
     }
 
-    fn write(&self, output: &mut Write) -> Result<(), byteorder::Error> {
+    fn write(&self, output: &mut Write) -> Result<(), io::Error> {
         try!(output.write_all(&self.buffer));
         Ok(())
     }
@@ -98,7 +99,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         }
     }
 
-    pub fn write<W: Write>(self, output: &mut Write) -> error::Result<()> {
+    pub fn write<W: Write>(self, output: &mut Write) -> io::Result<()> {
         let mut size: u32 = 0;
         let mut layer_sizes: Vec<u32> = Vec::new();
         size += self.data_layer.buffer.len() as u32;
@@ -108,15 +109,9 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
             layer_sizes.push(size);
         }
         layer_sizes.serialize(output);
-        match self.data_layer.write(output) {
-            Ok(())=> {},
-            Err(someerr)=> { return Err(error::Error::WriteError(format!("Could not write skiplist {:?}", someerr) )) }
-        }
+        try!(self.data_layer.write(output));
         for layer in self.skip_layers.iter() {
-            match layer.write(output) {
-                Ok(())=> {},
-                Err(someerr)=> { return Err(error::Error::WriteError(format!("Could not write skiplist {:?}", someerr) )) }
-            }
+            try!(layer.write(output));
         }
         Ok(())
     }

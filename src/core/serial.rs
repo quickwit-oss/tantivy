@@ -1,16 +1,16 @@
 use core::schema::*;
-use core::error::Result;
 use std::fmt;
+use std::io::Error as IOError;
 
 pub trait SegmentSerializer<Output> {
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()>;
-    fn write_docs(&mut self, docs: &[DocId]) -> Result<()>; // TODO add size
+    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError>;
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), IOError>; // TODO add size
     fn store_doc(&mut self, field: &mut Iterator<Item=&FieldValue>);
-    fn close(self,) -> Result<Output>;
+    fn close(self,) -> Result<Output, IOError>;
 }
 
 pub trait SerializableSegment {
-    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output>;
+    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output, IOError>;
 }
 
 
@@ -41,7 +41,7 @@ impl DebugSegmentSerializer {
 }
 
 impl SegmentSerializer<String> for DebugSegmentSerializer {
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<()> {
+    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError> {
         self.text.push_str(&format!("{:?}\n", term));
         Ok(())
     }
@@ -57,14 +57,14 @@ impl SegmentSerializer<String> for DebugSegmentSerializer {
         }
     }
 
-    fn write_docs(&mut self, docs: &[DocId]) -> Result<()> {
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), IOError> {
         for doc in docs {
             self.text.push_str(&format!("   - Doc {:?}\n", doc));
         }
         Ok(())
     }
 
-    fn close(self,) -> Result<String> {
+    fn close(self,) -> Result<String, IOError> {
         Ok(self.text)
     }
 }

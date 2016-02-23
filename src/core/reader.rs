@@ -9,9 +9,10 @@ use std::io::Cursor;
 use core::schema::DocId;
 use core::directory::SegmentComponent;
 use fst::raw::MmapReadOnly;
-use core::error::{Result, Error};
 use core::postings::Postings;
 use core::simdcompression::Decoder;
+use std::io::Error as IOError;
+use std::io::ErrorKind;
 
 // TODO file structure should be in codec
 
@@ -95,15 +96,11 @@ impl SegmentReader {
         self.segment.id()
     }
 
-    pub fn open(segment: Segment) -> Result<SegmentReader> {
+    pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
         let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
-        let term_offsets = match fst::Map::from_mmap(term_shared_mmap) {
-            Ok(term_offsets) => term_offsets,
-            Err(_) => {
-                let filepath = segment.relative_path(&SegmentComponent::TERMS);
-                return Err(Error::FSTFormat(format!("The file {:?} does not seem to be a valid term to offset transducer.", filepath)));
-            }
-        };
+        let term_offsets = fst::Map::from_mmap(term_shared_mmap)
+            .map_err(|e| IOError::new(ErrorKind::Other, e))
+            .unwrap();
         let store_reader = StoreReader::new(try!(segment.mmap(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
