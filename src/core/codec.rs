@@ -14,9 +14,6 @@ use core::schema::FieldValue;
 
 pub struct SimpleCodec;
 
-
-// TODO should we vint?
-
 pub struct SimpleSegmentSerializer {
     segment: Segment,
     written_bytes_postings: usize,

@@ -114,7 +114,7 @@ impl Decodable for Schema {
     fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
         let mut schema = Schema::new();
         try!(d.read_seq(|d, num_fields| {
-            for i in 0..num_fields {
+            for _ in 0..num_fields {
                 let field_entry = try!(FieldEntry::decode(d));
                 schema.add_field(&field_entry.name, &field_entry.option);
             }
