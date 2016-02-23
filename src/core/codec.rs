@@ -10,6 +10,7 @@ use core::schema::Term;
 use core::schema::DocId;
 use core::store::StoreWriter;
 use std::fs::File;
+use core::serialize::BinarySerializable;
 use fst;
 use core::simdcompression;
 use std::convert::From;
@@ -49,18 +50,16 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         self.term_fst_builder.insert(term.as_slice(), self.written_bytes_postings as u64);
         self.cur_term_num_docs = doc_freq;
         // writing the size of the posting list
-        try!(self.postings_write.write_u32::<BigEndian>(doc_freq));
-        self.written_bytes_postings +=  4;
+        self.written_bytes_postings += try!((doc_freq as u32).serialize(&mut self.postings_write));
         Ok(())
     }
 
     fn write_docs(&mut self, doc_ids: &[DocId]) -> Result<(), IOError> {
         // TODO write_all transmuted [u8]
         let docs_data = self.encoder.encode(doc_ids);
-        try!(self.postings_write.write_u32::<BigEndian>(docs_data.len() as u32));
-        self.written_bytes_postings += 4;
+        self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
         for num in docs_data {
-            try!(self.postings_write.write_u32::<BigEndian>(num.clone() as u32));
+            self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
         }
         Ok(())
     }

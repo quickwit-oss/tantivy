@@ -12,34 +12,33 @@ use regex::Regex;
 
 
 
-pub struct TestCollector {
-    docs: Vec<DocAddress>,
-    current_segment: Option<SegmentId>,
+// only make sense for a single segment
+struct TestCollector {
+    docs: Vec<DocId>,
 }
 
 impl TestCollector {
     pub fn new() -> TestCollector {
         TestCollector {
             docs: Vec::new(),
-            current_segment: None,
         }
     }
 
-    pub fn docs(self,) -> Vec<DocAddress> {
+    pub fn docs(self,) -> Vec<DocId> {
         self.docs
     }
 }
 
 impl Collector for TestCollector {
 
-    fn set_segment(&mut self, segment: &SegmentReader) {
-        self.current_segment = Some(segment.id());
-    }
+    fn set_segment(&mut self, segment: &SegmentReader) {}
 
     fn collect(&mut self, doc_id: DocId) {
-        self.docs.push(DocAddress(self.current_segment.clone().unwrap(), doc_id));
+        self.docs.push(doc_id);
     }
 }
+
+
 
 
 #[test]
@@ -111,16 +110,43 @@ fn test_searcher() {
         let segment = commit_result.unwrap();
     }
     {
+
         let searcher = Searcher::for_directory(directory);
-        let terms = vec!(Term::from_field_text(&text_field, "b"), Term::from_field_text(&text_field, "a"), );
-        let mut collector = TestCollector::new();
-        searcher.search(&terms, &mut collector);
-        let vals: Vec<DocId> = collector
-                .docs()
-                .iter()
-                .map(|doc| doc.1)
-                .collect::<Vec<DocId>>();
-        assert_eq!(vals, [1, 2]);
+        let get_doc_ids = |terms: Vec<Term>| {
+            let mut collector = TestCollector::new();
+            searcher.search(&terms, &mut collector);
+            collector.docs()
+        };
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "a"))),
+                vec!(1, 2));
+        }
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "af"))),
+                vec!(0));
+        }
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
+                vec!(0, 1, 2));
+        }
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "c"))),
+                vec!(1, 2));
+        }
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "d"))),
+                vec!(2));
+        }
+        {
+            assert_eq!(
+                get_doc_ids(vec!(Term::from_field_text(&text_field, "b"), Term::from_field_text(&text_field, "a"), )),
+                vec!(1, 2));
+        }
     }
 }
 
