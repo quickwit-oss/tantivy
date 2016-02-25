@@ -2,6 +2,8 @@
 use libc::size_t;
 use std::ptr;
 
+
+
 extern {
     fn encode_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
@@ -81,4 +83,38 @@ fn test_encode_big() {
     let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
     assert_eq!(num_ints, decoder.decode(&encoded_data[..], &mut decoded_data));
     assert_eq!(decoded_data, input);
+}
+
+
+#[cfg(test)]
+mod tests {
+
+
+    use super::*;
+    use test::Bencher;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand::StdRng;
+
+    fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
+        let seed: &[_] = &[1, 2, 3, 4];
+        let mut rng: StdRng = SeedableRng::from_seed(seed);
+        (0..u32::max_value())
+            .filter(|_| rng.next_f32()< ratio)
+            .take(n)
+            .collect()
+    }
+
+    #[bench]
+    fn bench_decode(b: &mut Bencher) {
+        const TEST_SIZE: usize = 100_000;
+        let arr = generate_array(TEST_SIZE, 0.1);
+        let mut encoder = Encoder::new();
+        let encoded = encoder.encode(&arr);
+        let mut uncompressed: Vec<u32> = (0..TEST_SIZE as u32).collect();
+        let decoder = Decoder;
+        b.iter(|| {
+            decoder.decode(&encoded, &mut uncompressed);
+        });
+    }
 }

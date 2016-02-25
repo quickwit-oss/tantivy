@@ -1,3 +1,5 @@
+#![feature(test)]
+
 extern crate tantivy;
 extern crate regex;
 extern crate tempdir;

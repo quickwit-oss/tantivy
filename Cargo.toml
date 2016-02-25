@@ -6,9 +6,8 @@ build = "build.rs"
 
 
 [dependencies]
-byteorder = "0.4.2"
-itertools = "0.4.5"
-memmap = "0.2.3"
+byteorder = "0.4"
+memmap = "0.2"
 lazy_static = "0.1.*"
 regex = "0.1"
 fst = "0.1.27"

@@ -174,24 +174,27 @@ impl StoreReader {
 #[cfg(test)]
 mod tests {
 
+    use super::*;
+    use test::Bencher;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand::StdRng;
+    use std::io::Write;
     use tempfile;
     use core::schema::Schema;
     use core::schema::FieldOptions;
     use core::schema::FieldValue;
     use fst::raw::MmapReadOnly;
-    use core::store::StoreWriter;
-    use core::store::StoreReader;
+    use std::fs::File;
 
-    #[test]
-    fn test_store() {
-        let offsets;
-        let store_file = tempfile::NamedTempFile::new().unwrap();
+
+    fn write_lorem_ipsum_store(store_file: File) -> Schema {
         let mut schema = Schema::new();
         let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
         let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
         let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
         {
-            let mut store_writer = StoreWriter::new(store_file.reopen().unwrap());
+            let mut store_writer = StoreWriter::new(store_file);
             for i in 0..1000 {
                 let mut fields: Vec<FieldValue> = Vec::new();
                 {
@@ -213,14 +216,41 @@ mod tests {
                 store_writer.store(&fields_refs);
             }
             store_writer.close();
-            offsets =  store_writer.offsets.clone();
         }
+        schema
+    }
+    #[test]
+
+    fn test_store() {
+        let store_file = tempfile::NamedTempFile::new().unwrap();
+        let mut schema = write_lorem_ipsum_store(store_file.reopen().unwrap());
+        let field_title = schema.field("title").unwrap();
         let store_mmap = MmapReadOnly::open(&store_file).unwrap();
         let store = StoreReader::new(store_mmap);
-        assert_eq!(offsets, store.offsets);
         for i in (0..10).map(|i| i * 3 / 2) {
             assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
         }
     }
 
+    #[bench]
+    fn bench_store_encode(b: &mut Bencher) {
+        let mut store_file = tempfile::NamedTempFile::new().unwrap();
+        b.iter(|| {
+            write_lorem_ipsum_store(store_file.reopen().unwrap());
+        });
+    }
+
+
+        #[bench]
+        fn bench_store_decode(b: &mut Bencher) {
+
+            let store_file = tempfile::NamedTempFile::new().unwrap();
+            write_lorem_ipsum_store(store_file.reopen().unwrap());
+            let store_mmap = MmapReadOnly::open(&store_file).unwrap();
+            let store = StoreReader::new(store_mmap);
+            b.iter(|| {
+                store.get(&12);
+            });
+
+        }
 }
