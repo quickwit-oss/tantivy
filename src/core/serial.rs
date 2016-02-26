@@ -1,16 +1,16 @@
 use core::schema::*;
 use std::fmt;
-use std::io::Error as IOError;
+use std::io;
 
 pub trait SegmentSerializer<Output> {
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError>;
-    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), IOError>; // TODO add size
+    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), io::Error>;
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), io::Error>; // TODO add size
     fn store_doc(&mut self, field: &mut Iterator<Item=&FieldValue>);
-    fn close(self,) -> Result<Output, IOError>;
+    fn close(self,) -> Result<Output, io::Error>;
 }
 
 pub trait SerializableSegment {
-    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output, IOError>;
+    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: SegSer) -> io::Result<Output>;
 }
 
 
@@ -29,7 +29,7 @@ impl DebugSegmentSerializer {
 
     pub fn debug_string<S: SerializableSegment>(index: &S) -> String {
         let mut serializer = DebugSegmentSerializer::new();
-        index.write(&mut serializer).unwrap()
+        index.write(serializer).unwrap()
     }
 
     pub fn new() -> DebugSegmentSerializer {
@@ -41,7 +41,7 @@ impl DebugSegmentSerializer {
 }
 
 impl SegmentSerializer<String> for DebugSegmentSerializer {
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError> {
+    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), io::Error> {
         self.text.push_str(&format!("{:?}\n", term));
         Ok(())
     }
@@ -57,14 +57,14 @@ impl SegmentSerializer<String> for DebugSegmentSerializer {
         }
     }
 
-    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), IOError> {
+    fn write_docs(&mut self, docs: &[DocId]) -> Result<(), io::Error> {
         for doc in docs {
             self.text.push_str(&format!("   - Doc {:?}\n", doc));
         }
         Ok(())
     }
 
-    fn close(self,) -> Result<String, IOError> {
+    fn close(self,) -> Result<String, io::Error> {
         Ok(self.text)
     }
 }

@@ -1,5 +1,6 @@
 use core::schema::*;
 use core::codec::*;
+use std::io;
 use std::rc::Rc;
 use core::directory::Directory;
 use core::analyzer::SimpleTokenizer;
@@ -35,8 +36,7 @@ pub struct IndexWriter {
 	schema: Schema,
 }
 
-
- fn new_segment_writer(directory: &Directory, ) -> SegmentWriter {
+fn new_segment_writer(directory: &Directory, ) -> SegmentWriter {
 	let segment = directory.new_segment();
 	SegmentWriter::for_segment(segment)
 }
@@ -174,15 +174,15 @@ impl SegmentWriter {
         self.get_postings_writer(term).suscribe(doc);
     }
 }
-//
-// impl SerializableSegment for SegmentWriter {
-// 	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, serializer: &mut SegSer) -> Result<Output> {
-//     	for (term, postings_id) in self.term_index.iter() {
-// 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
-// 			let term_docfreq = doc_ids.len() as u32;
-// 			serializer.new_term(&term, term_docfreq);
-// 			serializer.write_docs(&doc_ids);
-// 		}
-// 		serializer.close()
-// 	}
-// }
+
+impl SerializableSegment for SegmentWriter {
+	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
+    	for (term, postings_id) in self.term_index.iter() {
+			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
+			let term_docfreq = doc_ids.len() as u32;
+			serializer.new_term(&term, term_docfreq);
+			serializer.write_docs(&doc_ids);
+		}
+		serializer.close()
+	}
+}
