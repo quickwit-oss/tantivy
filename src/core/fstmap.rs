@@ -1,12 +1,16 @@
 use std::io;
+use std::io::Seek;
 use std::io::Write;
+use std::io::Cursor;
 use std::fs::File;
 use fst::Map;
 use fst::MapBuilder;
 use std::rc::Rc;
+use fst::raw::Fst;
 use core::serialize::BinarySerializable;
 use std::marker::PhantomData;
 use fst;
+use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 
 
@@ -43,30 +47,46 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         let mut file = try!(self.fst_builder
                  .into_inner()
                  .map_err(convert_fst_error));
+        let footer_size = self.data.len();
         file.write_all(&self.data);
+        (footer_size as u32).serialize(&mut file);
         Ok(file)
     }
-
 }
 
 
-
-pub struct FstMap<R: Deref<Target=[u8]>, V: BinarySerializable> {
-    //fst::Map,
-    data: R,
+pub struct FstMap<V: BinarySerializable> {
+    fst_index: fst::Map,
+    values_mmap: MmapReadOnly,
     _phantom_: PhantomData<V>,
 }
 
-impl<R: Deref<Target=[u8]>, V: BinarySerializable> FstMap<R, V> {
-    pub fn new(data: R) -> FstMap<R, V> {
-        FstMap {
-            data: data,
+
+impl<V: BinarySerializable> FstMap<V> {
+    pub fn open(file: &File) -> io::Result<FstMap<V>> {
+        let mmap = try!(MmapReadOnly::open(&file));
+        let mut cursor = Cursor::new(unsafe {mmap.as_slice()});
+        try!(cursor.seek(io::SeekFrom::End(-4)));
+        let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
+        let split_len = mmap.len() - 4 - footer_size;
+        let fst_mmap = mmap.range(0, split_len);
+        let values_mmap = mmap.range(split_len, mmap.len() - 4);
+        let fst = try!(fst::raw::Fst::from_mmap(fst_mmap).map_err(convert_fst_error));
+        Ok(FstMap {
+            fst_index: fst::Map::from(fst),
+            values_mmap: values_mmap,
             _phantom_: PhantomData,
-        }
+        })
     }
 
-    pub fn read(key: &[u8]) -> Option<V> {
-        None
+    pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
+        self.fst_index
+            .get(key)
+            .map(|offset| {
+                let buffer = unsafe { self.values_mmap.as_slice()};
+                let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
+                V::deserialize(&mut cursor).unwrap()
+            })
     }
 }
 

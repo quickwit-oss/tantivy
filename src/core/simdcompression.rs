@@ -107,7 +107,7 @@ mod tests {
 
     #[bench]
     fn bench_decode(b: &mut Bencher) {
-        const TEST_SIZE: usize = 100_000;
+        const TEST_SIZE: usize = 1_000_000;
         let arr = generate_array(TEST_SIZE, 0.1);
         let mut encoder = Encoder::new();
         let encoded = encoder.encode(&arr);

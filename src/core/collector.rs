@@ -1,3 +1,5 @@
+#![feature(test)]
+
 use core::schema::DocId;
 use core::reader::SegmentReader;
 use core::directory::SegmentId;
@@ -99,4 +101,35 @@ impl<'a> Collector for MultiCollector<'a> {
             collector.collect(doc_id);
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn build_collector(b: &mut Bencher) {
+        b.iter(|| {
+            let mut count_collector = CountCollector::new();
+            let docs: Vec<u32> = (0..1_000_000).collect();
+            for doc in docs {
+                count_collector.collect(doc);
+            }
+            count_collector.count()
+        });
+    }
+
+    // #[bench]
+    // fn build_first_3_collector(b: &mut Bencher) {
+    //     b.iter(|| {
+    //         let mut first3collector = FirstNCollector::with_limit(3);
+    //         let docs: Vec<u32> = (0..1_000_000).collect();
+    //         for doc in docs {
+    //             first3collector.collect(doc);
+    //         }
+    //         first3collector.docs()
+    //     });
+    // }
 }
