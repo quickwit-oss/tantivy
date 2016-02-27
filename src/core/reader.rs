@@ -14,6 +14,12 @@ use core::postings::Postings;
 use core::simdcompression::Decoder;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
+use std::io;
+
+fn convert_fst_error(e: fst::Error) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, e)
+}
+
 
 // TODO file structure should be in codec
 
@@ -99,9 +105,9 @@ impl SegmentReader {
 
     pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
         let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
-        let term_offsets = fst::Map::from_mmap(term_shared_mmap)
-            .map_err(|e| IOError::new(ErrorKind::Other, e))
-            .unwrap();
+        let fst = try!(fst::raw::Fst::from_mmap(term_shared_mmap)
+            .map_err(convert_fst_error));
+        let term_offsets = fst::Map::from(fst);
         let store_reader = StoreReader::new(try!(segment.mmap(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
