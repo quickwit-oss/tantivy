@@ -79,7 +79,6 @@ impl<T: Postings> IntersectionPostings<T> {
             postings: postings,
         }
     }
-
 }
 
 impl<T: Postings> Iterator for IntersectionPostings<T> {
@@ -160,6 +159,41 @@ mod tests {
                 doc_sum += 1;
             }
             doc_sum
+        });
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+
+    use super::*;
+    use test::Bencher;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand::StdRng;
+
+    fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
+        let seed: &[_] = &[1, 2, 3, 4];
+        let mut rng: StdRng = SeedableRng::from_seed(seed);
+        (0..u32::max_value())
+            .filter(|_| rng.next_f32()< ratio)
+            .take(n)
+            .collect()
+    }
+
+    #[bench]
+    fn bench_intersection(b: &mut Bencher) {
+        const TEST_SIZE: usize = 100_000;
+        let arr = generate_array(TEST_SIZE, 0.1);
+        let mut encoder = Encoder::new();
+        let encoded = encoder.encode(&arr);
+        let mut uncompressed: Vec<u32> = (0..TEST_SIZE as u32).collect();
+        let decoder = Decoder;
+        b.iter(|| {
+            decoder.decode(&encoded, &mut uncompressed);
         });
     }
 }
