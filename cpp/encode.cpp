@@ -3,13 +3,18 @@
 
 #include "codecfactory.h"
 #include "intersection.h"
+#include "variablebyte.h"
 
 using namespace SIMDCompressionLib;
 
-static shared_ptr<IntegerCODEC> codec =  CODECFactory::getFromName("s4-bp128-dm");
+// sorted
+static shared_ptr<IntegerCODEC> codec_sorted =  CODECFactory::getFromName("s4-bp128-dm");
+// variable byte
+static VariableByte<false> codec_unsorted = VariableByte<false>();
+
+static SIMDBinaryPacking<SIMDIntegratedBlockPacker<Max4DeltaSIMD, true>> codec_packed_sorted = SIMDBinaryPacking<SIMDIntegratedBlockPacker<Max4DeltaSIMD, true>>();
 
 extern "C" {
-
 
 
   size_t encode_sorted_native(
@@ -18,10 +23,23 @@ extern "C" {
        uint32_t* output,
        const size_t output_capacity) {
         size_t output_length = output_capacity;
-        codec -> encodeArray(begin,
+        codec_sorted -> encodeArray(begin,
                           num_els,
                           output,
                           output_length);
+        return output_length;
+  }
+
+  size_t encode_unsorted_native(
+       uint32_t* begin,
+       const size_t num_els,
+       uint32_t* output,
+       const size_t output_capacity) {
+         size_t output_length = output_capacity;
+         codec_unsorted.encodeArray(begin,
+                           num_els,
+                           output,
+                           output_length);
         return output_length;
   }
 
@@ -31,8 +49,18 @@ extern "C" {
       uint32_t* uncompressed,
       const size_t uncompressed_capacity) {
         size_t num_ints = uncompressed_capacity;
-        codec -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+        codec_sorted -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
         return num_ints;
+  }
+
+  size_t decode_unsorted_native(
+      const uint32_t* compressed_data,
+      const size_t compressed_size,
+      uint32_t* uncompressed,
+      const size_t uncompressed_capacity) {
+         size_t num_ints = uncompressed_capacity;
+         codec_unsorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+         return num_ints;
   }
 
   size_t intersection_native(
