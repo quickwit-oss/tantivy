@@ -3,11 +3,9 @@ use std::ptr;
 use std::cmp::min;
 use std::iter;
 
-
-
 extern {
-    fn encode_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+    fn encode_sorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
+    fn decode_sorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
     fn intersection_native(left_data: *const u32, left_size: size_t, right_data: *const u32, right_size: size_t, output: *mut u32) -> size_t;
 }
 
@@ -25,7 +23,7 @@ impl Encoder {
         }
     }
 
-    pub fn encode(&mut self, input: &[u32]) -> &[u32] {
+    pub fn encode_sorted(&mut self, input: &[u32]) -> &[u32] {
         self.input_buffer.clear();
         let input_len = input.len();
         if input_len + 10000 >= self.input_buffer.len() {
@@ -36,7 +34,7 @@ impl Encoder {
         // TODO use clone_from when available
         unsafe {
             ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
-            let written_size = encode_native(
+            let written_size = encode_sorted_native(
                 self.input_buffer.as_mut_ptr(),
                 input_len as size_t,
                 self.output_buffer.as_mut_ptr(),
@@ -57,11 +55,11 @@ impl Decoder {
         Decoder
     }
 
-    pub fn decode(&self,
+    pub fn decode_sorted(&self,
                   compressed_data: &[u32],
                   uncompressed_values: &mut [u32]) -> size_t {
         unsafe {
-            return decode_native(
+            return decode_sorted_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
                         uncompressed_values.as_mut_ptr(),
@@ -101,7 +99,7 @@ impl Intersector {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use test::Bencher;
     use rand::Rng;
@@ -129,11 +127,11 @@ mod tests {
         let input: Vec<u32> = (0..num_ints as u32)
             .map(|i| i * 7 / 2)
             .into_iter().collect();
-        let encoded_data = encoder.encode(&input);
+        let encoded_data = encoder.encode_sorted(&input);
         assert_eq!(encoded_data.len(), expected_length);
         let decoder = Decoder::new();
         let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
-        assert_eq!(num_ints, decoder.decode(&encoded_data[..], &mut decoded_data));
+        assert_eq!(num_ints, decoder.decode_sorted(&encoded_data[..], &mut decoded_data));
         assert_eq!(decoded_data, input);
     }
 
@@ -153,11 +151,11 @@ mod tests {
         const TEST_SIZE: usize = 1_000_000;
         let arr = generate_array(TEST_SIZE, 0.1);
         let mut encoder = Encoder::new();
-        let encoded = encoder.encode(&arr);
+        let encoded = encoder.encode_sorted(&arr);
         let mut uncompressed: Vec<u32> = (0..TEST_SIZE as u32).collect();
         let decoder = Decoder;
         b.iter(|| {
-            decoder.decode(&encoded, &mut uncompressed);
+            decoder.decode_sorted(&encoded, &mut uncompressed);
         });
     }
 

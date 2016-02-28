@@ -12,7 +12,7 @@ extern "C" {
 
 
 
-  size_t encode_native(
+  size_t encode_sorted_native(
        uint32_t* begin,
        const size_t num_els,
        uint32_t* output,
@@ -25,7 +25,7 @@ extern "C" {
         return output_length;
   }
 
-  size_t decode_native(
+  size_t decode_sorted_native(
       const uint32_t* compressed_data,
       const size_t compressed_size,
       uint32_t* uncompressed,

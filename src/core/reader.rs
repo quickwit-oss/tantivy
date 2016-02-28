@@ -51,7 +51,7 @@ impl SegmentPostings {
         }
         let mut doc_ids: Vec<u32> = (0..10_000_000 as u32).collect();
         let decoder = Decoder::new();
-        let num_doc_ids = decoder.decode(&data, &mut doc_ids);
+        let num_doc_ids = decoder.decode_sorted(&data, &mut doc_ids);
         doc_ids.truncate(num_doc_ids);
         SegmentPostings {
             doc_ids: doc_ids,

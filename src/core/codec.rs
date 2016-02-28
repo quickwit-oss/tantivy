@@ -76,7 +76,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
     fn write_docs(&mut self, doc_ids: &[DocId]) -> Result<(), IOError> {
         // TODO write_all transmuted [u8]
-        let docs_data = self.encoder.encode(doc_ids);
+        let docs_data = self.encoder.encode_sorted(doc_ids);
         self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
         for num in docs_data {
             self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
