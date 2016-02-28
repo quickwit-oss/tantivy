@@ -101,15 +101,12 @@ impl Intersector {
 
 #[cfg(test)]
 mod tests {
-
-
+    
     use super::*;
     use test::Bencher;
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
-
-
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];

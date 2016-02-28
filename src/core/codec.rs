@@ -1,6 +1,6 @@
 use core::serial::*;
-use std::io::Write;
 use fst::MapBuilder;
+use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind as IOErrorKind;
 use byteorder::{BigEndian,  WriteBytesExt};
@@ -8,6 +8,7 @@ use core::directory::Segment;
 use core::directory::SegmentComponent;
 use core::schema::Term;
 use core::schema::DocId;
+use core::fstmap::{FstMapBuilder, FstMap};
 use core::store::StoreWriter;
 use std::fs::File;
 use core::serialize::BinarySerializable;
@@ -15,6 +16,24 @@ use fst;
 use core::simdcompression;
 use std::convert::From;
 use core::schema::FieldValue;
+use std::io::{Read, Write};
+
+#[derive(Debug)]
+pub struct TermInfo {
+    postings_offset: u32,
+}
+
+impl BinarySerializable for TermInfo {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        self.postings_offset.serialize(writer)
+    }
+    fn deserialize(reader: &mut Read) -> io::Result<Self> {
+        let offset = try!(u32::deserialize(&mut reader));
+        Ok(TermInfo {
+            postings_offset: offset,
+        })
+    }
+}
 
 pub struct SimpleCodec;
 
@@ -23,15 +42,11 @@ pub struct SimpleSegmentSerializer {
     written_bytes_postings: usize,
     postings_write: File,
     store_writer: StoreWriter,
-    term_fst_builder: MapBuilder<File>, // TODO find an alternative to work around the "move"
+    term_fst_builder: FstMapBuilder<File, TermInfo>, // TODO find an alternative to work around the "move"
     cur_term_num_docs: DocId,
     encoder: simdcompression::Encoder,
 }
 
-
-fn convert_fst_error(e: fst::Error) -> IOError {
-    IOError::new(IOErrorKind::Other, e)
-}
 
 impl SimpleSegmentSerializer {
     pub fn segment(&self,) -> Segment {
@@ -47,7 +62,10 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
     }
 
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError> {
-        self.term_fst_builder.insert(term.as_slice(), self.written_bytes_postings as u64);
+        let term_info = TermInfo {
+            postings_offset: self.written_bytes_postings as u32,
+        };
+        self.term_fst_builder.insert(term.as_slice(), &term_info);
         self.cur_term_num_docs = doc_freq;
         // writing the size of the posting list
         self.written_bytes_postings += try!((doc_freq as u32).serialize(&mut self.postings_write));
@@ -81,7 +99,7 @@ impl SimpleCodec {
         let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));
         let store_write = try!(segment.open_writable(SegmentComponent::STORE));
-        let term_fst_builder_result = MapBuilder::new(term_write);
+        let term_fst_builder_result = FstMapBuilder::new(term_write);
         let term_fst_builder = term_fst_builder_result.unwrap();
         Ok(SimpleSegmentSerializer {
             segment: segment.clone(),

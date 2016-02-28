@@ -37,7 +37,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         Ok(())
     }
 
-    fn close(self,) -> io::Result<W> {
+    fn finish(self,) -> io::Result<W> {
         let mut file = try!(
             self.fst_builder
                  .into_inner()
@@ -90,7 +90,7 @@ impl<V: BinarySerializable> FstMap<V> {
 mod tests {
     use super::*;
     use tempfile;
-    
+
     #[test]
     fn test_fstmap() {
         let fstmap_file;
@@ -99,7 +99,7 @@ mod tests {
             let mut fstmap_builder = FstMapBuilder::new(tempfile).unwrap();
             fstmap_builder.insert("abc".as_bytes(), &34u32).unwrap();
             fstmap_builder.insert("abcd".as_bytes(), &346u32).unwrap();
-            fstmap_file = fstmap_builder.close().unwrap();
+            fstmap_file = fstmap_builder.finish().unwrap();
         }
         let fstmap = FstMap::open(fstmap_file).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
