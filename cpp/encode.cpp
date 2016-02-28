@@ -8,8 +8,10 @@ using namespace SIMDCompressionLib;
 
 static shared_ptr<IntegerCODEC> codec =  CODECFactory::getFromName("s4-bp128-dm");
 
-
 extern "C" {
+
+
+
   size_t encode_native(
        uint32_t* begin,
        const size_t num_els,
@@ -32,4 +34,14 @@ extern "C" {
         codec -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
         return num_ints;
   }
+
+  size_t intersection_native(
+      const uint32_t* left,
+      const size_t left_size,
+      const uint32_t* right,
+      const size_t right_size,
+      uint32_t* output) {
+        return IntersectionFactory::getFromName("simd")(left, left_size, right, right_size, output);
+  }
+
 }
