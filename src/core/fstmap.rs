@@ -20,7 +20,7 @@ pub struct FstMapBuilder<W: Write, V: BinarySerializable> {
 
 impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
 
-    fn new(w: W) -> io::Result<FstMapBuilder<W, V>> {
+    pub fn new(w: W) -> io::Result<FstMapBuilder<W, V>> {
         let fst_builder = try!(fst::MapBuilder::new(w).map_err(convert_fst_error));
         Ok(FstMapBuilder {
             fst_builder: fst_builder,
@@ -29,7 +29,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         })
     }
 
-    fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
+    pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)
             .map_err(convert_fst_error));
@@ -37,7 +37,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         Ok(())
     }
 
-    fn finish(self,) -> io::Result<W> {
+    pub fn finish(self,) -> io::Result<W> {
         let mut file = try!(
             self.fst_builder
                  .into_inner()
@@ -59,8 +59,9 @@ pub struct FstMap<V: BinarySerializable> {
 
 
 impl<V: BinarySerializable> FstMap<V> {
-    pub fn open(file: File) -> io::Result<FstMap<V>> {
-        let mmap = try!(MmapReadOnly::open(&file));
+
+    pub fn open(mmap: MmapReadOnly) -> io::Result<FstMap<V>> {
+        //let mmap = try!(MmapReadOnly::open(&file));
         let mut cursor = Cursor::new(unsafe {mmap.as_slice()});
         try!(cursor.seek(io::SeekFrom::End(-4)));
         let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
@@ -90,6 +91,7 @@ impl<V: BinarySerializable> FstMap<V> {
 mod tests {
     use super::*;
     use tempfile;
+    use fst::raw::MmapReadOnly;
 
     #[test]
     fn test_fstmap() {
@@ -101,7 +103,8 @@ mod tests {
             fstmap_builder.insert("abcd".as_bytes(), &346u32).unwrap();
             fstmap_file = fstmap_builder.finish().unwrap();
         }
-        let fstmap = FstMap::open(fstmap_file).unwrap();
+        let fst_mmap = MmapReadOnly::open(&fstmap_file).unwrap();
+        let fstmap = FstMap::open(fst_mmap).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
     }

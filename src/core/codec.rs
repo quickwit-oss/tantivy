@@ -20,7 +20,7 @@ use std::io::{Read, Write};
 
 #[derive(Debug)]
 pub struct TermInfo {
-    postings_offset: u32,
+    pub postings_offset: u32,
 }
 
 impl BinarySerializable for TermInfo {
@@ -28,7 +28,7 @@ impl BinarySerializable for TermInfo {
         self.postings_offset.serialize(writer)
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        let offset = try!(u32::deserialize(&mut reader));
+        let offset = try!(u32::deserialize(reader));
         Ok(TermInfo {
             postings_offset: offset,
         })
@@ -85,8 +85,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
     fn close(mut self,) -> Result<(), IOError> {
         // TODO handle errors on close
         try!(self.term_fst_builder
-                 .finish()
-                 .map_err(convert_fst_error));
+                 .finish());
         self.store_writer.close()
     }
 }

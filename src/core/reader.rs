@@ -15,17 +15,14 @@ use core::simdcompression::Decoder;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::io;
-
-fn convert_fst_error(e: fst::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
-}
-
+use core::codec::TermInfo;
+use core::fstmap::FstMap;
 
 // TODO file structure should be in codec
 
 pub struct SegmentReader {
     segment: Segment,
-    term_offsets: fst::Map,
+    term_offsets: FstMap<TermInfo>,
     postings_data: MmapReadOnly,
     store_reader: StoreReader,
 }
@@ -105,9 +102,7 @@ impl SegmentReader {
 
     pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
         let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
-        let fst = try!(fst::raw::Fst::from_mmap(term_shared_mmap)
-            .map_err(convert_fst_error));
-        let term_offsets = fst::Map::from(fst);
+        let term_offsets = try!(FstMap::open(term_shared_mmap));
         let store_reader = StoreReader::new(try!(segment.mmap(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
@@ -127,10 +122,8 @@ impl SegmentReader {
         SegmentPostings::from_data(&postings_data)
     }
 
-    pub fn get_term<'a>(&'a self, term: &Term) -> Option<SegmentPostings> {
-        self.term_offsets
-            .get(term.as_slice())
-            .map(|offset| self.read_postings(offset as usize))
+    pub fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
+        self.term_offsets.get(term.as_slice())
     }
 
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
@@ -138,7 +131,8 @@ impl SegmentReader {
         let mut segment_postings: Vec<SegmentPostings> = Vec::new();
         for term in terms.iter() {
             match self.get_term(term) {
-                Some(segment_posting) => {
+                Some(term_info) => {
+                    let segment_posting = self.read_postings(term_info.postings_offset as usize);
                     segment_postings.push(segment_posting);
                 }
                 None => {
