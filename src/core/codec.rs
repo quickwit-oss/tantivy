@@ -20,16 +20,20 @@ use std::io::{Read, Write};
 
 #[derive(Debug)]
 pub struct TermInfo {
+    pub doc_freq: u32,
     pub postings_offset: u32,
 }
 
 impl BinarySerializable for TermInfo {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        self.doc_freq.serialize(writer);
         self.postings_offset.serialize(writer)
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
+        let doc_freq = try!(u32::deserialize(reader));
         let offset = try!(u32::deserialize(reader));
         Ok(TermInfo {
+            doc_freq: doc_freq,
             postings_offset: offset,
         })
     }
@@ -43,7 +47,6 @@ pub struct SimpleSegmentSerializer {
     postings_write: File,
     store_writer: StoreWriter,
     term_fst_builder: FstMapBuilder<File, TermInfo>, // TODO find an alternative to work around the "move"
-    cur_term_num_docs: DocId,
     encoder: simdcompression::Encoder,
 }
 
@@ -63,12 +66,11 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError> {
         let term_info = TermInfo {
+            doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
         };
         self.term_fst_builder.insert(term.as_slice(), &term_info);
-        self.cur_term_num_docs = doc_freq;
         // writing the size of the posting list
-        self.written_bytes_postings += try!((doc_freq as u32).serialize(&mut self.postings_write));
         Ok(())
     }
 
@@ -106,7 +108,6 @@ impl SimpleCodec {
             postings_write: postings_write,
             store_writer: StoreWriter::new(store_write),
             term_fst_builder: term_fst_builder,
-            cur_term_num_docs: 0,
             encoder: simdcompression::Encoder::new(),
         })
     }

@@ -43,16 +43,16 @@ impl SegmentPostings {
 
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
-        let doc_freq: u32 = u32::deserialize(&mut cursor).unwrap();
         let data_size = cursor.read_u32::<BigEndian>().unwrap() as usize;
         // TODO remove allocs
         let mut data = Vec::with_capacity(data_size);
         for _ in 0..data_size {
             data.push(cursor.read_u32::<BigEndian>().unwrap());
         }
-        let mut doc_ids: Vec<u32> = (0..doc_freq as u32).collect();
+        let mut doc_ids: Vec<u32> = (0..10_000_000 as u32).collect();
         let decoder = Decoder::new();
-        decoder.decode(&data, &mut doc_ids);
+        let num_doc_ids = decoder.decode(&data, &mut doc_ids);
+        doc_ids.truncate(num_doc_ids);
         SegmentPostings {
             doc_ids: doc_ids,
             doc_id: 0,
