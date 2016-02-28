@@ -162,7 +162,7 @@ mod tests {
         let num_ints = 10000 as usize;
         let expected_length = 1274;
         let input: Vec<u32> = (0..num_ints as u32)
-            .map(|i| i % 7 / 2)
+            .map(|i| i * 7 / 2)
             .into_iter().collect();
         let encoded_data = encoder.encode_sorted(&input);
         assert_eq!(encoded_data.len(), expected_length);
