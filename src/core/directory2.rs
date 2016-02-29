@@ -1,7 +1,7 @@
-use fst::raw::FstData as ReadOnlySource;
 use std::io::BufWriter;
 use std::io;
 use fst::raw::SharedVectorSlice;
+use std::fmt::Arguments;
 use std::io::Write;
 use std::fs::File;
 use std::fmt;
@@ -9,11 +9,35 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry as HashMapEntry;
 use fst::raw::MmapReadOnly;
 use atomicwrites;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::rc::Rc;
 use tempdir::TempDir;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
+///////////////////////////////////////////////////////////////
+//
 
+
+pub enum ReadOnlySource {
+    Mmap(MmapReadOnly),
+    Anonymous(Vec<u8>),
+}
+
+impl Deref for ReadOnlySource {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        match *self {
+            ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { mmap_read_only.as_slice() },
+            ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum CreateError {
     RootDirectoryDoesNotExist,
     DirectoryAlreadyExists,
@@ -21,10 +45,15 @@ pub enum CreateError {
 }
 
 pub trait Directory: fmt::Debug {
-    fn open_read<P: AsRef<Path>>(&self, path: P) -> io::Result<ReadOnlySource>;
-    fn open_write<P: AsRef<Path>>(&mut self, path: P) -> io::Result<Box<Write>>;
-    fn atomic_write<P: AsRef<Path>>(&mut self, path: P, data: &[u8]) -> io::Result<()>;
+    fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource>;
+    fn open_write(&mut self, path: &Path) -> io::Result<Box<Write>>;
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
 }
+
+
+pub type WritePtr = Box<Write>;
+
+
 
 
 ////////////////////////////////////////////////////////////////
@@ -43,7 +72,6 @@ impl fmt::Debug for MmapDirectory {
 }
 
 
-
 impl MmapDirectory {
 
     pub fn create_tempdir() -> Result<MmapDirectory, CreateError> {
@@ -58,21 +86,22 @@ impl MmapDirectory {
         Ok(directory)
     }
 
-    pub fn create<P: AsRef<Path>>(filepath: P) -> Result<MmapDirectory, CreateError> {
+    pub fn create(filepath: &Path) -> Result<MmapDirectory, CreateError> {
         Ok(MmapDirectory {
-            root_path: PathBuf::from(filepath.as_ref()),
+
+            root_path: PathBuf::from(filepath),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: None
         })
     }
 
-    fn resolve_path<P: AsRef<Path>>(&self, relative_path: P) -> PathBuf {
+    fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.root_path.join(relative_path)
     }
 }
 
 impl Directory for MmapDirectory {
-    fn open_read<P: AsRef<Path>>(&self, path: P) -> io::Result<ReadOnlySource> {
+    fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource> {
         let full_path = self.resolve_path(path);
         let mut mmap_cache = self.mmap_cache.borrow_mut();
         let mmap = match mmap_cache.entry(full_path.clone()) {
@@ -85,13 +114,13 @@ impl Directory for MmapDirectory {
         };
         Ok(ReadOnlySource::Mmap(mmap))
     }
-    fn open_write<P: AsRef<Path>>(&mut self, path: P) -> io::Result<Box<Write>> {
+    fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
         let full_path = self.resolve_path(path);
         let file = try!(File::create(full_path));
         Ok(Box::new(file))
     }
 
-    fn atomic_write<P: AsRef<Path>>(&mut self, path: P, data: &[u8]) -> io::Result<()> {
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         let full_path = self.resolve_path(path);
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
         meta_file.write(|f| {
@@ -108,9 +137,30 @@ impl Directory for MmapDirectory {
 // RAMDirectory
 
 
+#[derive(Clone)]
+struct SharedVec(Arc<RwLock<Vec<u8>>>);
+
+
 pub struct RAMDirectory {
-    fs: RefCell<HashMap<PathBuf, SharedVectorSlice>>,
+    fs: HashMap<PathBuf, SharedVec>,
 }
+
+impl SharedVec {
+    fn new() -> SharedVec {
+        SharedVec(Arc::new( RwLock::new(Vec::new()) ))
+    }
+}
+
+impl Write for SharedVec {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write().unwrap().write(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 
 impl fmt::Debug for RAMDirectory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -118,39 +168,77 @@ impl fmt::Debug for RAMDirectory {
    }
 }
 
-
 impl RAMDirectory {
-
-
     pub fn create() -> Result<RAMDirectory, CreateError> {
         Ok(RAMDirectory {
-            fs: RefCell::new(HashMap::new())
+            fs: HashMap::new()
         })
     }
 }
 
 impl Directory for RAMDirectory {
-    fn open_read<P: AsRef<Path>>(&self, path: P) -> io::Result<ReadOnlySource> {
-        // let full_path = PathBuf::from(path);
-        match self.fs.borrow().get(path.as_ref()) {
-            Some(data) => Ok(ReadOnlySource::SharedVector(*data.clone())),
-            None => Err(io::Error::new(io::ErrorKind::NotFound, "File has never been created."))
+    fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource> {
+        match self.fs.get(path) {
+            Some(ref data) => {
+                let data_copy = (*data).0.read().unwrap().clone();
+                Ok(ReadOnlySource::Anonymous(data_copy))
+            },
+            None =>
+                Err(io::Error::new(io::ErrorKind::NotFound, "File has never been created."))
         }
-        // Ok(ReadOnlySource::Mmap(mmap))
     }
-    fn open_write<P: AsRef<Path>>(&mut self, path: P) -> io::Result<Box<Write>> {
-        let full_path = PathBuf::from(path);
-        let data = SharedVectorSlice::from(Vec::new());
-        self.fs.borrow_mut().insert(full_path, data.clone());
+    fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
+        let full_path = PathBuf::from(&path);
+        let mut data = SharedVec::new();
+        self.fs.insert(full_path, data.clone());
         Ok(Box::new(data))
     }
 
-    fn atomic_write<P: AsRef<Path>>(&mut self, path: P, data: &[u8]) -> io::Result<()> {
-        let full_path = self.resolve_path(path);
-        let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        let meta_file = atomicwrites::AtomicFile::new(PathBuf::from(path), atomicwrites::AllowOverwrite);
         meta_file.write(|f| {
             f.write_all(data)
         });
         Ok(())
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use test::Bencher;
+    use core::schema::DocId;
+    use std::path::Path;
+
+    #[test]
+    fn test_ram_directory() {
+        let mut ram_directory = RAMDirectory::create().unwrap();
+        test_directory(&mut ram_directory);
+    }
+
+    #[test]
+    fn test_mmap_directory() {
+        let mut mmap_directory = MmapDirectory::create_tempdir().unwrap();
+        test_directory(&mut mmap_directory);
+    }
+
+    fn test_directory(directory: &mut Directory) {
+        {
+            let mut write_file = directory.open_write(Path::new("toto")).unwrap();
+            write_file.write_all(&[4]);
+            write_file.write_all(&[3]);
+            write_file.write_all(&[7,3,5]);
+        }
+        let read_file = directory.open_read(Path::new("toto")).unwrap();
+        let data: &[u8] = &*read_file;
+        assert_eq!(data.len(), 5);
+        assert_eq!(data[0], 4);
+        assert_eq!(data[1], 3);
+        assert_eq!(data[2], 7);
+        assert_eq!(data[3], 3);
+        assert_eq!(data[4], 5);
+    }
+
 }
