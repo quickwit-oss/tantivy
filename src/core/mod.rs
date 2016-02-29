@@ -13,3 +13,4 @@ pub mod serialize;
 pub mod store;
 pub mod simdcompression;
 pub mod fstmap;
+pub mod directory2;
