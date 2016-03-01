@@ -8,7 +8,7 @@ use tantivy::core::schema::*;
 use tantivy::core::writer::IndexWriter;
 use tantivy::core::collector::Collector;
 use tantivy::core::searcher::Searcher;
-use tantivy::core::directory::{Directory, generate_segment_name, SegmentId};
+use tantivy::core::directory::{Index, generate_segment_name, SegmentId};
 use tantivy::core::reader::SegmentReader;
 use regex::Regex;
 use tantivy::core::serial::DebugSegmentSerializer;
@@ -49,7 +49,7 @@ fn test_indexing() {
     let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
     let text_field = schema.add_field("text", &text_fieldtype);
 
-    let directory = Directory::create_from_tempdir(schema).unwrap();
+    let directory = Index::create_from_tempdir(schema).unwrap();
 
     {
         // writing the segment
@@ -92,11 +92,11 @@ fn test_searcher() {
     let mut schema = Schema::new();
     let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
     let text_field = schema.add_field("text", &text_fieldtype);
-    let directory = Directory::create_from_tempdir(schema).unwrap();
+    let index = Index::create_from_tempdir(schema).unwrap();
 
     {
         // writing the segment
-        let mut index_writer = IndexWriter::open(&directory);
+        let mut index_writer = IndexWriter::open(&index);
         {
             let mut doc = Document::new();
             doc.set(&text_field, "af b");
@@ -115,9 +115,10 @@ fn test_searcher() {
         let commit_result = index_writer.commit();
         let segment = commit_result.unwrap();
     }
+    println!("index {:?}", index.schema());
     {
 
-        let searcher = Searcher::for_directory(directory);
+        let searcher = Searcher::for_index(index);
         let get_doc_ids = |terms: Vec<Term>| {
             let mut collector = TestCollector::new();
             searcher.search(&terms, &mut collector);

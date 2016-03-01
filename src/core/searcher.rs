@@ -1,9 +1,9 @@
 use core::reader::SegmentReader;
-use core::directory::Directory;
+use core::directory::Index;
+use core::directory::Segment;
 use core::directory::SegmentId;
 use core::schema::DocId;
 use core::schema::Document;
-use core::directory::Segment;
 use core::collector::Collector;
 use std::collections::HashMap;
 use core::schema::Term;
@@ -44,9 +44,10 @@ impl Searcher {
         }
     }
 
-    pub fn for_directory(directory: Directory) -> Searcher {
+    pub fn for_index(index: Index) -> Searcher {
         let mut searcher = Searcher::new();
-        for segment in directory.segments().into_iter() {
+        for segment in index.segments().into_iter() {
+            println!("Segment {:?} ", segment);
             searcher.add_segment(segment);
         }
         searcher
