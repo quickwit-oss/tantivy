@@ -2,7 +2,7 @@ use core::schema::*;
 use core::codec::*;
 use std::io;
 use std::rc::Rc;
-use core::directory::Directory;
+use core::directory::Index;
 use core::analyzer::SimpleTokenizer;
 use std::collections::BTreeMap;
 use core::analyzer::StreamingIterator;
@@ -32,18 +32,18 @@ impl PostingsWriter {
 
 pub struct IndexWriter {
 	segment_writer: Rc<SegmentWriter>,
-	directory: Directory,
+	directory: Index,
 	schema: Schema,
 }
 
-fn new_segment_writer(directory: &Directory, ) -> SegmentWriter {
+fn new_segment_writer(directory: &Index, ) -> SegmentWriter {
 	let segment = directory.new_segment();
 	SegmentWriter::for_segment(segment)
 }
 
 impl IndexWriter {
 
-    pub fn open(directory: &Directory) -> IndexWriter {
+    pub fn open(directory: &Index) -> IndexWriter {
 		let schema = directory.schema();
 		IndexWriter {
 			segment_writer: Rc::new(new_segment_writer(&directory)),

@@ -31,29 +31,29 @@ pub fn generate_segment_name() -> SegmentId {
 }
 
 #[derive(Clone,Debug,RustcDecodable, RustcEncodable)]
-pub struct DirectoryMeta {
+pub struct IndexMeta {
     segments: Vec<String>,
     schema: Schema,
 }
 
-impl DirectoryMeta {
-    fn new() -> DirectoryMeta {
-        DirectoryMeta {
+impl IndexMeta {
+    fn new() -> IndexMeta {
+        IndexMeta {
             segments: Vec::new(),
             schema: Schema::new(),
         }
     }
-    fn with_schema(schema: Schema) -> DirectoryMeta {
-        DirectoryMeta {
+    fn with_schema(schema: Schema) -> IndexMeta {
+        IndexMeta {
             segments: Vec::new(),
             schema: schema,
         }
     }
 }
 
-impl fmt::Debug for Directory {
+impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "Directory({:?})", self.inner_directory.read().unwrap().index_path)
+       write!(f, "Index({:?})", self.inner_index.read().unwrap().index_path)
    }
 }
 
@@ -68,41 +68,40 @@ fn sync_file(filepath: &PathBuf) -> Result<(), IOError> {
 
 
 #[derive(Clone)]
-pub struct Directory {
-    inner_directory: Arc<RwLock<InnerDirectory>>,
+pub struct Index {
+    inner_index: Arc<RwLock<InnerIndex>>,
 }
 
-
 pub enum CreateError {
-    RootDirectoryDoesNotExist,
-    DirectoryAlreadyExists,
+    RootIndexDoesNotExist,
+    IndexAlreadyExists,
     CannotOpenMetaFile,
 }
 
-struct DirectoryError;
+struct IndexError;
 
 
 
-impl Directory {
+impl Index {
 
-    pub fn create(filepath: &Path, schema: Schema) -> Result<Directory, CreateError> {
-        let inner_directory = try!(InnerDirectory::create(filepath, schema));
-        Ok(Directory {
-            inner_directory: Arc::new(RwLock::new(inner_directory)),
+    pub fn create(filepath: &Path, schema: Schema) -> Result<Index, CreateError> {
+        let inner_index = try!(InnerIndex::create(filepath, schema));
+        Ok(Index {
+            inner_index: Arc::new(RwLock::new(inner_index)),
         })
     }
 
-    pub fn create_from_tempdir(schema: Schema) -> Result<Directory, IOError> {
-        let inner_directory = try!(InnerDirectory::create_from_tempdir(schema));
-        Ok(Directory {
-            inner_directory: Arc::new(RwLock::new(inner_directory)),
+    pub fn create_from_tempdir(schema: Schema) -> Result<Index, IOError> {
+        let inner_index = try!(InnerIndex::create_from_tempdir(schema));
+        Ok(Index {
+            inner_index: Arc::new(RwLock::new(inner_index)),
         })
     }
 
-    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<Directory, IOError> {
-        let inner_directory = try!(InnerDirectory::open(filepath));
-        Ok(Directory {
-            inner_directory: Arc::new(RwLock::new(inner_directory)),
+    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<Index, IOError> {
+        let inner_index = try!(InnerIndex::open(filepath));
+        Ok(Index {
+            inner_index: Arc::new(RwLock::new(inner_index)),
         })
     }
 
@@ -110,16 +109,16 @@ impl Directory {
         self.get_read().unwrap().metas.schema.clone()
     }
 
-    fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerDirectory>, IOError> {
-        self.inner_directory
+    fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerIndex>, IOError> {
+        self.inner_index
             .write()
             .map_err(|e| IOError::new(IOErrorKind::Other,
                 format!("Failed acquiring lock on directory.\n
                 It can happen if another thread panicked! Error was: {:?}", e) ))
     }
 
-    fn get_read(&self) -> Result<RwLockReadGuard<InnerDirectory>, IOError> {
-        self.inner_directory
+    fn get_read(&self) -> Result<RwLockReadGuard<InnerIndex>, IOError> {
+        self.inner_index
             .read()
             .map_err(|e| IOError::new(IOErrorKind::Other,
                 format!("Failed acquiring lock on directory.\n
@@ -133,7 +132,7 @@ impl Directory {
 
 
     pub fn load_metas(&self,) -> Result<(), IOError> {
-        self.inner_directory
+        self.inner_index
             .write()
             .unwrap() // only fail when another thread has already panicked.
             .load_metas()
@@ -145,7 +144,7 @@ impl Directory {
 
     pub fn segments(&self,) -> Vec<Segment> {
         // TODO handle error
-        self.inner_directory
+        self.inner_index
             .read()
             .unwrap()
             .segment_ids()
@@ -176,10 +175,10 @@ impl Directory {
 }
 
 
-struct InnerDirectory {
+struct InnerIndex {
     index_path: PathBuf,
     mmap_cache: RefCell<HashMap<PathBuf, MmapReadOnly>>,
-    metas: DirectoryMeta,
+    metas: IndexMeta,
     _temp_directory: Option<TempDir>,
 }
 
@@ -189,7 +188,7 @@ fn create_tempdir() -> Result<TempDir, IOError> {
 }
 
 
-impl InnerDirectory {
+impl InnerIndex {
 
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
@@ -199,34 +198,34 @@ impl InnerDirectory {
         self.save_metas()
     }
 
-    pub fn create<P: AsRef<Path>>(filepath: P, schema: Schema) -> Result<InnerDirectory, CreateError> {
+    pub fn create<P: AsRef<Path>>(filepath: P, schema: Schema) -> Result<InnerIndex, CreateError> {
         let filepath_os_path = filepath.as_ref().as_os_str();
-        let mut directory = InnerDirectory {
+        let mut directory = InnerIndex {
             index_path: PathBuf::from(&filepath_os_path),
             mmap_cache: RefCell::new(HashMap::new()),
-            metas: DirectoryMeta::with_schema(schema),
+            metas: IndexMeta::with_schema(schema),
             _temp_directory: None,
         };
         Ok(directory)
     }
 
-    pub fn create_from_tempdir(schema: Schema) -> Result<InnerDirectory, IOError> {
+    pub fn create_from_tempdir(schema: Schema) -> Result<InnerIndex, IOError> {
         let tempdir = try!(create_tempdir());
         let tempdir_path = PathBuf::from(tempdir.path());
-        let mut directory = InnerDirectory {
+        let mut directory = InnerIndex {
             index_path: PathBuf::from(tempdir_path),
             mmap_cache: RefCell::new(HashMap::new()),
-            metas: DirectoryMeta::with_schema(schema),
+            metas: IndexMeta::with_schema(schema),
             _temp_directory: Some(tempdir)
         };
         Ok(directory)
     }
 
-    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<InnerDirectory, IOError> {
-        let mut directory = InnerDirectory {
+    pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<InnerIndex, IOError> {
+        let mut directory = InnerIndex {
             index_path: PathBuf::from(filepath.as_ref().as_os_str()),
             mmap_cache: RefCell::new(HashMap::new()),
-            metas: DirectoryMeta::new(),
+            metas: IndexMeta::new(),
             _temp_directory: None,
         };
         try!(directory.load_metas()); //< does the directory already exists?
@@ -320,7 +319,7 @@ pub enum SegmentComponent {
 
 #[derive(Debug, Clone)]
 pub struct Segment {
-    directory: Directory,
+    directory: Index,
     segment_id: SegmentId,
 }
 
