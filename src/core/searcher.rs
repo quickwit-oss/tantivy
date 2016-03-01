@@ -47,6 +47,7 @@ impl Searcher {
     pub fn for_index(index: Index) -> Searcher {
         let mut searcher = Searcher::new();
         for segment in index.segments().into_iter() {
+            println!("Segment {:?} ", segment);
             searcher.add_segment(segment);
         }
         searcher

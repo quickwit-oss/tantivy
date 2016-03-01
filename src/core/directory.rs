@@ -30,7 +30,7 @@ pub fn generate_segment_name() -> SegmentId {
     SegmentId( String::from("_") + &random_name)
 }
 
-#[derive(Clone,Debug,RustcDecodable, RustcEncodable)]
+#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
     segments: Vec<String>,
     schema: Schema,
@@ -69,7 +69,7 @@ fn sync_file(filepath: &PathBuf) -> Result<(), IOError> {
 
 #[derive(Clone)]
 pub struct Index {
-    metas: IndexMeta,
+    metas: Arc<RwLock<IndexMeta>>,
     inner_index: Arc<RwLock<InnerIndex>>,
 }
 
@@ -86,13 +86,6 @@ lazy_static! {
 }
 
 impl Index {
-
-    fn from_inner_index(inner_index: InnerIndex, schema: Schema) -> Index {
-        Index {
-            metas: IndexMeta::with_schema(schema),
-            inner_index: Arc::new(RwLock::new(inner_index)),
-        }
-    }
 
     pub fn create(filepath: &Path, schema: Schema) -> Result<Index, CreateError> {
         let inner_index = try!(InnerIndex::create(filepath));
@@ -112,7 +105,7 @@ impl Index {
     }
 
     pub fn schema(&self,) -> Schema {
-        self.metas.schema.clone()
+        self.metas.read().unwrap().schema.clone()
     }
 
     fn get_write(&mut self) -> Result<RwLockWriteGuard<InnerIndex>, IOError> {
@@ -131,20 +124,21 @@ impl Index {
                 It can happen if another thread panicked! Error was: {:?}", e) ))
     }
 
+    fn from_inner_index(inner_index: InnerIndex, schema: Schema) -> Index {
+        Index {
+            metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema))),
+            inner_index: Arc::new(RwLock::new(inner_index)),
+        }
+    }
+
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: Segment) -> Result<(), IOError> {
-        self.metas.segments.push(segment.segment_id.0.clone());
+        println!("publish segment {:?}", segment);
+        self.metas.write().unwrap().segments.push(segment.segment_id.0.clone());
         // TODO use logs
         self.save_metas()
     }
-
-    // pub fn load_metas(&self,) -> Result<(), IOError> {
-    //     self.inner_index
-    //         .write()
-    //         .unwrap() // only fail when another thread has already panicked.
-    //         .load_metas()
-    // }
 
     pub fn sync(&mut self, segment: Segment) -> Result<(), IOError> {
         try!(self.get_write()).sync(segment)
@@ -167,6 +161,8 @@ impl Index {
 
     fn segment_ids(&self,) -> Vec<SegmentId> {
         self.metas
+            .read()
+            .unwrap()
             .segments
             .iter()
             .cloned()
@@ -184,22 +180,16 @@ impl Index {
         let mut meta_file = try!(self.inner_index.read().unwrap().mmap(&META_FILEPATH));
         let mut meta_content = String::from_utf8_lossy(unsafe {meta_file.as_slice()});
         println!("META CONTENT {:?}", meta_content);
-        self.metas = json::decode(&meta_content).unwrap();
+        let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
+        self.metas.write().unwrap().clone_from(&loaded_meta);
         Ok(())
     }
 
     pub fn save_metas(&self,) -> Result<(), IOError> {
-        let encoded = json::encode(&self.metas).unwrap();
+        let metas_lock = self.metas.read().unwrap();
+        let encoded = json::encode(&*metas_lock).unwrap();
         self.inner_index.write().unwrap().write_atomic(&META_FILEPATH, encoded)
     }
-
-    // fn open_writable(&self, relative_path: &PathBuf) -> Result<File, IOError> {
-    //     try!(self.get_read()).open_writable(relative_path)
-    // }
-    //
-    // fn mmap(&self, relative_path: &PathBuf) -> Result<MmapReadOnly, IOError> {
-    //     try!(self.get_read()).mmap(relative_path)
-    // }
 }
 
 

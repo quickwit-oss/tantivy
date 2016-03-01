@@ -115,6 +115,7 @@ fn test_searcher() {
         let commit_result = index_writer.commit();
         let segment = commit_result.unwrap();
     }
+    println!("index {:?}", index.schema());
     {
 
         let searcher = Searcher::for_index(index);
