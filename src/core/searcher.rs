@@ -1,7 +1,7 @@
 use core::reader::SegmentReader;
-use core::directory::Index;
-use core::directory::Segment;
-use core::directory::SegmentId;
+use core::index::Index;
+use core::index::Segment;
+use core::index::SegmentId;
 use core::schema::DocId;
 use core::schema::Document;
 use core::collector::Collector;

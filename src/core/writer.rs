@@ -2,13 +2,13 @@ use core::schema::*;
 use core::codec::*;
 use std::io;
 use std::rc::Rc;
-use core::directory::Index;
+use core::index::Index;
 use core::analyzer::SimpleTokenizer;
 use std::collections::BTreeMap;
 use core::analyzer::StreamingIterator;
 use core::serial::*;
 use std::io::Error as IOError;
-use core::directory::Segment;
+use core::index::Segment;
 
 
 pub struct PostingsWriter {

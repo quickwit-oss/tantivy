@@ -8,7 +8,7 @@ use tantivy::core::schema::*;
 use tantivy::core::writer::IndexWriter;
 use tantivy::core::collector::Collector;
 use tantivy::core::searcher::Searcher;
-use tantivy::core::directory::{Index, generate_segment_name, SegmentId};
+use tantivy::core::index::{Index, generate_segment_name, SegmentId};
 use tantivy::core::reader::SegmentReader;
 use regex::Regex;
 use tantivy::core::serial::DebugSegmentSerializer;

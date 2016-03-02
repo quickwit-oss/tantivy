@@ -1,4 +1,4 @@
-use core::directory::{Segment, SegmentId};
+use core::index::{Segment, SegmentId};
 use core::schema::Term;
 use core::store::StoreReader;
 use core::schema::Document;
@@ -8,7 +8,7 @@ use byteorder::{BigEndian, ReadBytesExt};
 use core::serialize::BinarySerializable;
 use std::io::Cursor;
 use core::schema::DocId;
-use core::directory::SegmentComponent;
+use core::index::SegmentComponent;
 use fst::raw::MmapReadOnly;
 use core::postings::Postings;
 use core::simdcompression::Decoder;

@@ -2,7 +2,7 @@
 
 use core::schema::DocId;
 use core::reader::SegmentReader;
-use core::directory::SegmentId;
+use core::index::SegmentId;
 use core::searcher::DocAddress;
 
 pub trait Collector {

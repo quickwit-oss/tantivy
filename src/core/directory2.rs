@@ -18,8 +18,6 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 ///////////////////////////////////////////////////////////////
-//
-
 
 pub enum ReadOnlySource {
     Mmap(MmapReadOnly),
@@ -52,7 +50,6 @@ pub trait Directory: fmt::Debug {
 
 
 pub type WritePtr = Box<Write>;
-
 
 
 

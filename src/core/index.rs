@@ -177,9 +177,8 @@ impl Index {
 
 
     pub fn load_metas(&mut self,) -> Result<(), IOError> {
-        let mut meta_file = try!(self.inner_index.read().unwrap().mmap(&META_FILEPATH));
-        let mut meta_content = String::from_utf8_lossy(unsafe {meta_file.as_slice()});
-        println!("META CONTENT {:?}", meta_content);
+        let meta_file = try!(self.inner_index.read().unwrap().mmap(&META_FILEPATH));
+        let meta_content = String::from_utf8_lossy(unsafe {meta_file.as_slice()});
         let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
         self.metas.write().unwrap().clone_from(&loaded_meta);
         Ok(())
@@ -218,7 +217,7 @@ impl InnerIndex {
 
     pub fn create<P: AsRef<Path>>(filepath: P) -> Result<InnerIndex, CreateError> {
         let filepath_os_path = filepath.as_ref().as_os_str();
-        let mut directory = InnerIndex {
+        let directory = InnerIndex {
             index_path: PathBuf::from(&filepath_os_path),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: None,
@@ -229,7 +228,7 @@ impl InnerIndex {
     pub fn create_from_tempdir() -> Result<InnerIndex, IOError> {
         let tempdir = try!(create_tempdir());
         let tempdir_path = PathBuf::from(tempdir.path());
-        let mut directory = InnerIndex {
+        let directory = InnerIndex {
             index_path: PathBuf::from(tempdir_path),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: Some(tempdir)
@@ -238,7 +237,7 @@ impl InnerIndex {
     }
 
     pub fn open<P: AsRef<Path>>(filepath: &P) -> Result<InnerIndex, IOError> {
-        let mut directory = InnerIndex {
+        let directory = InnerIndex {
             index_path: PathBuf::from(filepath.as_ref().as_os_str()),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: None,
