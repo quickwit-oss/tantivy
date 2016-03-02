@@ -1,17 +1,18 @@
 use std::io::BufWriter;
-use std::fs::File;
+use core::directory::WritePtr;
 use std::cell::RefCell;
 use core::schema::DocId;
 use core::schema::Document;
 use core::schema::FieldValue;
+use std::ops::DerefMut;
 use core::serialize::BinarySerializable;
+use core::directory::ReadOnlySource;
 use std::io::Write;
 use std::io::Read;
 use std::io::Cursor;
 use std::io::Error as IOError;
 use std::io;
 use std::io::SeekFrom;
-use fst::raw::MmapReadOnly;
 use std::io::Seek;
 use lz4;
 
@@ -23,7 +24,7 @@ pub struct StoreWriter {
     doc: DocId,
     offsets: Vec<OffsetIndex>, // TODO have a better index.
     written: u64,
-    writer: BufWriter<File>,
+    writer: WritePtr,
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
@@ -45,12 +46,12 @@ impl BinarySerializable for OffsetIndex {
 
 impl StoreWriter {
 
-    pub fn new(file: File) -> StoreWriter {
+    pub fn new(writer: WritePtr) -> StoreWriter {
         StoreWriter {
             doc: 0,
             written: 0,
             offsets: Vec::new(),
-            writer: BufWriter::new(file),
+            writer: writer,
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
         }
@@ -93,6 +94,7 @@ impl StoreWriter {
             self.write_and_compress_block();
         }
         let header_offset: u64 = self.written;
+        //let writer_mutref: &mut Write = self.writer.deref_mut();
         self.offsets.serialize(&mut self.writer);
         header_offset.serialize(&mut self.writer);
         self.writer.flush()
@@ -102,13 +104,13 @@ impl StoreWriter {
 
 
 pub struct StoreReader {
-    data: MmapReadOnly,
+    data: ReadOnlySource,
     offsets: Vec<OffsetIndex>,
     current_block: RefCell<Vec<u8>>,
 }
 
 impl StoreReader {
-    fn read_header(data: &MmapReadOnly) -> Vec<OffsetIndex> {
+    fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
         let mut cursor = Cursor::new(unsafe {data.as_slice()} );
         cursor.seek(SeekFrom::End(-8));
@@ -160,7 +162,7 @@ impl StoreReader {
         Document::from(field_values)
     }
 
-    pub fn new(data: MmapReadOnly) -> StoreReader {
+    pub fn new(data: ReadOnlySource) -> StoreReader {
         let offsets = StoreReader::read_header(&data);
         StoreReader {
             data: data,
@@ -180,21 +182,19 @@ mod tests {
     use rand::SeedableRng;
     use rand::StdRng;
     use std::io::Write;
-    use tempfile;
+    use std::path::PathBuf;
     use core::schema::Schema;
     use core::schema::FieldOptions;
     use core::schema::FieldValue;
-    use fst::raw::MmapReadOnly;
-    use std::fs::File;
+    use core::directory::{RAMDirectory, Directory, MmapDirectory, WritePtr, ReadOnlySource};
 
-
-    fn write_lorem_ipsum_store(store_file: File) -> Schema {
+    fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
         let mut schema = Schema::new();
         let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
         let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
         let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
         {
-            let mut store_writer = StoreWriter::new(store_file);
+            let mut store_writer = StoreWriter::new(writer);
             for i in 0..1000 {
                 let mut fields: Vec<FieldValue> = Vec::new();
                 {
@@ -219,14 +219,17 @@ mod tests {
         }
         schema
     }
-    #[test]
 
+
+    #[test]
     fn test_store() {
-        let store_file = tempfile::NamedTempFile::new().unwrap();
-        let mut schema = write_lorem_ipsum_store(store_file.reopen().unwrap());
+        let path = PathBuf::from("store");
+        let mut directory = RAMDirectory::create().unwrap();
+        let store_file = directory.open_write(&path).unwrap();
+        let mut schema = write_lorem_ipsum_store(store_file);
         let field_title = schema.field("title").unwrap();
-        let store_mmap = MmapReadOnly::open(&store_file).unwrap();
-        let store = StoreReader::new(store_mmap);
+        let store_source = directory.open_read(&path).unwrap();
+        let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
             assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
         }
@@ -234,23 +237,24 @@ mod tests {
 
     #[bench]
     fn bench_store_encode(b: &mut Bencher) {
-        let mut store_file = tempfile::NamedTempFile::new().unwrap();
+        let mut directory = MmapDirectory::create_from_tempdir().unwrap();
+        let path = PathBuf::from("store");
         b.iter(|| {
-            write_lorem_ipsum_store(store_file.reopen().unwrap());
+            write_lorem_ipsum_store(directory.open_write(&path).unwrap());
         });
     }
 
 
-        #[bench]
-        fn bench_store_decode(b: &mut Bencher) {
+    #[bench]
+    fn bench_store_decode(b: &mut Bencher) {
+        let mut directory = MmapDirectory::create_from_tempdir().unwrap();
+        let path = PathBuf::from("store");
+        write_lorem_ipsum_store(directory.open_write(&path).unwrap());
+        let store_source = directory.open_read(&path).unwrap();
+        let store = StoreReader::new(store_source);
+        b.iter(|| {
+            store.get(&12);
+        });
 
-            let store_file = tempfile::NamedTempFile::new().unwrap();
-            write_lorem_ipsum_store(store_file.reopen().unwrap());
-            let store_mmap = MmapReadOnly::open(&store_file).unwrap();
-            let store = StoreReader::new(store_mmap);
-            b.iter(|| {
-                store.get(&12);
-            });
-
-        }
+    }
 }

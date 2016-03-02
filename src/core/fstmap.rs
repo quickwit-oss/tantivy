@@ -60,6 +60,22 @@ pub struct FstMap<V: BinarySerializable> {
 
 impl<V: BinarySerializable> FstMap<V> {
 
+    pub fn from_bytes(data: Vec<u8>) -> io::Result<FstMap<V>> {
+        panic!("FstMap from bytes is not implemented");
+        // let mut cursor = Cursor::new(data.as_slice());
+        // try!(cursor.seek(io::SeekFrom::End(-4)));
+        // let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
+        // let split_len = data.len() - 4 - footer_size;
+        // let fst_data = cpdata.slice(0, );
+        // let values_mmap = mmap.range(split_len, footer_size);
+        // let fst = try!(fst::raw::Fst::from_mmap(fst_mmap).map_err(convert_fst_error));
+        // Ok(FstMap {
+        //     fst_index: fst::Map::from(fst),
+        //     values_mmap: values_mmap,
+        //     _phantom_: PhantomData,
+        // })
+    }
+
     pub fn open(mmap: MmapReadOnly) -> io::Result<FstMap<V>> {
         //let mmap = try!(MmapReadOnly::open(&file));
         let mut cursor = Cursor::new(unsafe {mmap.as_slice()});

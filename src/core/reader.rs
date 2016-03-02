@@ -6,7 +6,9 @@ use fst;
 use core::postings::IntersectionPostings;
 use byteorder::{BigEndian, ReadBytesExt};
 use core::serialize::BinarySerializable;
+use core::directory::ReadOnlySource;
 use std::io::Cursor;
+use fst::raw::Fst;
 use core::schema::DocId;
 use core::index::SegmentComponent;
 use fst::raw::MmapReadOnly;
@@ -23,7 +25,7 @@ use core::fstmap::FstMap;
 pub struct SegmentReader {
     segment: Segment,
     term_offsets: FstMap<TermInfo>,
-    postings_data: MmapReadOnly,
+    postings_data: ReadOnlySource,
     store_reader: StoreReader,
 }
 
@@ -94,6 +96,14 @@ impl Iterator for SegmentPostings {
     }
 }
 
+
+fn open_fst_map(source: ReadOnlySource) -> io::Result<FstMap<TermInfo>> {
+    match source {
+        ReadOnlySource::Mmap(mmap) => FstMap::open(mmap),
+        ReadOnlySource::Anonymous(data) => FstMap::from_bytes(data),
+    }
+}
+
 impl SegmentReader {
 
     pub fn id(&self,) -> SegmentId {
@@ -101,10 +111,10 @@ impl SegmentReader {
     }
 
     pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
-        let term_shared_mmap = try!(segment.mmap(SegmentComponent::TERMS));
-        let term_offsets = try!(FstMap::open(term_shared_mmap));
-        let store_reader = StoreReader::new(try!(segment.mmap(SegmentComponent::STORE)));
-        let postings_shared_mmap = try!(segment.mmap(SegmentComponent::POSTINGS));
+        let term_shared_mmap = try!(segment.open_read(SegmentComponent::TERMS));
+        let term_offsets = try!(open_fst_map(term_shared_mmap));
+        let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
+        let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,

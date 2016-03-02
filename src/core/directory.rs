@@ -28,6 +28,12 @@ impl Deref for ReadOnlySource {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
+impl ReadOnlySource {
+    pub fn as_slice(&self,) -> &[u8] {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { mmap_read_only.as_slice() },
             ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
@@ -35,19 +41,21 @@ impl Deref for ReadOnlySource {
     }
 }
 
-#[derive(Debug)]
-pub enum CreateError {
-    RootDirectoryDoesNotExist,
-    DirectoryAlreadyExists,
-    CannotCreateTempDirectory(io::Error),
-}
+//
+// #[derive(Debug)]
+// pub enum CreateError {
+//     RootDirectoryDoesNotExist,
+//     DirectoryAlreadyExists,
+//     CannotCreateTempDirectory(io::Error),
+// }
 
 pub trait Directory: fmt::Debug {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource>;
     fn open_write(&mut self, path: &Path) -> io::Result<Box<Write>>;
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
+    fn sync(&self, path: &Path) -> io::Result<()>;
+    fn sync_directory(&self,) -> io::Result<()>;
 }
-
 
 pub type WritePtr = Box<Write>;
 
@@ -71,9 +79,9 @@ impl fmt::Debug for MmapDirectory {
 
 impl MmapDirectory {
 
-    pub fn create_tempdir() -> Result<MmapDirectory, CreateError> {
+    pub fn create_from_tempdir() -> io::Result<MmapDirectory> {
         // TODO error management
-        let tempdir = try!(TempDir::new("index").map_err(CreateError::CannotCreateTempDirectory));
+        let tempdir = try!(TempDir::new("index"));
         let tempdir_path = PathBuf::from(tempdir.path());
         let mut directory = MmapDirectory {
             root_path: PathBuf::from(tempdir_path),
@@ -83,9 +91,8 @@ impl MmapDirectory {
         Ok(directory)
     }
 
-    pub fn create(filepath: &Path) -> Result<MmapDirectory, CreateError> {
+    pub fn create(filepath: &Path) -> io::Result<MmapDirectory> {
         Ok(MmapDirectory {
-
             root_path: PathBuf::from(filepath),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: None
@@ -95,6 +102,8 @@ impl MmapDirectory {
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.root_path.join(relative_path)
     }
+
+
 }
 
 impl Directory for MmapDirectory {
@@ -124,6 +133,15 @@ impl Directory for MmapDirectory {
             f.write_all(data)
         });
         Ok(())
+    }
+
+    fn sync(&self, path: &Path) -> io::Result<()> {
+        let full_path = self.resolve_path(path);
+        File::open(&full_path).and_then(|fd| fd.sync_all())
+    }
+
+    fn sync_directory(&self,) -> io::Result<()> {
+        File::open(&self.root_path).and_then(|fd| fd.sync_all())
     }
 }
 
@@ -166,7 +184,7 @@ impl fmt::Debug for RAMDirectory {
 }
 
 impl RAMDirectory {
-    pub fn create() -> Result<RAMDirectory, CreateError> {
+    pub fn create() -> io::Result<RAMDirectory> {
         Ok(RAMDirectory {
             fs: HashMap::new()
         })
@@ -198,6 +216,14 @@ impl Directory for RAMDirectory {
         });
         Ok(())
     }
+
+    fn sync(&self, path: &Path) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn sync_directory(&self,) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 
@@ -217,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_mmap_directory() {
-        let mut mmap_directory = MmapDirectory::create_tempdir().unwrap();
+        let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         test_directory(&mut mmap_directory);
     }
 

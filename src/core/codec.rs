@@ -1,4 +1,5 @@
 use core::serial::*;
+use core::directory::WritePtr;
 use fst::MapBuilder;
 use std::io;
 use std::io::Error as IOError;
@@ -44,9 +45,9 @@ pub struct SimpleCodec;
 pub struct SimpleSegmentSerializer {
     segment: Segment,
     written_bytes_postings: usize,
-    postings_write: File,
+    postings_write: WritePtr,
     store_writer: StoreWriter,
-    term_fst_builder: FstMapBuilder<File, TermInfo>, // TODO find an alternative to work around the "move"
+    term_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
     encoder: simdcompression::Encoder,
 }
 
@@ -97,9 +98,9 @@ impl SimpleCodec {
     // TODO skip lists
     // TODO make that part of the codec API
     pub fn serializer(segment: &Segment) -> Result<SimpleSegmentSerializer, IOError>  {
-        let term_write = try!(segment.open_writable(SegmentComponent::TERMS));
-        let postings_write = try!(segment.open_writable(SegmentComponent::POSTINGS));
-        let store_write = try!(segment.open_writable(SegmentComponent::STORE));
+        let term_write = try!(segment.open_write(SegmentComponent::TERMS));
+        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
+        let store_write = try!(segment.open_write(SegmentComponent::STORE));
         let term_fst_builder_result = FstMapBuilder::new(term_write);
         let term_fst_builder = term_fst_builder_result.unwrap();
         Ok(SimpleSegmentSerializer {
