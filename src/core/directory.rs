@@ -39,6 +39,19 @@ impl ReadOnlySource {
             ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
         }
     }
+
+    pub fn slice(&self, from_offset:usize, to_offset:usize) -> ReadOnlySource {
+        match *self {
+            ReadOnlySource::Mmap(ref mmap_read_only) => {
+                let sliced_mmap = mmap_read_only.range(from_offset, to_offset - from_offset);
+                ReadOnlySource::Mmap(sliced_mmap)
+            }
+            ReadOnlySource::Anonymous(ref shared_vec) => {
+                let sliced_data: Vec<u8> = Vec::from(&shared_vec[from_offset..to_offset]);
+                ReadOnlySource::Anonymous(sliced_data)
+            },
+        }
+    }
 }
 
 //

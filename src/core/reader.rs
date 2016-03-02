@@ -97,13 +97,6 @@ impl Iterator for SegmentPostings {
 }
 
 
-fn open_fst_map(source: ReadOnlySource) -> io::Result<FstMap<TermInfo>> {
-    match source {
-        ReadOnlySource::Mmap(mmap) => FstMap::open(mmap),
-        ReadOnlySource::Anonymous(data) => FstMap::from_bytes(data),
-    }
-}
-
 impl SegmentReader {
 
     pub fn id(&self,) -> SegmentId {
@@ -111,8 +104,8 @@ impl SegmentReader {
     }
 
     pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
-        let term_shared_mmap = try!(segment.open_read(SegmentComponent::TERMS));
-        let term_offsets = try!(open_fst_map(term_shared_mmap));
+        let source = try!(segment.open_read(SegmentComponent::TERMS));
+        let term_offsets = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         Ok(SegmentReader {

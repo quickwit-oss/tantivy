@@ -4,7 +4,8 @@ use std::io::Write;
 use std::io::Cursor;
 use std::fs::File;
 use fst;
-use fst::raw::MmapReadOnly;
+use fst::raw::Fst;
+use core::directory::ReadOnlySource;
 use core::serialize::BinarySerializable;
 use std::marker::PhantomData;
 
@@ -50,44 +51,36 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
     }
 }
 
-
 pub struct FstMap<V: BinarySerializable> {
     fst_index: fst::Map,
-    values_mmap: MmapReadOnly,
+    values_mmap: ReadOnlySource,
     _phantom_: PhantomData<V>,
 }
 
 
+fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
+    Ok(fst::Map::from(match source {
+        ReadOnlySource::Anonymous(data) => try!(Fst::from_bytes(data).map_err(convert_fst_error)),
+        ReadOnlySource::Mmap(mmap_readonly) => try!(Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)),
+    }))
+}
+
 impl<V: BinarySerializable> FstMap<V> {
 
-    pub fn from_bytes(data: Vec<u8>) -> io::Result<FstMap<V>> {
-        panic!("FstMap from bytes is not implemented");
-        // let mut cursor = Cursor::new(data.as_slice());
-        // try!(cursor.seek(io::SeekFrom::End(-4)));
-        // let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
-        // let split_len = data.len() - 4 - footer_size;
-        // let fst_data = cpdata.slice(0, );
-        // let values_mmap = mmap.range(split_len, footer_size);
-        // let fst = try!(fst::raw::Fst::from_mmap(fst_mmap).map_err(convert_fst_error));
-        // Ok(FstMap {
-        //     fst_index: fst::Map::from(fst),
-        //     values_mmap: values_mmap,
-        //     _phantom_: PhantomData,
-        // })
-    }
 
-    pub fn open(mmap: MmapReadOnly) -> io::Result<FstMap<V>> {
-        //let mmap = try!(MmapReadOnly::open(&file));
-        let mut cursor = Cursor::new(unsafe {mmap.as_slice()});
+    pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
+        println!("Source Len : {}", source.as_slice().len());
+        let mut cursor = Cursor::new(source.as_slice());
         try!(cursor.seek(io::SeekFrom::End(-4)));
         let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
-        let split_len = mmap.len() - 4 - footer_size;
-        let fst_mmap = mmap.range(0, split_len);
-        let values_mmap = mmap.range(split_len, footer_size);
-        let fst = try!(fst::raw::Fst::from_mmap(fst_mmap).map_err(convert_fst_error));
+        println!("Cursor : {}", footer_size);
+        let split_len = source.len() - 4 - footer_size;
+        let fst_source = source.slice(0, split_len);
+        let values_source = source.slice(split_len, source.len() - 4);
+        let fst_index = try!(open_fst_index(fst_source));
         Ok(FstMap {
-            fst_index: fst::Map::from(fst),
-            values_mmap: values_mmap,
+            fst_index: fst_index,
+            values_mmap: values_source,
             _phantom_: PhantomData,
         })
     }
@@ -103,24 +96,25 @@ impl<V: BinarySerializable> FstMap<V> {
     }
 }
 
-
 mod tests {
     use super::*;
     use tempfile;
-    use fst::raw::MmapReadOnly;
+    use core::directory::{MmapDirectory, RAMDirectory, Directory};
+    use std::path::PathBuf;
 
     #[test]
     fn test_fstmap() {
-        let fstmap_file;
+        let mut directory = RAMDirectory::create().unwrap();
+        let path = PathBuf::from("fstmap");
         {
-            let tempfile = tempfile::tempfile().unwrap(); // 41
-            let mut fstmap_builder = FstMapBuilder::new(tempfile).unwrap();
+            let write = directory.open_write(&path).unwrap();
+            let mut fstmap_builder = FstMapBuilder::new(write).unwrap();
             fstmap_builder.insert("abc".as_bytes(), &34u32).unwrap();
             fstmap_builder.insert("abcd".as_bytes(), &346u32).unwrap();
-            fstmap_file = fstmap_builder.finish().unwrap();
+            fstmap_builder.finish().unwrap();
         }
-        let fst_mmap = MmapReadOnly::open(&fstmap_file).unwrap();
-        let fstmap = FstMap::open(fst_mmap).unwrap();
+        let source = directory.open_read(&path).unwrap();
+        let fstmap = FstMap::from_source(source).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
     }
