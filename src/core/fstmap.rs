@@ -95,6 +95,7 @@ impl<V: BinarySerializable> FstMap<V> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::{FstMapBuilder, FstMap};
     use core::directory::{RAMDirectory, Directory};

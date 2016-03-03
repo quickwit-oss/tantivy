@@ -65,7 +65,7 @@ impl Collector for CountCollector {
     fn set_segment(&mut self, segment: &SegmentReader) {
     }
 
-    fn collect(&mut self, doc_id: DocId) {
+    fn collect(&mut self, _: DocId) {
         self.count += 1;
     }
 }

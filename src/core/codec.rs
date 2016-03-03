@@ -113,7 +113,7 @@ impl SimpleCodec {
 
 
     pub fn write<I: SerializableSegment>(index: &I, segment: &Segment) -> Result<(), IOError> {
-        let mut serializer = try!(SimpleCodec::serializer(segment));
+        let serializer = try!(SimpleCodec::serializer(segment));
         index.write(serializer)
     }
 }

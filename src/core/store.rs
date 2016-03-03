@@ -110,7 +110,7 @@ pub struct StoreReader {
 impl StoreReader {
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
-        let mut cursor = Cursor::new(unsafe {data.as_slice()} );
+        let mut cursor = Cursor::new(data.as_slice());
         cursor.seek(SeekFrom::End(-8));
         let offset = u64::deserialize(&mut cursor).unwrap();
         cursor.seek(SeekFrom::Start(offset));
@@ -180,7 +180,7 @@ mod tests {
     use core::schema::Schema;
     use core::schema::FieldOptions;
     use core::schema::FieldValue;
-    use core::directory::{RAMDirectory, Directory, MmapDirectory, WritePtr, ReadOnlySource};
+    use core::directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
         let mut schema = Schema::new();
