@@ -1,16 +1,11 @@
 use std::path::{PathBuf, Path};
-use std::collections::HashMap;
-use std::fs;
 use std::io;
 use core::schema::Schema;
 use std::io::Write;
-use std::borrow::BorrowMut;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
-use std::cell::RefCell;
 use rand::{thread_rng, Rng};
 use rustc_serialize::json;
-use std::error;
 use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
 use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
@@ -64,18 +59,20 @@ pub struct Index {
     directory: Arc<RwLock<DirectoryPtr>>,
 }
 
-fn could_not_acquire_lock<E>(e: E) -> io::Error {
+fn could_not_acquire_lock<E>(_: E) -> io::Error {
     io::Error::new(IOErrorKind::Other, "Could not acquire read lock on directory")
 }
-
-
-struct IndexError;
 
 lazy_static! {
     static ref  META_FILEPATH: PathBuf = PathBuf::from("meta.json");
 }
 
 impl Index {
+
+    pub fn create_in_ram(schema: Schema) -> Index {
+        let directory = Box::new(RAMDirectory::create());
+        Index::from_directory(directory, schema)
+    }
 
     pub fn create(directory_path: &Path, schema: Schema) -> io::Result<Index> {
         let directory = Box::new(try!(MmapDirectory::create(directory_path)));
@@ -114,7 +111,7 @@ impl Index {
         self.metas.read().unwrap().schema.clone()
     }
 
-    fn get_write(&mut self) -> io::Result<RwLockWriteGuard<DirectoryPtr>> {
+    fn rw_directory(&mut self) -> io::Result<RwLockWriteGuard<DirectoryPtr>> {
         self.directory
             .write()
             .map_err(|e| io::Error::new(IOErrorKind::Other,
@@ -122,7 +119,7 @@ impl Index {
                 It can happen if another thread panicked! Error was: {:?}", e) ))
     }
 
-    fn get_read(&self) -> io::Result<RwLockReadGuard<DirectoryPtr>> {
+    fn ro_directory(&self) -> io::Result<RwLockReadGuard<DirectoryPtr>> {
         self.directory
             .read()
             .map_err(|e| io::Error::new(IOErrorKind::Other,
@@ -131,11 +128,9 @@ impl Index {
     }
 
 
-
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: Segment) -> io::Result<()> {
-        println!("publish segment {:?}", segment);
         self.metas.write().unwrap().segments.push(segment.segment_id.0.clone());
         // TODO use logs
         self.save_metas()
@@ -144,15 +139,10 @@ impl Index {
     pub fn sync(&mut self, segment: Segment) -> io::Result<()> {
         for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
             let path = segment.relative_path(component);
-            let directory = try!(self.directory
-                .read()
-                .map_err(could_not_acquire_lock));
+            let directory = try!(self.ro_directory());
             try!(directory.sync(&path));
         }
-        let directory = try!(self.directory
-            .read()
-            .map_err(could_not_acquire_lock));
-        directory.sync_directory()
+        try!(self.ro_directory()).sync_directory()
     }
 
     pub fn segments(&self,) -> Vec<Segment> {
@@ -187,11 +177,7 @@ impl Index {
     }
 
     pub fn load_metas(&mut self,) -> io::Result<()> {
-        let meta_file = try!(
-            self.directory
-                .read()
-                .map_err(could_not_acquire_lock)
-                .and_then(|d| d.open_read(&META_FILEPATH)));
+        let meta_file = try!(self.ro_directory().and_then(|d| d.open_read(&META_FILEPATH)));
         let meta_content = String::from_utf8_lossy(meta_file.as_slice());
         let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
         self.metas.write().unwrap().clone_from(&loaded_meta);
@@ -258,7 +244,7 @@ impl Segment {
 }
 
 
-
+#[cfg(test)]
 mod test {
 
     use super::*;

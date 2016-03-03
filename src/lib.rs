@@ -34,6 +34,7 @@ pub use core::schema::Document;
 pub use core::collector;
 pub use core::reader::SegmentReader;
 
+#[cfg(test)]
 mod tests {
 
     use super::*;
@@ -59,7 +60,7 @@ mod tests {
 
     impl Collector for TestCollector {
 
-        fn set_segment(&mut self, segment: &SegmentReader) {}
+        fn set_segment(&mut self, _: &SegmentReader) {}
 
         fn collect(&mut self, doc_id: DocId) {
             self.docs.push(doc_id);
@@ -101,9 +102,10 @@ mod tests {
             let commit_result = index_writer.commit();
             assert!(commit_result.is_ok());
             let segment = commit_result.unwrap();
-            let segment_reader = SegmentReader::open(segment).unwrap();
-            // TODO ENABLE TEST
+            SegmentReader::open(segment).unwrap();
 
+            // let segment_reader = SegmentReader::open(segment).unwrap();
+            // TODO ENABLE TEST
             // let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
             // assert_eq!(segment_str_before_writing, segment_str_after_reading);
         }
@@ -137,7 +139,7 @@ mod tests {
                 index_writer.add(doc);
             }
             let commit_result = index_writer.commit();
-            let segment = commit_result.unwrap();
+            commit_result.unwrap();
         }
         println!("index {:?}", index.schema());
         {

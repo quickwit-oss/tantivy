@@ -1,5 +1,3 @@
-#![feature(test)]
-
 use core::schema::DocId;
 use core::reader::SegmentReader;
 use core::index::SegmentId;

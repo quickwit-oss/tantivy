@@ -1,10 +1,8 @@
-use std::io::BufWriter;
 use core::directory::WritePtr;
 use std::cell::RefCell;
 use core::schema::DocId;
 use core::schema::Document;
 use core::schema::FieldValue;
-use std::ops::DerefMut;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use std::io::Write;
@@ -135,7 +133,7 @@ impl StoreReader {
     fn read_block(&self, block_offset: usize) {
         let mut current_block_mut = self.current_block.borrow_mut();
         current_block_mut.clear();
-        let total_buffer = unsafe {self.data.as_slice()};
+        let total_buffer = self.data.as_slice();
         let mut cursor = Cursor::new(&total_buffer[block_offset..]);
         let block_length = u32::deserialize(&mut cursor).unwrap();
         let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
@@ -178,10 +176,6 @@ mod tests {
 
     use super::*;
     use test::Bencher;
-    use rand::Rng;
-    use rand::SeedableRng;
-    use rand::StdRng;
-    use std::io::Write;
     use std::path::PathBuf;
     use core::schema::Schema;
     use core::schema::FieldOptions;
@@ -224,9 +218,9 @@ mod tests {
     #[test]
     fn test_store() {
         let path = PathBuf::from("store");
-        let mut directory = RAMDirectory::create().unwrap();
+        let mut directory = RAMDirectory::create();
         let store_file = directory.open_write(&path).unwrap();
-        let mut schema = write_lorem_ipsum_store(store_file);
+        let schema = write_lorem_ipsum_store(store_file);
         let field_title = schema.field("title").unwrap();
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);

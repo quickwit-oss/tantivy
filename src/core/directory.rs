@@ -1,6 +1,5 @@
 use std::io::BufWriter;
 use std::io;
-use std::fmt::Arguments;
 use std::io::Write;
 use std::fs::File;
 use std::fmt;
@@ -10,7 +9,6 @@ use fst::raw::MmapReadOnly;
 use atomicwrites;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::rc::Rc;
 use tempdir::TempDir;
 use std::cell::RefCell;
 use std::ops::Deref;
@@ -197,10 +195,10 @@ impl fmt::Debug for RAMDirectory {
 }
 
 impl RAMDirectory {
-    pub fn create() -> io::Result<RAMDirectory> {
-        Ok(RAMDirectory {
+    pub fn create() -> RAMDirectory {
+        RAMDirectory {
             fs: HashMap::new()
-        })
+        }
     }
 }
 
@@ -250,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_ram_directory() {
-        let mut ram_directory = RAMDirectory::create().unwrap();
+        let mut ram_directory = RAMDirectory::create();
         test_directory(&mut ram_directory);
     }
 

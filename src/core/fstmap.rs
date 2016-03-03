@@ -2,7 +2,6 @@ use std::io;
 use std::io::Seek;
 use std::io::Write;
 use std::io::Cursor;
-use std::fs::File;
 use fst;
 use fst::raw::Fst;
 use core::directory::ReadOnlySource;
@@ -89,7 +88,7 @@ impl<V: BinarySerializable> FstMap<V> {
         self.fst_index
             .get(key)
             .map(|offset| {
-                let buffer = unsafe { self.values_mmap.as_slice()};
+                let buffer = self.values_mmap.as_slice();
                 let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
                 V::deserialize(&mut cursor).unwrap()
             })
@@ -97,14 +96,13 @@ impl<V: BinarySerializable> FstMap<V> {
 }
 
 mod tests {
-    use super::*;
-    use tempfile;
-    use core::directory::{MmapDirectory, RAMDirectory, Directory};
+    use super::{FstMapBuilder, FstMap};
+    use core::directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
 
     #[test]
     fn test_fstmap() {
-        let mut directory = RAMDirectory::create().unwrap();
+        let mut directory = RAMDirectory::create();
         let path = PathBuf::from("fstmap");
         {
             let write = directory.open_write(&path).unwrap();
