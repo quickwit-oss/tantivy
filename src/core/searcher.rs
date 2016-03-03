@@ -6,9 +6,9 @@ use core::schema::DocId;
 use core::schema::Document;
 use core::collector::Collector;
 use std::collections::HashMap;
+use std::io;
 use core::schema::Term;
-use std::io::Error as IOError;
-use std::io::ErrorKind as IOErrorKind;
+
 
 pub struct Searcher {
     segments: Vec<SegmentReader>,
@@ -28,7 +28,7 @@ impl Searcher {
         segment_reader.get_doc(doc_id)
     }
 
-    fn add_segment(&mut self, segment: Segment) -> Result<(), IOError> {
+    fn add_segment(&mut self, segment: Segment) -> io::Result<()> {
         SegmentReader::open(segment.clone())
             .map(|segment_reader| {
                 let segment_ord = self.segments.len();

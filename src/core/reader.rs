@@ -4,15 +4,12 @@ use core::store::StoreReader;
 use core::schema::Document;
 use core::postings::IntersectionPostings;
 use byteorder::{BigEndian, ReadBytesExt};
-use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use std::io::Cursor;
 use core::schema::DocId;
 use core::index::SegmentComponent;
 use core::postings::Postings;
 use core::simdcompression::Decoder;
-use std::io::Error as IOError;
-use std::io::ErrorKind;
 use std::io;
 use core::codec::TermInfo;
 use core::fstmap::FstMap;
@@ -100,7 +97,7 @@ impl SegmentReader {
         self.segment.id()
     }
 
-    pub fn open(segment: Segment) -> Result<SegmentReader, IOError> {
+    pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_offsets = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
@@ -118,7 +115,7 @@ impl SegmentReader {
     }
 
     pub fn read_postings(&self, offset: usize) -> SegmentPostings {
-        let postings_data = unsafe {&self.postings_data.as_slice()[offset..]};
+        let postings_data = &self.postings_data.as_slice()[offset..];
         SegmentPostings::from_data(&postings_data)
     }
 

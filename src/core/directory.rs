@@ -93,7 +93,7 @@ impl MmapDirectory {
         // TODO error management
         let tempdir = try!(TempDir::new("index"));
         let tempdir_path = PathBuf::from(tempdir.path());
-        let mut directory = MmapDirectory {
+        let directory = MmapDirectory {
             root_path: PathBuf::from(tempdir_path),
             mmap_cache: RefCell::new(HashMap::new()),
             _temp_directory: Some(tempdir)

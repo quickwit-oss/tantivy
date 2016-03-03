@@ -1,9 +1,6 @@
 use core::serial::*;
 use core::directory::WritePtr;
-use fst::MapBuilder;
 use std::io;
-use std::io::Error as IOError;
-use std::io::ErrorKind as IOErrorKind;
 use byteorder::BigEndian;
 use core::index::Segment;
 use core::index::SegmentComponent;
@@ -63,7 +60,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         self.store_writer.store(&field_values);
     }
 
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), IOError> {
+    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         let term_info = TermInfo {
             doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
@@ -73,7 +70,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn write_docs(&mut self, doc_ids: &[DocId]) -> Result<(), IOError> {
+    fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
         // TODO write_all transmuted [u8]
         let docs_data = self.encoder.encode_sorted(doc_ids);
         self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
@@ -83,7 +80,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn close(mut self,) -> Result<(), IOError> {
+    fn close(mut self,) -> io::Result<()> {
         // TODO handle errors on close
         try!(self.term_fst_builder
                  .finish());
@@ -95,7 +92,7 @@ impl SimpleCodec {
     // TODO impl packed int
     // TODO skip lists
     // TODO make that part of the codec API
-    pub fn serializer(segment: &Segment) -> Result<SimpleSegmentSerializer, IOError>  {
+    pub fn serializer(segment: &Segment) -> io::Result<SimpleSegmentSerializer>  {
         let term_write = try!(segment.open_write(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
@@ -112,7 +109,7 @@ impl SimpleCodec {
     }
 
 
-    pub fn write<I: SerializableSegment>(index: &I, segment: &Segment) -> Result<(), IOError> {
+    pub fn write<I: SerializableSegment>(index: &I, segment: &Segment) -> io::Result<()> {
         let serializer = try!(SimpleCodec::serializer(segment));
         index.write(serializer)
     }

@@ -59,10 +59,6 @@ pub struct Index {
     directory: Arc<RwLock<DirectoryPtr>>,
 }
 
-fn could_not_acquire_lock<E>(_: E) -> io::Error {
-    io::Error::new(IOErrorKind::Other, "Could not acquire read lock on directory")
-}
-
 lazy_static! {
     static ref  META_FILEPATH: PathBuf = PathBuf::from("meta.json");
 }
@@ -184,13 +180,12 @@ impl Index {
         Ok(())
     }
 
-    pub fn save_metas(&self,) -> io::Result<()> {
-        let metas_lock = self.metas.read().unwrap();
-        let encoded = json::encode(&*metas_lock).unwrap();
-        try!(self.directory
-            .write()
-            .map_err(could_not_acquire_lock)
-        ).atomic_write(&META_FILEPATH, encoded.as_bytes())
+    pub fn save_metas(&mut self,) -> io::Result<()> {
+        let encoded = {
+            let metas_lock = self.metas.read().unwrap();
+            json::encode(&*metas_lock).unwrap()
+        };
+        try!(self.rw_directory()).atomic_write(&META_FILEPATH, encoded.as_bytes())
     }
 }
 

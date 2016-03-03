@@ -28,7 +28,7 @@ impl fmt::Debug for DebugSegmentSerializer {
 impl DebugSegmentSerializer {
 
     pub fn debug_string<S: SerializableSegment>(index: &S) -> String {
-        let mut serializer = DebugSegmentSerializer::new();
+        let serializer = DebugSegmentSerializer::new();
         index.write(serializer).unwrap()
     }
 
@@ -42,7 +42,7 @@ impl DebugSegmentSerializer {
 
 impl SegmentSerializer<String> for DebugSegmentSerializer {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), io::Error> {
-        self.text.push_str(&format!("{:?}\n", term));
+        self.text.push_str(&format!("{:?} - docfreq{}\n", term, doc_freq));
         Ok(())
     }
 
