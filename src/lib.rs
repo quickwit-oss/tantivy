@@ -23,22 +23,22 @@ extern crate lz4;
 
 #[cfg(test)] extern crate test;
 
-pub mod core;
+mod core;
 
 pub use core::schema::DocId;
 pub use core::index::Index;
 pub use core::schema::Schema;
+pub use core::schema::Term;
 pub use core::schema::FieldOptions;
 pub use core::schema::Document;
-
+pub use core::collector;
+pub use core::reader::SegmentReader;
 
 mod tests {
 
     use super::*;
     use core::serial::DebugSegmentSerializer;
-    use core::reader::SegmentReader;
-    use core::schema::Term;
-    use core::collector::Collector;
+    use collector::Collector;
 
     // only make sense for a single segment
     struct TestCollector {
