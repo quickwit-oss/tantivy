@@ -14,6 +14,8 @@ use std::error;
 use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
 use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
+use core::writer::IndexWriter;
+use core::searcher::Searcher;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SegmentId(pub String);
@@ -91,6 +93,14 @@ impl Index {
         let mut index = Index::from_directory(directory_ptr, Schema::new());
         try!(index.load_metas()); //< does the directory already exists?
         Ok(index)
+    }
+
+    pub fn writer(&self,) -> IndexWriter {
+        IndexWriter::open(self,)
+    }
+
+    pub fn searcher(&self,) -> Searcher {
+        Searcher::for_index(self.clone())
     }
 
     fn from_directory(directory: DirectoryPtr, schema: Schema) -> Index {
@@ -245,4 +255,20 @@ impl Segment {
         let path = self.relative_path(&component);
         self.index.directory.write().unwrap().open_write(&path)
     }
+}
+
+
+
+mod test {
+
+    use super::*;
+    use regex::Regex;
+
+    #[test]
+    fn test_new_segment() {
+        let SegmentId(segment_name) = generate_segment_name();
+        let segment_ptn = Regex::new(r"^_[a-z0-9]{8}$").unwrap();
+        assert!(segment_ptn.is_match(&segment_name));
+    }
+
 }
