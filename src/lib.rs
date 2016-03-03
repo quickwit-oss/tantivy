@@ -23,4 +23,6 @@ extern crate lz4;
 
 #[cfg(test)] extern crate test;
 
-pub mod core;
+mod core;
+
+pub use core::index::Index;

@@ -1,10 +1,10 @@
 use std::io::Write;
 use std::collections::HashMap;
-use std::str;
 use std::slice;
 use std::fmt;
 use std::io;
 use std::io::Read;
+use std::str;
 use core::serialize::BinarySerializable;
 use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
@@ -35,6 +35,11 @@ impl FieldOptions {
     }
 
     pub fn set_stored(mut self,) -> FieldOptions {
+        self.stored = true;
+        self
+    }
+
+    pub fn set_docvalue(mut self,) -> FieldOptions {
         self.stored = true;
         self
     }

@@ -1,6 +1,5 @@
 use std::io::BufWriter;
 use std::io;
-use fst::raw::SharedVectorSlice;
 use std::fmt::Arguments;
 use std::io::Write;
 use std::fs::File;
@@ -136,7 +135,8 @@ impl Directory for MmapDirectory {
     fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
         let full_path = self.resolve_path(path);
         let file = try!(File::create(full_path));
-        Ok(Box::new(file))
+        let buf_writer = BufWriter::new(file);
+        Ok(Box::new(buf_writer))
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
