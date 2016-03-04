@@ -1,4 +1,4 @@
-#[cfg_attr(test, feature(test))]
+#![feature(test)]
 #[allow(unused_imports)]
 
 #[macro_use]

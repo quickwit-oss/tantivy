@@ -4,6 +4,7 @@ use std::io::Write;
 use std::io::Cursor;
 use fst;
 use fst::raw::Fst;
+use fst::Streamer;
 use core::directory::ReadOnlySource;
 use core::serialize::BinarySerializable;
 use std::marker::PhantomData;
@@ -64,8 +65,35 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     }))
 }
 
+struct FstMapIter<'a, V: 'static + BinarySerializable> {
+    streamer: fst::map::Stream<'a>,
+    fst_map: &'a FstMap<V>,
+    __phantom__: PhantomData<V>
+}
+
+impl<'a, V: 'static + BinarySerializable> Iterator for FstMapIter<'a, V> {
+
+    // type Item = (Vec<u8>, V);
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_item = self.streamer.next();
+        match next_item {
+            Some((key, offset)) => { Some(4u32) },
+            None => None
+        }
+    }
+}
+
 impl<V: BinarySerializable> FstMap<V> {
 
+    pub fn stream<'a>(&'a self,) -> FstMapIter<'a, V> {
+        FstMapIter {
+            streamer: self.fst_index.stream(),
+            fst_map: self,
+            __phantom__: PhantomData,
+        }
+    }
 
     pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
         println!("Source Len : {}", source.as_slice().len());
@@ -84,14 +112,16 @@ impl<V: BinarySerializable> FstMap<V> {
         })
     }
 
+    fn read_value(&self, offset: u64) -> V {
+        let buffer = self.values_mmap.as_slice();
+        let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
+        V::deserialize(&mut cursor).unwrap()
+    }
+
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
         self.fst_index
             .get(key)
-            .map(|offset| {
-                let buffer = self.values_mmap.as_slice();
-                let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
-                V::deserialize(&mut cursor).unwrap()
-            })
+            .map(|offset| self.read_value(offset))
     }
 }
 
@@ -100,6 +130,7 @@ mod tests {
     use super::{FstMapBuilder, FstMap};
     use core::directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
+    use fst::Streamer;
 
     #[test]
     fn test_fstmap() {
@@ -116,5 +147,37 @@ mod tests {
         let fstmap = FstMap::from_source(source).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
+        let mut stream = fstmap.stream();
+        let mut items = Vec::new();
+        {
+            stream.next();
+        }
+        {
+            stream.next();
+        }
+        // loop {
+        //     match stream.next() {
+        //         Some(it) => {
+        //             items.push(it);
+        //         }
+        //         None => {
+        //             break;
+        //         }
+        //     }
+        //
+        // }
+        // //
+        // {
+        //     let item = stream.next();
+        //     assert_eq!(item, Some((Vec::from("abc"), 34u32)) );
+        // }
+        // {
+        //     let item = stream.next();
+        //     assert_eq!(item, Some((Vec::from("abcd"), 346u32)) );
+        // }
+        // {
+        //     assert_eq!(stream.next(), None);
+        // }
     }
+
 }

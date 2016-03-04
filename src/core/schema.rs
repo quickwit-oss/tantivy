@@ -19,6 +19,7 @@ pub struct FieldOptions {
     // untokenized_indexed: bool,
     tokenized_indexed: bool,
     stored: bool,
+    doc_value: bool,
 }
 
 
@@ -40,7 +41,7 @@ impl FieldOptions {
     }
 
     pub fn set_docvalue(mut self,) -> FieldOptions {
-        self.stored = true;
+        self.doc_value = true;
         self
     }
 
@@ -51,6 +52,7 @@ impl FieldOptions {
 
     pub fn new() -> FieldOptions {
         FieldOptions {
+            doc_value: false,
             tokenized_indexed: false,
             stored: false,
         }

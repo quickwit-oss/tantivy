@@ -1,7 +1,7 @@
-use core::serial::*;
-use core::directory::WritePtr;
 use std::io;
-use byteorder::BigEndian;
+use std::io::{Read, Write};
+use core::serial::{SegmentSerializer, SerializableSegment};
+use core::directory::WritePtr;
 use core::index::Segment;
 use core::index::SegmentComponent;
 use core::schema::Term;
@@ -10,9 +10,8 @@ use core::fstmap::FstMapBuilder;
 use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
-use std::convert::From;
 use core::schema::FieldValue;
-use std::io::{Read, Write};
+
 
 #[derive(Debug)]
 pub struct TermInfo {

@@ -13,6 +13,8 @@ use core::simdcompression::Decoder;
 use std::io;
 use core::codec::TermInfo;
 use core::fstmap::FstMap;
+use core::serial::SegmentSerializer;
+use core::serial::SerializableSegment;
 
 // TODO file structure should be in codec
 
@@ -114,7 +116,7 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    pub fn read_postings(&self, offset: usize) -> SegmentPostings {
+    fn read_postings(&self, offset: usize) -> SegmentPostings {
         let postings_data = &self.postings_data.as_slice()[offset..];
         SegmentPostings::from_data(&postings_data)
     }
@@ -144,12 +146,12 @@ impl SegmentReader {
 
 }
 
-
-// fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> Result<()> {
+//
+// fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> io::Result<()> {
 //     // TODO remove allocation
-//     let docs = Vec::with_capacity(num_docs);
+//     let docs = Vec::with_capacity(num_docs as usize);
 //     for i in 0..num_docs {
-//         let doc_id = cursor.read_u32::<BigEndian>().unwrap();
+//         let doc_id = u32::serialize(&mut cursor);
 //         try!(serializer.add_doc(doc_id));
 //     }
 //     Ok(())
@@ -157,17 +159,15 @@ impl SegmentReader {
 //
 // impl SerializableSegment for SegmentReader {
 //
-//     fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> Result<Output> {
+//     fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
 //         let mut term_offsets_it = self.term_offsets.stream();
 //         loop {
 //             match term_offsets_it.next() {
 //                 Some((term_data, offset_u64)) => {
 //                     let term = Term::from(term_data);
 //                     let offset = offset_u64 as usize;
-//                     let data = unsafe { &self.postings_data.as_slice()[offset..] };
-//                     let mut cursor = Cursor::new(data);
-//                     let num_docs = cursor.read_u32::<BigEndian>().unwrap() as DocId;
 //                     try!(serializer.new_term(&term, num_docs));
+//                     let segment_postings = self.read_postings(offset);
 //                     try!(write_postings(cursor, num_docs, &mut serializer));
 //                 },
 //                 None => { break; }

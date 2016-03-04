@@ -5,8 +5,8 @@ use std::rc::Rc;
 use core::index::Index;
 use core::analyzer::SimpleTokenizer;
 use std::collections::BTreeMap;
+use core::serial::{SegmentSerializer, SerializableSegment};
 use core::analyzer::StreamingIterator;
-use core::serial::*;
 use std::io::Error as IOError;
 use core::index::Segment;
 
