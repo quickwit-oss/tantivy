@@ -1,3 +1,4 @@
+
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
 use std::io::Write;
@@ -13,13 +14,23 @@ fn convert_byte_order_error(byteorder_error: byteorder::Error) -> io::Error {
     }
 }
 
+pub enum Size {
+    Variable,
+    Constant(usize)
+}
+
+
 pub trait BinarySerializable : fmt::Debug + Sized {
-    // TODO move Result from Error.
+    const SIZE: Size;
     fn serialize(&self, writer: &mut Write) -> Result<usize>;
     fn deserialize(reader: &mut Read) -> Result<Self>;
 }
 
+
 impl BinarySerializable for () {
+
+    const SIZE: Size = Size::Constant(0);
+
     fn serialize(&self, _: &mut Write) -> Result<usize> {
         Ok(0)
     }
@@ -28,7 +39,11 @@ impl BinarySerializable for () {
     }
 }
 
+
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
+
+    const SIZE: Size = Size::Variable;
+
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         let mut total_size = try!((self.len() as u32).serialize(writer));
         for it in self.iter() {
@@ -49,11 +64,15 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
 
 
 impl BinarySerializable for u32 {
+
+    const SIZE: Size = Size::Constant(4);
+
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         writer.write_u32::<BigEndian>(self.clone())
               .map(|_| 4)
               .map_err(convert_byte_order_error)
     }
+
     fn deserialize(reader: &mut Read) -> Result<u32> {
         reader.read_u32::<BigEndian>()
               .map_err(convert_byte_order_error)
@@ -62,6 +81,9 @@ impl BinarySerializable for u32 {
 
 
 impl BinarySerializable for u64 {
+
+    const SIZE: Size = Size::Constant(8);
+
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         writer.write_u64::<BigEndian>(self.clone())
               .map(|_| 8)
@@ -75,6 +97,9 @@ impl BinarySerializable for u64 {
 
 
 impl BinarySerializable for u8 {
+
+    const SIZE: Size = Size::Constant(1);
+
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         // TODO error
         writer.write_u8(self.clone());
@@ -87,6 +112,9 @@ impl BinarySerializable for u8 {
 }
 
 impl BinarySerializable for String {
+
+    const SIZE: Size = Size::Variable;
+
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         // TODO error
         let data: &[u8] = self.as_bytes();
@@ -104,6 +132,7 @@ impl BinarySerializable for String {
         Ok(result)
     }
 }
+
 
 #[cfg(test)]
 mod test {

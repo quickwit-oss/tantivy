@@ -4,6 +4,7 @@ use core::schema::DocId;
 use core::schema::Document;
 use core::schema::FieldValue;
 use core::serialize::BinarySerializable;
+use core::serialize::Size;
 use core::directory::ReadOnlySource;
 use std::io::Write;
 use std::io::Read;
@@ -16,7 +17,7 @@ use lz4;
 
 // TODO cache uncompressed pages
 
-const BLOCK_SIZE: usize = 131072;
+const BLOCK_SIZE: usize = 131_072;
 
 pub struct StoreWriter {
     doc: DocId,
@@ -31,6 +32,9 @@ pub struct StoreWriter {
 struct OffsetIndex(DocId, u64);
 
 impl BinarySerializable for OffsetIndex {
+
+    const SIZE: Size = Size::Constant(4 + 8);
+
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let OffsetIndex(a, b) = *self;
         Ok(try!(a.serialize(writer)) + try!(b.serialize(writer)))
@@ -112,7 +116,7 @@ impl StoreReader {
     pub fn num_docs(&self,) -> DocId {
         self.offsets.len() as DocId
     }
-    
+
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
         let mut cursor = Cursor::new(data.as_slice());

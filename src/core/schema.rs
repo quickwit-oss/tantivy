@@ -5,6 +5,7 @@ use std::fmt;
 use std::io;
 use std::io::Read;
 use std::str;
+use core::serialize::Size;
 use core::serialize::BinarySerializable;
 use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
@@ -68,6 +69,9 @@ pub struct FieldValue {
 
 
 impl BinarySerializable for Field {
+
+    const SIZE: Size = Size::Variable;
+
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let Field(field_id) = *self;
         field_id.serialize(writer)
@@ -80,6 +84,9 @@ impl BinarySerializable for Field {
 
 
 impl BinarySerializable for FieldValue {
+
+    const SIZE: Size = Size::Variable;
+
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         Ok(
             try!(self.field.serialize(writer)) +
