@@ -75,12 +75,11 @@ impl<'a, V: 'static + BinarySerializable> FstMapIter<'a, V> {
 
     // type Item = (Vec<u8>, V);
 
-    fn next(&mut self) -> Option<(&[u8], V)> {
+    pub fn next(&mut self) -> Option<(&[u8], V)> {
         let next_item = self.streamer.next();
         match next_item {
             Some((key, offset)) => {
                 let val = self.fst_map.read_value(offset);
-                // let () = key;
                 Some((key, val))
             },
             None => None

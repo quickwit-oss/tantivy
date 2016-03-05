@@ -99,6 +99,10 @@ impl SegmentReader {
         self.segment.id()
     }
 
+    pub fn num_docs(&self,) -> DocId {
+        self.store_reader.num_docs()
+    }
+
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_offsets = try!(FstMap::from_source(source));
@@ -116,8 +120,8 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    fn read_postings(&self, offset: usize) -> SegmentPostings {
-        let postings_data = &self.postings_data.as_slice()[offset..];
+    fn read_postings(&self, offset: u32) -> SegmentPostings {
+        let postings_data = &self.postings_data.as_slice()[(offset as usize)..];
         SegmentPostings::from_data(&postings_data)
     }
 
@@ -131,7 +135,7 @@ impl SegmentReader {
         for term in terms.iter() {
             match self.get_term(term) {
                 Some(term_info) => {
-                    let segment_posting = self.read_postings(term_info.postings_offset as usize);
+                    let segment_posting = self.read_postings(term_info.postings_offset);
                     segment_postings.push(segment_posting);
                 }
                 None => {
@@ -146,34 +150,26 @@ impl SegmentReader {
 
 }
 
-//
-// fn write_postings<R: io::Read, Output, SegSer: SegmentSerializer<Output>>(mut cursor: R, num_docs: DocId, serializer: &mut SegSer) -> io::Result<()> {
-//     // TODO remove allocation
-//     let docs = Vec::with_capacity(num_docs as usize);
-//     for i in 0..num_docs {
-//         let doc_id = u32::serialize(&mut cursor);
-//         try!(serializer.add_doc(doc_id));
-//     }
-//     Ok(())
-// }
-//
-// impl SerializableSegment for SegmentReader {
-//
-//     fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
-//         let mut term_offsets_it = self.term_offsets.stream();
-//         loop {
-//             match term_offsets_it.next() {
-//                 Some((term_data, offset_u64)) => {
-//                     let term = Term::from(term_data);
-//                     let offset = offset_u64 as usize;
-//                     try!(serializer.new_term(&term, num_docs));
-//                     let segment_postings = self.read_postings(offset);
-//                     try!(write_postings(cursor, num_docs, &mut serializer));
-//                 },
-//                 None => { break; }
-//             }
-//         }
-//         serializer.close()
-//     }
-//
-// }
+
+impl SerializableSegment for SegmentReader {
+
+    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
+        let mut term_offsets_it = self.term_offsets.stream();
+        loop {
+            match term_offsets_it.next() {
+                Some((term_data, term_info)) => {
+                    let term = Term::from(term_data);
+                    try!(serializer.new_term(&term, term_info.doc_freq));
+                    let segment_postings = self.read_postings(term_info.postings_offset);
+                    serializer.write_docs(&segment_postings.doc_ids[..]);
+                },
+                None => { break; }
+            }
+        }
+        for doc_id in 0..self.num_docs() {
+            let doc = self.store_reader.get(&doc_id);
+            serializer.store_doc(&mut doc.fields());
+        }
+        serializer.close()
+    }
+}

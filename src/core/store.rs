@@ -108,6 +108,11 @@ pub struct StoreReader {
 }
 
 impl StoreReader {
+
+    pub fn num_docs(&self,) -> DocId {
+        self.offsets.len() as DocId
+    }
+    
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
         let mut cursor = Cursor::new(data.as_slice());
