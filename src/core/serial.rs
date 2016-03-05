@@ -1,12 +1,14 @@
 use core::schema::*;
 use std::fmt;
 use std::io;
+use core::index::SegmentInfo;
 
 pub trait SegmentSerializer<Output> {
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> Result<(), io::Error>;
     fn write_docs(&mut self, docs: &[DocId]) -> Result<(), io::Error>; // TODO add size
     fn store_doc(&mut self, field: &mut Iterator<Item=&FieldValue>);
     fn close(self,) -> Result<Output, io::Error>;
+    fn write_segment_info(&self, segment_info: &SegmentInfo) -> io::Result<()>;
 }
 
 pub trait SerializableSegment {
@@ -66,6 +68,10 @@ impl SegmentSerializer<String> for DebugSegmentSerializer {
 
     fn close(self,) -> Result<String, io::Error> {
         Ok(self.text)
+    }
+
+    fn write_segment_info(&self, segment_info: &SegmentInfo) -> io::Result<()> {
+        Ok(())
     }
 }
 

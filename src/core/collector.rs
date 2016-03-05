@@ -41,9 +41,6 @@ impl Collector for FirstNCollector {
     }
 }
 
-
-//
-
 pub struct CountCollector {
     count: usize,
 }

@@ -1,8 +1,10 @@
 use std::io;
 use std::io::{Read, Write};
 use core::serial::{SegmentSerializer, SerializableSegment};
+use rustc_serialize::json;
 use core::directory::WritePtr;
 use core::index::Segment;
+use core::index::SegmentInfo;
 use core::index::SegmentComponent;
 use core::schema::Term;
 use core::schema::DocId;
@@ -76,6 +78,14 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         for num in docs_data {
             self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
         }
+        Ok(())
+    }
+
+    fn write_segment_info(&self, segment_info: &SegmentInfo) -> io::Result<()> {
+        let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
+        let json_data = json::encode(segment_info).unwrap();
+        write.write_all(json_data.as_bytes());
+        write.flush();
         Ok(())
     }
 

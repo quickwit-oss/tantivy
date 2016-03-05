@@ -96,18 +96,14 @@ mod tests {
             }
 
             let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
-            println!("{:?}", segment_str_before_writing);
-
-
             let commit_result = index_writer.commit();
             assert!(commit_result.is_ok());
-            let segment = commit_result.unwrap();
-            SegmentReader::open(segment).unwrap();
 
-            // let segment_reader = SegmentReader::open(segment).unwrap();
-            // TODO ENABLE TEST
-            // let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
-            // assert_eq!(segment_str_before_writing, segment_str_after_reading);
+            let segment = commit_result.unwrap();
+            let segment_reader = SegmentReader::open(segment).unwrap();
+            assert_eq!(segment_reader.num_docs(), 3);
+            let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
+            assert_eq!(segment_str_before_writing, segment_str_after_reading);
         }
 
     }

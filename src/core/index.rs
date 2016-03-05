@@ -1,6 +1,7 @@
 use std::path::{PathBuf, Path};
 use std::io;
 use core::schema::Schema;
+use core::schema::DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
@@ -190,10 +191,18 @@ impl Index {
 }
 
 
+
 /////////////////////////
 // Segment
 
+#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
+pub struct SegmentInfo {
+	pub max_doc: DocId,
+}
+
+
 pub enum SegmentComponent {
+    INFO,
     POSTINGS,
     // POSITIONS,
     TERMS,
@@ -215,6 +224,7 @@ impl Segment {
     fn path_suffix(component: &SegmentComponent)-> &'static str {
         match *component {
             // SegmentComponent::POSITIONS => ".pos",
+            SegmentComponent::INFO => ".info",
             SegmentComponent::POSTINGS => ".idx",
             SegmentComponent::TERMS => ".term",
             SegmentComponent::STORE => ".store",

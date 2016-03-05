@@ -9,6 +9,7 @@ use core::serial::{SegmentSerializer, SerializableSegment};
 use core::analyzer::StreamingIterator;
 use std::io::Error as IOError;
 use core::index::Segment;
+use core::index::SegmentInfo;
 
 
 pub struct PostingsWriter {
@@ -69,7 +70,7 @@ impl IndexWriter {
 		match segment_writer_res {
 			Ok(segment_writer) => {
 				let segment = segment_writer.segment();
-				segment_writer.write_pending();
+				segment_writer.finalize();
 				// write(self.segment_serializer);
 				// try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
 				// At this point, the segment is written
@@ -88,6 +89,7 @@ impl IndexWriter {
 }
 
 
+
 pub struct SegmentWriter {
 	num_tokens: usize,
     max_doc: DocId,
@@ -99,20 +101,31 @@ pub struct SegmentWriter {
 
 impl SegmentWriter {
 
-	// write on disk all of the stuff that
-	// are still on RAM.
-	// for this version, that's the term dictionary
-	// and the postings
-	fn write_pending(mut self,) -> Result<(), IOError> {
+	// Write on disk all of the stuff that
+	// is still on RAM :
+	// - the dictionary in an fst
+	// - the postings
+	// - the segment info
+	fn finalize(mut self,) -> Result<(), IOError> {
 		{
-		for (term, postings_id) in self.term_index.iter() {
-			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
-			let term_docfreq = doc_ids.len() as u32;
-			self.segment_serializer.new_term(&term, term_docfreq);
-			self.segment_serializer.write_docs(&doc_ids);
+			for (term, postings_id) in self.term_index.iter() {
+				let doc_ids = &self.postings[postings_id.clone()].doc_ids;
+				let term_docfreq = doc_ids.len() as u32;
+				self.segment_serializer.new_term(&term, term_docfreq);
+				self.segment_serializer.write_docs(&doc_ids);
+			}
 		}
+		{
+			let segment_info = SegmentInfo {
+				max_doc: self.max_doc
+			};
+			self.segment_serializer.write_segment_info(&segment_info);
 		}
 		self.segment_serializer.close()
+	}
+
+	pub fn num_docs(&self,) -> DocId {
+		self.max_doc
 	}
 
 	pub fn segment(&self,) -> Segment {
