@@ -65,21 +65,24 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     }))
 }
 
-struct FstMapIter<'a, V: 'static + BinarySerializable> {
+pub struct FstMapIter<'a, V: 'static + BinarySerializable> {
     streamer: fst::map::Stream<'a>,
     fst_map: &'a FstMap<V>,
     __phantom__: PhantomData<V>
 }
 
-impl<'a, V: 'static + BinarySerializable> Iterator for FstMapIter<'a, V> {
+impl<'a, V: 'static + BinarySerializable> FstMapIter<'a, V> {
 
     // type Item = (Vec<u8>, V);
-    type Item = u32;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<(&[u8], V)> {
         let next_item = self.streamer.next();
         match next_item {
-            Some((key, offset)) => { Some(4u32) },
+            Some((key, offset)) => {
+                let val = self.fst_map.read_value(offset);
+                // let () = key;
+                Some((key, val))
+            },
             None => None
         }
     }
@@ -96,11 +99,9 @@ impl<V: BinarySerializable> FstMap<V> {
     }
 
     pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
-        println!("Source Len : {}", source.as_slice().len());
         let mut cursor = Cursor::new(source.as_slice());
         try!(cursor.seek(io::SeekFrom::End(-4)));
         let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
-        println!("Cursor : {}", footer_size);
         let split_len = source.len() - 4 - footer_size;
         let fst_source = source.slice(0, split_len);
         let values_source = source.slice(split_len, source.len() - 4);
@@ -127,9 +128,10 @@ impl<V: BinarySerializable> FstMap<V> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FstMapBuilder, FstMap};
+    use super::*;
     use core::directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
+
     use fst::Streamer;
 
     #[test]
@@ -144,40 +146,13 @@ mod tests {
             fstmap_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let fstmap = FstMap::from_source(source).unwrap();
+        let fstmap: FstMap<u32> = FstMap::from_source(source).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
         let mut stream = fstmap.stream();
-        let mut items = Vec::new();
-        {
-            stream.next();
-        }
-        {
-            stream.next();
-        }
-        // loop {
-        //     match stream.next() {
-        //         Some(it) => {
-        //             items.push(it);
-        //         }
-        //         None => {
-        //             break;
-        //         }
-        //     }
-        //
-        // }
-        // //
-        // {
-        //     let item = stream.next();
-        //     assert_eq!(item, Some((Vec::from("abc"), 34u32)) );
-        // }
-        // {
-        //     let item = stream.next();
-        //     assert_eq!(item, Some((Vec::from("abcd"), 346u32)) );
-        // }
-        // {
-        //     assert_eq!(stream.next(), None);
-        // }
+        assert_eq!(stream.next().unwrap(), ("abc".as_bytes(), 34u32));
+        assert_eq!(stream.next().unwrap(), ("abcd".as_bytes(), 346u32));
+        assert_eq!(stream.next(), None);
     }
 
 }
