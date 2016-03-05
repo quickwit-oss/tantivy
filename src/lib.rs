@@ -29,6 +29,7 @@ pub use core::schema::DocId;
 pub use core::index::Index;
 pub use core::schema::Schema;
 pub use core::schema::Term;
+pub use core::schema::Field;
 pub use core::schema::FieldOptions;
 pub use core::schema::Document;
 pub use core::collector;
