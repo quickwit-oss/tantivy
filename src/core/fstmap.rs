@@ -46,7 +46,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         let footer_size = self.data.len() as u32;
         try!(file.write_all(&self.data));
         try!((footer_size as u32).serialize(&mut file));
-        file.flush();
+        try!(file.flush());
         Ok(file)
     }
 }

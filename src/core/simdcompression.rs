@@ -1,7 +1,7 @@
 use libc::size_t;
 use std::ptr;
-use std::cmp::min;
-use std::iter;
+// use std::cmp::min;
+// use std::iter;
 
 extern {
     fn encode_unsorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
@@ -192,16 +192,15 @@ mod tests {
         assert_eq!(num_ints, decoder.decode_unsorted(&encoded_data[..], &mut decoded_data));
         assert_eq!(decoded_data, input);
     }
-
-    #[test]
-    fn test_simd_intersection() {
-        let mut intersector = Intersector::new();
-        let arr1 = generate_array_with_seed(1_000_000, 0.1, 2);
-        let arr2 = generate_array_with_seed(5_000_000, 0.5, 3);
-        let intersection = intersector.intersection(&arr1[..], &arr2[..])   ;
-        assert_eq!(intersection.len(), 500_233);
-    }
-
+    //
+    // #[test]
+    // fn test_simd_intersection() {
+    //     let mut intersector = Intersector::new();
+    //     let arr1 = generate_array_with_seed(1_000_000, 0.1, 2);
+    //     let arr2 = generate_array_with_seed(5_000_000, 0.5, 3);
+    //     let intersection = intersector.intersection(&arr1[..], &arr2[..])   ;
+    //     assert_eq!(intersection.len(), 500_233);
+    // }
 
     #[bench]
     fn bench_decode(b: &mut Bencher) {
@@ -217,13 +216,13 @@ mod tests {
     }
 
 
-    #[bench]
-    fn bench_simd_intersection(b: &mut Bencher) {
-        let mut intersector = Intersector::new();
-        let arr1 = generate_array_with_seed(1_000_000, 0.1, 2);
-        let arr2 = generate_array_with_seed(5_000_000, 0.5, 3);
-        b.iter(|| {
-            intersector.intersection(&arr1[..], &arr2[..]).len()
-        });
-    }
+    // #[bench]
+    // fn bench_simd_intersection(b: &mut Bencher) {
+    //     let mut intersector = Intersector::new();
+    //     let arr1 = generate_array_with_seed(1_000_000, 0.1, 2);
+    //     let arr2 = generate_array_with_seed(5_000_000, 0.5, 3);
+    //     b.iter(|| {
+    //         intersector.intersection(&arr1[..], &arr2[..]).len()
+    //     });
+    // }
 }
