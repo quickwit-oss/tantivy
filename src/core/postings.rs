@@ -150,11 +150,7 @@ mod tests {
         b.iter(|| {
             let docs = VecPostings::new((0..1_000_000).collect());
             let intersection = IntersectionPostings::from_postings(vec!(docs));
-            let mut doc_sum: u32 = 0;
-            for doc in intersection {
-                doc_sum += 1;
-            }
-            doc_sum
+            intersection.count()
         });
     }
 }

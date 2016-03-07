@@ -142,8 +142,7 @@ impl Directory for MmapDirectory {
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
         meta_file.write(|f| {
             f.write_all(data)
-        });
-        Ok(())
+        })
     }
 
     fn sync(&self, path: &Path) -> io::Result<()> {
@@ -179,7 +178,7 @@ impl SharedVec {
 
 impl Write for SharedVec {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write().unwrap().write(buf);
+        try!(self.0.write().unwrap().write(buf));
         Ok(buf.len())
     }
     fn flush(&mut self) -> io::Result<()> {
@@ -224,11 +223,10 @@ impl Directory for RAMDirectory {
         let meta_file = atomicwrites::AtomicFile::new(PathBuf::from(path), atomicwrites::AllowOverwrite);
         meta_file.write(|f| {
             f.write_all(data)
-        });
-        Ok(())
+        })
     }
 
-    fn sync(&self, path: &Path) -> io::Result<()> {
+    fn sync(&self, _: &Path) -> io::Result<()> {
         Ok(())
     }
 
@@ -242,8 +240,6 @@ impl Directory for RAMDirectory {
 mod tests {
 
     use super::*;
-    use test::Bencher;
-    use core::schema::DocId;
     use std::path::Path;
 
     #[test]
@@ -261,9 +257,9 @@ mod tests {
     fn test_directory(directory: &mut Directory) {
         {
             let mut write_file = directory.open_write(Path::new("toto")).unwrap();
-            write_file.write_all(&[4]);
-            write_file.write_all(&[3]);
-            write_file.write_all(&[7,3,5]);
+            write_file.write_all(&[4]).unwrap();
+            write_file.write_all(&[3]).unwrap();
+            write_file.write_all(&[7,3,5]).unwrap();
         }
         let read_file = directory.open_read(Path::new("toto")).unwrap();
         let data: &[u8] = &*read_file;

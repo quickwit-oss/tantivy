@@ -3,7 +3,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
 use std::io::Write;
 use std::io::Read;
-use std::io::Result;
 use std::io;
 use byteorder;
 
@@ -16,44 +15,29 @@ fn convert_byte_order_error(byteorder_error: byteorder::Error) -> io::Error {
     }
 }
 
-pub enum Size {
-    Variable,
-    Constant(usize)
-}
-
-
 pub trait BinarySerializable : fmt::Debug + Sized {
-    const SIZE: Size;
-    fn serialize(&self, writer: &mut Write) -> Result<usize>;
-    fn deserialize(reader: &mut Read) -> Result<Self>;
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize>;
+    fn deserialize(reader: &mut Read) -> io::Result<Self>;
 }
-
 
 impl BinarySerializable for () {
-
-    const SIZE: Size = Size::Constant(0);
-
-    fn serialize(&self, _: &mut Write) -> Result<usize> {
+    fn serialize(&self, _: &mut Write) -> io::Result<usize> {
         Ok(0)
     }
-    fn deserialize(_: &mut Read) -> Result<Self> {
+    fn deserialize(_: &mut Read) -> io::Result<Self> {
         Ok(())
     }
 }
 
-
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
-
-    const SIZE: Size = Size::Variable;
-
-    fn serialize(&self, writer: &mut Write) -> Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let mut total_size = try!((self.len() as u32).serialize(writer));
         for it in self.iter() {
             total_size += try!(it.serialize(writer));
         }
         Ok(total_size)
     }
-    fn deserialize(reader: &mut Read) -> Result<Vec<T>> {
+    fn deserialize(reader: &mut Read) -> io::Result<Vec<T>> {
         let num_items = try!(u32::deserialize(reader));
         let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
@@ -66,16 +50,13 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
 
 
 impl BinarySerializable for u32 {
-
-    const SIZE: Size = Size::Constant(4);
-
-    fn serialize(&self, writer: &mut Write) -> Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         writer.write_u32::<BigEndian>(self.clone())
               .map(|_| 4)
               .map_err(convert_byte_order_error)
     }
 
-    fn deserialize(reader: &mut Read) -> Result<u32> {
+    fn deserialize(reader: &mut Read) -> io::Result<u32> {
         reader.read_u32::<BigEndian>()
               .map_err(convert_byte_order_error)
     }
@@ -83,15 +64,12 @@ impl BinarySerializable for u32 {
 
 
 impl BinarySerializable for u64 {
-
-    const SIZE: Size = Size::Constant(8);
-
-    fn serialize(&self, writer: &mut Write) -> Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         writer.write_u64::<BigEndian>(self.clone())
               .map(|_| 8)
               .map_err(convert_byte_order_error)
     }
-    fn deserialize(reader: &mut Read) -> Result<u64> {
+    fn deserialize(reader: &mut Read) -> io::Result<u64> {
         reader.read_u64::<BigEndian>()
               .map_err(convert_byte_order_error)
     }
@@ -99,25 +77,19 @@ impl BinarySerializable for u64 {
 
 
 impl BinarySerializable for u8 {
-
-    const SIZE: Size = Size::Constant(1);
-
-    fn serialize(&self, writer: &mut Write) -> Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         // TODO error
         try!(writer.write_u8(self.clone()).map_err(convert_byte_order_error));
         Ok(1)
     }
-    fn deserialize(reader: &mut Read) -> Result<u8> {
+    fn deserialize(reader: &mut Read) -> io::Result<u8> {
         reader.read_u8()
               .map_err(convert_byte_order_error)
     }
 }
 
 impl BinarySerializable for String {
-
-    const SIZE: Size = Size::Variable;
-
-    fn serialize(&self, writer: &mut Write) -> Result<usize> {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         // TODO error
         let data: &[u8] = self.as_bytes();
         let mut size = try!((data.len() as u32).serialize(writer));
@@ -126,11 +98,11 @@ impl BinarySerializable for String {
         Ok(size)
     }
 
-    fn deserialize(reader: &mut Read) -> Result<String> {
+    fn deserialize(reader: &mut Read) -> io::Result<String> {
         // TODO error
         let string_length = try!(u32::deserialize(reader)) as usize;
         let mut result = String::with_capacity(string_length);
-        reader.take(string_length as u64).read_to_string(&mut result);
+        try!(reader.take(string_length as u64).read_to_string(&mut result));
         Ok(result)
     }
 }
@@ -147,12 +119,12 @@ mod test {
         let mut buffer: Vec<u8> = Vec::new();
         {
             let x: u8 = 3;
-            x.serialize(&mut buffer);
+            x.serialize(&mut buffer).unwrap();
             assert_eq!(buffer.len(), 1);
         }
         {
             let x: u8 = 5;
-            x.serialize(&mut buffer);
+            x.serialize(&mut buffer).unwrap();
             assert_eq!(buffer.len(), 2);
         }
         let mut cursor = Cursor::new(&buffer[..]);
@@ -167,12 +139,12 @@ mod test {
         let mut buffer: Vec<u8> = Vec::new();
         {
             let x: u32 = 3;
-            x.serialize(&mut buffer);
+            x.serialize(&mut buffer).unwrap();
             assert_eq!(buffer.len(), 4);
         }
         {
             let x: u32 = 5;
-            x.serialize(&mut buffer);
+            x.serialize(&mut buffer).unwrap();
             assert_eq!(buffer.len(), 8);
         }
         let mut cursor = Cursor::new(&buffer[..]);

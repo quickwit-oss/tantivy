@@ -1,6 +1,6 @@
 use std::io;
 use std::io::{Read, Write};
-use core::serial::{SegmentSerializer, SerializableSegment};
+use core::serial::SegmentSerializer;
 use rustc_serialize::json;
 use core::directory::WritePtr;
 use core::index::Segment;
@@ -9,7 +9,6 @@ use core::index::SegmentComponent;
 use core::schema::Term;
 use core::schema::DocId;
 use core::fstmap::FstMapBuilder;
-use core::serialize::Size;
 use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
@@ -24,9 +23,6 @@ pub struct TermInfo {
 
 
 impl BinarySerializable for TermInfo {
-
-    const SIZE: Size = Size::Constant(8);
-
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         Ok(
             try!(self.doc_freq.serialize(writer)) +
@@ -63,9 +59,10 @@ impl SimpleSegmentSerializer {
 
 impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
-    fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) {
+    fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) -> io::Result<()> {
         let field_values: Vec<&FieldValue> = field_values_it.collect();
-        self.store_writer.store(&field_values);
+        try!(self.store_writer.store(&field_values));
+        Ok(())
     }
 
     fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
@@ -73,9 +70,8 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
             doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
         };
-        self.term_fst_builder.insert(term.as_slice(), &term_info);
-        // writing the size of the posting list
-        Ok(())
+        self.term_fst_builder
+            .insert(term.as_slice(), &term_info)
     }
 
     fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
@@ -88,7 +84,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn write_segment_info(&self, segment_info: &SegmentInfo) -> io::Result<()> {
+    fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> io::Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
         let json_data = try!(json::encode(segment_info).map_err(convert_to_ioerror));
         try!(write.write_all(json_data.as_bytes()));
@@ -105,9 +101,6 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
 }
 
 impl SimpleCodec {
-    // TODO impl packed int
-    // TODO skip lists
-    // TODO make that part of the codec API
     pub fn serializer(segment: &Segment) -> io::Result<SimpleSegmentSerializer>  {
         let term_write = try!(segment.open_write(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
@@ -122,11 +115,5 @@ impl SimpleCodec {
             term_fst_builder: term_fst_builder,
             encoder: simdcompression::Encoder::new(),
         })
-    }
-
-
-    pub fn write<I: SerializableSegment>(index: &I, segment: &Segment) -> io::Result<()> {
-        let serializer = try!(SimpleCodec::serializer(segment));
-        index.write(serializer)
     }
 }

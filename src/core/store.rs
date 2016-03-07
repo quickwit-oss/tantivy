@@ -4,7 +4,6 @@ use core::schema::DocId;
 use core::schema::Document;
 use core::schema::FieldValue;
 use core::serialize::BinarySerializable;
-use core::serialize::Size;
 use core::directory::ReadOnlySource;
 use std::io::Write;
 use std::io::Read;
@@ -31,9 +30,6 @@ pub struct StoreWriter {
 struct OffsetIndex(DocId, u64);
 
 impl BinarySerializable for OffsetIndex {
-
-    const SIZE: Size = Size::Constant(4 + 8);
-
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let OffsetIndex(a, b) = *self;
         Ok(try!(a.serialize(writer)) + try!(b.serialize(writer)))
@@ -58,18 +54,19 @@ impl StoreWriter {
         }
     }
 
-    pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) {
+    pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        (field_values.len() as u32).serialize(&mut self.intermediary_buffer);
+        try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
         for field_value in field_values.iter() {
-            (*field_value).serialize(&mut self.intermediary_buffer);
+            try!((*field_value).serialize(&mut self.intermediary_buffer));
         }
-        (self.intermediary_buffer.len() as u32).serialize(&mut self.current_block);
-        self.current_block.write_all(&self.intermediary_buffer[..]);
+        try!((self.intermediary_buffer.len() as u32).serialize(&mut self.current_block));
+        try!(self.current_block.write_all(&self.intermediary_buffer[..]));
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
-            self.write_and_compress_block();
+            try!(self.write_and_compress_block());
         }
+        Ok(())
     }
 
     fn write_and_compress_block(&mut self,) -> io::Result<()> {
@@ -94,7 +91,7 @@ impl StoreWriter {
 
     pub fn close(&mut self,) -> io::Result<()> {
         if self.current_block.len() > 0 {
-            self.write_and_compress_block();
+            try!(self.write_and_compress_block());
         }
         let header_offset: u64 = self.written;
         try!(self.offsets.serialize(&mut self.writer));
@@ -112,10 +109,6 @@ pub struct StoreReader {
 }
 
 impl StoreReader {
-
-    pub fn num_docs(&self,) -> DocId {
-        self.offsets.len() as DocId
-    }
 
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
@@ -216,9 +209,9 @@ mod tests {
                     fields.push(field_value);
                 }
                 let fields_refs: Vec<&FieldValue> = fields.iter().collect();
-                store_writer.store(&fields_refs);
+                store_writer.store(&fields_refs).unwrap();
             }
-            store_writer.close();
+            store_writer.close().unwrap();
         }
         schema
     }
@@ -256,7 +249,7 @@ mod tests {
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         b.iter(|| {
-            store.get(&12);
+            store.get(&12).unwrap();
         });
 
     }

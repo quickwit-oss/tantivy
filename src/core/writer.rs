@@ -53,8 +53,8 @@ impl IndexWriter {
 		}
     }
 
-    pub fn add(&mut self, doc: Document) {
-        Rc::get_mut(&mut self.segment_writer).unwrap().add(doc, &self.schema);
+    pub fn add(&mut self, doc: Document) -> io::Result<()> {
+        Rc::get_mut(&mut self.segment_writer).unwrap().add(doc, &self.schema)
     }
 
 	// TODO remove that some day
@@ -70,9 +70,9 @@ impl IndexWriter {
 		match segment_writer_res {
 			Ok(segment_writer) => {
 				let segment = segment_writer.segment();
-				segment_writer.finalize();
+				try!(segment_writer.finalize());
 				try!(self.directory.sync(segment.clone()));
-				self.directory.publish_segment(segment.clone());
+				try!(self.directory.publish_segment(segment.clone()));
 				Ok(segment)
 			},
 			Err(_) => {
@@ -107,15 +107,15 @@ impl SegmentWriter {
 			for (term, postings_id) in self.term_index.iter() {
 				let doc_ids = &self.postings[postings_id.clone()].doc_ids;
 				let term_docfreq = doc_ids.len() as u32;
-				self.segment_serializer.new_term(&term, term_docfreq);
-				self.segment_serializer.write_docs(&doc_ids);
+				try!(self.segment_serializer.new_term(&term, term_docfreq));
+				try!(self.segment_serializer.write_docs(&doc_ids));
 			}
 		}
 		{
 			let segment_info = SegmentInfo {
 				max_doc: self.max_doc
 			};
-			self.segment_serializer.write_segment_info(&segment_info);
+			try!(self.segment_serializer.write_segment_info(&segment_info));
 		}
 		self.segment_serializer.close()
 	}
@@ -141,7 +141,7 @@ impl SegmentWriter {
 		}
 	}
 
-    pub fn add(&mut self, doc: Document, schema: &Schema) {
+    pub fn add(&mut self, doc: Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for field_value in doc.fields() {
 			let field_options = schema.field_options(&field_value.field);
@@ -162,8 +162,9 @@ impl SegmentWriter {
 		let mut stored_fieldvalues_it = doc.fields().filter(|field_value| {
 			schema.field_options(&field_value.field).is_stored()
 		});
-		self.segment_serializer.store_doc(&mut stored_fieldvalues_it);
+		try!(self.segment_serializer.store_doc(&mut stored_fieldvalues_it));
         self.max_doc += 1;
+		Ok(())
     }
 
 	pub fn get_postings_writer(&mut self, term: Term) -> &mut PostingsWriter {
@@ -189,8 +190,8 @@ impl SerializableSegment for SegmentWriter {
     	for (term, postings_id) in self.term_index.iter() {
 			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
 			let term_docfreq = doc_ids.len() as u32;
-			serializer.new_term(&term, term_docfreq);
-			serializer.write_docs(&doc_ids);
+			try!(serializer.new_term(&term, term_docfreq));
+			try!(serializer.write_docs(&doc_ids));
 		}
 		serializer.close()
 	}

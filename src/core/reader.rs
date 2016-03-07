@@ -171,14 +171,14 @@ impl SerializableSegment for SegmentReader {
                     let term = Term::from(term_data);
                     try!(serializer.new_term(&term, term_info.doc_freq));
                     let segment_postings = self.read_postings(term_info.postings_offset);
-                    serializer.write_docs(&segment_postings.doc_ids[..]);
+                    try!(serializer.write_docs(&segment_postings.doc_ids[..]));
                 },
                 None => { break; }
             }
         }
         for doc_id in 0..self.max_doc() {
             let doc = try!(self.store_reader.get(&doc_id));
-            serializer.store_doc(&mut doc.fields());
+            try!(serializer.store_doc(&mut doc.fields()));
         }
         serializer.close()
     }

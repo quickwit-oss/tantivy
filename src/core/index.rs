@@ -87,7 +87,7 @@ impl Index {
         IndexWriter::open(self,)
     }
 
-    pub fn searcher(&self,) -> Searcher {
+    pub fn searcher(&self,) -> io::Result<Searcher> {
         Searcher::for_index(self.clone())
     }
 

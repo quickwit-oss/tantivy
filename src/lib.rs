@@ -1,5 +1,8 @@
-#![feature(test,associated_consts)]
+//#![feature(test,associated_consts)]
+#![cfg_attr(test, feature(test))]
+
 #[allow(unused_imports)]
+
 
 #[macro_use]
 extern crate lazy_static;
@@ -43,7 +46,7 @@ pub use core::reader::SegmentReader;
 mod tests {
 
     use super::*;
-    use core::serial::DebugSegmentSerializer;
+    use core::serial::tests::DebugSegmentSerializer;
     use collector::Collector;
 
     // only make sense for a single segment
@@ -87,17 +90,17 @@ mod tests {
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c d");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
 
             let segment_str_before_writing = DebugSegmentSerializer::debug_string(index_writer.current_segment_writer());
@@ -127,25 +130,24 @@ mod tests {
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c d");
-                index_writer.add(doc);
+                index_writer.add(doc).unwrap();
             }
             let commit_result = index_writer.commit();
             commit_result.unwrap();
         }
         println!("index {:?}", index.schema());
         {
-
-            let searcher = index.searcher();
+            let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
                 searcher.search(&terms, &mut collector);

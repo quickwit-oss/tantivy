@@ -44,13 +44,12 @@ impl Searcher {
         }
     }
 
-    pub fn for_index(index: Index) -> Searcher {
+    pub fn for_index(index: Index) -> io::Result<Searcher> {
         let mut searcher = Searcher::new();
         for segment in index.segments().into_iter() {
-            println!("Segment {:?} ", segment);
-            searcher.add_segment(segment);
+            try!(searcher.add_segment(segment));
         }
-        searcher
+        Ok(searcher)
     }
 
     pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) {
