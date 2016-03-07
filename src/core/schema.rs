@@ -111,7 +111,9 @@ struct FieldEntry {
     option: FieldOptions,
 }
 
-
+/// Tantivy has a very strict schema.
+/// You need to specify in advance, whether a field is indexed or not,
+/// stored or not, and RAM-based or not.
 #[derive(Clone, Debug)]
 pub struct Schema {
     fields: Vec<FieldEntry>,
@@ -147,6 +149,8 @@ impl Encodable for Schema {
 }
 
 impl Schema {
+
+    /// Creates a new, empty schema.
     pub fn new() -> Schema {
         Schema {
             fields: Vec::new(),
@@ -155,8 +159,7 @@ impl Schema {
         }
     }
 
-    /// Returns the field handle associated with the given name,
-    /// as well as its FieldOptions.
+    /// Given a name, returns the field handle, as well as its associated FieldOptions
     pub fn get(&self, field_name: &str) -> Option<(Field, FieldOptions)> {
         self.fields_map
             .get(field_name)
@@ -166,7 +169,7 @@ impl Schema {
             })
     }
 
-    /// Returns the field handle associated with the given name.
+    /// Returns the field options associated with a given name.
     ///
     /// # Panics
     /// Panics if the field name does not exist.
@@ -174,16 +177,20 @@ impl Schema {
     /// and control the content of their schema.
     ///
     /// If panicking is not an option for you,
-    /// you may use get(&self, field_name: &str).
+    /// you may use `get(&self, field_name: &str)`.
     pub fn field(&self, fieldname: &str) -> Field {
         self.fields_map.get(&String::from(fieldname)).map(|field| field.clone()).unwrap()
     }
 
+    /// Returns the field options associated to a field handle.
     pub fn field_options(&self, field: &Field) -> FieldOptions {
         let Field(field_id) = *field;
         self.field_options[field_id as usize].clone()
     }
 
+
+    /// Creates a new field.
+    /// Return the associated field handle.
     pub fn add_field(&mut self, field_name_str: &str, field_options: &FieldOptions) -> Field {
         let field = Field(self.fields.len() as u8);
         // TODO case if field already exists

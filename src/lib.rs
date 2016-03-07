@@ -1,9 +1,6 @@
 //#![feature(test,associated_consts)]
 #![cfg_attr(test, feature(test))]
 
-#[allow(unused_imports)]
-
-
 #[macro_use]
 extern crate lazy_static;
 
@@ -11,7 +8,6 @@ extern crate lazy_static;
 extern crate fst;
 extern crate byteorder;
 extern crate memmap;
-extern crate rand;
 extern crate regex;
 extern crate tempfile;
 extern crate rustc_serialize;
@@ -23,8 +19,10 @@ extern crate time;
 extern crate serde;
 extern crate libc;
 extern crate lz4;
+extern crate uuid;
 
 #[cfg(test)] extern crate test;
+#[cfg(test)] extern crate rand;
 
 mod core;
 

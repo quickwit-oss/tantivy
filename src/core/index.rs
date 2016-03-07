@@ -5,29 +5,37 @@ use core::schema::DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
-use rand::{thread_rng, Rng};
 use rustc_serialize::json;
 use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
 use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
+use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SegmentId(pub String);
+#[derive(Clone, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]
+pub struct SegmentId(Uuid);
 
+impl SegmentId {
+    pub fn new() -> SegmentId {
+        SegmentId(Uuid::new_v4())
+    }
 
-pub fn generate_segment_name() -> SegmentId {
-    static CHARS: &'static [u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
-    let random_name: String = (0..8)
-            .map(|_| thread_rng().choose(CHARS).unwrap().clone() as char)
-            .collect();
-    SegmentId( String::from("_") + &random_name)
+    pub fn uuid_string(&self,) -> String {
+        self.0.to_simple_string()
+    }
 }
+
+impl fmt::Debug for SegmentId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Segment({:?})", self.uuid_string())
+    }
+}
+
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
-    segments: Vec<String>,
+    segments: Vec<SegmentId>,
     schema: Schema,
 }
 
@@ -122,7 +130,7 @@ impl Index {
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: Segment) -> io::Result<()> {
-        self.metas.write().unwrap().segments.push(segment.segment_id.0.clone());
+        self.metas.write().unwrap().segments.push(segment.segment_id.clone());
         // TODO use logs
         self.save_metas()
     }
@@ -158,13 +166,11 @@ impl Index {
             .segments
             .iter()
             .cloned()
-            .map(SegmentId)
             .collect()
     }
 
     pub fn new_segment(&self,) -> Segment {
-        // TODO check it does not exists
-        self.segment(&generate_segment_name())
+        self.segment(&SegmentId::new())
     }
 
     pub fn load_metas(&mut self,) -> io::Result<()> {
@@ -226,8 +232,8 @@ impl Segment {
     }
 
     pub fn relative_path(&self, component: &SegmentComponent) -> PathBuf {
-        let SegmentId(ref segment_id_str) = self.segment_id;
-        let filename = String::new() + segment_id_str + Segment::path_suffix(component);
+        let SegmentId(ref segment_uuid) = self.segment_id;
+        let filename = segment_uuid.to_simple_string() + Segment::path_suffix(component);
         PathBuf::from(filename)
     }
 
@@ -240,20 +246,4 @@ impl Segment {
         let path = self.relative_path(&component);
         self.index.directory.write().unwrap().open_write(&path)
     }
-}
-
-
-#[cfg(test)]
-mod test {
-
-    use super::*;
-    use regex::Regex;
-
-    #[test]
-    fn test_new_segment() {
-        let SegmentId(segment_name) = generate_segment_name();
-        let segment_ptn = Regex::new(r"^_[a-z0-9]{8}$").unwrap();
-        assert!(segment_ptn.is_match(&segment_name));
-    }
-
 }
