@@ -223,7 +223,7 @@ mod tests {
         let mut directory = RAMDirectory::create();
         let store_file = directory.open_write(&path).unwrap();
         let schema = write_lorem_ipsum_store(store_file);
-        let field_title = schema.field("title").unwrap();
+        let field_title = schema.field("title");
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {

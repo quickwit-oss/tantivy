@@ -12,11 +12,13 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 
 
+/// u32 identifying a document within a segment.
+/// Document gets their doc id assigned incrementally,
+/// as they are added in the segment.
 pub type DocId = u32;
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct FieldOptions {
-    // untokenized_indexed: bool,
     tokenized_indexed: bool,
     stored: bool,
     doc_value: bool,
@@ -153,7 +155,9 @@ impl Schema {
         }
     }
 
-    pub fn find_field_name(&self, field_name: &str) -> Option<(Field, FieldOptions)> {
+    /// Returns the field handle associated with the given name,
+    /// as well as its FieldOptions.
+    pub fn get(&self, field_name: &str) -> Option<(Field, FieldOptions)> {
         self.fields_map
             .get(field_name)
             .map(|&Field(field_id)| {
@@ -162,8 +166,17 @@ impl Schema {
             })
     }
 
-    pub fn field(&self, fieldname: &str) -> Option<Field> {
-        self.fields_map.get(&String::from(fieldname)).map(|field| field.clone())
+    /// Returns the field handle associated with the given name.
+    ///
+    /// # Panics
+    /// Panics if the field name does not exist.
+    /// It is meant as an helper for user who created
+    /// and control the content of their schema.
+    ///
+    /// If panicking is not an option for you,
+    /// you may use get(&self, field_name: &str).
+    pub fn field(&self, fieldname: &str) -> Field {
+        self.fields_map.get(&String::from(fieldname)).map(|field| field.clone()).unwrap()
     }
 
     pub fn field_options(&self, field: &Field) -> FieldOptions {
@@ -226,6 +239,19 @@ impl fmt::Debug for Term {
     }
 }
 
+///
+/// Document are really just a list of field values.
+///
+///  # Examples
+///
+/// ```
+/// use tantivy::Document;
+/// use tantivy::Schema;
+///
+/// let schema = Schema::new();
+/// let field_text = schema.field("body");
+/// let mut doc = Document::new();
+///
 #[derive(Debug)]
 pub struct Document {
     field_values: Vec<FieldValue>,
