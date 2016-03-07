@@ -9,6 +9,7 @@ use core::index::SegmentComponent;
 use core::schema::Term;
 use core::schema::DocId;
 use core::fstmap::FstMapBuilder;
+use core::serialize::Size;
 use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
@@ -22,9 +23,14 @@ pub struct TermInfo {
 }
 
 impl BinarySerializable for TermInfo {
+
+    const SIZE: Size = Size::Constant(8);
+
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        self.doc_freq.serialize(writer);
-        self.postings_offset.serialize(writer)
+        Ok(
+            try!(self.doc_freq.serialize(writer)) +
+            try!(self.postings_offset.serialize(writer))
+        )
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
         let doc_freq = try!(u32::deserialize(reader));

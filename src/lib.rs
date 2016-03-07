@@ -1,4 +1,4 @@
-#![feature(test)]
+#![feature(test,associated_consts)]
 #[allow(unused_imports)]
 
 #[macro_use]

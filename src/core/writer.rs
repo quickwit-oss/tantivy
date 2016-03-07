@@ -71,10 +71,6 @@ impl IndexWriter {
 			Ok(segment_writer) => {
 				let segment = segment_writer.segment();
 				segment_writer.finalize();
-				// write(self.segment_serializer);
-				// try!(SimpleCodec::write(&self.segment_writer, &segment).map(|sz| (segment.clone(), sz)));
-				// At this point, the segment is written
-				// We still need to sync all of the file, as well as the parent directory.
 				try!(self.directory.sync(segment.clone()));
 				self.directory.publish_segment(segment.clone());
 				Ok(segment)
