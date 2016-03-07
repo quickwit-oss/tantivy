@@ -112,7 +112,7 @@ impl StoreReader {
     pub fn num_docs(&self,) -> DocId {
         self.offsets.len() as DocId
     }
-    
+
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
         let mut cursor = Cursor::new(data.as_slice());
@@ -146,23 +146,23 @@ impl StoreReader {
         lz4_decoder.read_to_end(&mut current_block_mut);
     }
 
-    pub fn get(&self, doc_id: &DocId) -> Document {
+    pub fn get(&self, doc_id: &DocId) -> io::Result<Document> {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         self.read_block(block_offset as usize);
         let mut current_block_mut = self.current_block.borrow_mut();
         let mut cursor = Cursor::new(&mut current_block_mut[..]);
         for _ in first_doc_id..*doc_id  {
-            let block_length = u32::deserialize(&mut cursor).unwrap();
+            let block_length = try!(u32::deserialize(&mut cursor));
             cursor.seek(SeekFrom::Current(block_length as i64));
         }
-        let block_length = u32::deserialize(&mut cursor).unwrap();
+        try!(u32::deserialize(&mut cursor));
         let mut field_values = Vec::new();
         let num_fields = u32::deserialize(&mut cursor).unwrap();
         for _ in 0..num_fields {
-            let field_value = FieldValue::deserialize(&mut cursor).unwrap();
+            let field_value = try!(FieldValue::deserialize(&mut cursor));
             field_values.push(field_value);
         }
-        Document::from(field_values)
+        Ok(Document::from(field_values))
     }
 
     pub fn new(data: ReadOnlySource) -> StoreReader {
@@ -230,7 +230,7 @@ mod tests {
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
-            assert_eq!(*store.get(&i).get_one(&field_title).unwrap(), format!("Doc {}", i));
+            assert_eq!(*store.get(&i).unwrap().get_one(&field_title).unwrap(), format!("Doc {}", i));
         }
     }
 

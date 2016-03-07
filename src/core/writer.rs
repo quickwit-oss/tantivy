@@ -124,7 +124,7 @@ impl SegmentWriter {
 		self.segment_serializer.close()
 	}
 
-	pub fn num_docs(&self,) -> DocId {
+	pub fn max_doc(&self,) -> DocId {
 		self.max_doc
 	}
 

@@ -20,7 +20,7 @@ pub struct DocAddress(pub SegmentId, pub DocId);
 
 impl Searcher {
 
-    pub fn get_doc(&self, doc_address: &DocAddress) -> Document {
+    pub fn get_doc(&self, doc_address: &DocAddress) -> io::Result<Document> {
         // TODO err
         let DocAddress(ref segment_id, ref doc_id) = *doc_address;
         let segment_ord = self.segments_idx.get(&segment_id).unwrap();

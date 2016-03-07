@@ -34,7 +34,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)
             .map_err(convert_fst_error));
-        value.serialize(&mut self.data);
+        try!(value.serialize(&mut self.data));
         Ok(())
     }
 
@@ -44,8 +44,8 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
                  .into_inner()
                  .map_err(convert_fst_error));
         let footer_size = self.data.len() as u32;
-        file.write_all(&self.data);
-        (footer_size as u32).serialize(&mut file);
+        try!(file.write_all(&self.data));
+        try!((footer_size as u32).serialize(&mut file));
         file.flush();
         Ok(file)
     }

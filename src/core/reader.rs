@@ -11,14 +11,20 @@ use core::index::SegmentComponent;
 use core::postings::Postings;
 use core::simdcompression::Decoder;
 use std::io;
+use std::str;
 use core::codec::TermInfo;
 use core::fstmap::FstMap;
+use std::error;
+use rustc_serialize::json;
 use core::serial::SegmentSerializer;
 use core::serial::SerializableSegment;
+use std::str::Utf8Error;
+use core::index::SegmentInfo;
 
 // TODO file structure should be in codec
 
 pub struct SegmentReader {
+    segment_info: SegmentInfo,
     segment: Segment,
     term_offsets: FstMap<TermInfo>,
     postings_data: ReadOnlySource,
@@ -93,22 +99,35 @@ impl Iterator for SegmentPostings {
 }
 
 
+fn convert_to_ioerror<E: 'static + error::Error + Send + Sync>(err: E) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        err
+    )
+}
+
+
+
 impl SegmentReader {
 
     pub fn id(&self,) -> SegmentId {
         self.segment.id()
     }
 
-    pub fn num_docs(&self,) -> DocId {
-        self.store_reader.num_docs()
+    pub fn max_doc(&self,) -> DocId {
+        self.segment_info.max_doc
     }
 
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
+        let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
+        let segment_info_data = try!(str::from_utf8(&*segment_info_reader).map_err(convert_to_ioerror));
+        let segment_info: SegmentInfo = try!(json::decode(&segment_info_data).map_err(convert_to_ioerror));
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_offsets = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         Ok(SegmentReader {
+            segment_info: segment_info,
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,
             segment: segment,
@@ -116,7 +135,7 @@ impl SegmentReader {
         })
     }
 
-    pub fn get_doc(&self, doc_id: &DocId) -> Document {
+    pub fn get_doc(&self, doc_id: &DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
     }
 
@@ -166,8 +185,8 @@ impl SerializableSegment for SegmentReader {
                 None => { break; }
             }
         }
-        for doc_id in 0..self.num_docs() {
-            let doc = self.store_reader.get(&doc_id);
+        for doc_id in 0..self.max_doc() {
+            let doc = try!(self.store_reader.get(&doc_id));
             serializer.store_doc(&mut doc.fields());
         }
         serializer.close()

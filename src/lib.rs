@@ -102,7 +102,7 @@ mod tests {
 
             let segment = commit_result.unwrap();
             let segment_reader = SegmentReader::open(segment).unwrap();
-            assert_eq!(segment_reader.num_docs(), 3);
+            assert_eq!(segment_reader.max_doc(), 3);
             let segment_str_after_reading = DebugSegmentSerializer::debug_string(&segment_reader);
             assert_eq!(segment_str_before_writing, segment_str_after_reading);
         }
