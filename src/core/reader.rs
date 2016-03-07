@@ -101,14 +101,22 @@ impl Iterator for SegmentPostings {
 
 impl SegmentReader {
 
+
+    /// Returns the associated segment id.
     pub fn id(&self,) -> SegmentId {
         self.segment.id()
     }
 
+    /// Returns the highest document id ever attributed in
+    /// this segement + 1.
+    /// Today, `tantivy` does not handle deletes so, it happens
+    /// to also be the number of documents in the index.
     pub fn max_doc(&self,) -> DocId {
         self.segment_info.max_doc
     }
 
+
+    /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
         let segment_info_data = try!(str::from_utf8(&*segment_info_reader).map_err(convert_to_ioerror));
@@ -126,7 +134,7 @@ impl SegmentReader {
         })
     }
 
-    pub fn get_doc(&self, doc_id: &DocId) -> io::Result<Document> {
+    pub fn  doc(&self, doc_id: &DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
     }
 

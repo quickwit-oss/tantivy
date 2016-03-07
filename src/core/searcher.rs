@@ -20,12 +20,12 @@ pub struct DocAddress(pub SegmentId, pub DocId);
 
 impl Searcher {
 
-    pub fn get_doc(&self, doc_address: &DocAddress) -> io::Result<Document> {
+    pub fn doc(&self, doc_address: &DocAddress) -> io::Result<Document> {
         // TODO err
         let DocAddress(ref segment_id, ref doc_id) = *doc_address;
         let segment_ord = self.segments_idx.get(&segment_id).unwrap();
         let segment_reader = &self.segments[segment_ord.clone()];
-        segment_reader.get_doc(doc_id)
+        segment_reader.doc(doc_id)
     }
 
     fn add_segment(&mut self, segment: Segment) -> io::Result<()> {

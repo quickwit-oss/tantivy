@@ -1,6 +1,7 @@
 //#![feature(test,associated_consts)]
 #![cfg_attr(test, feature(test))]
 
+
 #[macro_use]
 extern crate lazy_static;
 
