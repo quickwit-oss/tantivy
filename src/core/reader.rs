@@ -14,12 +14,11 @@ use std::io;
 use std::str;
 use core::codec::TermInfo;
 use core::fstmap::FstMap;
-use std::error;
 use rustc_serialize::json;
 use core::serial::SegmentSerializer;
 use core::serial::SerializableSegment;
-use std::str::Utf8Error;
 use core::index::SegmentInfo;
+use core::convert_to_ioerror;
 
 // TODO file structure should be in codec
 
@@ -96,14 +95,6 @@ impl Iterator for SegmentPostings {
             None
         }
     }
-}
-
-
-fn convert_to_ioerror<E: 'static + error::Error + Send + Sync>(err: E) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidData,
-        err
-    )
 }
 
 

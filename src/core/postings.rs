@@ -17,56 +17,6 @@ pub trait Postings: Iterator<Item=DocId> {
 // impl<T: Iterator<Item=DocId>> Postings for T {}
 
 
-#[derive(Debug)]
-pub struct VecPostings {
-    doc_ids: Vec<DocId>,
-	cursor: usize,
-}
-
-impl VecPostings {
-    pub fn new(vals: Vec<DocId>) -> VecPostings {
-        VecPostings {
-            doc_ids: vals,
-			cursor: 0,
-        }
-    }
-}
-
-impl Postings for VecPostings {
-    // after skipping position
-    // the iterator in such a way that the
-    // next call to next() will return a
-    // value greater or equal to target.
-    fn skip_next(&mut self, target: DocId) -> Option<DocId> {
-        loop {
-            match Iterator::next(self) {
-                Some(val) if val >= target => {
-                    return Some(val);
-                },
-                None => {
-                    return None;
-                },
-                _ => {}
-            }
-        }
-    }
-}
-
-impl Iterator for VecPostings {
-	type Item = DocId;
-	fn next(&mut self,) -> Option<DocId> {
-		if self.cursor >= self.doc_ids.len() {
-			None
-		}
-		else {
-            self.cursor += 1;
-			Some(self.doc_ids[self.cursor - 1])
-		}
-	}
-}
-
-
-
 
 
 pub struct IntersectionPostings<T: Postings> {
@@ -126,6 +76,55 @@ mod tests {
     use super::*;
     use test::Bencher;
     use core::schema::DocId;
+
+
+    #[derive(Debug)]
+    pub struct VecPostings {
+        doc_ids: Vec<DocId>,
+    	cursor: usize,
+    }
+
+    impl VecPostings {
+        pub fn new(vals: Vec<DocId>) -> VecPostings {
+            VecPostings {
+                doc_ids: vals,
+    			cursor: 0,
+            }
+        }
+    }
+
+    impl Postings for VecPostings {
+        // after skipping position
+        // the iterator in such a way that the
+        // next call to next() will return a
+        // value greater or equal to target.
+        fn skip_next(&mut self, target: DocId) -> Option<DocId> {
+            loop {
+                match Iterator::next(self) {
+                    Some(val) if val >= target => {
+                        return Some(val);
+                    },
+                    None => {
+                        return None;
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    impl Iterator for VecPostings {
+    	type Item = DocId;
+    	fn next(&mut self,) -> Option<DocId> {
+    		if self.cursor >= self.doc_ids.len() {
+    			None
+    		}
+    		else {
+                self.cursor += 1;
+    			Some(self.doc_ids[self.cursor - 1])
+    		}
+    	}
+    }
 
     #[test]
     fn test_intersection() {

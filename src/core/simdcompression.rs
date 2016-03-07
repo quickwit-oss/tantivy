@@ -4,12 +4,12 @@ use std::ptr;
 // use std::iter;
 
 extern {
-    fn encode_unsorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_unsorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
-
+    // fn encode_unsorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
+    // fn decode_unsorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+    // fn intersection_native(left_data: *const u32, left_size: size_t, right_data: *const u32, right_size: size_t, output: *mut u32) -> size_t;
     fn encode_sorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_sorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
-    fn intersection_native(left_data: *const u32, left_size: size_t, right_data: *const u32, right_size: size_t, output: *mut u32) -> size_t;
+
 }
 
 pub struct Encoder {
@@ -48,26 +48,26 @@ impl Encoder {
     }
 
 
-    pub fn encode_unsorted(&mut self, input: &[u32]) -> &[u32] {
-        self.input_buffer.clear();
-        let input_len = input.len();
-        if input_len + 10000 >= self.input_buffer.len() {
-            let target_length = input_len + 1024;
-            self.input_buffer.resize(target_length, 0);
-            self.output_buffer.resize(target_length, 0);
-        }
-        // TODO use clone_from when available
-        unsafe {
-            ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
-            let written_size = encode_unsorted_native(
-                self.input_buffer.as_mut_ptr(),
-                input_len as size_t,
-                self.output_buffer.as_mut_ptr(),
-                self.output_buffer.len() as size_t,
-            );
-            return &self.output_buffer[0..written_size];
-        }
-    }
+    // pub fn encode_unsorted(&mut self, input: &[u32]) -> &[u32] {
+    //     self.input_buffer.clear();
+    //     let input_len = input.len();
+    //     if input_len + 10000 >= self.input_buffer.len() {
+    //         let target_length = input_len + 1024;
+    //         self.input_buffer.resize(target_length, 0);
+    //         self.output_buffer.resize(target_length, 0);
+    //     }
+    //     // TODO use clone_from when available
+    //     unsafe {
+    //         ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
+    //         let written_size = encode_unsorted_native(
+    //             self.input_buffer.as_mut_ptr(),
+    //             input_len as size_t,
+    //             self.output_buffer.as_mut_ptr(),
+    //             self.output_buffer.len() as size_t,
+    //         );
+    //         return &self.output_buffer[0..written_size];
+    //     }
+    // }
 }
 
 
@@ -92,17 +92,17 @@ impl Decoder {
         }
     }
 
-    pub fn decode_unsorted(&self,
-                  compressed_data: &[u32],
-                  uncompressed_values: &mut [u32]) -> size_t {
-        unsafe {
-            return decode_unsorted_native(
-                        compressed_data.as_ptr(),
-                        compressed_data.len() as size_t,
-                        uncompressed_values.as_mut_ptr(),
-                        uncompressed_values.len() as size_t);
-        }
-    }
+    // pub fn decode_unsorted(&self,
+    //               compressed_data: &[u32],
+    //               uncompressed_values: &mut [u32]) -> size_t {
+    //     unsafe {
+    //         return decode_unsorted_native(
+    //                     compressed_data.as_ptr(),
+    //                     compressed_data.len() as size_t,
+    //                     uncompressed_values.as_mut_ptr(),
+    //                     uncompressed_values.len() as size_t);
+    //     }
+    // }
 }
 
 
@@ -176,22 +176,22 @@ mod tests {
         assert_eq!(decoded_data, input);
     }
 
-    #[test]
-    fn test_encode_unsorted() {
-        let mut encoder = Encoder::new();
-        let num_ints = 10_000 as usize;
-        let expected_length = 4361;
-        let input: Vec<u32> = (0..num_ints as u32)
-            .map(|i| i * 213_127 % 501)
-            .into_iter().collect();
-        assert_eq!(input.len(), 10_000);
-        let encoded_data = encoder.encode_unsorted(&input);
-        assert_eq!(encoded_data.len(), expected_length);
-        let decoder = Decoder::new();
-        let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
-        assert_eq!(num_ints, decoder.decode_unsorted(&encoded_data[..], &mut decoded_data));
-        assert_eq!(decoded_data, input);
-    }
+    // #[test]
+    // fn test_encode_unsorted() {
+    //     let mut encoder = Encoder::new();
+    //     let num_ints = 10_000 as usize;
+    //     let expected_length = 4361;
+    //     let input: Vec<u32> = (0..num_ints as u32)
+    //         .map(|i| i * 213_127 % 501)
+    //         .into_iter().collect();
+    //     assert_eq!(input.len(), 10_000);
+    //     let encoded_data = encoder.encode_unsorted(&input);
+    //     assert_eq!(encoded_data.len(), expected_length);
+    //     let decoder = Decoder::new();
+    //     let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
+    //     assert_eq!(num_ints, decoder.decode_unsorted(&encoded_data[..], &mut decoded_data));
+    //     assert_eq!(decoded_data, input);
+    // }
     //
     // #[test]
     // fn test_simd_intersection() {

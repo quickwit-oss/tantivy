@@ -35,6 +35,10 @@ pub use core::schema::Document;
 pub use core::collector;
 pub use core::reader::SegmentReader;
 
+
+
+
+
 #[cfg(test)]
 mod tests {
 

@@ -32,12 +32,6 @@ pub struct IndexMeta {
 }
 
 impl IndexMeta {
-    fn new() -> IndexMeta {
-        IndexMeta {
-            segments: Vec::new(),
-            schema: Schema::new(),
-        }
-    }
     fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
             segments: Vec::new(),

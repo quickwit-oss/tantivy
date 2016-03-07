@@ -14,13 +14,14 @@ use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
 use core::schema::FieldValue;
-
+use core::convert_to_ioerror;
 
 #[derive(Debug)]
 pub struct TermInfo {
     pub doc_freq: u32,
     pub postings_offset: u32,
 }
+
 
 impl BinarySerializable for TermInfo {
 
@@ -89,9 +90,9 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
 
     fn write_segment_info(&self, segment_info: &SegmentInfo) -> io::Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
-        let json_data = json::encode(segment_info).unwrap();
-        write.write_all(json_data.as_bytes());
-        write.flush();
+        let json_data = try!(json::encode(segment_info).map_err(convert_to_ioerror));
+        try!(write.write_all(json_data.as_bytes()));
+        try!(write.flush());
         Ok(())
     }
 

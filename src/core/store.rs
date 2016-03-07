@@ -139,7 +139,7 @@ impl StoreReader {
         return offset;
     }
 
-    fn read_block(&self, block_offset: usize) {
+    fn read_block(&self, block_offset: usize) -> io::Result<()> {
         let mut current_block_mut = self.current_block.borrow_mut();
         current_block_mut.clear();
         let total_buffer = self.data.as_slice();
@@ -147,21 +147,21 @@ impl StoreReader {
         let block_length = u32::deserialize(&mut cursor).unwrap();
         let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
         let mut lz4_decoder = lz4::Decoder::new(Cursor::new(block_array)).unwrap();
-        lz4_decoder.read_to_end(&mut current_block_mut);
+        lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())
     }
 
     pub fn get(&self, doc_id: &DocId) -> io::Result<Document> {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
-        self.read_block(block_offset as usize);
+        try!(self.read_block(block_offset as usize));
         let mut current_block_mut = self.current_block.borrow_mut();
         let mut cursor = Cursor::new(&mut current_block_mut[..]);
         for _ in first_doc_id..*doc_id  {
             let block_length = try!(u32::deserialize(&mut cursor));
-            cursor.seek(SeekFrom::Current(block_length as i64));
+            try!(cursor.seek(SeekFrom::Current(block_length as i64)));
         }
         try!(u32::deserialize(&mut cursor));
         let mut field_values = Vec::new();
-        let num_fields = u32::deserialize(&mut cursor).unwrap();
+        let num_fields = try!(u32::deserialize(&mut cursor));
         for _ in 0..num_fields {
             let field_value = try!(FieldValue::deserialize(&mut cursor));
             field_values.push(field_value);

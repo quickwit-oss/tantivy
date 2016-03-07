@@ -215,7 +215,7 @@ impl Directory for RAMDirectory {
     }
     fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
         let full_path = PathBuf::from(&path);
-        let mut data = SharedVec::new();
+        let data = SharedVec::new();
         self.fs.insert(full_path, data.clone());
         Ok(Box::new(data))
     }
