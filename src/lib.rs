@@ -36,6 +36,7 @@ pub use core::schema::FieldOptions;
 pub use core::schema::Document;
 pub use core::collector;
 pub use core::reader::SegmentReader;
+pub use core::searcher::SegmentLocalId;
 
 
 #[cfg(test)]
@@ -64,7 +65,7 @@ mod tests {
 
     impl Collector for TestCollector {
 
-        fn set_segment(&mut self, _: &SegmentReader) {}
+        fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) {}
 
         fn collect(&mut self, doc_id: DocId) {
             self.docs.push(doc_id);

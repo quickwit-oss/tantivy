@@ -14,6 +14,7 @@ use std::io;
 use std::str;
 use core::codec::TermInfo;
 use core::fstmap::FstMap;
+use std::fmt;
 use rustc_serialize::json;
 use core::serial::SegmentSerializer;
 use core::serial::SerializableSegment;
@@ -24,10 +25,17 @@ use core::convert_to_ioerror;
 
 pub struct SegmentReader {
     segment_info: SegmentInfo,
-    segment: Segment,
+    segment_id: SegmentId,
     term_offsets: FstMap<TermInfo>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
+}
+
+
+impl fmt::Debug for SegmentReader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SegmentReader({:?})", self.segment_id)
+    }
 }
 
 pub struct SegmentPostings {
@@ -101,12 +109,6 @@ impl Iterator for SegmentPostings {
 
 impl SegmentReader {
 
-
-    /// Returns the associated segment id.
-    pub fn id(&self,) -> SegmentId {
-        self.segment.id()
-    }
-
     /// Returns the highest document id ever attributed in
     /// this segement + 1.
     /// Today, `tantivy` does not handle deletes so, it happens
@@ -129,7 +131,7 @@ impl SegmentReader {
             segment_info: segment_info,
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,
-            segment: segment,
+            segment_id: segment.id(),
             store_reader: store_reader,
         })
     }

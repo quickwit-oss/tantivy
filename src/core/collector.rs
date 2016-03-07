@@ -1,16 +1,16 @@
 use core::schema::DocId;
 use core::reader::SegmentReader;
-use core::index::SegmentId;
+use core::searcher::SegmentLocalId;
 use core::searcher::DocAddress;
 
 pub trait Collector {
-    fn set_segment(&mut self, segment: &SegmentReader);
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader);
     fn collect(&mut self, doc_id: DocId);
 }
 
 pub struct FirstNCollector {
     docs: Vec<DocAddress>,
-    current_segment: Option<SegmentId>,
+    current_segment: u32,
     limit: usize,
 }
 
@@ -19,7 +19,7 @@ impl FirstNCollector {
         FirstNCollector {
             docs: Vec::new(),
             limit: limit,
-            current_segment: None,
+            current_segment: 0,
         }
     }
 
@@ -30,13 +30,13 @@ impl FirstNCollector {
 
 impl Collector for FirstNCollector {
 
-    fn set_segment(&mut self, segment: &SegmentReader) {
-        self.current_segment = Some(segment.id());
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, _: &SegmentReader) {
+        self.current_segment = segment_local_id;
     }
 
     fn collect(&mut self, doc_id: DocId) {
         if self.docs.len() < self.limit {
-            self.docs.push(DocAddress(self.current_segment.clone().unwrap(), doc_id));
+            self.docs.push(DocAddress(self.current_segment.clone(), doc_id));
         }
     }
 }
@@ -59,7 +59,7 @@ impl CountCollector {
 
 impl Collector for CountCollector {
 
-    fn set_segment(&mut self, _: &SegmentReader) {}
+    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) {}
 
     fn collect(&mut self, _: DocId) {
         self.count += 1;
@@ -84,9 +84,9 @@ impl<'a> MultiCollector<'a> {
 
 impl<'a> Collector for MultiCollector<'a> {
 
-    fn set_segment(&mut self, segment: &SegmentReader) {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) {
         for collector in self.collectors.iter_mut() {
-            collector.set_segment(segment);
+            collector.set_segment(segment_local_id, segment);
         }
     }
 
