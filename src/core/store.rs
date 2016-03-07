@@ -8,7 +8,6 @@ use core::directory::ReadOnlySource;
 use std::io::Write;
 use std::io::Read;
 use std::io::Cursor;
-use std::io::Error as IOError;
 use std::io;
 use std::io::SeekFrom;
 use std::io::Seek;
@@ -69,32 +68,33 @@ impl StoreWriter {
         }
     }
 
-    fn write_and_compress_block(&mut self,) {
+    fn write_and_compress_block(&mut self,) -> io::Result<()> {
         // err handling
         self.intermediary_buffer.clear();
         {
             let mut encoder = lz4::EncoderBuilder::new()
                     .build(&mut self.intermediary_buffer)
                     .unwrap();
-            encoder.write_all(&self.current_block);
-            encoder.finish();
+            try!(encoder.write_all(&self.current_block));
+            let (_, encoder_result) = encoder.finish();
+            try!(encoder_result);
         }
         let compressed_block_size = self.intermediary_buffer.len() as u64;
-        self.written += (compressed_block_size as u32).serialize(&mut self.writer).unwrap() as u64;
-        self.writer.write_all(&self.intermediary_buffer);
+        self.written += try!((compressed_block_size as u32).serialize(&mut self.writer)) as u64;
+        try!(self.writer.write_all(&self.intermediary_buffer));
         self.written += compressed_block_size;
         self.offsets.push(OffsetIndex(self.doc, self.written));
         self.current_block.clear();
+        Ok(())
     }
 
-    pub fn close(&mut self,) -> Result<(), IOError> {
+    pub fn close(&mut self,) -> io::Result<()> {
         if self.current_block.len() > 0 {
             self.write_and_compress_block();
         }
         let header_offset: u64 = self.written;
-        //let writer_mutref: &mut Write = self.writer.deref_mut();
-        self.offsets.serialize(&mut self.writer);
-        header_offset.serialize(&mut self.writer);
+        try!(self.offsets.serialize(&mut self.writer));
+        try!(header_offset.serialize(&mut self.writer));
         self.writer.flush()
     }
 
@@ -116,9 +116,9 @@ impl StoreReader {
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
         // todo err
         let mut cursor = Cursor::new(data.as_slice());
-        cursor.seek(SeekFrom::End(-8));
+        cursor.seek(SeekFrom::End(-8)).unwrap();
         let offset = u64::deserialize(&mut cursor).unwrap();
-        cursor.seek(SeekFrom::Start(offset));
+        cursor.seek(SeekFrom::Start(offset)).unwrap();
         Vec::deserialize(&mut cursor).unwrap()
     }
 

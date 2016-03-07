@@ -6,6 +6,8 @@ use std::io::Result;
 use std::io;
 use byteorder;
 
+
+
 fn convert_byte_order_error(byteorder_error: byteorder::Error) -> io::Error {
     match byteorder_error {
         byteorder::Error::UnexpectedEOF => io::Error::new(io::ErrorKind::InvalidData, "Reached EOF unexpectedly"),
@@ -77,7 +79,7 @@ impl BinarySerializable for u64 {
 impl BinarySerializable for u8 {
     fn serialize(&self, writer: &mut Write) -> Result<usize> {
         // TODO error
-        writer.write_u8(self.clone());
+        try!(writer.write_u8(self.clone()).map_err(convert_byte_order_error));
         Ok(1)
     }
     fn deserialize(reader: &mut Read) -> Result<u8> {
@@ -92,7 +94,7 @@ impl BinarySerializable for String {
         let data: &[u8] = self.as_bytes();
         let mut size = try!((data.len() as u32).serialize(writer));
         size += data.len();
-        writer.write_all(data);
+        try!(writer.write_all(data));
         Ok(size)
     }
 

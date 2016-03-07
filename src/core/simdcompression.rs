@@ -105,33 +105,37 @@ impl Decoder {
     }
 }
 
-pub struct Intersector {
-    output_buffer: Vec<u32>,
-}
 
-impl Intersector {
-    fn new() -> Intersector {
-        Intersector::with_capacity(1_000_000)
-    }
-    fn with_capacity(capacity: usize) -> Intersector {
-        Intersector {
-            output_buffer: iter::repeat(0u32).take(capacity).collect()
-        }
-    }
-    fn intersection(&mut self, left: &[u32], right: &[u32]) -> &[u32] {
-        let max_intersection_length = min(left.len(), right.len());
-        if self.output_buffer.len() < max_intersection_length {
-            self.output_buffer.resize(max_intersection_length, 0);
-        }
-        unsafe {
-            let intersection_len = intersection_native(
-                left.as_ptr(), left.len() as size_t,
-                right.as_ptr(), right.len() as size_t,
-                self.output_buffer.as_mut_ptr());
-            return &self.output_buffer[0..intersection_len];
-        }
-    }
-}
+
+
+//
+// pub struct Intersector {
+//     output_buffer: Vec<u32>,
+// }
+//
+// impl Intersector {
+//     fn new() -> Intersector {
+//         Intersector::with_capacity(1_000_000)
+//     }
+//     fn with_capacity(capacity: usize) -> Intersector {
+//         Intersector {
+//             output_buffer: iter::repeat(0u32).take(capacity).collect()
+//         }
+//     }
+//     fn intersection(&mut self, left: &[u32], right: &[u32]) -> &[u32] {
+//         let max_intersection_length = min(left.len(), right.len());
+//         if self.output_buffer.len() < max_intersection_length {
+//             self.output_buffer.resize(max_intersection_length, 0);
+//         }
+//         unsafe {
+//             let intersection_len = intersection_native(
+//                 left.as_ptr(), left.len() as size_t,
+//                 right.as_ptr(), right.len() as size_t,
+//                 self.output_buffer.as_mut_ptr());
+//             return &self.output_buffer[0..intersection_len];
+//         }
+//     }
+// }
 
 
 #[cfg(test)]

@@ -106,7 +106,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
             size += layer.buffer.len() as u32;
             layer_sizes.push(size);
         }
-        layer_sizes.serialize(output);
+        try!(layer_sizes.serialize(output));
         try!(self.data_layer.write(output));
         for layer in self.skip_layers.iter() {
             try!(layer.write(output));
@@ -145,9 +145,12 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
 }
 
 
+
+
 static EMPTY: [u8; 0] = [];
 
 impl<'a, T: BinarySerializable> Layer<'a, T> {
+
 
     fn read(mut cursor: Cursor<&'a [u8]>) -> Layer<'a, T> {
         // TODO error handling?
@@ -171,8 +174,8 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     }
 
 
-    fn seek_offset(&mut self, offset: usize) {
-        self.cursor.seek(SeekFrom::Start(offset as u64));
+    fn seek_offset(&mut self, offset: usize)  {
+        self.cursor.seek(SeekFrom::Start(offset as u64)).unwrap();
         self.next_id = match self.cursor.read_u32::<BigEndian>() {
             Ok(val) => val,
             Err(_) => u32::max_value(),
@@ -263,6 +266,7 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         }
     }
 }
+
 
 
 
