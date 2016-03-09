@@ -10,21 +10,78 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
-
+use std::ops::BitOr;
 
 /// u32 identifying a document within a segment.
 /// Document gets their doc id assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
 
+
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct FieldOptions {
     tokenized_indexed: bool,
     stored: bool,
-    doc_value: bool,
+    fast: bool,
 }
 
+/// The field will be tokenized and indexed
+pub const INDEXED_TEXT: FieldOptions = FieldOptions {
+    tokenized_indexed: true,
+    stored: false,
+    fast: false
+};
 
+/// A stored fields of a document can be retrieved given its DocId.
+/// Stored field are stored together and LZ4 compressed.
+/// Reading the stored fields of a document is relatively slow.
+/// (100 microsecs)
+pub const STORED: FieldOptions = FieldOptions {
+    tokenized_indexed: false,
+    stored: true,
+    fast: false
+};
+
+/// Fast field are used for field you need to access many times during
+/// collection. (e.g: for sort, aggregates).
+pub const FAST: FieldOptions = FieldOptions {
+    tokenized_indexed: false,
+    stored: false,
+    fast: true
+};
+
+
+impl BitOr for FieldOptions {
+
+    type Output = FieldOptions;
+
+    fn bitor(self, other: FieldOptions) -> FieldOptions {
+        let mut res = FieldOptions::new();
+        res.tokenized_indexed = self.tokenized_indexed || other.tokenized_indexed;
+        res.stored = self.stored || other.stored;
+        res.fast = self.fast || other.fast;
+        res
+    }
+}
+
+macro_rules! bitxor_impl {
+    ($($t:ty)*) => ($(
+        impl BitOr for $t {
+            type Output = FieldOptions;
+
+            fn bitxor(self, other: $t) -> $t {
+                let mut res = FieldOptions::new();
+                res.tokenized_indexed = self.tokenized_indexed || other.tokenized_indexed;
+                res.stored = self.stored || other.stored;
+                res.fast = self.fast || other.fast;
+                res
+            }
+        }
+
+    )*)
+}
+
+/// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Field(u8);
 
@@ -37,13 +94,17 @@ impl FieldOptions {
         self.stored
     }
 
+    pub fn is_fast(&self,) -> bool {
+        self.fast
+    }
+
     pub fn set_stored(mut self,) -> FieldOptions {
         self.stored = true;
         self
     }
 
-    pub fn set_docvalue(mut self,) -> FieldOptions {
-        self.doc_value = true;
+    pub fn set_fast(mut self,) -> FieldOptions {
+        self.fast = true;
         self
     }
 
@@ -54,20 +115,18 @@ impl FieldOptions {
 
     pub fn new() -> FieldOptions {
         FieldOptions {
-            doc_value: false,
+            fast: false,
             tokenized_indexed: false,
             stored: false,
         }
     }
 }
 
-
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
 pub struct FieldValue {
     pub field: Field,
     pub text: String,
 }
-
 
 impl BinarySerializable for Field {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
@@ -79,7 +138,6 @@ impl BinarySerializable for Field {
         u8::deserialize(reader).map(Field)
     }
 }
-
 
 impl BinarySerializable for FieldValue {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
@@ -114,6 +172,30 @@ struct FieldEntry {
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
+///
+/// This is done by creating a schema object, and
+/// setting up the fields one by one.
+/// It is for the moment impossible to remove fields.
+///
+/// # Examples
+///
+/// ```
+/// use tantivy::Schema;
+/// ...
+/// fn create_schema() -> Schema {
+///   let mut schema = Schema::new();
+///   let str_fieldtype = FieldOptions::new();
+///   let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
+///   let id_field = schema.add_field("id", &str_fieldtype);
+///   let url_field = schema.add_field("url", &str_fieldtype);
+///   let body_field = schema.add_field("body", &text_fieldtype);
+///   let id_field = schema.add_field("id", &str_fieldtype);
+///   let url_field = schema.add_field("url", &str_fieldtype);
+///   let title_field = schema.add_field("title", &text_fieldtype);
+///   let body_field = schema.add_field("body", &text_fieldtype);
+///   schema
+/// }
+///
 #[derive(Clone, Debug)]
 pub struct Schema {
     fields: Vec<FieldEntry>,
@@ -312,5 +394,27 @@ impl Document {
             .filter(|field_value| field_value.field == *field)
             .map(|field_value| &field_value.text)
             .next()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_field_options() {
+        {
+            let field_options = STORED | FAST;
+            assert!(field_options.is_stored());
+            assert!(field_options.is_fast());
+            assert!(!field_options.is_tokenized_indexed());
+        }
+        {
+            let field_options = STORED | INDEXED_TEXT;
+            assert!(field_options.is_stored());
+            assert!(!field_options.is_fast());
+            assert!(field_options.is_tokenized_indexed());
+        }
     }
 }

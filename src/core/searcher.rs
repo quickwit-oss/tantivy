@@ -12,6 +12,8 @@ pub struct Searcher {
     segments: Vec<SegmentReader>,
 }
 
+/// A segment local id identifies a segment.
+/// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
 #[derive(Debug)]

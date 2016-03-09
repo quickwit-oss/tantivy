@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Index` struct in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Index">
+
+    <title>tantivy::Index - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'Index', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>tantivy</a>::<wbr><a class='struct' href=''>Index</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-1809' class='srclink' href='../src/tantivy/core/index.rs.html#60-63' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Index {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a></code></h3><div class='impl-items'><h4 id='method.create_in_ram' class='method'><code>fn <a href='#method.create_in_ram' class='fnname'>create_in_ram</a>(schema: <a class='struct' href='../tantivy/schema/struct.Schema.html' title='tantivy::schema::Schema'>Schema</a>) -&gt; <a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a></code></h4>
+<h4 id='method.create' class='method'><code>fn <a href='#method.create' class='fnname'>create</a>(directory_path: &amp;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>, schema: <a class='struct' href='../tantivy/schema/struct.Schema.html' title='tantivy::schema::Schema'>Schema</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a>&gt;</code></h4>
+<h4 id='method.create_from_tempdir' class='method'><code>fn <a href='#method.create_from_tempdir' class='fnname'>create_from_tempdir</a>(schema: <a class='struct' href='../tantivy/schema/struct.Schema.html' title='tantivy::schema::Schema'>Schema</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a>&gt;</code></h4>
+<h4 id='method.open' class='method'><code>fn <a href='#method.open' class='fnname'>open</a>(directory_path: &amp;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a>&gt;</code></h4>
+<h4 id='method.writer' class='method'><code>fn <a href='#method.writer' class='fnname'>writer</a>(&amp;self) -&gt; IndexWriter</code></h4>
+<h4 id='method.searcher' class='method'><code>fn <a href='#method.searcher' class='fnname'>searcher</a>(&amp;self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;Searcher&gt;</code></h4>
+<h4 id='method.schema' class='method'><code>fn <a href='#method.schema' class='fnname'>schema</a>(&amp;self) -&gt; <a class='struct' href='../tantivy/schema/struct.Schema.html' title='tantivy::schema::Schema'>Schema</a></code></h4>
+<h4 id='method.publish_segment' class='method'><code>fn <a href='#method.publish_segment' class='fnname'>publish_segment</a>(&amp;mut self, segment: Segment) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<h4 id='method.sync' class='method'><code>fn <a href='#method.sync' class='fnname'>sync</a>(&amp;mut self, segment: Segment) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<h4 id='method.segments' class='method'><code>fn <a href='#method.segments' class='fnname'>segments</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;Segment&gt;</code></h4>
+<h4 id='method.segment' class='method'><code>fn <a href='#method.segment' class='fnname'>segment</a>(&amp;self, segment_id: &amp;SegmentId) -&gt; Segment</code></h4>
+<h4 id='method.new_segment' class='method'><code>fn <a href='#method.new_segment' class='fnname'>new_segment</a>(&amp;self) -&gt; Segment</code></h4>
+<h4 id='method.load_metas' class='method'><code>fn <a href='#method.load_metas' class='fnname'>load_metas</a>(&amp;mut self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<h4 id='method.save_metas' class='method'><code>fn <a href='#method.save_metas' class='fnname'>save_metas</a>(&amp;mut self) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a></code></h3><div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#method.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+</div><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a></code></h3><div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../tantivy/struct.Index.html' title='tantivy::Index'>Index</a></code></h4>
+<h4 id='method.clone_from' class='method'><span class="since">1.0.0</span><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "tantivy";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

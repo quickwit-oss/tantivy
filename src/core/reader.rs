@@ -110,7 +110,7 @@ impl Iterator for SegmentPostings {
 impl SegmentReader {
 
     /// Returns the highest document id ever attributed in
-    /// this segement + 1.
+    /// this segment + 1.
     /// Today, `tantivy` does not handle deletes so, it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self,) -> DocId {
@@ -136,6 +136,11 @@ impl SegmentReader {
         })
     }
 
+
+    /// Returns the document (or to be accurate, its stored field)
+    /// bearing the given doc id.
+    /// This method is slow and should seldom be called from
+    /// within a collector.
     pub fn  doc(&self, doc_id: &DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
     }
@@ -145,10 +150,13 @@ impl SegmentReader {
         SegmentPostings::from_data(&postings_data)
     }
 
-    pub fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
+
+    fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_offsets.get(term.as_slice())
     }
 
+    /// Returns the list of doc ids containing all of the
+    /// given terms.
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
 
         let mut segment_postings: Vec<SegmentPostings> = Vec::new();

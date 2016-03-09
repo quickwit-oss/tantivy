@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["collector",""],["directory",""],["index",""],["reader",""],["schema",""],["searcher",""],["serialize",""]]});

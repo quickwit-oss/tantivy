@@ -27,14 +27,12 @@ extern crate uuid;
 
 mod core;
 
-pub use core::schema::DocId;
 pub use core::index::Index;
-pub use core::schema::Schema;
+pub use core::schema;
 pub use core::schema::Term;
-pub use core::schema::Field;
-pub use core::schema::FieldOptions;
 pub use core::schema::Document;
 pub use core::collector;
+pub use core::schema::DocId;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;
 
@@ -75,8 +73,8 @@ mod tests {
 
     #[test]
     fn test_indexing() {
-        let mut schema = Schema::new();
-        let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
+        let mut schema = schema::Schema::new();
+        let text_fieldtype = schema::FieldOptions::new().set_tokenized_indexed();
         let text_field = schema.add_field("text", &text_fieldtype);
 
         let index = Index::create_from_tempdir(schema).unwrap();
@@ -116,8 +114,8 @@ mod tests {
 
     #[test]
     fn test_searcher() {
-        let mut schema = Schema::new();
-        let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
+        let mut schema = schema::Schema::new();
+        let text_fieldtype = schema::FieldOptions::new().set_tokenized_indexed();
         let text_field = schema.add_field("text", &text_fieldtype);
         let index = Index::create_from_tempdir(schema).unwrap();
 

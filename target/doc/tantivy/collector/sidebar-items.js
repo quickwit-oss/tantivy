@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["CountCollector",""],["FirstNCollector",""],["MultiCollector",""]],"trait":[["Collector",""]]});

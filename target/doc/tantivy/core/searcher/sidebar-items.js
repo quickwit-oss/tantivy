@@ -1,0 +1,1 @@
+initSidebarItems({"type":[["SegmentLocalId","A segment local id identifies a segment. It only makes sense for a given searcher."]]});
