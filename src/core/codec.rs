@@ -1,6 +1,5 @@
 use std::io;
 use std::io::{Read, Write};
-use core::serial::SegmentSerializer;
 use rustc_serialize::json;
 use core::directory::WritePtr;
 use core::index::Segment;
@@ -14,6 +13,7 @@ use core::serialize::BinarySerializable;
 use core::simdcompression;
 use core::schema::FieldValue;
 use core::convert_to_ioerror;
+
 
 #[derive(Debug)]
 pub struct TermInfo {
@@ -39,9 +39,8 @@ impl BinarySerializable for TermInfo {
     }
 }
 
-pub struct SimpleCodec;
 
-pub struct SimpleSegmentSerializer {
+pub struct SegmentSerializer {
     segment: Segment,
     written_bytes_postings: usize,
     postings_write: WritePtr,
@@ -51,21 +50,37 @@ pub struct SimpleSegmentSerializer {
 }
 
 
-impl SimpleSegmentSerializer {
+
+impl SegmentSerializer {
+
+
+    pub fn for_segment(segment: &Segment) -> io::Result<SegmentSerializer>  {
+        let term_write = try!(segment.open_write(SegmentComponent::TERMS));
+        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
+        let store_write = try!(segment.open_write(SegmentComponent::STORE));
+        let term_fst_builder_result = FstMapBuilder::new(term_write);
+        let term_fst_builder = term_fst_builder_result.unwrap();
+        Ok(SegmentSerializer {
+            segment: segment.clone(),
+            written_bytes_postings: 0,
+            postings_write: postings_write,
+            store_writer: StoreWriter::new(store_write),
+            term_fst_builder: term_fst_builder,
+            encoder: simdcompression::Encoder::new(),
+        })
+    }
+
     pub fn segment(&self,) -> Segment {
         self.segment.clone()
     }
-}
 
-impl SegmentSerializer<()> for SimpleSegmentSerializer {
-
-    fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) -> io::Result<()> {
+    pub fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) -> io::Result<()> {
         let field_values: Vec<&FieldValue> = field_values_it.collect();
         try!(self.store_writer.store(&field_values));
         Ok(())
     }
 
-    fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
+    pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         let term_info = TermInfo {
             doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
@@ -74,7 +89,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
             .insert(term.as_slice(), &term_info)
     }
 
-    fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
+    pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
         // TODO write_all transmuted [u8]
         let docs_data = self.encoder.encode_sorted(doc_ids);
         self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
@@ -84,7 +99,7 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> io::Result<()> {
+    pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> io::Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
         let json_data = try!(json::encode(segment_info).map_err(convert_to_ioerror));
         try!(write.write_all(json_data.as_bytes()));
@@ -92,28 +107,10 @@ impl SegmentSerializer<()> for SimpleSegmentSerializer {
         Ok(())
     }
 
-    fn close(mut self,) -> io::Result<()> {
+    pub fn close(mut self,) -> io::Result<()> {
         // TODO handle errors on close
         try!(self.term_fst_builder
                  .finish());
         self.store_writer.close()
-    }
-}
-
-impl SimpleCodec {
-    pub fn serializer(segment: &Segment) -> io::Result<SimpleSegmentSerializer>  {
-        let term_write = try!(segment.open_write(SegmentComponent::TERMS));
-        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
-        let store_write = try!(segment.open_write(SegmentComponent::STORE));
-        let term_fst_builder_result = FstMapBuilder::new(term_write);
-        let term_fst_builder = term_fst_builder_result.unwrap();
-        Ok(SimpleSegmentSerializer {
-            segment: segment.clone(),
-            written_bytes_postings: 0,
-            postings_write: postings_write,
-            store_writer: StoreWriter::new(store_write),
-            term_fst_builder: term_fst_builder,
-            encoder: simdcompression::Encoder::new(),
-        })
     }
 }

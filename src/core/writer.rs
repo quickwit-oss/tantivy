@@ -4,32 +4,11 @@ use std::io;
 use std::rc::Rc;
 use core::index::Index;
 use core::analyzer::SimpleTokenizer;
-use std::collections::BTreeMap;
-use core::serial::{SegmentSerializer, SerializableSegment};
+use core::serial::SerializableSegment;
 use core::analyzer::StreamingIterator;
-use std::io::Error as IOError;
 use core::index::Segment;
 use core::index::SegmentInfo;
-
-
-pub struct PostingsWriter {
-	doc_ids: Vec<DocId>,
-}
-
-impl PostingsWriter {
-
-    pub fn new() -> PostingsWriter {
-        PostingsWriter {
-            doc_ids: Vec::new(),
-        }
-    }
-
-	fn suscribe(&mut self, doc_id: DocId) {
-		if self.doc_ids.len() == 0 || self.doc_ids[self.doc_ids.len() - 1] < doc_id {
-			self.doc_ids.push(doc_id);
-		}
-	}
-}
+use core::postings::PostingsWriter;
 
 pub struct IndexWriter {
 	segment_writer: Rc<SegmentWriter>,
@@ -37,20 +16,22 @@ pub struct IndexWriter {
 	schema: Schema,
 }
 
-fn new_segment_writer(directory: &Index, ) -> SegmentWriter {
+fn new_segment_writer(directory: &Index, ) -> io::Result<SegmentWriter> {
 	let segment = directory.new_segment();
 	SegmentWriter::for_segment(segment)
 }
 
 impl IndexWriter {
 
-    pub fn open(directory: &Index) -> IndexWriter {
+    pub fn open(directory: &Index) -> io::Result<IndexWriter> {
+		let segment = directory.new_segment();
+		let segment_writer = try!(SegmentWriter::for_segment(segment));
 		let schema = directory.schema();
-		IndexWriter {
-			segment_writer: Rc::new(new_segment_writer(&directory)),
+		Ok(IndexWriter {
+			segment_writer: Rc::new(segment_writer),
 			directory: directory.clone(),
 			schema: schema,
-		}
+		})
     }
 
     pub fn add(&mut self, doc: Document) -> io::Result<()> {
@@ -62,12 +43,11 @@ impl IndexWriter {
 		&self.segment_writer
 	}
 
-    pub fn commit(&mut self,) -> Result<Segment, IOError> {
+    pub fn commit(&mut self,) -> io::Result<Segment> {
 		// TODO error handling
 		let segment_writer_rc = self.segment_writer.clone();
-		self.segment_writer = Rc::new(new_segment_writer(&self.directory));
-		let segment_writer_res = Rc::try_unwrap(segment_writer_rc);
-		match segment_writer_res {
+		self.segment_writer = Rc::new(try!(new_segment_writer(&self.directory)));
+		match Rc::try_unwrap(segment_writer_rc) {
 			Ok(segment_writer) => {
 				let segment = segment_writer.segment();
 				try!(segment_writer.finalize());
@@ -79,20 +59,16 @@ impl IndexWriter {
 				panic!("error while acquiring segment writer.");
 			}
 		}
-
 	}
 
 }
 
 
-
 pub struct SegmentWriter {
-	num_tokens: usize,
     max_doc: DocId,
-    postings: Vec<PostingsWriter>,
-	term_index: BTreeMap<Term, usize>,
 	tokenizer: SimpleTokenizer,
-	segment_serializer: SimpleSegmentSerializer,
+	postings_writer: PostingsWriter,
+	segment_serializer: SegmentSerializer,
 }
 
 impl SegmentWriter {
@@ -102,15 +78,8 @@ impl SegmentWriter {
 	// - the dictionary in an fst
 	// - the postings
 	// - the segment info
-	fn finalize(mut self,) -> Result<(), IOError> {
-		{
-			for (term, postings_id) in self.term_index.iter() {
-				let doc_ids = &self.postings[postings_id.clone()].doc_ids;
-				let term_docfreq = doc_ids.len() as u32;
-				try!(self.segment_serializer.new_term(&term, term_docfreq));
-				try!(self.segment_serializer.write_docs(&doc_ids));
-			}
-		}
+	fn finalize(mut self,) -> io::Result<()> {
+		try!(self.postings_writer.serialize(&mut self.segment_serializer));
 		{
 			let segment_info = SegmentInfo {
 				max_doc: self.max_doc
@@ -128,17 +97,14 @@ impl SegmentWriter {
 		self.segment_serializer.segment()
 	}
 
-	fn for_segment(segment: Segment) -> SegmentWriter {
-		// TODO handle error
-		let segment_serializer = SimpleCodec::serializer(&segment).unwrap();
-		SegmentWriter {
-			num_tokens: 0,
+	fn for_segment(segment: Segment) -> io::Result<SegmentWriter> {
+		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
+		Ok(SegmentWriter {
 			max_doc: 0,
-			postings: Vec::new(),
-			term_index: BTreeMap::new(),
-			tokenizer: SimpleTokenizer::new(),
+			postings_writer: PostingsWriter::new(),
 			segment_serializer: segment_serializer,
-		}
+			tokenizer: SimpleTokenizer::new(),
+		})
 	}
 
     pub fn add(&mut self, doc: Document, schema: &Schema) -> io::Result<()> {
@@ -151,8 +117,7 @@ impl SegmentWriter {
 					match tokens.next() {
 						Some(token) => {
 							let term = Term::from_field_text(&field_value.field, token);
-							self.suscribe(doc_id, term);
-							self.num_tokens += 1;
+							self.postings_writer.suscribe(doc_id, term);
 						},
 						None => { break; }
 					}
@@ -167,32 +132,11 @@ impl SegmentWriter {
 		Ok(())
     }
 
-	pub fn get_postings_writer(&mut self, term: Term) -> &mut PostingsWriter {
-        match self.term_index.get(&term) {
-            Some(unord_id) => {
-                return &mut self.postings[*unord_id];
-            },
-            None => {}
-        }
-        let unord_id = self.term_index.len();
-        self.postings.push(PostingsWriter::new());
-        self.term_index.insert(term, unord_id.clone());
-        &mut self.postings[unord_id]
-    }
-
-	pub fn suscribe(&mut self, doc: DocId, term: Term) {
-        self.get_postings_writer(term).suscribe(doc);
-    }
 }
 
 impl SerializableSegment for SegmentWriter {
-	fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
-    	for (term, postings_id) in self.term_index.iter() {
-			let doc_ids = &self.postings[postings_id.clone()].doc_ids;
-			let term_docfreq = doc_ids.len() as u32;
-			try!(serializer.new_term(&term, term_docfreq));
-			try!(serializer.write_docs(&doc_ids));
-		}
+	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
+		try!(self.postings_writer.serialize(&mut serializer));
 		serializer.close()
 	}
 }

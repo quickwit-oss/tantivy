@@ -91,7 +91,7 @@ impl Index {
         Ok(index)
     }
 
-    pub fn writer(&self,) -> IndexWriter {
+    pub fn writer(&self,) -> io::Result<IndexWriter> {
         IndexWriter::open(self,)
     }
 

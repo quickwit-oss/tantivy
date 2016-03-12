@@ -11,6 +11,7 @@ use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use std::ops::BitOr;
+use std::borrow::Borrow;
 
 /// u32 identifying a document within a segment.
 /// Document gets their doc id assigned incrementally,
@@ -26,7 +27,7 @@ pub struct FieldOptions {
 }
 
 /// The field will be tokenized and indexed
-pub const INDEXED_TEXT: FieldOptions = FieldOptions {
+pub const TEXT: FieldOptions = FieldOptions {
     tokenized_indexed: true,
     stored: false,
     fast: false
@@ -180,8 +181,8 @@ struct FieldEntry {
 /// # Examples
 ///
 /// ```
-/// use tantivy::Schema;
-/// ...
+/// use tantivy::schema::{Schema, FieldOptions};
+///
 /// fn create_schema() -> Schema {
 ///   let mut schema = Schema::new();
 ///   let str_fieldtype = FieldOptions::new();
@@ -196,6 +197,7 @@ struct FieldEntry {
 ///   schema
 /// }
 ///
+/// let schema = create_schema();
 #[derive(Clone, Debug)]
 pub struct Schema {
     fields: Vec<FieldEntry>,
@@ -209,7 +211,8 @@ impl Decodable for Schema {
         try!(d.read_seq(|d, num_fields| {
             for _ in 0..num_fields {
                 let field_entry = try!(FieldEntry::decode(d));
-                schema.add_field(&field_entry.name, &field_entry.option);
+                let field_options: &FieldOptions = &field_entry.option;
+                schema.add_field(&field_entry.name, field_options);
             }
             Ok(())
         }));
@@ -273,18 +276,19 @@ impl Schema {
 
     /// Creates a new field.
     /// Return the associated field handle.
-    pub fn add_field(&mut self, field_name_str: &str, field_options: &FieldOptions) -> Field {
+    pub fn add_field<RefFieldOptions: Borrow<FieldOptions>>(&mut self, field_name_str: &str, field_options: RefFieldOptions) -> Field {
         let field = Field(self.fields.len() as u8);
         // TODO case if field already exists
         let field_name = String::from(field_name_str);
         self.fields.push(FieldEntry {
             name: field_name.clone(),
-            option: field_options.clone(),
+            option: field_options.borrow().clone(),
         });
         self.fields_map.insert(field_name, field.clone());
-        self.field_options.push(field_options.clone());
+        self.field_options.push(field_options.borrow().clone());
         field
     }
+
 }
 
 impl Term {
@@ -334,12 +338,13 @@ impl fmt::Debug for Term {
 ///  # Examples
 ///
 /// ```
-/// use tantivy::Document;
-/// use tantivy::Schema;
+/// use tantivy::schema::Schema;
+/// use tantivy::schema::TEXT;
 ///
-/// let schema = Schema::new();
+/// let mut schema = Schema::new();
+/// schema.add_field("body", &TEXT);
 /// let field_text = schema.field("body");
-/// let mut doc = Document::new();
+/// ```
 ///
 #[derive(Debug)]
 pub struct Document {
@@ -411,10 +416,20 @@ mod tests {
             assert!(!field_options.is_tokenized_indexed());
         }
         {
-            let field_options = STORED | INDEXED_TEXT;
+            let field_options = STORED | TEXT;
             assert!(field_options.is_stored());
             assert!(!field_options.is_fast());
             assert!(field_options.is_tokenized_indexed());
+        }
+    }
+
+    #[test]
+    fn test_schema() {
+        {
+            let mut schema = Schema::new();
+            schema.add_field("body", &TEXT);
+            let field = schema.field("body");
+            assert!(schema.field_options(&field).is_tokenized_indexed());
         }
     }
 }

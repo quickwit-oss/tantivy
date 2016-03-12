@@ -16,7 +16,7 @@ use core::codec::TermInfo;
 use core::fstmap::FstMap;
 use std::fmt;
 use rustc_serialize::json;
-use core::serial::SegmentSerializer;
+use core::codec::SegmentSerializer;
 use core::serial::SerializableSegment;
 use core::index::SegmentInfo;
 use core::convert_to_ioerror;
@@ -181,7 +181,7 @@ impl SegmentReader {
 
 impl SerializableSegment for SegmentReader {
 
-    fn write<Output, SegSer: SegmentSerializer<Output>>(&self, mut serializer: SegSer) -> io::Result<Output> {
+    fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
         let mut term_offsets_it = self.term_offsets.stream();
         loop {
             match term_offsets_it.next() {

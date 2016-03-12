@@ -1,10 +1,59 @@
 use core::schema::DocId;
 use std::ptr;
+use std::collections::BTreeMap;
+use core::schema::Term;
+use core::codec::SegmentSerializer;
+use std::io;
+
+pub struct PostingsWriter {
+    postings: Vec<Vec<DocId>>,
+    term_index: BTreeMap<Term, usize>,
+}
+
+impl PostingsWriter {
+
+    pub fn new() -> PostingsWriter {
+        PostingsWriter {
+            postings: Vec::new(),
+            term_index: BTreeMap::new(),
+        }
+    }
+
+    pub fn suscribe(&mut self, doc: DocId, term: Term) {
+        let doc_ids: &mut Vec<DocId> = self.get_term_postings(term);
+        if doc_ids.len() == 0 || doc_ids[doc_ids.len() - 1] < doc {
+			doc_ids.push(doc);
+		}
+    }
+
+    fn get_term_postings(&mut self, term: Term) -> &mut Vec<DocId> {
+        match self.term_index.get(&term) {
+            Some(unord_id) => {
+                return &mut self.postings[*unord_id];
+            },
+            None => {}
+        }
+        let unord_id = self.term_index.len();
+        self.postings.push(Vec::new());
+        self.term_index.insert(term, unord_id.clone());
+        &mut self.postings[unord_id]
+    }
+
+    pub fn serialize(&self, serializer: &mut SegmentSerializer) -> io::Result<()> {
+        for (term, postings_id) in self.term_index.iter() {
+            let doc_ids = &self.postings[postings_id.clone()];
+            let term_docfreq = doc_ids.len() as u32;
+            try!(serializer.new_term(&term, term_docfreq));
+            try!(serializer.write_docs(&doc_ids));
+        }
+        Ok(())
+    }
 
 
-////////////////////////////////////
+}
 
 
+//////////////////////////////////
 
 pub trait Postings: Iterator<Item=DocId> {
     // after skipping position
@@ -13,11 +62,6 @@ pub trait Postings: Iterator<Item=DocId> {
     // value greater or equal to target.
     fn skip_next(&mut self, target: DocId) -> Option<DocId>;
 }
-
-// impl<T: Iterator<Item=DocId>> Postings for T {}
-
-
-
 
 pub struct IntersectionPostings<T: Postings> {
     postings: Vec<T>,

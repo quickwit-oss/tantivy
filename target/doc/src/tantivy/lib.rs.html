@@ -220,10 +220,6 @@
 <span id="177">177</span>
 <span id="178">178</span>
 <span id="179">179</span>
-<span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
 </pre><pre class='rust '>
 <span class='comment'>//#![feature(test,associated_consts)]</span>
 <span class='attribute'>#<span class='op'>!</span>[<span class='ident'>cfg_attr</span>(<span class='ident'>test</span>, <span class='ident'>feature</span>(<span class='ident'>test</span>))]</span>
@@ -268,7 +264,6 @@
 <span class='kw'>mod</span> <span class='ident'>tests</span> {
 
     <span class='kw'>use</span> <span class='ident'>super</span>::<span class='op'>*</span>;
-    <span class='kw'>use</span> <span class='ident'>core</span>::<span class='ident'>serial</span>::<span class='ident'>tests</span>::<span class='ident'>DebugSegmentSerializer</span>;
     <span class='kw'>use</span> <span class='ident'>collector</span>::<span class='ident'>Collector</span>;
 
     <span class='comment'>// only make sense for a single segment</span>
@@ -308,7 +303,7 @@
 
         {
             <span class='comment'>// writing the segment</span>
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index_writer</span> <span class='op'>=</span> <span class='ident'>index</span>.<span class='ident'>writer</span>();
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index_writer</span> <span class='op'>=</span> <span class='ident'>index</span>.<span class='ident'>writer</span>().<span class='ident'>unwrap</span>();
             {
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>doc</span> <span class='op'>=</span> <span class='ident'>Document</span>::<span class='ident'>new</span>();
                 <span class='ident'>doc</span>.<span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='ident'>text_field</span>, <span class='string'>&quot;af b&quot;</span>);
@@ -325,15 +320,12 @@
                 <span class='ident'>index_writer</span>.<span class='ident'>add</span>(<span class='ident'>doc</span>).<span class='ident'>unwrap</span>();
             }
 
-            <span class='kw'>let</span> <span class='ident'>segment_str_before_writing</span> <span class='op'>=</span> <span class='ident'>DebugSegmentSerializer</span>::<span class='ident'>debug_string</span>(<span class='ident'>index_writer</span>.<span class='ident'>current_segment_writer</span>());
             <span class='kw'>let</span> <span class='ident'>commit_result</span> <span class='op'>=</span> <span class='ident'>index_writer</span>.<span class='ident'>commit</span>();
             <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>commit_result</span>.<span class='ident'>is_ok</span>());
 
             <span class='kw'>let</span> <span class='ident'>segment</span> <span class='op'>=</span> <span class='ident'>commit_result</span>.<span class='ident'>unwrap</span>();
             <span class='kw'>let</span> <span class='ident'>segment_reader</span> <span class='op'>=</span> <span class='ident'>SegmentReader</span>::<span class='ident'>open</span>(<span class='ident'>segment</span>).<span class='ident'>unwrap</span>();
             <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>segment_reader</span>.<span class='ident'>max_doc</span>(), <span class='number'>3</span>);
-            <span class='kw'>let</span> <span class='ident'>segment_str_after_reading</span> <span class='op'>=</span> <span class='ident'>DebugSegmentSerializer</span>::<span class='ident'>debug_string</span>(<span class='kw-2'>&amp;</span><span class='ident'>segment_reader</span>);
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>segment_str_before_writing</span>, <span class='ident'>segment_str_after_reading</span>);
         }
 
     }
@@ -348,7 +340,7 @@
 
         {
             <span class='comment'>// writing the segment</span>
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index_writer</span> <span class='op'>=</span> <span class='ident'>index</span>.<span class='ident'>writer</span>();
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index_writer</span> <span class='op'>=</span> <span class='ident'>index</span>.<span class='ident'>writer</span>().<span class='ident'>unwrap</span>();
             {
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>doc</span> <span class='op'>=</span> <span class='ident'>Document</span>::<span class='ident'>new</span>();
                 <span class='ident'>doc</span>.<span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='ident'>text_field</span>, <span class='string'>&quot;af b&quot;</span>);
