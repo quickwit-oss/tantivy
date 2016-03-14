@@ -13,6 +13,7 @@ pub mod store;
 pub mod simdcompression;
 pub mod fstmap;
 pub mod index;
+pub mod fastfield;
 
 
 use std::error;
