@@ -30,6 +30,11 @@ impl Deref for ReadOnlySource {
 }
 
 impl ReadOnlySource {
+
+    pub fn len(&self,) -> usize {
+        self.as_slice().len()
+    }
+
     pub fn as_slice(&self,) -> &[u8] {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { mmap_read_only.as_slice() },
