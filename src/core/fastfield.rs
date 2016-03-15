@@ -12,6 +12,82 @@ struct IntFastFieldWriter {
 }
 
 
+struct DivideU32 {
+    magic: magic,
+    more: u8,
+}
+
+const LIBDIVIDE_U32_SHIFT_PATH = 0x80;
+
+fn count_leading_zeros(val: u32) -> u32 {
+    let result = 0u32;
+    while (! (val & (1u32 << 31))) {
+        val <<= 1;
+        result++;
+    }
+    return result;
+}
+
+fn count_trailing_zeros(mut val: u32) -> u32 {
+    let result = 0u32;
+    val = (val ^ (val - 1)) >> 1;
+    while val != 0 {
+        val >>= 1;
+        result++;
+    }
+    result
+}
+
+static uint32_t libdivide_64_div_32_to_32(n: u64, uint32_t d, uint32_t v, uint32_t *r) {
+    uint32_t result;
+    __asm__("divl %[v]"
+            : "=a"(result), "=d"(*r)
+            : [v] "r"(v), "a"(u0), "d"(u1)
+            );
+    return result;
+}
+
+impl DivideU32 {
+
+    pub fn divide_by(d: u32) -> DivideU32 {
+        if ((d & (d - 1)) == 0) {
+            DivideU32 {
+                magic: 0,
+                more: count_trailing_zeros(d) | LIBDIVIDE_U32_SHIFT_PATH,
+            }
+        }
+        else {
+            let floor_log_2_d: u32 = 31 - count_leading_zeros(d);
+            let mut more: u8 = 0u8;
+            let mut rem: u32 = 0u32;
+            let mut proposed_m: 0u32;
+            proposed_m = libdivide_64_div_32_to_32(1U << floor_log_2_d, 0, d, &rem);
+
+            assert!(rem > 0 && rem < d);
+            LIBDIVIDE_ASSERT(rem > 0 && rem < d);
+            const uint32_t e = d - rem;
+
+    	/* This power works if e < 2**floor_log_2_d. */
+    	if (e < (1U << floor_log_2_d)) {
+                /* This power works */
+                more = floor_log_2_d;
+            }
+            else {
+                /* We have to use the general 33-bit algorithm.  We need to compute (2**power) / d. However, we already have (2**(power-1))/d and its remainder.  By doubling both, and then correcting the remainder, we can compute the larger division. */
+                proposed_m += proposed_m; //don't care about overflow here - in fact, we expect it
+                const uint32_t twice_rem = rem + rem;
+                if (twice_rem >= d || twice_rem < rem) proposed_m += 1;
+                more = floor_log_2_d | LIBDIVIDE_ADD_MARKER;
+            }
+            result.magic = 1 + proposed_m;
+            result.more = more;
+            //result.more's shift should in general be ceil_log_2_d.  But if we used the smaller power, we subtract one from the shift because we're using the smaller power. If we're using the larger power, we subtract one from the shift because it's taken care of by the add indicator.  So floor_log_2_d happens to be correct in both cases.
+
+        }
+        return result;
+    }
+}
+
 pub fn compute_num_bits(amplitude: u32) -> u8 {
     if amplitude == 0 {
         0
@@ -81,7 +157,7 @@ impl IntFastFieldReader {
         let min_val = try!(u32::deserialize(&mut cursor));
         let num_bits = try!(u8::deserialize(&mut cursor));
         let mask = (1 << num_bits) - 1;
-        let num_in_pack = 64u32 / (num_bits as u32);
+        let num_in_pack = 64u32 / (20 as u32);
         let ptr: *const u8 = &(data.deref()[5]);
         Ok(IntFastFieldReader {
             min_val: min_val,
@@ -115,7 +191,6 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
-    use core::serialize::BinarySerializable;
 
     #[test]
     fn test_compute_num_bits() {
@@ -203,7 +278,7 @@ mod tests {
     fn bench_intfastfield_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-            let n = test::black_box(100);
+            let n = test::black_box(10000);
             let mut a = 0u32;
             for _ in 0..n {
                 a = permutation[a as usize];
@@ -225,7 +300,7 @@ mod tests {
         let source = ReadOnlySource::Anonymous(buffer);
         let int_fast_field_reader = IntFastFieldReader::open(&source).unwrap();
         b.iter(|| {
-            let n = test::black_box(100);
+            let n = test::black_box(10000);
             let mut a = 0u32;
             for _ in 0..n {
                 a = int_fast_field_reader.get(a as u32);
