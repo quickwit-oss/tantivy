@@ -1,11 +1,10 @@
 use std::io::Write;
 use std::io;
 use std::io::Cursor;
-use std::io::Seek;
-use std::io::SeekFrom;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use core::schema::DocId;
+use std::ops::Deref;
 
 
 struct IntFastFieldWriter {
@@ -22,7 +21,6 @@ pub fn compute_num_bits(amplitude: u32) -> u8 {
     }
 }
 
-// only works for big-endian
 fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write: &mut Write) -> io::Result<()> {
     let mut mini_buffer_written = 0;
     let mut mini_buffer = 0u64;
@@ -70,6 +68,7 @@ impl IntFastFieldWriter {
 
 pub struct IntFastFieldReader {
     data: ReadOnlySource,
+    data_ptr: *const u64,
     min_val: u32,
     num_bits: u32,
     mask: u32,
@@ -83,22 +82,22 @@ impl IntFastFieldReader {
         let num_bits = try!(u8::deserialize(&mut cursor));
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
+        let ptr: *const u8 = &(data.deref()[5]);
         Ok(IntFastFieldReader {
             min_val: min_val,
             num_bits: num_bits as u32,
             data: data.slice(5, data.len()),
+            data_ptr: ptr as *const u64,
             mask: mask,
             num_in_pack: num_in_pack,
         })
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
-        let mut cursor = Cursor::new(&*self.data);
         let long_addr = doc / self.num_in_pack;
         let ord_within_long = doc - long_addr * self.num_in_pack;
         let bit_shift = (self.num_bits as u32) * ord_within_long;
-        cursor.seek(SeekFrom::Start((long_addr as u64)   * 8u64)).unwrap();
-        let val_unshifted_unmasked = u64::deserialize(&mut cursor).unwrap();
+        let val_unshifted_unmasked: u64 = unsafe { *self.data_ptr.offset(long_addr as isize) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
         return self.min_val + (val_shifted & self.mask);
     }
@@ -116,6 +115,7 @@ mod tests {
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
+    use core::serialize::BinarySerializable;
 
     #[test]
     fn test_compute_num_bits() {
@@ -169,7 +169,6 @@ mod tests {
         }
     }
 
-
     fn generate_permutation() -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, 4];
         let mut rng = XorShiftRng::from_seed(*seed);
@@ -199,7 +198,6 @@ mod tests {
             a = int_fast_field_reader.get(a as u32);
         }
     }
-
 
     #[bench]
     fn bench_intfastfield_veclookup(b: &mut Bencher) {

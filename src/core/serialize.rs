@@ -1,5 +1,5 @@
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
 use std::io::Write;
 use std::io::Read;
@@ -51,13 +51,13 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
 
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u32::<BigEndian>(self.clone())
+        writer.write_u32::<NativeEndian>(self.clone())
               .map(|_| 4)
               .map_err(convert_byte_order_error)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<u32> {
-        reader.read_u32::<BigEndian>()
+        reader.read_u32::<NativeEndian>()
               .map_err(convert_byte_order_error)
     }
 }
@@ -65,12 +65,12 @@ impl BinarySerializable for u32 {
 
 impl BinarySerializable for u64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u64::<BigEndian>(self.clone())
+        writer.write_u64::<NativeEndian>(self.clone())
               .map(|_| 8)
               .map_err(convert_byte_order_error)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u64> {
-        reader.read_u64::<BigEndian>()
+        reader.read_u64::<NativeEndian>()
               .map_err(convert_byte_order_error)
     }
 }
