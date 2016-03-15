@@ -13,8 +13,6 @@ struct IntFastFieldWriter {
     vals: Vec<u32>,
 }
 
-
-
 const LIBDIVIDE_32_SHIFT_MASK: u8 = 0x1F;
 const LIBDIVIDE_ADD_MARKER: u8 = 0x40;
 const LIBDIVIDE_U32_SHIFT_PATH: u8 = 0x80;
@@ -189,7 +187,6 @@ impl IntFastFieldReader {
 
     pub fn get(&self, doc: DocId) -> u32 {
         let long_addr = self.divider.divide(doc);
-        //let long_addr = doc / self.num_in_pack;
         let ord_within_long = doc - long_addr * self.num_in_pack;
         let bit_shift = (self.num_bits as u32) * ord_within_long;
         let val_unshifted_unmasked: u64 = unsafe { *self.data_ptr.offset(long_addr as isize) };
@@ -304,14 +301,51 @@ mod tests {
         }
     }
 
+
+    #[bench]
+    fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
+        let permutation = generate_permutation();
+        b.iter(|| {
+            let n = test::black_box(7000u32);
+            let mut a = 0u32;
+            for i in (0u32..n).step_by(7) {
+                a ^= permutation[i as usize];
+            }
+            a
+        });
+    }
+
     #[bench]
     fn bench_intfastfield_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-            let n = test::black_box(1000);
+            let n = test::black_box(1000u32);
             let mut a = 0u32;
-            for _ in 0..n {
+            for _ in 0u32..n {
                 a = permutation[a as usize];
+            }
+            a
+        });
+    }
+
+    #[bench]
+    fn bench_intfastfield_linear_fflookup(b: &mut Bencher) {
+        let mut buffer: Vec<u8> = Vec::new();
+        {
+            let permutation = generate_permutation();
+            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            for x in permutation.iter() {
+                int_fast_field_writer.add(*x);
+            }
+            int_fast_field_writer.close(&mut buffer).unwrap();
+        }
+        let source = ReadOnlySource::Anonymous(buffer);
+        let int_fast_field_reader = IntFastFieldReader::open(&source).unwrap();
+        b.iter(|| {
+            let n = test::black_box(7000u32);
+            let mut a = 0u32;
+            for i in (0u32..n).step_by(7) {
+                a ^= int_fast_field_reader.get(i);
             }
             a
         });

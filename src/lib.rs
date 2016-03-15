@@ -1,5 +1,6 @@
 //#![feature(test,associated_consts)]
 #![cfg_attr(test, feature(test))]
+#![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
 
@@ -137,7 +138,6 @@ mod tests {
             let commit_result = index_writer.commit();
             commit_result.unwrap();
         }
-        println!("index {:?}", index.schema());
         {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
