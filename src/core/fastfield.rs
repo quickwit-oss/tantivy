@@ -5,6 +5,8 @@ use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use core::schema::DocId;
 use std::ops::Deref;
+use std::num::Wrapping;
+
 
 
 struct IntFastFieldWriter {
@@ -12,80 +14,94 @@ struct IntFastFieldWriter {
 }
 
 
-struct DivideU32 {
-    magic: magic,
-    more: u8,
-}
 
-const LIBDIVIDE_U32_SHIFT_PATH = 0x80;
+const LIBDIVIDE_32_SHIFT_MASK: u8 = 0x1F;
+const LIBDIVIDE_ADD_MARKER: u8 = 0x40;
+const LIBDIVIDE_U32_SHIFT_PATH: u8 = 0x80;
 
-fn count_leading_zeros(val: u32) -> u32 {
-    let result = 0u32;
-    while (! (val & (1u32 << 31))) {
+fn count_leading_zeros(mut val: u32) -> u8 {
+    let mut result = 0u8;
+    while (val & (1u32 << 31)) == 0 {
         val <<= 1;
-        result++;
+        result += 1;
     }
     return result;
 }
 
-fn count_trailing_zeros(mut val: u32) -> u32 {
-    let result = 0u32;
+fn count_trailing_zeros(mut val: u32) -> u8 {
+    let mut result = 0u8;
     val = (val ^ (val - 1)) >> 1;
     while val != 0 {
         val >>= 1;
-        result++;
+        result += 1;
     }
     result
 }
 
-static uint32_t libdivide_64_div_32_to_32(n: u64, uint32_t d, uint32_t v, uint32_t *r) {
-    uint32_t result;
-    __asm__("divl %[v]"
-            : "=a"(result), "=d"(*r)
-            : [v] "r"(v), "a"(u0), "d"(u1)
-            );
-    return result;
+/* ported from  libdivide.h by ridiculous_fish */
+
+#[derive(Debug)]
+struct DivideU32 {
+    magic: u32,
+    more: u8,
+}
+
+fn divide_64_div_32_to_32(n: u64, d: u32) -> (u32, u32) {
+    let d64: u64 = d as u64;
+    let q: u64 = n / d64;
+    let r: u32 = (Wrapping(n) - (Wrapping(q) * Wrapping(d64))).0 as u32;
+    (q as u32, r)
 }
 
 impl DivideU32 {
-
     pub fn divide_by(d: u32) -> DivideU32 {
-        if ((d & (d - 1)) == 0) {
+        if (d & (d - 1)) == 0 {
             DivideU32 {
                 magic: 0,
                 more: count_trailing_zeros(d) | LIBDIVIDE_U32_SHIFT_PATH,
             }
         }
         else {
-            let floor_log_2_d: u32 = 31 - count_leading_zeros(d);
-            let mut more: u8 = 0u8;
-            let mut rem: u32 = 0u32;
-            let mut proposed_m: 0u32;
-            proposed_m = libdivide_64_div_32_to_32(1U << floor_log_2_d, 0, d, &rem);
-
+            let floor_log_2_d: u8 = 31 - count_leading_zeros(d);
+            let more: u8;
+            let (mut proposed_m, rem) = divide_64_div_32_to_32((1u64 << floor_log_2_d) << 32, d);
             assert!(rem > 0 && rem < d);
-            LIBDIVIDE_ASSERT(rem > 0 && rem < d);
-            const uint32_t e = d - rem;
-
-    	/* This power works if e < 2**floor_log_2_d. */
-    	if (e < (1U << floor_log_2_d)) {
-                /* This power works */
+            let e = d - rem;
+            if e < (1u32 << floor_log_2_d) {
                 more = floor_log_2_d;
             }
             else {
-                /* We have to use the general 33-bit algorithm.  We need to compute (2**power) / d. However, we already have (2**(power-1))/d and its remainder.  By doubling both, and then correcting the remainder, we can compute the larger division. */
-                proposed_m += proposed_m; //don't care about overflow here - in fact, we expect it
-                const uint32_t twice_rem = rem + rem;
-                if (twice_rem >= d || twice_rem < rem) proposed_m += 1;
+                proposed_m = proposed_m << 1;
+                let twice_rem: u32 = rem * 2;
+                if twice_rem >= d || twice_rem < rem {
+                    proposed_m += 1;
+                }
                 more = floor_log_2_d | LIBDIVIDE_ADD_MARKER;
             }
-            result.magic = 1 + proposed_m;
-            result.more = more;
-            //result.more's shift should in general be ceil_log_2_d.  But if we used the smaller power, we subtract one from the shift because we're using the smaller power. If we're using the larger power, we subtract one from the shift because it's taken care of by the add indicator.  So floor_log_2_d happens to be correct in both cases.
-
+            DivideU32 {
+                magic: 1 + proposed_m,
+                more: more,
+            }
         }
-        return result;
     }
+
+    pub fn divide(&self, n: u32) -> u32 {
+        if self.more & LIBDIVIDE_U32_SHIFT_PATH != 0 {
+            n >> (self.more & LIBDIVIDE_32_SHIFT_MASK)
+        }
+        else {
+            let q_shifted = (self.magic as u64) * (n as u64);
+            let q = (q_shifted >> 32) as u32;
+            if self.more & LIBDIVIDE_ADD_MARKER != 0 {
+                let t = ((n - q) >> 1) + q;
+                t >> (self.more & LIBDIVIDE_32_SHIFT_MASK)
+            }
+            else {
+                q >> self.more
+            }
+        }
+    }
+
 }
 
 pub fn compute_num_bits(amplitude: u32) -> u8 {
@@ -143,12 +159,13 @@ impl IntFastFieldWriter {
 }
 
 pub struct IntFastFieldReader {
-    data: ReadOnlySource,
+    _data: ReadOnlySource,
     data_ptr: *const u64,
     min_val: u32,
     num_bits: u32,
     mask: u32,
     num_in_pack: u32,
+    divider: DivideU32,
 }
 
 impl IntFastFieldReader {
@@ -160,17 +177,19 @@ impl IntFastFieldReader {
         let num_in_pack = 64u32 / (20 as u32);
         let ptr: *const u8 = &(data.deref()[5]);
         Ok(IntFastFieldReader {
+            _data: data.slice(5, data.len()),
+            data_ptr: ptr as *const u64,
             min_val: min_val,
             num_bits: num_bits as u32,
-            data: data.slice(5, data.len()),
-            data_ptr: ptr as *const u64,
             mask: mask,
             num_in_pack: num_in_pack,
+            divider: DivideU32::divide_by(num_in_pack),
         })
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
-        let long_addr = doc / self.num_in_pack;
+        let long_addr = self.divider.divide(doc);
+        //let long_addr = doc / self.num_in_pack;
         let ord_within_long = doc - long_addr * self.num_in_pack;
         let bit_shift = (self.num_bits as u32) * ord_within_long;
         let val_unshifted_unmasked: u64 = unsafe { *self.data_ptr.offset(long_addr as isize) };
@@ -185,12 +204,23 @@ mod tests {
     use super::compute_num_bits;
     use super::IntFastFieldWriter;
     use super::IntFastFieldReader;
+    use super::DivideU32;
     use core::directory::ReadOnlySource;
     use test::Bencher;
     use test;
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
+
+    #[test]
+    fn test_libdivide() {
+        for d in 1..32 {
+            let divider = DivideU32::divide_by(d);
+            for i in 0..100_000 {
+                assert_eq!(divider.divide(i), i / d);
+            }
+        }
+    }
 
     #[test]
     fn test_compute_num_bits() {
@@ -278,11 +308,12 @@ mod tests {
     fn bench_intfastfield_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-            let n = test::black_box(10000);
+            let n = test::black_box(1000);
             let mut a = 0u32;
             for _ in 0..n {
                 a = permutation[a as usize];
             }
+            a
         });
     }
 
@@ -300,11 +331,12 @@ mod tests {
         let source = ReadOnlySource::Anonymous(buffer);
         let int_fast_field_reader = IntFastFieldReader::open(&source).unwrap();
         b.iter(|| {
-            let n = test::black_box(10000);
+            let n = test::black_box(1000);
             let mut a = 0u32;
             for _ in 0..n {
                 a = int_fast_field_reader.get(a as u32);
             }
+            a
         });
     }
 }
