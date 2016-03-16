@@ -36,7 +36,7 @@ fn count_trailing_zeros(mut val: u32) -> u8 {
     result
 }
 
-/* ported from  libdivide.h by ridiculous_fish */
+// ported from  libdivide.h by ridiculous_fish
 
 #[derive(Debug)]
 struct DivideU32 {
@@ -99,7 +99,6 @@ impl DivideU32 {
             }
         }
     }
-
 }
 
 pub fn compute_num_bits(amplitude: u32) -> u8 {
@@ -172,7 +171,7 @@ impl IntFastFieldReader {
         let min_val = try!(u32::deserialize(&mut cursor));
         let num_bits = try!(u8::deserialize(&mut cursor));
         let mask = (1 << num_bits) - 1;
-        let num_in_pack = 64u32 / (20 as u32);
+        let num_in_pack = 64u32 / (num_bits as u32);
         let ptr: *const u8 = &(data.deref()[5]);
         Ok(IntFastFieldReader {
             _data: data.slice(5, data.len()),

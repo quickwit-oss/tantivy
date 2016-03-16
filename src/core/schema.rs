@@ -65,23 +65,6 @@ impl BitOr for FieldOptions {
     }
 }
 
-macro_rules! bitxor_impl {
-    ($($t:ty)*) => ($(
-        impl BitOr for $t {
-            type Output = FieldOptions;
-
-            fn bitxor(self, other: $t) -> $t {
-                let mut res = FieldOptions::new();
-                res.tokenized_indexed = self.tokenized_indexed || other.tokenized_indexed;
-                res.stored = self.stored || other.stored;
-                res.fast = self.fast || other.fast;
-                res
-            }
-        }
-
-    )*)
-}
-
 /// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Field(u8);
