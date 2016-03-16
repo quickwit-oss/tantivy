@@ -3,7 +3,6 @@ use core::schema::Term;
 use core::store::StoreReader;
 use core::schema::Document;
 use core::postings::IntersectionPostings;
-use byteorder::{BigEndian, ReadBytesExt};
 use core::directory::ReadOnlySource;
 use std::io::Cursor;
 use core::schema::DocId;
@@ -20,6 +19,7 @@ use core::codec::SegmentSerializer;
 use core::serial::SerializableSegment;
 use core::index::SegmentInfo;
 use core::convert_to_ioerror;
+use core::serialize::BinarySerializable;
 
 // TODO file structure should be in codec
 
@@ -54,13 +54,8 @@ impl SegmentPostings {
 
     pub fn from_data(data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
-        let data_size = cursor.read_u32::<BigEndian>().unwrap() as usize;
-        // TODO remove allocs
-        let mut data = Vec::with_capacity(data_size);
-        for _ in 0..data_size {
-            data.push(cursor.read_u32::<BigEndian>().unwrap());
-        }
-        let mut doc_ids: Vec<u32> = (0..10_000_000 as u32).collect();
+        let data: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
+        let mut doc_ids: Vec<u32> = (0u32..data.len() as u32 + 1_000 as u32).collect();
         let decoder = Decoder::new();
         let num_doc_ids = decoder.decode_sorted(&data, &mut doc_ids);
         doc_ids.truncate(num_doc_ids);
