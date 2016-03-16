@@ -9,6 +9,8 @@ use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use core::postings::PostingsWriter;
+use core::fastfield::IntFastFieldWriter;
+
 
 pub struct IndexWriter {
 	segment_writer: Rc<SegmentWriter>,
@@ -38,13 +40,7 @@ impl IndexWriter {
         Rc::get_mut(&mut self.segment_writer).unwrap().add(doc, &self.schema)
     }
 
-	// TODO remove that some day
-	pub fn current_segment_writer(&self,) -> &SegmentWriter {
-		&self.segment_writer
-	}
-
     pub fn commit(&mut self,) -> io::Result<Segment> {
-		// TODO error handling
 		let segment_writer_rc = self.segment_writer.clone();
 		self.segment_writer = Rc::new(try!(new_segment_writer(&self.directory)));
 		match Rc::try_unwrap(segment_writer_rc) {
@@ -68,6 +64,7 @@ pub struct SegmentWriter {
     max_doc: DocId,
 	tokenizer: SimpleTokenizer,
 	postings_writer: PostingsWriter,
+	fastfield_writer: IntFastFieldWriter,
 	segment_serializer: SegmentSerializer,
 }
 
@@ -104,6 +101,7 @@ impl SegmentWriter {
 			postings_writer: PostingsWriter::new(),
 			segment_serializer: segment_serializer,
 			tokenizer: SimpleTokenizer::new(),
+			fastfield_writer: IntFastFieldWriter::new(),
 		})
 	}
 

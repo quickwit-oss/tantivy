@@ -14,7 +14,7 @@ pub mod simdcompression;
 pub mod fstmap;
 pub mod index;
 pub mod fastfield;
-
+pub mod fastdivide;
 
 use std::error;
 use std::io;
