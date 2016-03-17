@@ -122,6 +122,9 @@ impl SegmentWriter {
 				}
 			}
 		}
+//		for field_value in doc.u32_fields() {
+//
+//		}
 		let mut stored_fieldvalues_it = doc.text_fields().filter(|text_field_value| {
 			schema.text_field_options(&text_field_value.field).is_stored()
 		});

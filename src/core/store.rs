@@ -153,13 +153,17 @@ impl StoreReader {
             try!(cursor.seek(SeekFrom::Current(block_length as i64)));
         }
         try!(u32::deserialize(&mut cursor));
-        let mut field_values = Vec::new();
+        let mut text_field_values = Vec::new();
         let num_fields = try!(u32::deserialize(&mut cursor));
         for _ in 0..num_fields {
-            let field_value = try!(TextFieldValue::deserialize(&mut cursor));
-            field_values.push(field_value);
+            let text_field_value = try!(TextFieldValue::deserialize(&mut cursor));
+            text_field_values.push(text_field_value);
         }
-        Ok(Document::from(field_values))
+        let u32_field_values = Vec::new();
+        Ok(Document {
+            text_field_values: text_field_values,
+            u32_field_values: u32_field_values,
+        })
     }
 
     pub fn new(data: ReadOnlySource) -> StoreReader {

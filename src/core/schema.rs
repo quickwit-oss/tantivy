@@ -26,11 +26,18 @@ pub struct TextOptions {
     fast: bool,
 }
 
+#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
+pub struct U32Options {
+    indexed: bool,
+    fast: bool,
+    stored: bool,
+}
+
 /// The field will be tokenized and indexed
 pub const TEXT: TextOptions = TextOptions {
     tokenized_indexed: true,
     stored: false,
-    fast: false
+    fast: false,
 };
 
 /// A stored fields of a document can be retrieved given its DocId.
@@ -40,7 +47,7 @@ pub const TEXT: TextOptions = TextOptions {
 pub const STORED: TextOptions = TextOptions {
     tokenized_indexed: false,
     stored: true,
-    fast: false
+    fast: false,
 };
 
 /// Fast field are used for field you need to access many times during
@@ -64,6 +71,10 @@ impl BitOr for TextOptions {
         res
     }
 }
+
+/// Field handle
+#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
+pub struct U32Field(u8);
 
 /// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
@@ -104,6 +115,12 @@ impl TextOptions {
             stored: false,
         }
     }
+}
+
+#[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
+pub struct U32FieldValue {
+    pub field: U32Field,
+    pub value: u32,
 }
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
@@ -153,6 +170,13 @@ struct TextFieldEntry {
     option: TextOptions,
 }
 
+#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+struct U32FieldEntry {
+    name: String,
+    option: U32Options,
+}
+
+
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
@@ -185,7 +209,10 @@ struct TextFieldEntry {
 pub struct Schema {
     text_fields: Vec<TextFieldEntry>,
     text_fields_map: HashMap<String, TextField>,  // transient
-    field_options: Vec<TextOptions>,    // transient
+    text_field_options: Vec<TextOptions>,     // transient
+    u32_fields: Vec<U32FieldEntry>,
+    u32_fields_map: HashMap<String, U32Field>,    // transient
+    u32_field_options: Vec<U32Options>,     // transient
 }
 
 impl Decodable for Schema {
@@ -223,18 +250,30 @@ impl Schema {
         Schema {
             text_fields: Vec::new(),
             text_fields_map: HashMap::new(),
-            field_options: Vec::new(),
+            text_field_options: Vec::new(),
+            u32_fields: Vec::new(),
+            u32_fields_map: HashMap::new(),
+            u32_field_options: Vec::new(),
         }
     }
 
     /// Given a name, returns the field handle, as well as its associated TextOptions
-    pub fn get_text(&self, field_name: &str) -> Option<(TextField, TextOptions)> {
+    pub fn get_text_field(&self, field_name: &str) -> Option<(TextField, TextOptions)> {
         self.text_fields_map
             .get(field_name)
             .map(|&TextField(field_id)| {
-                let field_options = self.field_options[field_id as usize].clone();
+                let field_options = self.text_field_options[field_id as usize].clone();
                 (TextField(field_id), field_options)
             })
+    }
+
+    pub fn get_u32_field(&self, field_name: &str) -> Option<(U32Field, U32Options)> {
+        self.u32_fields_map
+        .get(field_name)
+        .map(|&U32Field(field_id)| {
+            let u32_field_options = self.u32_field_options[field_id as usize].clone();
+            (U32Field(field_id), u32_field_options)
+        })
     }
 
     /// Returns the field options associated with a given name.
@@ -247,13 +286,17 @@ impl Schema {
     /// If panicking is not an option for you,
     /// you may use `get(&self, field_name: &str)`.
     pub fn text_field(&self, fieldname: &str) -> TextField {
-        self.text_fields_map.get(&String::from(fieldname)).map(|field| field.clone()).unwrap()
+        self.text_fields_map.get(fieldname).map(|field| field.clone()).unwrap()
+    }
+
+    pub fn u32_field(&self, fieldname: &str) -> U32Field {
+        self.u32_fields_map.get(fieldname).map(|field| field.clone()).unwrap()
     }
 
     /// Returns the field options associated to a field handle.
     pub fn text_field_options(&self, field: &TextField) -> TextOptions {
         let TextField(field_id) = *field;
-        self.field_options[field_id as usize].clone()
+        self.text_field_options[field_id as usize].clone()
     }
 
 
@@ -268,15 +311,13 @@ impl Schema {
             option: field_options.borrow().clone(),
         });
         self.text_fields_map.insert(field_name, field.clone());
-        self.field_options.push(field_options.borrow().clone());
+        self.text_field_options.push(field_options.borrow().clone());
         field
     }
 
 }
 
 impl Term {
-
-
     pub fn field_text(&self,) -> TextField {
         TextField(self.data[0])
     }
@@ -329,7 +370,8 @@ impl fmt::Debug for Term {
 ///
 #[derive(Debug)]
 pub struct Document {
-    text_field_values: Vec<TextFieldValue>,
+    pub text_field_values: Vec<TextFieldValue>,
+    pub u32_field_values: Vec<U32FieldValue>,
 }
 
 
@@ -337,13 +379,16 @@ impl Document {
 
     pub fn new() -> Document {
         Document {
-            text_field_values: Vec::new()
+            text_field_values: Vec::new(),
+            u32_field_values: Vec::new(),
         }
     }
 
-    pub fn from(text_field_values: Vec<TextFieldValue>) -> Document {
+    pub fn from(text_field_values: Vec<TextFieldValue>,
+                u32_field_values: Vec<U32FieldValue>) -> Document {
         Document {
-            text_field_values: text_field_values
+            text_field_values: text_field_values,
+            u32_field_values: u32_field_values
         }
     }
 
@@ -364,6 +409,10 @@ impl Document {
 
     pub fn text_fields<'a>(&'a self,) -> slice::Iter<'a, TextFieldValue> {
         self.text_field_values.iter()
+    }
+
+    pub fn u32_fields<'a>(&'a self,) -> slice::Iter<'a, U32FieldValue> {
+        self.u32_field_values.iter()
     }
 
     pub fn get<'a>(&'a self, field: &TextField) -> Vec<&'a String> {
