@@ -101,7 +101,6 @@ impl Iterator for SegmentPostings {
 }
 
 
-
 impl SegmentReader {
 
     /// Returns the highest document id ever attributed in
@@ -131,7 +130,6 @@ impl SegmentReader {
         })
     }
 
-
     /// Returns the document (or to be accurate, its stored field)
     /// bearing the given doc id.
     /// This method is slow and should seldom be called from
@@ -144,7 +142,6 @@ impl SegmentReader {
         let postings_data = &self.postings_data.as_slice()[(offset as usize)..];
         SegmentPostings::from_data(&postings_data)
     }
-
 
     fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_offsets.get(term.as_slice())
@@ -191,7 +188,7 @@ impl SerializableSegment for SegmentReader {
         }
         for doc_id in 0..self.max_doc() {
             let doc = try!(self.store_reader.get(&doc_id));
-            try!(serializer.store_doc(&mut doc.fields()));
+            try!(serializer.store_doc(&mut doc.text_fields()));
         }
         serializer.close()
     }

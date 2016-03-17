@@ -107,8 +107,8 @@ impl SegmentWriter {
 
     pub fn add(&mut self, doc: Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
-        for field_value in doc.fields() {
-			let field_options = schema.field_options(&field_value.field);
+        for field_value in doc.text_fields() {
+			let field_options = schema.text_field_options(&field_value.field);
 			if field_options.is_tokenized_indexed() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
 				loop {
@@ -122,8 +122,8 @@ impl SegmentWriter {
 				}
 			}
 		}
-		let mut stored_fieldvalues_it = doc.fields().filter(|field_value| {
-			schema.field_options(&field_value.field).is_stored()
+		let mut stored_fieldvalues_it = doc.text_fields().filter(|text_field_value| {
+			schema.text_field_options(&text_field_value.field).is_stored()
 		});
 		try!(self.segment_serializer.store_doc(&mut stored_fieldvalues_it));
         self.max_doc += 1;

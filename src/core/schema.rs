@@ -20,14 +20,14 @@ pub type DocId = u32;
 
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
-pub struct FieldOptions {
+pub struct TextOptions {
     tokenized_indexed: bool,
     stored: bool,
     fast: bool,
 }
 
 /// The field will be tokenized and indexed
-pub const TEXT: FieldOptions = FieldOptions {
+pub const TEXT: TextOptions = TextOptions {
     tokenized_indexed: true,
     stored: false,
     fast: false
@@ -37,7 +37,7 @@ pub const TEXT: FieldOptions = FieldOptions {
 /// Stored field are stored together and LZ4 compressed.
 /// Reading the stored fields of a document is relatively slow.
 /// (100 microsecs)
-pub const STORED: FieldOptions = FieldOptions {
+pub const STORED: TextOptions = TextOptions {
     tokenized_indexed: false,
     stored: true,
     fast: false
@@ -45,19 +45,19 @@ pub const STORED: FieldOptions = FieldOptions {
 
 /// Fast field are used for field you need to access many times during
 /// collection. (e.g: for sort, aggregates).
-pub const FAST: FieldOptions = FieldOptions {
+pub const FAST: TextOptions = TextOptions {
     tokenized_indexed: false,
     stored: false,
     fast: true
 };
 
 
-impl BitOr for FieldOptions {
+impl BitOr for TextOptions {
 
-    type Output = FieldOptions;
+    type Output = TextOptions;
 
-    fn bitor(self, other: FieldOptions) -> FieldOptions {
-        let mut res = FieldOptions::new();
+    fn bitor(self, other: TextOptions) -> TextOptions {
+        let mut res = TextOptions::new();
         res.tokenized_indexed = self.tokenized_indexed || other.tokenized_indexed;
         res.stored = self.stored || other.stored;
         res.fast = self.fast || other.fast;
@@ -67,9 +67,9 @@ impl BitOr for FieldOptions {
 
 /// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct Field(u8);
+pub struct TextField(u8);
 
-impl FieldOptions {
+impl TextOptions {
     pub fn is_tokenized_indexed(&self,) -> bool {
         self.tokenized_indexed
     }
@@ -82,23 +82,23 @@ impl FieldOptions {
         self.fast
     }
 
-    pub fn set_stored(mut self,) -> FieldOptions {
+    pub fn set_stored(mut self,) -> TextOptions {
         self.stored = true;
         self
     }
 
-    pub fn set_fast(mut self,) -> FieldOptions {
+    pub fn set_fast(mut self,) -> TextOptions {
         self.fast = true;
         self
     }
 
-    pub fn set_tokenized_indexed(mut self,) -> FieldOptions {
+    pub fn set_tokenized_indexed(mut self,) -> TextOptions {
         self.tokenized_indexed = true;
         self
     }
 
-    pub fn new() -> FieldOptions {
-        FieldOptions {
+    pub fn new() -> TextOptions {
+        TextOptions {
             fast: false,
             tokenized_indexed: false,
             stored: false,
@@ -107,23 +107,23 @@ impl FieldOptions {
 }
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
-pub struct FieldValue {
-    pub field: Field,
+pub struct TextFieldValue {
+    pub field: TextField,
     pub text: String,
 }
 
-impl BinarySerializable for Field {
+impl BinarySerializable for TextField {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let Field(field_id) = *self;
+        let TextField(field_id) = *self;
         field_id.serialize(writer)
     }
 
-    fn deserialize(reader: &mut Read) -> io::Result<Field> {
-        u8::deserialize(reader).map(Field)
+    fn deserialize(reader: &mut Read) -> io::Result<TextField> {
+        u8::deserialize(reader).map(TextField)
     }
 }
 
-impl BinarySerializable for FieldValue {
+impl BinarySerializable for TextFieldValue {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         Ok(
             try!(self.field.serialize(writer)) +
@@ -131,9 +131,9 @@ impl BinarySerializable for FieldValue {
         )
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        let field = try!(Field::deserialize(reader));
+        let field = try!(TextField::deserialize(reader));
         let text = try!(String::deserialize(reader));
-        Ok(FieldValue {
+        Ok(TextFieldValue {
             field: field,
             text: text,
         })
@@ -148,9 +148,9 @@ pub struct Term {
 }
 
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
-struct FieldEntry {
+struct TextFieldEntry {
     name: String,
-    option: FieldOptions,
+    option: TextOptions,
 }
 
 /// Tantivy has a very strict schema.
@@ -164,28 +164,28 @@ struct FieldEntry {
 /// # Examples
 ///
 /// ```
-/// use tantivy::schema::{Schema, FieldOptions};
+/// use tantivy::schema::{Schema, TextOptions};
 ///
 /// fn create_schema() -> Schema {
 ///   let mut schema = Schema::new();
-///   let str_fieldtype = FieldOptions::new();
-///   let text_fieldtype = FieldOptions::new().set_tokenized_indexed();
-///   let id_field = schema.add_field("id", &str_fieldtype);
-///   let url_field = schema.add_field("url", &str_fieldtype);
-///   let body_field = schema.add_field("body", &text_fieldtype);
-///   let id_field = schema.add_field("id", &str_fieldtype);
-///   let url_field = schema.add_field("url", &str_fieldtype);
-///   let title_field = schema.add_field("title", &text_fieldtype);
-///   let body_field = schema.add_field("body", &text_fieldtype);
+///   let str_fieldtype = TextOptions::new();
+///   let text_fieldtype = TextOptions::new().set_tokenized_indexed();
+///   let id_field = schema.add_text_field("id", &str_fieldtype);
+///   let url_field = schema.add_text_field("url", &str_fieldtype);
+///   let body_field = schema.add_text_field("body", &text_fieldtype);
+///   let id_field = schema.add_text_field("id", &str_fieldtype);
+///   let url_field = schema.add_text_field("url", &str_fieldtype);
+///   let title_field = schema.add_text_field("title", &text_fieldtype);
+///   let body_field = schema.add_text_field("body", &text_fieldtype);
 ///   schema
 /// }
 ///
 /// let schema = create_schema();
 #[derive(Clone, Debug)]
 pub struct Schema {
-    fields: Vec<FieldEntry>,
-    fields_map: HashMap<String, Field>,  // transient
-    field_options: Vec<FieldOptions>,    // transient
+    text_fields: Vec<TextFieldEntry>,
+    text_fields_map: HashMap<String, TextField>,  // transient
+    field_options: Vec<TextOptions>,    // transient
 }
 
 impl Decodable for Schema {
@@ -193,9 +193,9 @@ impl Decodable for Schema {
         let mut schema = Schema::new();
         try!(d.read_seq(|d, num_fields| {
             for _ in 0..num_fields {
-                let field_entry = try!(FieldEntry::decode(d));
-                let field_options: &FieldOptions = &field_entry.option;
-                schema.add_field(&field_entry.name, field_options);
+                let field_entry = try!(TextFieldEntry::decode(d));
+                let field_options: &TextOptions = &field_entry.option;
+                schema.add_text_field(&field_entry.name, field_options);
             }
             Ok(())
         }));
@@ -205,9 +205,9 @@ impl Decodable for Schema {
 
 impl Encodable for Schema {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        try!(s.emit_seq(self.fields.len(),
+        try!(s.emit_seq(self.text_fields.len(),
             |mut e| {
-                for (ord, field) in self.fields.iter().enumerate() {
+                for (ord, field) in self.text_fields.iter().enumerate() {
                     try!(e.emit_seq_elt(ord, |e| field.encode(e)));
                 }
                 Ok(())
@@ -221,19 +221,19 @@ impl Schema {
     /// Creates a new, empty schema.
     pub fn new() -> Schema {
         Schema {
-            fields: Vec::new(),
-            fields_map: HashMap::new(),
+            text_fields: Vec::new(),
+            text_fields_map: HashMap::new(),
             field_options: Vec::new(),
         }
     }
 
-    /// Given a name, returns the field handle, as well as its associated FieldOptions
-    pub fn get(&self, field_name: &str) -> Option<(Field, FieldOptions)> {
-        self.fields_map
+    /// Given a name, returns the field handle, as well as its associated TextOptions
+    pub fn get_text(&self, field_name: &str) -> Option<(TextField, TextOptions)> {
+        self.text_fields_map
             .get(field_name)
-            .map(|&Field(field_id)| {
+            .map(|&TextField(field_id)| {
                 let field_options = self.field_options[field_id as usize].clone();
-                (Field(field_id), field_options)
+                (TextField(field_id), field_options)
             })
     }
 
@@ -246,28 +246,28 @@ impl Schema {
     ///
     /// If panicking is not an option for you,
     /// you may use `get(&self, field_name: &str)`.
-    pub fn field(&self, fieldname: &str) -> Field {
-        self.fields_map.get(&String::from(fieldname)).map(|field| field.clone()).unwrap()
+    pub fn text_field(&self, fieldname: &str) -> TextField {
+        self.text_fields_map.get(&String::from(fieldname)).map(|field| field.clone()).unwrap()
     }
 
     /// Returns the field options associated to a field handle.
-    pub fn field_options(&self, field: &Field) -> FieldOptions {
-        let Field(field_id) = *field;
+    pub fn text_field_options(&self, field: &TextField) -> TextOptions {
+        let TextField(field_id) = *field;
         self.field_options[field_id as usize].clone()
     }
 
 
     /// Creates a new field.
     /// Return the associated field handle.
-    pub fn add_field<RefFieldOptions: Borrow<FieldOptions>>(&mut self, field_name_str: &str, field_options: RefFieldOptions) -> Field {
-        let field = Field(self.fields.len() as u8);
+    pub fn add_text_field<RefTextOptions: Borrow<TextOptions>>(&mut self, field_name_str: &str, field_options: RefTextOptions) -> TextField {
+        let field = TextField(self.text_fields.len() as u8);
         // TODO case if field already exists
         let field_name = String::from(field_name_str);
-        self.fields.push(FieldEntry {
+        self.text_fields.push(TextFieldEntry {
             name: field_name.clone(),
             option: field_options.borrow().clone(),
         });
-        self.fields_map.insert(field_name, field.clone());
+        self.text_fields_map.insert(field_name, field.clone());
         self.field_options.push(field_options.borrow().clone());
         field
     }
@@ -276,20 +276,18 @@ impl Schema {
 
 impl Term {
 
-    // TODO avoid all these copies in Term.
-    // when the term is in the dictionary, there
-    // shouldn't be any copy
-    pub fn field(&self,) -> Field {
-        Field(self.data[0])
+
+    pub fn field_text(&self,) -> TextField {
+        TextField(self.data[0])
     }
 
     pub fn text(&self,) -> &str {
         str::from_utf8(&self.data[1..]).unwrap()
     }
 
-    pub fn from_field_text(field: &Field, text: &str) -> Term {
+    pub fn from_field_text(field: &TextField, text: &str) -> Term {
         let mut buffer = Vec::with_capacity(1 + text.len());
-        let Field(field_idx) = *field;
+        let TextField(field_idx) = *field;
         buffer.clear();
         buffer.push(field_idx);
         buffer.extend(text.as_bytes());
@@ -325,13 +323,13 @@ impl fmt::Debug for Term {
 /// use tantivy::schema::TEXT;
 ///
 /// let mut schema = Schema::new();
-/// schema.add_field("body", &TEXT);
-/// let field_text = schema.field("body");
+/// schema.add_text_field("body", &TEXT);
+/// let field_text = schema.text_field("body");
 /// ```
 ///
 #[derive(Debug)]
 pub struct Document {
-    field_values: Vec<FieldValue>,
+    text_field_values: Vec<TextFieldValue>,
 }
 
 
@@ -339,45 +337,45 @@ impl Document {
 
     pub fn new() -> Document {
         Document {
-            field_values: Vec::new()
+            text_field_values: Vec::new()
         }
     }
 
-    pub fn from(field_values: Vec<FieldValue>) -> Document {
+    pub fn from(text_field_values: Vec<TextFieldValue>) -> Document {
         Document {
-            field_values: field_values
+            text_field_values: text_field_values
         }
     }
 
     pub fn len(&self,) -> usize {
-        self.field_values.len()
+        self.text_field_values.len()
     }
 
-    pub fn set(&mut self, field: &Field, text: &str) {
-        self.add(FieldValue {
+    pub fn set(&mut self, field: &TextField, text: &str) {
+        self.add(TextFieldValue {
             field: field.clone(),
             text: String::from(text)
         });
     }
 
-    pub fn add(&mut self, field_value: FieldValue) {
-        self.field_values.push(field_value);
+    pub fn add(&mut self, field_value: TextFieldValue) {
+        self.text_field_values.push(field_value);
     }
 
-    pub fn fields<'a>(&'a self,) -> slice::Iter<'a, FieldValue> {
-        self.field_values.iter()
+    pub fn text_fields<'a>(&'a self,) -> slice::Iter<'a, TextFieldValue> {
+        self.text_field_values.iter()
     }
 
-    pub fn get<'a>(&'a self, field: &Field) -> Vec<&'a String> {
-        self.field_values
+    pub fn get<'a>(&'a self, field: &TextField) -> Vec<&'a String> {
+        self.text_field_values
             .iter()
             .filter(|field_value| field_value.field == *field)
             .map(|field_value| &field_value.text)
             .collect()
     }
 
-    pub fn get_one<'a>(&'a self, field: &Field) -> Option<&'a String> {
-        self.field_values
+    pub fn get_one<'a>(&'a self, field: &TextField) -> Option<&'a String> {
+        self.text_field_values
             .iter()
             .filter(|field_value| field_value.field == *field)
             .map(|field_value| &field_value.text)
@@ -410,9 +408,9 @@ mod tests {
     fn test_schema() {
         {
             let mut schema = Schema::new();
-            schema.add_field("body", &TEXT);
-            let field = schema.field("body");
-            assert!(schema.field_options(&field).is_tokenized_indexed());
+            schema.add_text_field("body", &TEXT);
+            let field = schema.text_field("body");
+            assert!(schema.text_field_options(&field).is_tokenized_indexed());
         }
     }
 }

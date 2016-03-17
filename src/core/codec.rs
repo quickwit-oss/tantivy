@@ -11,7 +11,7 @@ use core::fstmap::FstMapBuilder;
 use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
-use core::schema::FieldValue;
+use core::schema::TextFieldValue;
 use core::convert_to_ioerror;
 
 
@@ -74,8 +74,8 @@ impl SegmentSerializer {
         self.segment.clone()
     }
 
-    pub fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&FieldValue>) -> io::Result<()> {
-        let field_values: Vec<&FieldValue> = field_values_it.collect();
+    pub fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&TextFieldValue>) -> io::Result<()> {
+        let field_values: Vec<&TextFieldValue> = field_values_it.collect();
         try!(self.store_writer.store(&field_values));
         Ok(())
     }

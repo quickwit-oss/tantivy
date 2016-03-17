@@ -2,7 +2,7 @@ use core::directory::WritePtr;
 use std::cell::RefCell;
 use core::schema::DocId;
 use core::schema::Document;
-use core::schema::FieldValue;
+use core::schema::TextFieldValue;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use std::io::Write;
@@ -54,7 +54,7 @@ impl StoreWriter {
         }
     }
 
-    pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) -> io::Result<()> {
+    pub fn store<'a>(&mut self, field_values: &Vec<&'a TextFieldValue>) -> io::Result<()> {
         self.intermediary_buffer.clear();
         try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
         for field_value in field_values.iter() {
@@ -156,7 +156,7 @@ impl StoreReader {
         let mut field_values = Vec::new();
         let num_fields = try!(u32::deserialize(&mut cursor));
         for _ in 0..num_fields {
-            let field_value = try!(FieldValue::deserialize(&mut cursor));
+            let field_value = try!(TextFieldValue::deserialize(&mut cursor));
             field_values.push(field_value);
         }
         Ok(Document::from(field_values))
@@ -180,21 +180,21 @@ mod tests {
     use test::Bencher;
     use std::path::PathBuf;
     use core::schema::Schema;
-    use core::schema::FieldOptions;
-    use core::schema::FieldValue;
+    use core::schema::TextOptions;
+    use core::schema::TextFieldValue;
     use core::directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
         let mut schema = Schema::new();
-        let field_body = schema.add_field("body", &FieldOptions::new().set_stored());
-        let field_title = schema.add_field("title", &FieldOptions::new().set_stored());
+        let field_body = schema.add_text_field("body", &TextOptions::new().set_stored());
+        let field_title = schema.add_text_field("title", &TextOptions::new().set_stored());
         let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
         {
             let mut store_writer = StoreWriter::new(writer);
             for i in 0..1000 {
-                let mut fields: Vec<FieldValue> = Vec::new();
+                let mut fields: Vec<TextFieldValue> = Vec::new();
                 {
-                    let field_value = FieldValue {
+                    let field_value = TextFieldValue {
                         field: field_body.clone(),
                         text: lorem.clone(),
                     };
@@ -202,13 +202,13 @@ mod tests {
                 }
                 {
                     let title_text = format!("Doc {}", i);
-                    let field_value = FieldValue {
+                    let field_value = TextFieldValue {
                         field: field_title.clone(),
                         text: title_text,
                     };
                     fields.push(field_value);
                 }
-                let fields_refs: Vec<&FieldValue> = fields.iter().collect();
+                let fields_refs: Vec<&TextFieldValue> = fields.iter().collect();
                 store_writer.store(&fields_refs).unwrap();
             }
             store_writer.close().unwrap();
@@ -223,7 +223,7 @@ mod tests {
         let mut directory = RAMDirectory::create();
         let store_file = directory.open_write(&path).unwrap();
         let schema = write_lorem_ipsum_store(store_file);
-        let field_title = schema.field("title");
+        let field_title = schema.text_field("title");
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
