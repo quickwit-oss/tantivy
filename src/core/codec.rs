@@ -13,6 +13,7 @@ use core::serialize::BinarySerializable;
 use core::simdcompression;
 use core::schema::TextFieldValue;
 use core::convert_to_ioerror;
+use core::fastfield::FastFieldWriters;
 
 
 #[derive(Debug)]
@@ -53,7 +54,6 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
 
-
     pub fn for_segment(segment: &Segment) -> io::Result<SegmentSerializer>  {
         let term_write = try!(segment.open_write(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
@@ -87,6 +87,10 @@ impl SegmentSerializer {
         };
         self.term_fst_builder
             .insert(term.as_slice(), &term_info)
+    }
+
+    pub fn write_fast_field(&mut self, vals: &Vec<u32>) {
+
     }
 
     pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {

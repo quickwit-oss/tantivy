@@ -4,7 +4,6 @@ use std::slice;
 use std::fmt;
 use std::io;
 use std::io::Read;
-use std::str;
 use core::serialize::BinarySerializable;
 use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
@@ -370,7 +369,7 @@ impl Term {
         let U32Field(field_idx) = *field;
         buffer.clear();
         buffer.push(128 | field_idx);
-        val.serialize(&mut buffer);
+        val.serialize(&mut buffer).unwrap();
         Term {
             data: buffer,
         }
@@ -463,6 +462,15 @@ impl Document {
 
     pub fn u32_fields<'a>(&'a self,) -> slice::Iter<'a, U32FieldValue> {
         self.u32_field_values.iter()
+    }
+
+    pub fn get_u32(&self, field: &U32Field) -> Option<u32> {
+        self.u32_field_values
+            .iter()
+            .filter(|field_value| field_value.field == *field)
+            .map(|field_value| &field_value.value)
+            .cloned()
+            .next()
     }
 
     pub fn get_texts<'a>(&'a self, field: &TextField) -> Vec<&'a String> {
