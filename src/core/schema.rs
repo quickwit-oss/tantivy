@@ -74,11 +74,32 @@ impl BitOr for TextOptions {
 
 /// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct U32Field(u8);
+pub struct U32Field(pub u8);
 
 /// Field handle
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct TextField(u8);
+pub struct TextField(pub u8);
+
+
+impl U32Options {
+    pub fn is_indexed(&self,) -> bool {
+        self.indexed
+    }
+
+    pub fn set_indexed(mut self,) -> U32Options {
+        self.indexed = true;
+        self
+    }
+
+    pub fn is_fast(&self,) -> bool {
+        self.fast
+    }
+
+    pub fn set_fast(mut self,) -> U32Options {
+        self.fast = true;
+        self
+    }
+}
 
 impl TextOptions {
     pub fn is_tokenized_indexed(&self,) -> bool {
@@ -171,9 +192,9 @@ struct TextFieldEntry {
 }
 
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
-struct U32FieldEntry {
-    name: String,
-    option: U32Options,
+pub struct U32FieldEntry {
+    pub name: String,
+    pub option: U32Options,
 }
 
 
@@ -209,10 +230,8 @@ struct U32FieldEntry {
 pub struct Schema {
     text_fields: Vec<TextFieldEntry>,
     text_fields_map: HashMap<String, TextField>,  // transient
-    text_field_options: Vec<TextOptions>,     // transient
     u32_fields: Vec<U32FieldEntry>,
     u32_fields_map: HashMap<String, U32Field>,    // transient
-    u32_field_options: Vec<U32Options>,     // transient
 }
 
 impl Decodable for Schema {
@@ -250,11 +269,13 @@ impl Schema {
         Schema {
             text_fields: Vec::new(),
             text_fields_map: HashMap::new(),
-            text_field_options: Vec::new(),
             u32_fields: Vec::new(),
             u32_fields_map: HashMap::new(),
-            u32_field_options: Vec::new(),
         }
+    }
+
+    pub fn get_u32_fields(&self,) -> &Vec<U32FieldEntry> {
+        &self.u32_fields
     }
 
     /// Given a name, returns the field handle, as well as its associated TextOptions
@@ -262,7 +283,7 @@ impl Schema {
         self.text_fields_map
             .get(field_name)
             .map(|&TextField(field_id)| {
-                let field_options = self.text_field_options[field_id as usize].clone();
+                let field_options = self.text_fields[field_id as usize].option.clone();
                 (TextField(field_id), field_options)
             })
     }
@@ -271,7 +292,7 @@ impl Schema {
         self.u32_fields_map
         .get(field_name)
         .map(|&U32Field(field_id)| {
-            let u32_field_options = self.u32_field_options[field_id as usize].clone();
+            let u32_field_options = self.u32_fields[field_id as usize].option.clone();
             (U32Field(field_id), u32_field_options)
         })
     }
@@ -296,9 +317,13 @@ impl Schema {
     /// Returns the field options associated to a field handle.
     pub fn text_field_options(&self, field: &TextField) -> TextOptions {
         let TextField(field_id) = *field;
-        self.text_field_options[field_id as usize].clone()
+        self.text_fields[field_id as usize].option.clone()
     }
 
+    pub fn u32_field_options(&self, field: &U32Field) -> U32Options {
+        let U32Field(field_id) = *field;
+        self.u32_fields[field_id as usize].option.clone()
+    }
 
     /// Creates a new field.
     /// Return the associated field handle.
@@ -311,19 +336,44 @@ impl Schema {
             option: field_options.borrow().clone(),
         });
         self.text_fields_map.insert(field_name, field.clone());
-        self.text_field_options.push(field_options.borrow().clone());
+        field
+    }
+
+    /// Creates a new field.
+    /// Return the associated field handle.
+    pub fn add_u32_field<RefU32Options: Borrow<U32Options>>(&mut self, field_name_str: &str, field_options: RefU32Options) -> U32Field {
+        let field = U32Field(self.u32_fields.len() as u8);
+        // TODO case if field already exists
+        let field_name = String::from(field_name_str);
+        self.u32_fields.push(U32FieldEntry {
+            name: field_name.clone(),
+            option: field_options.borrow().clone(),
+        });
+        self.u32_fields_map.insert(field_name, field.clone());
         field
     }
 
 }
 
-impl Term {
-    pub fn field_text(&self,) -> TextField {
-        TextField(self.data[0])
-    }
 
-    pub fn text(&self,) -> &str {
-        str::from_utf8(&self.data[1..]).unwrap()
+impl Term {
+    // pub fn field_text(&self,) -> TextField {
+    //     TextField(self.data[0])
+    // }
+    //
+    // pub fn text(&self,) -> &str {
+    //     str::from_utf8(&self.data[1..]).unwrap()
+    // }
+
+    pub fn from_field_u32(field: &U32Field, val: u32) -> Term {
+        let mut buffer = Vec::with_capacity(1 + 4);
+        let U32Field(field_idx) = *field;
+        buffer.clear();
+        buffer.push(128 | field_idx);
+        val.serialize(&mut buffer);
+        Term {
+            data: buffer,
+        }
     }
 
     pub fn from_field_text(field: &TextField, text: &str) -> Term {
@@ -350,7 +400,7 @@ impl Term {
 
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Term({}: {})", self.data[0], self.text())
+        write!(f, "Term({})", self.data[0])
     }
 }
 
@@ -415,7 +465,7 @@ impl Document {
         self.u32_field_values.iter()
     }
 
-    pub fn get<'a>(&'a self, field: &TextField) -> Vec<&'a String> {
+    pub fn get_texts<'a>(&'a self, field: &TextField) -> Vec<&'a String> {
         self.text_field_values
             .iter()
             .filter(|field_value| field_value.field == *field)
@@ -423,7 +473,7 @@ impl Document {
             .collect()
     }
 
-    pub fn get_one<'a>(&'a self, field: &TextField) -> Option<&'a String> {
+    pub fn get_first_text<'a>(&'a self, field: &TextField) -> Option<&'a String> {
         self.text_field_values
             .iter()
             .filter(|field_value| field_value.field == *field)

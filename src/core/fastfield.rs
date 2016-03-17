@@ -4,10 +4,11 @@ use std::io::Cursor;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
 use core::schema::DocId;
+use core::schema::Schema;
 use std::ops::Deref;
 use core::fastdivide::count_leading_zeros;
 use core::fastdivide::DividerU32;
-
+use core::schema::U32Field;
 
 pub fn compute_num_bits(amplitude: u32) -> u8 {
     32 - count_leading_zeros(amplitude)
@@ -31,14 +32,39 @@ fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write:
     Ok(())
 }
 
-pub struct IntFastFieldWriter {
+pub struct FastFieldWriters {
+    u32_fast_fields: Vec<U32Field>,
+    u32_fast_field_writers: Vec<U32FastFieldWriter>,
+}
+
+impl FastFieldWriters {
+    pub fn from_schema(schema: &Schema) -> FastFieldWriters {
+        let u32_fast_fields: Vec<U32Field> = schema
+            .get_u32_fields()
+            .iter()
+            .enumerate()
+            .filter(|&(i, u32_field_entry)| u32_field_entry.option.is_fast())
+            .map(|(i, u32_field_entry)| U32Field(i as u8))
+            .collect();
+        let num_32_fast_fields = u32_fast_fields.len();
+        FastFieldWriters {
+            u32_fast_fields: u32_fast_fields,
+            u32_fast_field_writers: (0..num_32_fast_fields)
+                .map(|_| U32FastFieldWriter::new())
+                .collect()
+        }
+    }
+}
+
+
+pub struct U32FastFieldWriter {
     vals: Vec<u32>,
 }
 
-impl IntFastFieldWriter {
+impl U32FastFieldWriter {
 
-    pub fn new() -> IntFastFieldWriter {
-        IntFastFieldWriter {
+    pub fn new() -> U32FastFieldWriter {
+        U32FastFieldWriter {
             vals: Vec::new()
         }
     }
@@ -105,7 +131,7 @@ impl IntFastFieldReader {
 mod tests {
 
     use super::compute_num_bits;
-    use super::IntFastFieldWriter;
+    use super::U32FastFieldWriter;
     use super::IntFastFieldReader;
     use core::directory::ReadOnlySource;
     use test::Bencher;
@@ -130,7 +156,7 @@ mod tests {
     fn test_intfastfield_small() {
         let mut buffer: Vec<u8> = Vec::new();
         {
-            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new();
             int_fast_field_writer.add(4u32);
             int_fast_field_writer.add(14u32);
             int_fast_field_writer.add(2u32);
@@ -151,7 +177,7 @@ mod tests {
     fn test_intfastfield_large() {
         let mut buffer: Vec<u8> = Vec::new();
         {
-            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new();
             int_fast_field_writer.add(4u32);
             int_fast_field_writer.add(14_082_001u32);
             int_fast_field_writer.add(3_052u32);
@@ -180,7 +206,7 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         let permutation = generate_permutation();
         {
-            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new();
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }
@@ -228,7 +254,7 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         {
             let permutation = generate_permutation();
-            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new();
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }
@@ -251,7 +277,7 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         {
             let permutation = generate_permutation();
-            let mut int_fast_field_writer = IntFastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new();
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }

@@ -231,7 +231,7 @@ mod tests {
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
-            assert_eq!(*store.get(&i).unwrap().get_one(&field_title).unwrap(), format!("Doc {}", i));
+            assert_eq!(*store.get(&i).unwrap().get_first_text(&field_title).unwrap(), format!("Doc {}", i));
         }
     }
 

@@ -9,7 +9,7 @@ use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use core::postings::PostingsWriter;
-use core::fastfield::IntFastFieldWriter;
+use core::fastfield::FastFieldWriters;
 
 
 pub struct IndexWriter {
@@ -18,17 +18,13 @@ pub struct IndexWriter {
 	schema: Schema,
 }
 
-fn new_segment_writer(directory: &Index, ) -> io::Result<SegmentWriter> {
-	let segment = directory.new_segment();
-	SegmentWriter::for_segment(segment)
-}
 
 impl IndexWriter {
 
     pub fn open(directory: &Index) -> io::Result<IndexWriter> {
 		let segment = directory.new_segment();
-		let segment_writer = try!(SegmentWriter::for_segment(segment));
 		let schema = directory.schema();
+		let segment_writer = try!(SegmentWriter::for_segment(segment, &schema));
 		Ok(IndexWriter {
 			segment_writer: Rc::new(segment_writer),
 			directory: directory.clone(),
@@ -42,7 +38,8 @@ impl IndexWriter {
 
     pub fn commit(&mut self,) -> io::Result<Segment> {
 		let segment_writer_rc = self.segment_writer.clone();
-		self.segment_writer = Rc::new(try!(new_segment_writer(&self.directory)));
+		let segment = self.directory.new_segment();
+		self.segment_writer = Rc::new(try!(SegmentWriter::for_segment(segment, &self.schema)));
 		match Rc::try_unwrap(segment_writer_rc) {
 			Ok(segment_writer) => {
 				let segment = segment_writer.segment();
@@ -64,7 +61,7 @@ pub struct SegmentWriter {
     max_doc: DocId,
 	tokenizer: SimpleTokenizer,
 	postings_writer: PostingsWriter,
-	fastfield_writer: IntFastFieldWriter,
+	fastfield_writers: FastFieldWriters,
 	segment_serializer: SegmentSerializer,
 }
 
@@ -94,14 +91,14 @@ impl SegmentWriter {
 		self.segment_serializer.segment()
 	}
 
-	fn for_segment(segment: Segment) -> io::Result<SegmentWriter> {
+	fn for_segment(segment: Segment, schema: &Schema) -> io::Result<SegmentWriter> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
 		Ok(SegmentWriter {
 			max_doc: 0,
 			postings_writer: PostingsWriter::new(),
 			segment_serializer: segment_serializer,
 			tokenizer: SimpleTokenizer::new(),
-			fastfield_writer: IntFastFieldWriter::new(),
+			fastfield_writers: FastFieldWriters::from_schema(schema),
 		})
 	}
 
@@ -122,9 +119,13 @@ impl SegmentWriter {
 				}
 			}
 		}
-//		for field_value in doc.u32_fields() {
-//
-//		}
+		for field_value in doc.u32_fields() {
+            let field_options = schema.u32_field_options(&field_value.field);
+            if field_options.is_indexed() {
+                let term = Term::from_field_u32(&field_value.field, field_value.value);
+                self.postings_writer.suscribe(doc_id, term);
+            }
+		}
 		let mut stored_fieldvalues_it = doc.text_fields().filter(|text_field_value| {
 			schema.text_field_options(&text_field_value.field).is_stored()
 		});
