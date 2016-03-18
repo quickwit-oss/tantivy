@@ -1,6 +1,9 @@
 use std::io::BufWriter;
 use std::io;
+use std::io::Cursor;
 use std::io::Write;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::fs::File;
 use std::fmt;
 use std::collections::HashMap;
@@ -56,6 +59,12 @@ impl ReadOnlySource {
     }
 }
 
+
+
+trait SeekableWrite: Seek + Write {}
+impl<T: Seek + Write> SeekableWrite for T {}
+pub type WritePtr = Box<SeekableWrite>;
+
 //
 // #[derive(Debug)]
 // pub enum CreateError {
@@ -66,13 +75,13 @@ impl ReadOnlySource {
 
 pub trait Directory: fmt::Debug {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource>;
-    fn open_write(&mut self, path: &Path) -> io::Result<Box<Write>>;
+    fn open_write(&mut self, path: &Path) -> io::Result<WritePtr>;
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
     fn sync(&self, path: &Path) -> io::Result<()>;
     fn sync_directory(&self,) -> io::Result<()>;
 }
 
-pub type WritePtr = Box<Write>;
+
 
 
 
@@ -168,7 +177,7 @@ impl Directory for MmapDirectory {
 
 
 #[derive(Clone)]
-struct SharedVec(Arc<RwLock<Vec<u8>>>);
+struct SharedVec(Arc<RwLock<Cursor<Vec<u8>>>>);
 
 
 pub struct RAMDirectory {
@@ -177,7 +186,7 @@ pub struct RAMDirectory {
 
 impl SharedVec {
     fn new() -> SharedVec {
-        SharedVec(Arc::new( RwLock::new(Vec::new()) ))
+        SharedVec(Arc::new( RwLock::new(Cursor::new(Vec::new())) ))
     }
 }
 
@@ -191,6 +200,11 @@ impl Write for SharedVec {
     }
 }
 
+impl Seek for SharedVec {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.0.write().unwrap().seek(pos)
+    }
+}
 
 impl fmt::Debug for RAMDirectory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -211,7 +225,7 @@ impl Directory for RAMDirectory {
         match self.fs.get(path) {
             Some(ref data) => {
                 let data_copy = (*data).0.read().unwrap().clone();
-                Ok(ReadOnlySource::Anonymous(data_copy))
+                Ok(ReadOnlySource::Anonymous(data_copy.into_inner()))
             },
             None =>
                 Err(io::Error::new(io::ErrorKind::NotFound, "File has never been created."))

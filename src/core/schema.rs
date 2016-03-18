@@ -160,6 +160,17 @@ impl BinarySerializable for TextField {
     }
 }
 
+impl BinarySerializable for U32Field {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        let U32Field(field_id) = *self;
+        field_id.serialize(writer)
+    }
+
+    fn deserialize(reader: &mut Read) -> io::Result<U32Field> {
+        u8::deserialize(reader).map(U32Field)
+    }
+}
+
 impl BinarySerializable for TextFieldValue {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         Ok(

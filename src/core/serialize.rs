@@ -49,6 +49,15 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
 }
 
 
+impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for (Left, Right) {
+    fn serialize(&self, write: &mut Write) -> io::Result<usize> {
+        Ok(try!(self.0.serialize(write)) + try!(self.1.serialize(write)))
+    }
+    fn deserialize(reader: &mut Read) -> io::Result<Self> {
+        Ok( (try!(Left::deserialize(reader)), try!(Right::deserialize(reader))) )
+    }
+}
+
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         writer.write_u32::<NativeEndian>(self.clone())

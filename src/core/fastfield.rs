@@ -1,5 +1,7 @@
 use std::io::Write;
 use std::io;
+use std::io::SeekFrom;
+use std::io::Seek;
 use std::io::Cursor;
 use core::directory::WritePtr;
 use core::serialize::BinarySerializable;
@@ -12,11 +14,11 @@ use core::fastdivide::count_leading_zeros;
 use core::fastdivide::DividerU32;
 use core::schema::U32Field;
 
-pub fn compute_num_bits(amplitude: u32) -> u8 {
-    32 - count_leading_zeros(amplitude)
+pub fn compute_num_bits(amplitude: u32) -> u32 {
+    32u32 - count_leading_zeros(amplitude) as u32
 }
 
-fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write: &mut Write) -> io::Result<usize> {
+fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u32, write: &mut Write) -> io::Result<usize> {
     let mut mini_buffer_written = 0;
     let mut mini_buffer = 0u64;
     let mut written_size = 0;
@@ -91,6 +93,91 @@ impl FastFieldWriters {
 }
 
 
+
+pub struct FastFieldSerializer {
+    write: WritePtr,
+    written_size: usize,
+    fields: Vec<(U32Field, u64)>,
+    num_bits: u32,
+
+    field_open: bool,
+    mini_buffer_written: usize,
+    mini_buffer: u64,
+}
+
+
+
+impl FastFieldSerializer {
+    pub fn new(mut write: WritePtr) -> io::Result<FastFieldSerializer> {
+        // just making room for the pointer to header.
+        let written_size: usize = try!(0u64.serialize(&mut write));
+        Ok(FastFieldSerializer {
+            write: write,
+            written_size: written_size,
+            fields: Vec::new(),
+            num_bits: 0u32,
+
+            field_open: false,
+            mini_buffer_written: 0,
+            mini_buffer: 0,
+        })
+    }
+
+    pub fn new_u32_fast_field(&mut self, field: U32Field, min_value: u32, max_value: u32) -> io::Result<()> {
+        if !self.field_open {
+            return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
+        }
+        self.field_open = true;
+        self.fields.push((field, self.written_size as u64));
+        let write: &mut Write = &mut self.write;
+        self.written_size += try!(min_value.serialize(write));
+        self.written_size += try!(max_value.serialize(write));
+        let amplitude = max_value - min_value;
+        self.num_bits = compute_num_bits(amplitude);
+        Ok(())
+    }
+
+    pub fn add_val(&mut self, val: u32) -> io::Result<()> {
+        let write: &mut Write = &mut self.write;
+        if self.mini_buffer_written + (self.num_bits as usize) > 64 {
+            self.written_size += try!(self.mini_buffer.serialize(write));
+            self.mini_buffer = 0;
+            self.mini_buffer_written = 0;
+        }
+        self.mini_buffer |= (val as u64) << self.mini_buffer_written;
+        self.mini_buffer_written += self.num_bits as usize;
+        if self.mini_buffer_written > 0 {
+            self.written_size += try!(self.mini_buffer.serialize(write));
+        }
+        Ok(())
+    }
+
+    pub fn close_field(&mut self,) -> io::Result<()> {
+        if self.field_open {
+            return Err(io::Error::new(io::ErrorKind::Other, "Current field is already closed"));
+        }
+        self.field_open = false;
+        self.mini_buffer = 0;
+        self.mini_buffer_written = 0;
+        if self.mini_buffer_written > 0 {
+            self.written_size += try!(self.mini_buffer.serialize(&mut self.write));
+        }
+        Ok(())
+    }
+
+    pub fn close(&mut self,) -> io::Result<usize> {
+        if !self.field_open {
+            return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
+        }
+        let header_offset: usize = self.written_size;
+        self.written_size += try!(self.fields.serialize(&mut self.write));
+        self.write.seek(SeekFrom::Current(-(header_offset as i64)));
+        (header_offset as u64).serialize(&mut self.write);
+        Ok(self.written_size)
+    }
+}
+
+
 pub struct U32FastFieldWriter {
     vals: Vec<u32>,
 }
@@ -116,7 +203,7 @@ impl U32FastFieldWriter {
         let max = self.vals.iter().max().unwrap();
         written_size += try!(min.serialize(write));
         let amplitude: u32 = max - min;
-        let num_bits: u8 = compute_num_bits(amplitude);
+        let num_bits: u32 = compute_num_bits(amplitude);
         written_size += try!(num_bits.serialize(write));
         let vals_it = self.vals.iter().map(|i| i-min);
         written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
@@ -138,7 +225,9 @@ impl U32FastFieldReader {
     pub fn open(data: &ReadOnlySource) -> io::Result<U32FastFieldReader> {
         let mut cursor: Cursor<&[u8]> = Cursor::new(&*data);
         let min_val = try!(u32::deserialize(&mut cursor));
-        let num_bits = try!(u8::deserialize(&mut cursor));
+        let max_val = try!(u32::deserialize(&mut cursor));
+        let amplitude = max_val - min_val;
+        let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
         let ptr: *const u8 = &(data.deref()[5]);
