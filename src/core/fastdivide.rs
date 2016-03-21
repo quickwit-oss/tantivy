@@ -14,7 +14,6 @@ pub fn count_leading_zeros(mut val: u32) -> u8 {
         return 32;
     }
     let mut result = 0u8;
-    println!("count leading zeros {} ", val);
     while (val & (1u32 << 31)) == 0 {
         val <<= 1;
         result += 1;

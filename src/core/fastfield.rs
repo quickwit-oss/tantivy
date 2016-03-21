@@ -14,11 +14,11 @@ use core::fastdivide::count_leading_zeros;
 use core::fastdivide::DividerU32;
 use core::schema::U32Field;
 
-pub fn compute_num_bits(amplitude: u32) -> u32 {
-    32u32 - count_leading_zeros(amplitude) as u32
+pub fn compute_num_bits(amplitude: u32) -> u8 {
+    32u8 - count_leading_zeros(amplitude)
 }
 
-fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u32, write: &mut Write) -> io::Result<usize> {
+fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write: &mut Write) -> io::Result<usize> {
     let mut mini_buffer_written = 0;
     let mut mini_buffer = 0u64;
     let mut written_size = 0;
@@ -98,7 +98,7 @@ pub struct FastFieldSerializer {
     write: WritePtr,
     written_size: usize,
     fields: Vec<(U32Field, u64)>,
-    num_bits: u32,
+    num_bits: u8,
 
     field_open: bool,
     mini_buffer_written: usize,
@@ -115,8 +115,7 @@ impl FastFieldSerializer {
             write: write,
             written_size: written_size,
             fields: Vec::new(),
-            num_bits: 0u32,
-
+            num_bits: 0u8,
             field_open: false,
             mini_buffer_written: 0,
             mini_buffer: 0,
@@ -131,8 +130,8 @@ impl FastFieldSerializer {
         self.fields.push((field, self.written_size as u64));
         let write: &mut Write = &mut self.write;
         self.written_size += try!(min_value.serialize(write));
-        self.written_size += try!(max_value.serialize(write));
         let amplitude = max_value - min_value;
+        self.written_size += try!(amplitude.serialize(write));
         self.num_bits = compute_num_bits(amplitude);
         Ok(())
     }
@@ -203,8 +202,8 @@ impl U32FastFieldWriter {
         let max = self.vals.iter().max().unwrap();
         written_size += try!(min.serialize(write));
         let amplitude: u32 = max - min;
-        let num_bits: u32 = compute_num_bits(amplitude);
-        written_size += try!(num_bits.serialize(write));
+        written_size += try!(amplitude.serialize(write));
+        let num_bits: u8 = compute_num_bits(amplitude) as u8;
         let vals_it = self.vals.iter().map(|i| i-min);
         written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
         Ok(written_size)
@@ -215,7 +214,7 @@ pub struct U32FastFieldReader {
     _data: ReadOnlySource,
     data_ptr: *const u64,
     min_val: u32,
-    num_bits: u32,
+    num_bits: u8,
     mask: u32,
     num_in_pack: u32,
     divider: DividerU32,
@@ -225,17 +224,16 @@ impl U32FastFieldReader {
     pub fn open(data: &ReadOnlySource) -> io::Result<U32FastFieldReader> {
         let mut cursor: Cursor<&[u8]> = Cursor::new(&*data);
         let min_val = try!(u32::deserialize(&mut cursor));
-        let max_val = try!(u32::deserialize(&mut cursor));
-        let amplitude = max_val - min_val;
+        let amplitude = try!(u32::deserialize(&mut cursor));
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
-        let ptr: *const u8 = &(data.deref()[5]);
+        let ptr: *const u8 = &(data.deref()[8]);
         Ok(U32FastFieldReader {
-            _data: data.slice(5, data.len()),
+            _data: data.slice(8, data.len()),
             data_ptr: ptr as *const u64,
             min_val: min_val,
-            num_bits: num_bits as u32,
+            num_bits: num_bits,
             mask: mask,
             num_in_pack: num_in_pack,
             divider: DividerU32::divide_by(num_in_pack),
@@ -286,7 +284,7 @@ mod tests {
             int_fast_field_writer.add(14u32);
             int_fast_field_writer.add(2u32);
             int_fast_field_writer.close(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 4 + 1 + 8 as usize);
+            assert_eq!(buffer.len(), 4 + 4 + 8 as usize);
         }
         {
             let source = ReadOnlySource::Anonymous(buffer);
@@ -307,7 +305,7 @@ mod tests {
             int_fast_field_writer.add(14_082_001u32);
             int_fast_field_writer.add(3_052u32);
             int_fast_field_writer.close(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 21 as usize);
+            assert_eq!(buffer.len(), 24 as usize);
         }
         {
             let source = ReadOnlySource::Anonymous(buffer);
