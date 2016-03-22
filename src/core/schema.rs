@@ -39,6 +39,13 @@ pub const TEXT: TextOptions = TextOptions {
     fast: false,
 };
 
+/// The field will be tokenized and indexed
+pub const FAST_U32: U32Options = U32Options {
+    indexed: false,
+    stored: true,
+    fast: false,
+};
+
 /// A stored fields of a document can be retrieved given its DocId.
 /// Stored field are stored together and LZ4 compressed.
 /// Reading the stored fields of a document is relatively slow.
@@ -56,6 +63,9 @@ pub const FAST: TextOptions = TextOptions {
     stored: false,
     fast: true
 };
+
+
+
 
 
 impl BitOr for TextOptions {

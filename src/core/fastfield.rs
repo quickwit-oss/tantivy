@@ -9,6 +9,7 @@ use core::directory::ReadOnlySource;
 use core::schema::DocId;
 use core::schema::Schema;
 use core::schema::Document;
+use core::schema::FAST_U32;
 use std::ops::Deref;
 use core::fastdivide::count_leading_zeros;
 use core::fastdivide::DividerU32;
@@ -178,14 +179,15 @@ impl FastFieldSerializer {
 
 
 pub struct U32FastFieldWriter {
+    field: U32Field,
     vals: Vec<u32>,
 }
 
 impl U32FastFieldWriter {
-
-    pub fn new() -> U32FastFieldWriter {
+    pub fn new(field: &U32Field) -> U32FastFieldWriter {
         U32FastFieldWriter {
-            vals: Vec::new()
+            field: field.clone(),
+            vals: Vec::new(),
         }
     }
 
@@ -197,13 +199,12 @@ impl U32FastFieldWriter {
         if self.vals.is_empty() {
             return Ok((0))
         }
-        let mut written_size = 0;
         let min = self.vals.iter().min().unwrap();
         let max = self.vals.iter().max().unwrap();
-        written_size += try!(min.serialize(write));
+        let mut written_size = try!(min.serialize(write));
         let amplitude: u32 = max - min;
         written_size += try!(amplitude.serialize(write));
-        let num_bits: u8 = compute_num_bits(amplitude) as u8;
+        let num_bits = compute_num_bits(amplitude);
         let vals_it = self.vals.iter().map(|i| i-min);
         written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
         Ok(written_size)
@@ -256,6 +257,8 @@ mod tests {
     use super::compute_num_bits;
     use super::U32FastFieldWriter;
     use super::U32FastFieldReader;
+    use core::schema::Schema;
+    use core::schema::FAST_U32;
     use core::directory::ReadOnlySource;
     use test::Bencher;
     use test;
@@ -279,7 +282,9 @@ mod tests {
     fn test_intfastfield_small() {
         let mut buffer: Vec<u8> = Vec::new();
         {
-            let mut int_fast_field_writer = U32FastFieldWriter::new();
+            let mut schema = Schema::new();
+            let field = schema.add_u32_field("field", FAST_U32);
+            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             int_fast_field_writer.add(4u32);
             int_fast_field_writer.add(14u32);
             int_fast_field_writer.add(2u32);
@@ -300,7 +305,9 @@ mod tests {
     fn test_intfastfield_large() {
         let mut buffer: Vec<u8> = Vec::new();
         {
-            let mut int_fast_field_writer = U32FastFieldWriter::new();
+            let mut schema = Schema::new();
+            let field = schema.add_u32_field("field", FAST_U32);
+            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             int_fast_field_writer.add(4u32);
             int_fast_field_writer.add(14_082_001u32);
             int_fast_field_writer.add(3_052u32);
@@ -329,7 +336,9 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         let permutation = generate_permutation();
         {
-            let mut int_fast_field_writer = U32FastFieldWriter::new();
+            let mut schema = Schema::new();
+            let field = schema.add_u32_field("field", FAST_U32);
+            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }
@@ -376,8 +385,10 @@ mod tests {
     fn bench_intfastfield_linear_fflookup(b: &mut Bencher) {
         let mut buffer: Vec<u8> = Vec::new();
         {
+            let mut schema = Schema::new();
+            let field = schema.add_u32_field("field", FAST_U32);
             let permutation = generate_permutation();
-            let mut int_fast_field_writer = U32FastFieldWriter::new();
+            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }
@@ -400,7 +411,9 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         {
             let permutation = generate_permutation();
-            let mut int_fast_field_writer = U32FastFieldWriter::new();
+            let mut schema = Schema::new();
+            let field = schema.add_u32_field("field", FAST_U32);
+            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
                 int_fast_field_writer.add(*x);
             }
