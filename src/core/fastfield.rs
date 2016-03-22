@@ -178,6 +178,34 @@ impl FastFieldSerializer {
 }
 
 
+pub struct U32FastFieldWriters {
+    field_writers: Vec<U32FastFieldWriter>,
+}
+
+impl U32FastFieldWriters {
+    pub fn new(fields: Vec<U32>) -> U32FastFieldWriters {
+        U32FastFieldWriters {
+            field_writers: fields
+                .iter()
+                .map(|field| U32FastFieldWriter::new(&field))
+                .collect(),
+        }
+    }
+
+    pub fn add_document(&mut self, doc: &Document) {
+        for mut field_writer in self.field_writers {
+            field_writer.add_document(doc);
+        }
+    }
+
+    pub fn close(&self,) {
+
+    }
+}
+
+
+
+
 pub struct U32FastFieldWriter {
     field: U32Field,
     vals: Vec<u32>,
@@ -191,8 +219,14 @@ impl U32FastFieldWriter {
         }
     }
 
-    pub fn add(&mut self, val: u32) {
+    pub fn add_val(&mut self, val: u32) {
         self.vals.push(val);
+    }
+
+    pub fn add_document(&mut self, doc: &Document) {
+        let val = doc.get_u32(&self.field).unwrap_or(0u32);
+        self.add_val(val);
+
     }
 
     pub fn close(&self, write: &mut Write) -> io::Result<usize> {
