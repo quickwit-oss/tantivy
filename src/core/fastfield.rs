@@ -38,63 +38,6 @@ fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write:
     Ok(written_size)
 }
 
-pub struct FastFieldWriters {
-    write: WritePtr,
-}
-
-impl FastFieldWriters {
-    pub fn with_num_fields(write: WritePtr,) -> FastFieldWriters {
-        FastFieldWriters {
-            write: write
-        }
-    }
-    //
-    //
-    // pub fn write_fast_field(&mut self, vals: &Vec<u32>) -> io::Result<()> {
-    //     let u32_fast_field_writer = U32FastFieldWriter::new();
-    //     for val in vals {
-    //         u32_fast_field_writer.add(*val);
-    //     }
-    //     self.u32_fast_field_writers.finish();
-    // }
-    // pub fn from_schema(schema: &Schema) -> FastFieldWriters {
-    //     let u32_fast_fields: Vec<U32Field> = schema
-    //         .get_u32_fields()
-    //         .iter()
-    //         .enumerate()
-    //         .filter(|&(_, u32_field_entry)| u32_field_entry.option.is_fast())
-    //         .map(|(i, _)| U32Field(i as u8))
-    //         .collect();
-    //     let num_32_fast_fields = u32_fast_fields.len();
-    //     FastFieldWriters {
-    //         u32_fast_fields: u32_fast_fields,
-    //         u32_fast_field_writers: (0..num_32_fast_fields)
-    //             .map(|_| U32FastFieldWriter::new())
-    //             .collect()
-    //     }
-    // }
-
-
-
-
-    // pub fn add_doc(&mut self, doc: &Document) -> io::Result<()> {
-    //     for (field, field_writer) in self.u32_fast_fields.iter().zip(self.u32_fast_field_writers.iter_mut()) {
-    //         let some_val = doc.get_u32(field);
-    //         match some_val {
-    //             Some(v) => {
-    //                 field_writer.add(v);
-    //             }
-    //             None => {
-    //                 return Err(io::Error::new(io::ErrorKind::InvalidData, "u32 fast field missing"));
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
-}
-
-
-
 pub struct FastFieldSerializer {
     write: WritePtr,
     written_size: usize,
@@ -105,8 +48,6 @@ pub struct FastFieldSerializer {
     mini_buffer_written: usize,
     mini_buffer: u64,
 }
-
-
 
 impl FastFieldSerializer {
     pub fn new(mut write: WritePtr) -> io::Result<FastFieldSerializer> {
@@ -177,12 +118,22 @@ impl FastFieldSerializer {
     }
 }
 
-
 pub struct U32FastFieldWriters {
     field_writers: Vec<U32FastFieldWriter>,
 }
 
 impl U32FastFieldWriters {
+
+    pub fn from_schema(schema: &Schema) -> U32FastFieldWriters {
+        let u32_fields: Vec<U32Field> = schema.get_u32_fields()
+            .iter()
+            .enumerate()
+            .filter(|&(_, field_entry)| field_entry.option.is_fast())
+            .map(|(field_id, _)| U32Field(field_id as u8))
+            .collect();
+        U32FastFieldWriters::new(u32_fields)
+    }
+
     pub fn new(fields: Vec<U32Field>) -> U32FastFieldWriters {
         U32FastFieldWriters {
             field_writers: fields
@@ -205,9 +156,6 @@ impl U32FastFieldWriters {
         serializer.close().map(|_| ())
     }
 }
-
-
-
 
 pub struct U32FastFieldWriter {
     field: U32Field,
@@ -241,19 +189,6 @@ impl U32FastFieldWriter {
             try!(serializer.add_val(val.clone()));
         }
         serializer.close_field()
-
-        // if self.vals.is_empty() {
-        //     return Ok((0))
-        // }
-        // let min = self.vals.iter().min().unwrap();
-        // let max = self.vals.iter().max().unwrap();
-        // let mut written_size = try!(min.serialize(write));
-        // let amplitude: u32 = max - min;
-        // written_size += try!(amplitude.serialize(write));
-        // let num_bits = compute_num_bits(amplitude);
-        // let vals_it = self.vals.iter().map(|i| i-min);
-        // written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
-        // Ok(written_size)
     }
 }
 
@@ -303,6 +238,7 @@ mod tests {
     use super::compute_num_bits;
     use super::U32FastFieldWriter;
     use super::U32FastFieldReader;
+    use core::directory::WritePtr;
     use core::schema::Schema;
     use core::schema::FAST_U32;
     use core::directory::ReadOnlySource;
@@ -328,13 +264,15 @@ mod tests {
     fn test_intfastfield_small() {
         let mut buffer: Vec<u8> = Vec::new();
         {
+            let write: WritePtr = Box::new(Vec::new());
+            let serializer = FastFieldSerializer::new(write);
             let mut schema = Schema::new();
             let field = schema.add_u32_field("field", FAST_U32);
             let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
-            int_fast_field_writer.add(4u32);
-            int_fast_field_writer.add(14u32);
-            int_fast_field_writer.add(2u32);
-            int_fast_field_writer.close(&mut buffer).unwrap();
+            int_fast_field_writer.add_val(4u32);
+            int_fast_field_writer.add_val(14u32);
+            int_fast_field_writer.add_val(2u32);
+            int_fast_field_writer.serialize(&mut serializer).unwrap();
             assert_eq!(buffer.len(), 4 + 4 + 8 as usize);
         }
         {
@@ -354,10 +292,10 @@ mod tests {
             let mut schema = Schema::new();
             let field = schema.add_u32_field("field", FAST_U32);
             let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
-            int_fast_field_writer.add(4u32);
-            int_fast_field_writer.add(14_082_001u32);
-            int_fast_field_writer.add(3_052u32);
-            int_fast_field_writer.close(&mut buffer).unwrap();
+            int_fast_field_writer.add_val(4u32);
+            int_fast_field_writer.add_val(14_082_001u32);
+            int_fast_field_writer.add_val(3_052u32);
+            int_fast_field_writer.serialize(&mut buffer).unwrap();
             assert_eq!(buffer.len(), 24 as usize);
         }
         {
@@ -386,9 +324,9 @@ mod tests {
             let field = schema.add_u32_field("field", FAST_U32);
             let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
-                int_fast_field_writer.add(*x);
+                int_fast_field_writer.add_val(*x);
             }
-            int_fast_field_writer.close(&mut buffer).unwrap();
+            int_fast_field_writer.serialize(&mut buffer).unwrap();
         }
         let source = ReadOnlySource::Anonymous(buffer);
         let int_fast_field_reader = U32FastFieldReader::open(&source).unwrap();
@@ -436,9 +374,9 @@ mod tests {
             let permutation = generate_permutation();
             let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
-                int_fast_field_writer.add(*x);
+                int_fast_field_writer.add_val(*x);
             }
-            int_fast_field_writer.close(&mut buffer).unwrap();
+            int_fast_field_writer.serialize(&mut buffer).unwrap();
         }
         let source = ReadOnlySource::Anonymous(buffer);
         let int_fast_field_reader = U32FastFieldReader::open(&source).unwrap();
@@ -461,9 +399,9 @@ mod tests {
             let field = schema.add_u32_field("field", FAST_U32);
             let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
             for x in permutation.iter() {
-                int_fast_field_writer.add(*x);
+                int_fast_field_writer.add_val(*x);
             }
-            int_fast_field_writer.close(&mut buffer).unwrap();
+            int_fast_field_writer.serialize(&mut buffer).unwrap();
         }
         let source = ReadOnlySource::Anonymous(buffer);
         let int_fast_field_reader = U32FastFieldReader::open(&source).unwrap();

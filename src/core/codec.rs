@@ -13,7 +13,6 @@ use core::serialize::BinarySerializable;
 use core::simdcompression;
 use core::schema::TextFieldValue;
 use core::convert_to_ioerror;
-use core::fastfield::FastFieldWriters;
 
 
 #[derive(Debug)]

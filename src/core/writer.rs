@@ -9,7 +9,7 @@ use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use core::postings::PostingsWriter;
-use core::fastfield::FastFieldWriters;
+use core::fastfield::U32FastFieldWriters;
 
 
 pub struct IndexWriter {
@@ -62,6 +62,7 @@ pub struct SegmentWriter {
 	tokenizer: SimpleTokenizer,
 	postings_writer: PostingsWriter,
 	segment_serializer: SegmentSerializer,
+	fast_field_writers: U32FastFieldWriters,
 }
 
 impl SegmentWriter {
@@ -97,6 +98,7 @@ impl SegmentWriter {
 			postings_writer: PostingsWriter::new(),
 			segment_serializer: segment_serializer,
 			tokenizer: SimpleTokenizer::new(),
+			fast_field_writers: U32FastFieldWriters::from_schema(schema),
 		})
 	}
 
