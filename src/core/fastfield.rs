@@ -183,7 +183,7 @@ pub struct U32FastFieldWriters {
 }
 
 impl U32FastFieldWriters {
-    pub fn new(fields: Vec<U32>) -> U32FastFieldWriters {
+    pub fn new(fields: Vec<U32Field>) -> U32FastFieldWriters {
         U32FastFieldWriters {
             field_writers: fields
                 .iter()
@@ -193,13 +193,16 @@ impl U32FastFieldWriters {
     }
 
     pub fn add_document(&mut self, doc: &Document) {
-        for mut field_writer in self.field_writers {
+        for field_writer in self.field_writers.iter_mut() {
             field_writer.add_document(doc);
         }
     }
 
-    pub fn close(&self,) {
-
+    pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
+        for field_writer in self.field_writers.iter() {
+            try!(field_writer.serialize(serializer));
+        }
+        serializer.close().map(|_| ())
     }
 }
 
@@ -229,19 +232,28 @@ impl U32FastFieldWriter {
 
     }
 
-    pub fn close(&self, write: &mut Write) -> io::Result<usize> {
-        if self.vals.is_empty() {
-            return Ok((0))
+    pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
+        let zero = 0;
+        let min = self.vals.iter().min().unwrap_or(&zero).clone();
+        let max = self.vals.iter().max().unwrap_or(&min).clone();
+        try!(serializer.new_u32_fast_field(self.field.clone(), min, max));
+        for val in self.vals.iter() {
+            try!(serializer.add_val(val.clone()));
         }
-        let min = self.vals.iter().min().unwrap();
-        let max = self.vals.iter().max().unwrap();
-        let mut written_size = try!(min.serialize(write));
-        let amplitude: u32 = max - min;
-        written_size += try!(amplitude.serialize(write));
-        let num_bits = compute_num_bits(amplitude);
-        let vals_it = self.vals.iter().map(|i| i-min);
-        written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
-        Ok(written_size)
+        serializer.close_field()
+
+        // if self.vals.is_empty() {
+        //     return Ok((0))
+        // }
+        // let min = self.vals.iter().min().unwrap();
+        // let max = self.vals.iter().max().unwrap();
+        // let mut written_size = try!(min.serialize(write));
+        // let amplitude: u32 = max - min;
+        // written_size += try!(amplitude.serialize(write));
+        // let num_bits = compute_num_bits(amplitude);
+        // let vals_it = self.vals.iter().map(|i| i-min);
+        // written_size += try!(serialize_packed_ints(vals_it, num_bits, write));
+        // Ok(written_size)
     }
 }
 
