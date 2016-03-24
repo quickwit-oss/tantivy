@@ -32,6 +32,7 @@ impl Deref for ReadOnlySource {
     }
 }
 
+
 impl ReadOnlySource {
 
     pub fn len(&self,) -> usize {
@@ -59,6 +60,12 @@ impl ReadOnlySource {
     }
 }
 
+
+impl Clone for ReadOnlySource {
+    fn clone(&self) -> Self {
+        self.slice(0, self.len())
+    }
+}
 
 
 trait SeekableWrite: Seek + Write {}
