@@ -6,6 +6,7 @@ use std::io::Cursor;
 use core::directory::WritePtr;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
+use std::collections::HashMap;
 use core::schema::DocId;
 use core::schema::Schema;
 use core::schema::Document;
@@ -19,29 +20,10 @@ pub fn compute_num_bits(amplitude: u32) -> u8 {
     32u8 - count_leading_zeros(amplitude)
 }
 
-fn serialize_packed_ints<I: Iterator<Item=u32>>(vals_it: I, num_bits: u8, write: &mut Write) -> io::Result<usize> {
-    let mut mini_buffer_written = 0;
-    let mut mini_buffer = 0u64;
-    let mut written_size = 0;
-    for val in vals_it {
-        if mini_buffer_written + num_bits > 64 {
-            written_size += try!(mini_buffer.serialize(write));
-            mini_buffer = 0;
-            mini_buffer_written = 0;
-        }
-        mini_buffer |= (val as u64) << mini_buffer_written;
-        mini_buffer_written += num_bits;
-    }
-    if mini_buffer_written > 0 {
-        written_size += try!(mini_buffer.serialize(write));
-    }
-    Ok(written_size)
-}
-
 pub struct FastFieldSerializer {
     write: WritePtr,
     written_size: usize,
-    fields: Vec<(U32Field, u64)>,
+    fields: Vec<(U32Field, u32)>,
     num_bits: u8,
 
     field_open: bool,
@@ -69,8 +51,9 @@ impl FastFieldSerializer {
             return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
         }
         self.field_open = true;
-        self.fields.push((field, self.written_size as u64));
+        self.fields.push((field, self.written_size as u32));
         let write: &mut Write = &mut self.write;
+        println!("write min_value {}", min_value);
         self.written_size += try!(min_value.serialize(write));
         let amplitude = max_value - min_value;
         self.written_size += try!(amplitude.serialize(write));
@@ -107,12 +90,14 @@ impl FastFieldSerializer {
     }
 
     pub fn close(&mut self,) -> io::Result<usize> {
-        if !self.field_open {
+        if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
         }
         let header_offset: usize = self.written_size;
+        println!("head offset written {:?}", header_offset);
+        println!("fieldslen {:?}", self.fields.len());
         self.written_size += try!(self.fields.serialize(&mut self.write));
-        self.write.seek(SeekFrom::Current(-(header_offset as i64)));
+        self.write.seek(SeekFrom::Start(0));
         (header_offset as u64).serialize(&mut self.write);
         Ok(self.written_size)
     }
@@ -131,6 +116,7 @@ impl U32FastFieldWriters {
             .filter(|&(_, field_entry)| field_entry.option.is_fast())
             .map(|(field_id, _)| U32Field(field_id as u8))
             .collect();
+        println!("u32 fields {:?}", u32_fields.len());
         U32FastFieldWriters::new(u32_fields)
     }
 
@@ -150,6 +136,7 @@ impl U32FastFieldWriters {
     }
 
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
+        println!("serialize");
         for field_writer in self.field_writers.iter() {
             try!(field_writer.serialize(serializer));
         }
@@ -207,6 +194,7 @@ impl U32FastFieldReader {
         let mut cursor: Cursor<&[u8]> = Cursor::new(&*data);
         let min_val = try!(u32::deserialize(&mut cursor));
         let amplitude = try!(u32::deserialize(&mut cursor));
+        println!("Min val {}", min_val);
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
@@ -234,24 +222,50 @@ impl U32FastFieldReader {
 
 pub struct U32FastFieldReaders {
     source: ReadOnlySource,
-    field_offsets: Vec<(U32Field, u64)>,
+    field_offsets: HashMap<U32Field, (u32, u32)>,
 }
 
 impl U32FastFieldReaders {
     pub fn open(source: &ReadOnlySource) -> io::Result<U32FastFieldReaders> {
         let mut cursor = Cursor::new(source.deref());
         let header_offset = try!(u32::deserialize(&mut cursor));
+        println!("head offset read {:?}", header_offset);
         try!(cursor.seek(SeekFrom::Start(header_offset as u64)));
-        let field_offsets: Vec<(U32Field, u64)> = try!(Vec::deserialize(&mut cursor));
+        let field_offsets: Vec<(U32Field, u32)> = try!(Vec::deserialize(&mut cursor));
+        println!("len fields {:?} ", field_offsets.len());
+        for x in field_offsets.iter() {
+            println!("aaaa {:?} ", x);
+        }
+        let mut end_offsets: Vec<u32> = field_offsets
+            .iter()
+            .map(|&(_, offset)| offset.clone())
+            .collect();
+        end_offsets.push(header_offset);
+
+        let mut field_offsets_map: HashMap<U32Field, (u32, u32)> = HashMap::new();
+        for (field_start_offsets, stop_offset) in field_offsets.iter().zip(end_offsets.iter().skip(1)) {
+            let (field, start_offset) = field_start_offsets.clone();
+            field_offsets_map.insert(field.clone(), (start_offset.clone(), stop_offset.clone()));
+        }
         Ok(U32FastFieldReaders {
-            field_offsets: field_offsets,
+            field_offsets: field_offsets_map,
             source: (*source).clone(),
         })
     }
 
-    pub fn get_field(&self, field: U32Field) -> io::Result<U32FastFieldReader> {
-        let field_source = self.source.slice(0, 1);
-        U32FastFieldReader::open(&field_source)
+    pub fn get_field(&self, field: &U32Field) -> io::Result<U32FastFieldReader> {
+        match self.field_offsets.get(field) {
+            Some(&(start, stop)) => {
+                println!("start {}, stop {}", start, stop);
+                let field_source = self.source.slice(start as usize, stop as usize);
+                U32FastFieldReader::open(&field_source)
+            }
+            None => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not find field, has it been set as a fast field?"))
+            }
+
+        }
+
     }
 }
 
@@ -262,9 +276,12 @@ mod tests {
     use super::U32FastFieldWriter;
     use super::U32FastFieldReader;
     use super::U32FastFieldReaders;
+    use super::U32FastFieldWriters;
+    use core::schema::U32Field;
     use std::path::Path;
     use core::directory::WritePtr;
     use core::directory::Directory;
+    use core::schema::Document;
     use core::directory::RAMDirectory;
     use core::schema::Schema;
     use core::schema::FAST_U32;
@@ -288,6 +305,12 @@ mod tests {
         assert_eq!(compute_num_bits(256), 9u8);
     }
 
+    fn add_single_field_doc(fast_field_writers: &mut U32FastFieldWriters, field: &U32Field, value: u32) {
+        let mut doc = Document::new();
+        doc.set_u32(field, value);
+        fast_field_writers.add_document(&doc);
+    }
+
     #[test]
     fn test_intfastfield_small() {
         let path = Path::new("test");
@@ -297,19 +320,19 @@ mod tests {
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut int_fast_field_writer = U32FastFieldWriter::new(&field);
-            int_fast_field_writer.add_val(4u32);
-            int_fast_field_writer.add_val(14u32);
-            int_fast_field_writer.add_val(2u32);
-            int_fast_field_writer.serialize(&mut serializer).unwrap();
+            let mut fast_field_writers = U32FastFieldWriters::from_schema(&schema);
+            add_single_field_doc(&mut fast_field_writers, &field, 4u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 14u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 2u32);
+            fast_field_writers.serialize(&mut serializer).unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 4 + 4 + 8 as usize);
+            assert_eq!(source.len(), 45 as usize);
         }
         {
             let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u32);
             assert_eq!(fast_field_reader.get(1), 14u32);
             assert_eq!(fast_field_reader.get(2), 2u32);

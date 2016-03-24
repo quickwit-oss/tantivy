@@ -42,8 +42,8 @@ pub const TEXT: TextOptions = TextOptions {
 /// The field will be tokenized and indexed
 pub const FAST_U32: U32Options = U32Options {
     indexed: false,
-    stored: true,
-    fast: false,
+    stored: false,
+    fast: true,
 };
 
 /// A stored fields of a document can be retrieved given its DocId.
@@ -473,9 +473,17 @@ impl Document {
         });
     }
 
+    pub fn set_u32(&mut self, field: &U32Field, value: u32) {
+        self.u32_field_values.push(U32FieldValue {
+            field: field.clone(),
+            value: value
+        });
+    }
+
     pub fn add(&mut self, field_value: TextFieldValue) {
         self.text_field_values.push(field_value);
     }
+
 
     pub fn text_fields<'a>(&'a self,) -> slice::Iter<'a, TextFieldValue> {
         self.text_field_values.iter()
