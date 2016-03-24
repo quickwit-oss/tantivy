@@ -46,6 +46,10 @@ impl ReadOnlySource {
         }
     }
 
+    pub fn cursor<'a>(&'a self) -> Cursor<&'a [u8]> {
+        Cursor::new(&self.deref())
+    }
+
     pub fn slice(&self, from_offset:usize, to_offset:usize) -> ReadOnlySource {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => {
