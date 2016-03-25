@@ -195,7 +195,7 @@ impl U32FastFieldReader {
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
-        let ptr: *const u8 = &(data.deref()[8]);
+        let ptr: *const u8 = &(data.deref()[8 as usize]);
         Ok(U32FastFieldReader {
             _data: data,
             data_ptr: ptr as *const u64,
@@ -486,10 +486,10 @@ mod tests {
             let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             b.iter(|| {
-                let n = test::black_box(7000u32);
+                let n = test::black_box(1000u32);
                 let mut a = 0u32;
-                for _ in 0..n {
-                    a = fast_field_reader.get(a as u32);
+                for _ in 0u32..n {
+                    a = fast_field_reader.get(a);
                 }
                 a
             });
