@@ -72,7 +72,7 @@ impl Clone for ReadOnlySource {
 }
 
 
-trait SeekableWrite: Seek + Write {}
+pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
 pub type WritePtr = Box<SeekableWrite>;
 

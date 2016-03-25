@@ -2,7 +2,6 @@ use std::io::Write;
 use std::io;
 use std::io::SeekFrom;
 use std::io::Seek;
-use std::io::Cursor;
 use core::directory::WritePtr;
 use core::serialize::BinarySerializable;
 use core::directory::ReadOnlySource;
@@ -10,7 +9,6 @@ use std::collections::HashMap;
 use core::schema::DocId;
 use core::schema::Schema;
 use core::schema::Document;
-use core::schema::FAST_U32;
 use std::ops::Deref;
 use core::fastdivide::count_leading_zeros;
 use core::fastdivide::DividerU32;
@@ -95,8 +93,8 @@ impl FastFieldSerializer {
         }
         let header_offset: usize = self.written_size;
         self.written_size += try!(self.fields.serialize(&mut self.write));
-        self.write.seek(SeekFrom::Start(0));
-        (header_offset as u32).serialize(&mut self.write);
+        try!(self.write.seek(SeekFrom::Start(0)));
+        try!((header_offset as u32).serialize(&mut self.write));
         Ok(self.written_size)
     }
 }
@@ -186,16 +184,20 @@ pub struct U32FastFieldReader {
 }
 
 impl U32FastFieldReader {
-    pub fn open(data: &ReadOnlySource) -> io::Result<U32FastFieldReader> {
-        let mut cursor = data.cursor();
-        let min_val = try!(u32::deserialize(&mut cursor));
-        let amplitude = try!(u32::deserialize(&mut cursor));
+    pub fn open(data: ReadOnlySource) -> io::Result<U32FastFieldReader> {
+        let min_val;
+        let amplitude;
+        {
+            let mut cursor = data.cursor();
+            min_val = try!(u32::deserialize(&mut cursor));
+            amplitude = try!(u32::deserialize(&mut cursor));
+        }
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
         let num_in_pack = 64u32 / (num_bits as u32);
         let ptr: *const u8 = &(data.deref()[8]);
         Ok(U32FastFieldReader {
-            _data: data.slice(8, data.len()),
+            _data: data,
             data_ptr: ptr as *const u64,
             min_val: min_val,
             num_bits: num_bits,
@@ -246,9 +248,8 @@ impl U32FastFieldReaders {
     pub fn get_field(&self, field: &U32Field) -> io::Result<U32FastFieldReader> {
         match self.field_offsets.get(field) {
             Some(&(start, stop)) => {
-                let mut cursor = self.source.cursor();
                 let field_source = self.source.slice(start as usize, stop as usize);
-                U32FastFieldReader::open(&field_source)
+                U32FastFieldReader::open(field_source)
             }
             None => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not find field, has it been set as a fast field?"))
@@ -263,8 +264,8 @@ impl U32FastFieldReaders {
 mod tests {
 
     use super::compute_num_bits;
-    use super::U32FastFieldWriter;
-    use super::U32FastFieldReader;
+    // use super::U32FastFieldWriter;
+    // use super::U32FastFieldReader;
     use super::U32FastFieldReaders;
     use super::U32FastFieldWriters;
     use core::schema::U32Field;
@@ -272,10 +273,11 @@ mod tests {
     use core::directory::WritePtr;
     use core::directory::Directory;
     use core::schema::Document;
+    // use core::directory::MmapDirectory;
     use core::directory::RAMDirectory;
     use core::schema::Schema;
     use core::schema::FAST_U32;
-    use core::directory::ReadOnlySource;
+    // use core::directory::ReadOnlySource;
     use core::fastfield::FastFieldSerializer;
     use test::Bencher;
     use test;
@@ -342,11 +344,17 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, &field, 4u32);
             add_single_field_doc(&mut fast_field_writers, &field, 14_082_001u32);
             add_single_field_doc(&mut fast_field_writers, &field, 3_052u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 9002u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 15_001u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 777u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 1_002u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 1_501u32);
+            add_single_field_doc(&mut fast_field_writers, &field, 215u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 37 as usize);
+            assert_eq!(source.len(), 61 as usize);
         }
         {
             let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
@@ -354,6 +362,12 @@ mod tests {
             assert_eq!(fast_field_reader.get(0), 4u32);
             assert_eq!(fast_field_reader.get(1), 14_082_001u32);
             assert_eq!(fast_field_reader.get(2), 3_052u32);
+            assert_eq!(fast_field_reader.get(3), 9002u32);
+            assert_eq!(fast_field_reader.get(4), 15_001u32);
+            assert_eq!(fast_field_reader.get(5), 777u32);
+            assert_eq!(fast_field_reader.get(6), 1_002u32);
+            assert_eq!(fast_field_reader.get(7), 1_501u32);
+            assert_eq!(fast_field_reader.get(8), 215u32);
         }
     }
 
@@ -369,7 +383,8 @@ mod tests {
     fn test_intfastfield_permutation() {
         let path = Path::new("test");
         let permutation = generate_permutation();
-        let mut directory: RAMDirectory = RAMDirectory::create();
+        let n = permutation.len();
+        let mut directory = RAMDirectory::create();
         let mut schema = Schema::new();
         let field = schema.add_u32_field("field", FAST_U32);
         {
@@ -383,13 +398,10 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 2_666_693 as usize);
-        }
-        {
             let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             let mut a = 0u32;
-            for _ in 0..100 {
+            for _ in 0..n {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
                 a = fast_field_reader.get(a as u32);
             }
