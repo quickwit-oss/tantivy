@@ -129,7 +129,7 @@ impl SegmentWriter {
 		let mut stored_fieldvalues_it = doc.text_fields().filter(|text_field_value| {
 			schema.text_field_options(&text_field_value.field).is_stored()
 		});
-		// try!(self.fastfield_writers.add_doc(&doc));
+		self.fast_field_writers.add_document(&doc);
 		try!(self.segment_serializer.store_doc(&mut stored_fieldvalues_it));
         self.max_doc += 1;
 		Ok(())
@@ -140,6 +140,7 @@ impl SegmentWriter {
 impl SerializableSegment for SegmentWriter {
 	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
 		try!(self.postings_writer.serialize(&mut serializer));
+		try!(self.fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		serializer.close()
 	}
 }

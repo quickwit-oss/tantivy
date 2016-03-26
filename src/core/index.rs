@@ -207,6 +207,7 @@ pub enum SegmentComponent {
     INFO,
     POSTINGS,
     // POSITIONS,
+    FASTFIELDS,
     TERMS,
     STORE,
 }
@@ -230,6 +231,7 @@ impl Segment {
             SegmentComponent::POSTINGS => ".idx",
             SegmentComponent::TERMS => ".term",
             SegmentComponent::STORE => ".store",
+            SegmentComponent::FASTFIELDS => ".fast",
         }
     }
 

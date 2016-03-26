@@ -8,6 +8,7 @@ use core::index::SegmentComponent;
 use core::schema::Term;
 use core::schema::DocId;
 use core::fstmap::FstMapBuilder;
+use core::fastfield::FastFieldSerializer;
 use core::store::StoreWriter;
 use core::serialize::BinarySerializable;
 use core::simdcompression;
@@ -45,6 +46,7 @@ pub struct SegmentSerializer {
     written_bytes_postings: usize,
     postings_write: WritePtr,
     store_writer: StoreWriter,
+    fast_field_serializer: FastFieldSerializer,
     term_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
     encoder: simdcompression::Encoder,
 }
@@ -57,16 +59,23 @@ impl SegmentSerializer {
         let term_write = try!(segment.open_write(SegmentComponent::TERMS));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
+        let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));
         let term_fst_builder_result = FstMapBuilder::new(term_write);
         let term_fst_builder = term_fst_builder_result.unwrap();
+        let fast_field_serializer = try!(FastFieldSerializer::new(fast_field_write));
         Ok(SegmentSerializer {
             segment: segment.clone(),
             written_bytes_postings: 0,
             postings_write: postings_write,
             store_writer: StoreWriter::new(store_write),
+            fast_field_serializer: fast_field_serializer,
             term_fst_builder: term_fst_builder,
             encoder: simdcompression::Encoder::new(),
         })
+    }
+
+    pub fn get_fast_field_serializer(&mut self,) -> &mut FastFieldSerializer {
+        &mut self.fast_field_serializer
     }
 
     pub fn segment(&self,) -> Segment {
