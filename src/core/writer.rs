@@ -4,7 +4,7 @@ use std::io;
 use std::rc::Rc;
 use core::index::Index;
 use core::analyzer::SimpleTokenizer;
-use core::serial::SerializableSegment;
+use core::index::SerializableSegment;
 use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;

@@ -12,6 +12,8 @@ use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, Wr
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;
+use core::codec::SegmentSerializer;
+
 
 #[derive(Clone, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]
 pub struct SegmentId(Uuid);
@@ -246,4 +248,8 @@ impl Segment {
         let path = self.relative_path(&component);
         self.index.directory.write().unwrap().open_write(&path)
     }
+}
+
+pub trait SerializableSegment {
+    fn write(&self, serializer: SegmentSerializer) -> io::Result<()>;
 }

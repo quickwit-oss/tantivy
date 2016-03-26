@@ -88,10 +88,6 @@ impl SegmentSerializer {
             .insert(term.as_slice(), &term_info)
     }
 
-    pub fn write_fast_field(&mut self, vals: &Vec<u32>) {
-
-    }
-
     pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
         // TODO write_all transmuted [u8]
         let docs_data = self.encoder.encode_sorted(doc_ids);

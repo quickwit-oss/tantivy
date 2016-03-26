@@ -17,7 +17,6 @@ use std::borrow::Borrow;
 /// as they are added in the segment.
 pub type DocId = u32;
 
-
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {
     tokenized_indexed: bool,
@@ -63,10 +62,6 @@ pub const FAST: TextOptions = TextOptions {
     stored: false,
     fast: true
 };
-
-
-
-
 
 impl BitOr for TextOptions {
 

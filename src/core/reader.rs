@@ -16,7 +16,7 @@ use core::fstmap::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::codec::SegmentSerializer;
-use core::serial::SerializableSegment;
+use core::index::SerializableSegment;
 use core::index::SegmentInfo;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
