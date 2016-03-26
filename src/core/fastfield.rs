@@ -217,17 +217,21 @@ impl U32FastFieldReader {
     }
 }
 
-pub struct U32FastFieldReaders {
+pub struct U32FastFieldsReader {
     source: ReadOnlySource,
     field_offsets: HashMap<U32Field, (u32, u32)>,
 }
 
-impl U32FastFieldReaders {
-    pub fn open(source: &ReadOnlySource) -> io::Result<U32FastFieldReaders> {
-        let mut cursor = source.cursor();
-        let header_offset = try!(u32::deserialize(&mut cursor));
-        try!(cursor.seek(SeekFrom::Start(header_offset as u64)));
-        let field_offsets: Vec<(U32Field, u32)> = try!(Vec::deserialize(&mut cursor));
+impl U32FastFieldsReader {
+    pub fn open(source: ReadOnlySource) -> io::Result<U32FastFieldsReader> {
+        let header_offset;
+        let field_offsets: Vec<(U32Field, u32)>;
+        {
+            let mut cursor = source.cursor();
+            header_offset = try!(u32::deserialize(&mut cursor));
+            try!(cursor.seek(SeekFrom::Start(header_offset as u64)));
+            field_offsets = try!(Vec::deserialize(&mut cursor));
+        }
         let mut end_offsets: Vec<u32> = field_offsets
             .iter()
             .map(|&(_, offset)| offset.clone())
@@ -239,9 +243,9 @@ impl U32FastFieldReaders {
             let (field, start_offset) = field_start_offsets.clone();
             field_offsets_map.insert(field.clone(), (start_offset.clone(), stop_offset.clone()));
         }
-        Ok(U32FastFieldReaders {
+        Ok(U32FastFieldsReader {
             field_offsets: field_offsets_map,
-            source: (*source).clone(),
+            source: source,
         })
     }
 
@@ -264,20 +268,16 @@ impl U32FastFieldReaders {
 mod tests {
 
     use super::compute_num_bits;
-    // use super::U32FastFieldWriter;
-    // use super::U32FastFieldReader;
-    use super::U32FastFieldReaders;
+    use super::U32FastFieldsReader;
     use super::U32FastFieldWriters;
     use core::schema::U32Field;
     use std::path::Path;
     use core::directory::WritePtr;
     use core::directory::Directory;
     use core::schema::Document;
-    // use core::directory::MmapDirectory;
     use core::directory::RAMDirectory;
     use core::schema::Schema;
     use core::schema::FAST_U32;
-    // use core::directory::ReadOnlySource;
     use core::fastfield::FastFieldSerializer;
     use test::Bencher;
     use test;
@@ -323,7 +323,7 @@ mod tests {
             assert_eq!(source.len(), 29 as usize);
         }
         {
-            let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             assert_eq!(fast_field_reader.get(0), 13u32);
             assert_eq!(fast_field_reader.get(1), 14u32);
@@ -357,7 +357,7 @@ mod tests {
             assert_eq!(source.len(), 61 as usize);
         }
         {
-            let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u32);
             assert_eq!(fast_field_reader.get(1), 14_082_001u32);
@@ -398,7 +398,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             let mut a = 0u32;
             for _ in 0..n {
@@ -452,7 +452,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             b.iter(|| {
                 let n = test::black_box(7000u32);
@@ -483,7 +483,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U32FastFieldReaders::open(&source).unwrap();
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
             let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
             b.iter(|| {
                 let n = test::black_box(1000u32);

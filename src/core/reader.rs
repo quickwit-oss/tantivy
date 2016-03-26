@@ -18,19 +18,11 @@ use rustc_serialize::json;
 use core::codec::SegmentSerializer;
 use core::index::SerializableSegment;
 use core::index::SegmentInfo;
+use core::schema::U32Field;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
-
-// TODO file structure should be in codec
-
-pub struct SegmentReader {
-    segment_info: SegmentInfo,
-    segment_id: SegmentId,
-    term_offsets: FstMap<TermInfo>,
-    postings_data: ReadOnlySource,
-    store_reader: StoreReader,
-}
-
+use core::fastfield::U32FastFieldsReader;
+use core::fastfield::U32FastFieldReader;
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -100,6 +92,14 @@ impl Iterator for SegmentPostings {
     }
 }
 
+pub struct SegmentReader {
+    segment_info: SegmentInfo,
+    segment_id: SegmentId,
+    term_offsets: FstMap<TermInfo>,
+    postings_data: ReadOnlySource,
+    store_reader: StoreReader,
+    fast_fields_reader: U32FastFieldsReader,
+}
 
 impl SegmentReader {
 
@@ -111,7 +111,6 @@ impl SegmentReader {
         self.segment_info.max_doc
     }
 
-
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
@@ -121,12 +120,15 @@ impl SegmentReader {
         let term_offsets = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
+        let fast_field_data =  try!(segment.open_read(SegmentComponent::FASTFIELDS));
+        let fast_fields_reader = try!(U32FastFieldsReader::open(fast_field_data));
         Ok(SegmentReader {
             segment_info: segment_info,
             postings_data: postings_shared_mmap,
             term_offsets: term_offsets,
             segment_id: segment.id(),
             store_reader: store_reader,
+            fast_fields_reader: fast_fields_reader,
         })
     }
 
@@ -136,6 +138,10 @@ impl SegmentReader {
     /// within a collector.
     pub fn  doc(&self, doc_id: &DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
+    }
+
+    pub fn get_fast_field_reader(&self, u32_field: &U32Field) -> io::Result<U32FastFieldReader> {
+        self.fast_fields_reader.get_field(u32_field)
     }
 
     fn read_postings(&self, offset: u32) -> SegmentPostings {
