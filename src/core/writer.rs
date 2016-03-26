@@ -18,7 +18,6 @@ pub struct IndexWriter {
 	schema: Schema,
 }
 
-
 impl IndexWriter {
 
     pub fn open(directory: &Index) -> io::Result<IndexWriter> {
@@ -32,8 +31,8 @@ impl IndexWriter {
 		})
     }
 
-    pub fn add(&mut self, doc: Document) -> io::Result<()> {
-        Rc::get_mut(&mut self.segment_writer).unwrap().add(doc, &self.schema)
+    pub fn add(&mut self, doc: &Document) -> io::Result<()> {
+        Rc::get_mut(&mut self.segment_writer).unwrap().add(&doc, &self.schema)
     }
 
     pub fn commit(&mut self,) -> io::Result<Segment> {
@@ -83,10 +82,6 @@ impl SegmentWriter {
 		self.segment_serializer.close()
 	}
 
-	pub fn max_doc(&self,) -> DocId {
-		self.max_doc
-	}
-
 	pub fn segment(&self,) -> Segment {
 		self.segment_serializer.segment()
 	}
@@ -102,7 +97,7 @@ impl SegmentWriter {
 		})
 	}
 
-    pub fn add(&mut self, doc: Document, schema: &Schema) -> io::Result<()> {
+    pub fn add(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for field_value in doc.text_fields() {
 			let field_options = schema.text_field_options(&field_value.field);

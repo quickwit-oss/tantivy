@@ -86,17 +86,17 @@ mod tests {
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c d");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
 
             let commit_result = index_writer.commit();
@@ -123,17 +123,17 @@ mod tests {
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "a b c d");
-                index_writer.add(doc).unwrap();
+                index_writer.add(&doc).unwrap();
             }
             let commit_result = index_writer.commit();
             commit_result.unwrap();
