@@ -31,8 +31,8 @@ impl IndexWriter {
 		})
     }
 
-    pub fn add(&mut self, doc: &Document) -> io::Result<()> {
-        Rc::get_mut(&mut self.segment_writer).unwrap().add(&doc, &self.schema)
+    pub fn add_document(&mut self, doc: &Document) -> io::Result<()> {
+        Rc::get_mut(&mut self.segment_writer).unwrap().add_document(&doc, &self.schema)
     }
 
     pub fn commit(&mut self,) -> io::Result<Segment> {
@@ -96,7 +96,7 @@ impl SegmentWriter {
 		})
 	}
 
-    pub fn add(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
+    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for field_value in doc.text_fields() {
 			let field_options = schema.text_field_options(&field_value.field);

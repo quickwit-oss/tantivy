@@ -184,11 +184,13 @@ impl Index {
     }
 
     pub fn save_metas(&mut self,) -> io::Result<()> {
-        let encoded = {
-            let metas_lock = self.metas.read().unwrap();
-            json::encode(&*metas_lock).unwrap()
+        let mut w = Vec::new();
+        {
+            let metas_lock = self.metas.read().unwrap() ;
+            let data = write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock));
         };
-        try!(self.rw_directory()).atomic_write(&META_FILEPATH, encoded.as_bytes())
+        try!(self.rw_directory())
+            .atomic_write(&META_FILEPATH, &w[..])
     }
 }
 
