@@ -87,7 +87,7 @@ impl FastFieldSerializer {
         Ok(())
     }
 
-    pub fn close(&mut self,) -> io::Result<usize> {
+    pub fn close(mut self,) -> io::Result<usize> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
         }
@@ -134,7 +134,7 @@ impl U32FastFieldsWriter {
         for field_writer in self.field_writers.iter() {
             try!(field_writer.serialize(serializer));
         }
-        serializer.close().map(|_| ())
+        Ok(())
     }
 }
 
@@ -317,6 +317,7 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, &field, 14u32);
             add_single_field_doc(&mut fast_field_writers, &field, 2u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
@@ -351,6 +352,7 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, &field, 1_501u32);
             add_single_field_doc(&mut fast_field_writers, &field, 215u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
@@ -395,6 +397,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, &field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
@@ -449,6 +452,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, &field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
@@ -480,6 +484,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, &field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {

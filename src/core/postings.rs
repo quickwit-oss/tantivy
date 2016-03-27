@@ -2,8 +2,38 @@ use core::schema::DocId;
 use std::ptr;
 use std::collections::BTreeMap;
 use core::schema::Term;
-use core::codec::SegmentSerializer;
+use core::fstmap::FstMapBuilder;
+use core::index::Segment;
+use core::directory::WritePtr;
+use core::index::SegmentComponent;
+use core::simdcompression;
+use core::serialize::BinarySerializable;
+use std::io::{Read, Write};
 use std::io;
+
+#[derive(Debug)]
+pub struct TermInfo {
+    pub doc_freq: u32,
+    pub postings_offset: u32,
+}
+
+impl BinarySerializable for TermInfo {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        Ok(
+            try!(self.doc_freq.serialize(writer)) +
+            try!(self.postings_offset.serialize(writer))
+        )
+    }
+    fn deserialize(reader: &mut Read) -> io::Result<Self> {
+        let doc_freq = try!(u32::deserialize(reader));
+        let offset = try!(u32::deserialize(reader));
+        Ok(TermInfo {
+            doc_freq: doc_freq,
+            postings_offset: offset,
+        })
+    }
+}
+
 
 pub struct PostingsWriter {
     postings: Vec<Vec<DocId>>,
@@ -39,7 +69,7 @@ impl PostingsWriter {
         &mut self.postings[unord_id]
     }
 
-    pub fn serialize(&self, serializer: &mut SegmentSerializer) -> io::Result<()> {
+    pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
         for (term, postings_id) in self.term_index.iter() {
             let doc_ids = &self.postings[postings_id.clone()];
             let term_docfreq = doc_ids.len() as u32;
@@ -112,6 +142,53 @@ impl<T: Postings> Iterator for IntersectionPostings<T> {
 
     }
 }
+
+pub struct PostingsSerializer {
+    terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
+    postings_write: WritePtr,
+    written_bytes_postings: usize,
+    encoder: simdcompression::Encoder,
+}
+
+impl PostingsSerializer {
+
+    pub fn open(segment: &Segment) -> io::Result<PostingsSerializer> {
+        let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
+        let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
+        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
+        Ok(PostingsSerializer {
+            terms_fst_builder: terms_fst_builder,
+            postings_write: postings_write,
+            written_bytes_postings: 0,
+            encoder: simdcompression::Encoder::new(),
+        })
+    }
+
+    pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
+        let term_info = TermInfo {
+            doc_freq: doc_freq,
+            postings_offset: self.written_bytes_postings as u32,
+        };
+        self.terms_fst_builder
+            .insert(term.as_slice(), &term_info)
+    }
+
+    pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
+        let docs_data = self.encoder.encode_sorted(doc_ids);
+        self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
+        for num in docs_data {
+            self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+        }
+        Ok(())
+    }
+
+    pub fn close(mut self,) -> io::Result<()> {
+        try!(self.terms_fst_builder.finish());
+        try!(self.postings_write.flush());
+        Ok(())
+    }
+}
+
 
 
 #[cfg(test)]

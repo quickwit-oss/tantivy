@@ -65,14 +65,13 @@ pub struct SegmentWriter {
 }
 
 impl SegmentWriter {
-
 	// Write on disk all of the stuff that
 	// is still on RAM :
 	// - the dictionary in an fst
 	// - the postings
 	// - the segment info
 	fn finalize(mut self,) -> io::Result<()> {
-		try!(self.postings_writer.serialize(&mut self.segment_serializer));
+		try!(self.postings_writer.serialize(self.segment_serializer.get_postings_serializer()));
 		{
 			let segment_info = SegmentInfo {
 				max_doc: self.max_doc
@@ -134,7 +133,7 @@ impl SegmentWriter {
 
 impl SerializableSegment for SegmentWriter {
 	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
-		try!(self.postings_writer.serialize(&mut serializer));
+		try!(self.postings_writer.serialize(serializer.get_postings_serializer()));
 		try!(self.fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		serializer.close()
 	}

@@ -11,12 +11,10 @@ use core::postings::Postings;
 use core::simdcompression::Decoder;
 use std::io;
 use std::str;
-use core::codec::TermInfo;
+use core::postings::TermInfo;
 use core::fstmap::FstMap;
 use std::fmt;
 use rustc_serialize::json;
-use core::codec::SegmentSerializer;
-use core::index::SerializableSegment;
 use core::index::SegmentInfo;
 use core::schema::U32Field;
 use core::convert_to_ioerror;
@@ -175,27 +173,36 @@ impl SegmentReader {
     }
 
 }
-
-
-impl SerializableSegment for SegmentReader {
-
-    fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
-        let mut term_offsets_it = self.term_offsets.stream();
-        loop {
-            match term_offsets_it.next() {
-                Some((term_data, term_info)) => {
-                    let term = Term::from(term_data);
-                    try!(serializer.new_term(&term, term_info.doc_freq));
-                    let segment_postings = self.read_postings(term_info.postings_offset);
-                    try!(serializer.write_docs(&segment_postings.doc_ids[..]));
-                },
-                None => { break; }
-            }
-        }
-        for doc_id in 0..self.max_doc() {
-            let doc = try!(self.store_reader.get(&doc_id));
-            try!(serializer.store_doc(&mut doc.text_fields()));
-        }
-        serializer.close()
-    }
-}
+//
+//
+// impl SerializableSegment for SegmentReader {
+//
+//     fn write_postings(&self, mut serializer: PostingsSerializer) -> io::Result<()> {
+//         let mut term_offsets_it = self.term_offsets.stream();
+//         loop {
+//             match term_offsets_it.next() {
+//                 Some((term_data, term_info)) => {
+//                     let term = Term::from(term_data);
+//                     try!(serializer.new_term(&term, term_info.doc_freq));
+//                     let segment_postings = self.read_postings(term_info.postings_offset);
+//                     try!(serializer.write_docs(&segment_postings.doc_ids[..]));
+//                 },
+//                 None => { break; }
+//             }
+//         }
+//         Ok(())
+//     }
+//
+//     fn write_store(&self, )
+//
+//     fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
+//         try!(self.write_postings(serializer.get_postings_serializer()));
+//         try!(self.write_store(serializer.get_store_serializer()));
+//
+//         for doc_id in 0..self.max_doc() {
+//             let doc = try!(self.store_reader.get(&doc_id));
+//             try!(serializer.store_doc(&mut doc.text_fields()));
+//         }
+//         serializer.close()
+//     }
+// }
