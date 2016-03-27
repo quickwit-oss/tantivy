@@ -98,7 +98,6 @@ impl SegmentSerializer {
     }
 
     pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
-        // TODO write_all transmuted [u8]
         let docs_data = self.encoder.encode_sorted(doc_ids);
         self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
         for num in docs_data {
@@ -116,9 +115,7 @@ impl SegmentSerializer {
     }
 
     pub fn close(mut self,) -> io::Result<()> {
-        // TODO handle errors on close
-        try!(self.term_fst_builder
-                 .finish());
+        try!(self.term_fst_builder.finish());
         self.store_writer.close()
     }
 }
