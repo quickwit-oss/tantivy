@@ -136,13 +136,13 @@ impl Index {
 
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segment(&mut self, segment: Segment) -> io::Result<()> {
+    pub fn publish_segment(&mut self, segment: &Segment) -> io::Result<()> {
         self.metas.write().unwrap().segments.push(segment.segment_id.clone());
         // TODO use logs
         self.save_metas()
     }
 
-    pub fn sync(&mut self, segment: Segment) -> io::Result<()> {
+    pub fn sync(&mut self, segment: &Segment) -> io::Result<()> {
         for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
             let path = segment.relative_path(component);
             let directory = try!(self.ro_directory());

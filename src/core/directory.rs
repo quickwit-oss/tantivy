@@ -15,7 +15,6 @@ use atomicwrites;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tempdir::TempDir;
-use std::cell::RefCell;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
