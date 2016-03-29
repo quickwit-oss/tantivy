@@ -1,4 +1,6 @@
 use std::io::BufWriter;
+use std::marker::Send;
+use std::marker::Sync;
 use std::io;
 use std::io::Cursor;
 use std::io::Write;
@@ -84,7 +86,7 @@ pub type WritePtr = Box<SeekableWrite>;
 //     CannotCreateTempDirectory(io::Error),
 // }
 
-pub trait Directory: fmt::Debug {
+pub trait Directory: fmt::Debug + Send + Sync {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource>;
     fn open_write(&mut self, path: &Path) -> io::Result<WritePtr>;
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
@@ -93,15 +95,12 @@ pub trait Directory: fmt::Debug {
 }
 
 
-
-
-
 ////////////////////////////////////////////////////////////////
 // MmapDirectory
 
 pub struct MmapDirectory {
     root_path: PathBuf,
-    mmap_cache: RefCell<HashMap<PathBuf, MmapReadOnly>>,
+    mmap_cache: RwLock<HashMap<PathBuf, MmapReadOnly>>,
     _temp_directory: Option<TempDir>,
 }
 
@@ -120,7 +119,7 @@ impl MmapDirectory {
         let tempdir_path = PathBuf::from(tempdir.path());
         let directory = MmapDirectory {
             root_path: PathBuf::from(tempdir_path),
-            mmap_cache: RefCell::new(HashMap::new()),
+            mmap_cache: RwLock::new(HashMap::new()),
             _temp_directory: Some(tempdir)
         };
         Ok(directory)
@@ -129,7 +128,7 @@ impl MmapDirectory {
     pub fn create(filepath: &Path) -> io::Result<MmapDirectory> {
         Ok(MmapDirectory {
             root_path: PathBuf::from(filepath),
-            mmap_cache: RefCell::new(HashMap::new()),
+            mmap_cache: RwLock::new(HashMap::new()),
             _temp_directory: None
         })
     }
@@ -144,7 +143,7 @@ impl MmapDirectory {
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource> {
         let full_path = self.resolve_path(path);
-        let mut mmap_cache = self.mmap_cache.borrow_mut();
+        let mut mmap_cache = self.mmap_cache.write().unwrap();
         let mmap = match mmap_cache.entry(full_path.clone()) {
             HashMapEntry::Occupied(e) => e.get().clone(),
             HashMapEntry::Vacant(vacant_entry) => {

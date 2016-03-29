@@ -12,6 +12,7 @@ use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, Wr
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;
+use num_cpus;
 use core::codec::SegmentSerializer;
 
 
@@ -93,8 +94,12 @@ impl Index {
         Ok(index)
     }
 
+    pub fn writer_with_num_threads(&self, num_threads: usize) -> io::Result<IndexWriter> {
+        IndexWriter::open(self, num_threads)
+    }
+
     pub fn writer(&self,) -> io::Result<IndexWriter> {
-        IndexWriter::open(self,)
+        self.writer_with_num_threads(num_cpus::get())
     }
 
     pub fn searcher(&self,) -> io::Result<Searcher> {
@@ -187,7 +192,7 @@ impl Index {
         let mut w = Vec::new();
         {
             let metas_lock = self.metas.read().unwrap() ;
-            let data = write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock));
+            try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
         };
         try!(self.rw_directory())
             .atomic_write(&META_FILEPATH, &w[..])

@@ -23,6 +23,7 @@ extern crate serde;
 extern crate libc;
 extern crate lz4;
 extern crate uuid;
+extern crate num_cpus;
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;

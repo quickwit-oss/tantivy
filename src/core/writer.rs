@@ -10,32 +10,94 @@ use core::index::Segment;
 use core::index::SegmentInfo;
 use core::postings::PostingsWriter;
 use core::fastfield::U32FastFieldsWriter;
-
+use std::sync::mpsc;
+use std::sync::mpsc::channel;
+use std::thread;
+use std::sync::Mutex;
+use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::Receiver;
+use std::thread::JoinHandle;
+use std::sync::Arc;
 
 pub struct IndexWriter {
-	segment_writer: Rc<SegmentWriter>,
-	directory: Index,
+	// segment_writers: Vec<SegmentWriter>,
+	threads: Vec<JoinHandle<()>>,
+	index: Index,
 	schema: Schema,
+	queue_input: SyncSender<ArcDoc>,
 }
+
+type ArcDoc = Arc<Document>;
 
 impl IndexWriter {
 
-    pub fn open(directory: &Index) -> io::Result<IndexWriter> {
-		let segment = directory.new_segment();
-		let schema = directory.schema();
-		let segment_writer = try!(SegmentWriter::for_segment(segment, &schema));
+	pub fn open(index: &Index, num_threads: usize) -> io::Result<IndexWriter> {
+		let schema = index.schema();
+		let (queue_input, queue_output): (SyncSender<ArcDoc>, Receiver<ArcDoc>) = mpsc::sync_channel(10_000);
+		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
+		let threads = (0..num_threads).map(|thread_id|  {
+			let queue_output_clone = queue_output_sendable.clone();
+			let index_clone = index.clone();
+			let schema_clone = schema.clone();
+			thread::spawn(move || {
+				let mut docs_remaining = true;
+				while docs_remaining {
+					let segment = index_clone.new_segment();
+					let mut segment_writer = SegmentWriter::for_segment(segment, &schema_clone).unwrap();
+					println!("thread_id {}", thread_id);
+					for i in 0..500 {
+						let doc: ArcDoc;
+						{
+							let queue = queue_output_clone.lock().unwrap();
+							match queue.recv() {
+								Ok(doc_) => {
+									doc = doc_;
+								}
+								Err(_) => {
+									docs_remaining = false;
+									println!("err");
+									break;
+								}
+							}
+						}
+						// TODO stop unwrapping that one.
+						segment_writer.add_document(&*doc, &schema_clone).unwrap();
+					}
+					println!("finalize {}", thread_id);
+					segment_writer.finalize().unwrap();
+					// try!(self.directory.sync(segment.clone()));
+					// try!(self.directory.publish_segment(segment.clone()));
+					// segment_writer.commit().unwrap();
+				}
+			})
+		}).collect();
+		// let segment = directory.new_segment();
+		// let segment_writer = try!(SegmentWriter::for_segment(segment, &schema));
+		// segment_writers.push(segment_writer);
 		Ok(IndexWriter {
-			segment_writer: Rc::new(segment_writer),
-			directory: directory.clone(),
+			threads: threads,
+			// segment_writers: segment_writers, //Rc::new(segment_writer),
+			index: index.clone(),
 			schema: schema,
+			queue_input: queue_input,
 		})
+	}
+
+	pub fn wait(self,) {
+		for thread in self.threads {
+			thread.join();
+		}
+	}
+
+    pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
+        // Rc::get_mut(&mut self.segment_writer).unwrap().add_document(&doc, &self.schema)
+		let arc_doc = ArcDoc::new(doc);
+		self.queue_input.send(arc_doc);
+		Ok(())
     }
 
-    pub fn add_document(&mut self, doc: &Document) -> io::Result<()> {
-        Rc::get_mut(&mut self.segment_writer).unwrap().add_document(&doc, &self.schema)
-    }
-
-    pub fn commit(&mut self,) -> io::Result<Segment> {
+    pub fn commit(&mut self,) -> io::Result<Vec<Segment>> {
+		/*
 		let segment_writer_rc = self.segment_writer.clone();
 		let segment = self.directory.new_segment();
 		self.segment_writer = Rc::new(try!(SegmentWriter::for_segment(segment, &self.schema)));
@@ -51,6 +113,8 @@ impl IndexWriter {
 				panic!("error while acquiring segment writer.");
 			}
 		}
+		*/
+		Ok(Vec::new())
 	}
 
 }
@@ -135,6 +199,7 @@ impl SerializableSegment for SegmentWriter {
 	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
 		try!(self.postings_writer.serialize(serializer.get_postings_serializer()));
 		try!(self.fast_field_writers.serialize(serializer.get_fast_field_serializer()));
-		serializer.close()
+		try!(serializer.close());
+		Ok(())
 	}
 }
