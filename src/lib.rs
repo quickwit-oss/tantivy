@@ -83,7 +83,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer().unwrap();
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
@@ -120,7 +120,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer().unwrap();
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
                 doc.set(&text_field, "af b");
