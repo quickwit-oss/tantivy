@@ -134,6 +134,7 @@ impl Index {
     }
 
 
+    /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: &Segment) -> io::Result<()> {

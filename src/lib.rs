@@ -136,8 +136,9 @@ mod tests {
                 doc.set(&text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
-            let commit_result = index_writer.commit();
-            commit_result.unwrap();
+            //let commit_result = index_writer.commit();
+            index_writer.wait();
+            //commit_result.unwrap();
         }
         {
             let searcher = index.searcher().unwrap();

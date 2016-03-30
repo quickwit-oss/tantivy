@@ -9,6 +9,7 @@ use core::index::Segment;
 use core::index::SegmentInfo;
 use core::postings::PostingsWriter;
 use core::fastfield::U32FastFieldsWriter;
+use std::clone::Clone;
 use std::sync::mpsc;
 use std::sync::mpsc::channel;
 use std::thread;
@@ -17,6 +18,7 @@ use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::sync::Arc;
+use std::rc::Rc;
 
 pub struct IndexWriter {
 	// segment_writers: Vec<SegmentWriter>,
@@ -41,12 +43,26 @@ impl IndexWriter {
 			let schema_clone = schema.clone();
 
 			thread::spawn(move || {
+
+				// TODO think about how to handle error within the thread
+
 				let mut docs_remaining = true;
 				while docs_remaining {
 					let segment = index_clone.new_segment();
+					let segment_clone = segment.clone();
+
+					let mut doc;
+					{
+						match queue_output_clone.lock().unwrap().recv() {
+							Ok(doc_) => { doc = doc_ }
+							Err(_) => { return; }
+						}
+					}
+
 					let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema_clone).unwrap();
-					for i in 0..225_000 {
-						let doc: ArcDoc;
+					segment_writer.add_document(&*doc, &schema_clone).unwrap();
+
+					for i in 0..(225_000 - 1) {
 						{
 							let queue = queue_output_clone.lock().unwrap();
 							match queue.recv() {
@@ -59,7 +75,6 @@ impl IndexWriter {
 								}
 							}
 						}
-						// TODO stop unwrapping that one.
 						segment_writer.add_document(&*doc, &schema_clone).unwrap();
 					}
 					segment_writer.finalize().unwrap();
@@ -133,6 +148,7 @@ impl SegmentWriter {
 	// - the dictionary in an fst
 	// - the postings
 	// - the segment info
+	// The segment cannot be used after this.
 	fn finalize(mut self,) -> io::Result<()> {
 		try!(self.postings_writer.serialize(self.segment_serializer.get_postings_serializer()));
 		{
