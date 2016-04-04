@@ -93,7 +93,7 @@ impl Iterator for SegmentPostings {
 pub struct SegmentReader {
     segment_info: SegmentInfo,
     segment_id: SegmentId,
-    term_offsets: FstMap<TermInfo>,
+    term_infos: FstMap<TermInfo>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
@@ -115,7 +115,7 @@ impl SegmentReader {
         let segment_info_data = try!(str::from_utf8(&*segment_info_reader).map_err(convert_to_ioerror));
         let segment_info: SegmentInfo = try!(json::decode(&segment_info_data).map_err(convert_to_ioerror));
         let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let term_offsets = try!(FstMap::from_source(source));
+        let term_infos = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         let fast_field_data =  try!(segment.open_read(SegmentComponent::FASTFIELDS));
@@ -123,12 +123,18 @@ impl SegmentReader {
         Ok(SegmentReader {
             segment_info: segment_info,
             postings_data: postings_shared_mmap,
-            term_offsets: term_offsets,
+            term_infos: term_infos,
             segment_id: segment.id(),
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
         })
     }
+
+
+    pub fn term_infos(&self,) -> &FstMap<TermInfo> {
+        &self.term_infos
+    }
+
 
     /// Returns the document (or to be accurate, its stored field)
     /// bearing the given doc id.
@@ -148,7 +154,7 @@ impl SegmentReader {
     }
 
     fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
-        self.term_offsets.get(term.as_slice())
+        self.term_infos.get(term.as_slice())
     }
 
     /// Returns the list of doc ids containing all of the
@@ -178,9 +184,9 @@ impl SegmentReader {
 // impl SerializableSegment for SegmentReader {
 //
 //     fn write_postings(&self, mut serializer: PostingsSerializer) -> io::Result<()> {
-//         let mut term_offsets_it = self.term_offsets.stream();
+//         let mut term_infos_it = self.term_infos.stream();
 //         loop {
-//             match term_offsets_it.next() {
+//             match term_infos_it.next() {
 //                 Some((term_data, term_info)) => {
 //                     let term = Term::from(term_data);
 //                     try!(serializer.new_term(&term, term_info.doc_freq));

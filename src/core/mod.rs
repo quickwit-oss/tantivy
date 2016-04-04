@@ -14,6 +14,7 @@ pub mod fstmap;
 pub mod index;
 pub mod fastfield;
 pub mod fastdivide;
+pub mod merger;
 
 use std::error;
 use std::io;
