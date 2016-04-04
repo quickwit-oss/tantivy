@@ -30,7 +30,7 @@ impl fmt::Debug for SegmentReader {
 
 pub struct SegmentPostings {
     doc_id: usize,
-    doc_ids: Vec<u32>,
+    doc_ids: Vec<DocId>,
 }
 
 impl SegmentPostings {
@@ -109,6 +109,7 @@ impl SegmentReader {
         self.segment_info.max_doc
     }
 
+
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
@@ -148,7 +149,7 @@ impl SegmentReader {
         self.fast_fields_reader.get_field(u32_field)
     }
 
-    fn read_postings(&self, offset: u32) -> SegmentPostings {
+    pub fn read_postings(&self, offset: u32) -> SegmentPostings {
         let postings_data = &self.postings_data.as_slice()[(offset as usize)..];
         SegmentPostings::from_data(&postings_data)
     }

@@ -11,7 +11,7 @@ use core::serialize::BinarySerializable;
 use std::io::{Read, Write};
 use std::io;
 
-#[derive(Debug)]
+#[derive(Debug,Ord,PartialOrd,Eq,PartialEq,Clone)]
 pub struct TermInfo {
     pub doc_freq: u32,
     pub postings_offset: u32,

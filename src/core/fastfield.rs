@@ -177,6 +177,7 @@ pub struct U32FastFieldReader {
     _data: ReadOnlySource,
     data_ptr: *const u64,
     min_val: u32,
+    max_val: u32,
     num_bits: u8,
     mask: u32,
     num_in_pack: u32,
@@ -184,6 +185,15 @@ pub struct U32FastFieldReader {
 }
 
 impl U32FastFieldReader {
+
+    pub fn min_val(&self,) -> u32 {
+        self.min_val
+    }
+
+    pub fn max_val(&self,) -> u32 {
+        self.max_val
+    }
+
     pub fn open(data: ReadOnlySource) -> io::Result<U32FastFieldReader> {
         let min_val;
         let amplitude;
@@ -200,6 +210,7 @@ impl U32FastFieldReader {
             _data: data,
             data_ptr: ptr as *const u64,
             min_val: min_val,
+            max_val: min_val + amplitude,
             num_bits: num_bits,
             mask: mask,
             num_in_pack: num_in_pack,

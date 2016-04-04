@@ -11,14 +11,12 @@ use core::postings::PostingsWriter;
 use core::fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use std::sync::mpsc;
-use std::sync::mpsc::channel;
 use std::thread;
 use std::sync::Mutex;
 use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::sync::Arc;
-use std::rc::Rc;
 
 pub struct IndexWriter {
 	// segment_writers: Vec<SegmentWriter>,
@@ -36,8 +34,7 @@ impl IndexWriter {
 		let schema = index.schema();
 		let (queue_input, queue_output): (SyncSender<ArcDoc>, Receiver<ArcDoc>) = mpsc::sync_channel(10_000);
 		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
-		let threads = (0..num_threads).map(|thread_id|  {
-
+		let threads = (0..num_threads).map(|_|  {
 			let queue_output_clone = queue_output_sendable.clone();
 			let mut index_clone = index.clone();
 			let schema_clone = schema.clone();
@@ -49,8 +46,6 @@ impl IndexWriter {
 				let mut docs_remaining = true;
 				while docs_remaining {
 					let segment = index_clone.new_segment();
-					let segment_clone = segment.clone();
-
 					let mut doc;
 					{
 						match queue_output_clone.lock().unwrap().recv() {
@@ -61,8 +56,7 @@ impl IndexWriter {
 
 					let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema_clone).unwrap();
 					segment_writer.add_document(&*doc, &schema_clone).unwrap();
-
-					for i in 0..(225_000 - 1) {
+					for _ in 0..(225_000 - 1) {
 						{
 							let queue = queue_output_clone.lock().unwrap();
 							match queue.recv() {
@@ -96,11 +90,12 @@ impl IndexWriter {
 		})
 	}
 
-	pub fn wait(self,) {
+	pub fn wait(self,) -> thread::Result<()> {
 		drop(self.queue_input);
 		for thread in self.threads {
-			thread.join();
+			try!(thread.join());
 		}
+		Ok(())
 	}
 
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
