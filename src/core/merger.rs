@@ -11,17 +11,43 @@ use core::fstmap::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
 use core::fastfield::FastFieldSerializer;
+use std::cmp::Ordering;
 use core::schema::U32Field;
 use std::cmp::min;
 use std::cmp::max;
 
-
 struct PostingsMerger<'a> {
     doc_ids: Vec<DocId>,
     doc_offsets: Vec<DocId>,
-    heap: BinaryHeap<(Vec<u8>, usize, TermInfo)>,
+    heap: BinaryHeap<HeapItem>,
     term_streams: Vec<FstMapIter<'a, TermInfo>>,
     readers: &'a Vec<SegmentReader>,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+struct HeapItem {
+    term: Vec<u8>,
+    segment_ord: usize,
+    term_info: TermInfo,
+}
+
+impl Ord for HeapItem {
+    fn cmp(&self, other: &HeapItem) -> Ordering {
+        match other.term.cmp(&self.term) {
+            Ordering::Equal => {
+                other.segment_ord.cmp(&self.segment_ord)
+            }
+            e @ _ => {
+                e
+            }
+        }
+    }
+}
+
+impl PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &HeapItem) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl<'a> PostingsMerger<'a> {
@@ -49,51 +75,54 @@ impl<'a> PostingsMerger<'a> {
 
     fn push_next_segment_el(&mut self, segment_ord: usize) {
         match self.term_streams[segment_ord].next() {
-            Some((term, val)) => {
-                let it = (Vec::from(term), segment_ord, val.clone());
+            Some((term, term_info)) => {
+                let it = HeapItem {
+                    term: Vec::from(term),
+                    segment_ord: segment_ord,
+                    term_info: term_info.clone(),
+                };
                 self.heap.push(it);
             }
             None => {}
         }
     }
 
-    fn append_segment(&mut self, segment_ord: usize, term_info: TermInfo) {
+    fn append_segment(&mut self, heap_item: &HeapItem) {
         {
-            let offset = self.doc_offsets[segment_ord];
-            let reader = &self.readers[segment_ord];
-            for doc_id in reader.read_postings(term_info.postings_offset) {
+            let offset = self.doc_offsets[heap_item.segment_ord];
+            let reader = &self.readers[heap_item.segment_ord];
+            for doc_id in reader.read_postings(heap_item.term_info.postings_offset) {
                 self.doc_ids.push(offset + doc_id);
             }
         }
-        self.push_next_segment_el(segment_ord);
+        self.push_next_segment_el(heap_item.segment_ord);
     }
 
     fn next(&mut self,) -> Option<(Vec<u8>, &Vec<DocId>)> {
         // TODO remove the Vec<u8> allocations
         match self.heap.pop() {
-            Some((term, segment_ord, term_info)) => {
+            Some(heap_it) => {
                 self.doc_ids.clear();
-                self.append_segment(segment_ord, term_info);
+                self.append_segment(&heap_it);
                 loop {
                     match self.heap.peek() {
-                        Some(&(ref next_term, _, _)) if next_term == &term => {},
+                        Some(&ref next_heap_it) if next_heap_it.term == heap_it.term => {},
                         _ => { break; }
                     }
-                    let (_, segment_ord, next_term_info) = self.heap.pop().unwrap();
-                    self.append_segment(segment_ord, next_term_info);
+                    let next_heap_it = self.heap.pop().unwrap();
+                    self.append_segment(&next_heap_it);
                 }
-                Some((term, &self.doc_ids))
+                Some((heap_it.term, &self.doc_ids))
             },
             None => None
         }
     }
 }
 
-struct IndexMerger {
+pub struct IndexMerger {
     schema: Schema,
     readers: Vec<SegmentReader>,
 }
-
 
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &Vec<Segment>) -> io::Result<IndexMerger> {
@@ -156,7 +185,7 @@ impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
         try!(self.write_postings(serializer.get_postings_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
-        Ok(())
+        serializer.close()
     }
 }
 
@@ -174,7 +203,6 @@ mod tests {
         let text_field = schema.add_text_field("text", &text_fieldtype);
         let index = Index::create_in_ram(schema);
 
-        let merger;
         {
             {
                 // writing the segment
@@ -219,8 +247,10 @@ mod tests {
             }
         }
         let segments = index.segments();
-        merger = IndexMerger::open(&segments).unwrap();
-
-
+        println!("before {:?}", index.segments());
+        let mut index_writer = index.writer_with_num_threads(1).unwrap();
+        index_writer.merge(&segments).unwrap();
+        println!("after {:?}", index.segments());
+        assert_eq!(2, 1);
     }
 }

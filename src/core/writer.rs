@@ -1,6 +1,5 @@
 use core::schema::*;
 use core::codec::*;
-use std::io;
 use core::index::Index;
 use core::analyzer::SimpleTokenizer;
 use core::index::SerializableSegment;
@@ -12,11 +11,14 @@ use core::fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use std::sync::mpsc;
 use std::thread;
+use std::io::ErrorKind;
+use std::io;
 use std::sync::Mutex;
 use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::sync::Arc;
+use core::merger::IndexMerger;
 
 pub struct IndexWriter {
 	// segment_writers: Vec<SegmentWriter>,
@@ -90,6 +92,16 @@ impl IndexWriter {
 		})
 	}
 
+	pub fn merge(&mut self, segments: &Vec<Segment>) -> io::Result<()> {
+		let schema = self.schema.clone();
+		let merger = try!(IndexMerger::open(schema, segments));
+		let merged_segment = self.index.new_segment();
+		let segment_serializer = try!(SegmentSerializer::for_segment(&merged_segment));
+		try!(merger.write(segment_serializer));
+		self.index.sync(&merged_segment).unwrap();
+		self.index.publish_segment(&merged_segment)
+	}
+
 	pub fn wait(self,) -> thread::Result<()> {
 		drop(self.queue_input);
 		for thread in self.threads {
@@ -101,7 +113,10 @@ impl IndexWriter {
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
         // Rc::get_mut(&mut self.segment_writer).unwrap().add_document(&doc, &self.schema)
 		let arc_doc = ArcDoc::new(doc);
-		self.queue_input.send(arc_doc);
+		try!(
+			self.queue_input.send(arc_doc)
+				.map_err(|e| io::Error::new(ErrorKind::Other, e))
+		);
 		Ok(())
     }
 

@@ -31,7 +31,7 @@ impl SegmentId {
 
 impl fmt::Debug for SegmentId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Segment({:?})", self.uuid_string())
+        write!(f, "SegmentId({:?})", self.uuid_string())
     }
 }
 
@@ -220,10 +220,16 @@ pub enum SegmentComponent {
     STORE,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Segment {
     index: Index,
     segment_id: SegmentId,
+}
+
+impl fmt::Debug for Segment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Segment({:?})", self.segment_id.uuid_string())
+    }
 }
 
 impl Segment {
