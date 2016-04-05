@@ -44,34 +44,7 @@ pub use core::searcher::SegmentLocalId;
 mod tests {
 
     use super::*;
-    use collector::Collector;
-
-    // only make sense for a single segment
-    struct TestCollector {
-        docs: Vec<DocId>,
-    }
-
-    impl TestCollector {
-        pub fn new() -> TestCollector {
-            TestCollector {
-                docs: Vec::new(),
-            }
-        }
-
-        pub fn docs(self,) -> Vec<DocId> {
-            self.docs
-        }
-    }
-
-    impl Collector for TestCollector {
-
-        fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) {}
-
-        fn collect(&mut self, doc_id: DocId) {
-            self.docs.push(doc_id);
-        }
-    }
-
+    use collector::TestCollector;
 
     #[test]
     fn test_indexing() {

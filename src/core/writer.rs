@@ -99,7 +99,7 @@ impl IndexWriter {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&merged_segment));
 		try!(merger.write(segment_serializer));
 		self.index.sync(&merged_segment).unwrap();
-		self.index.publish_segment(&merged_segment)
+		self.index.publish_merge_segment(segments, &merged_segment)
 	}
 
 	pub fn wait(self,) -> thread::Result<()> {
@@ -168,10 +168,6 @@ impl SegmentWriter {
 			try!(self.segment_serializer.write_segment_info(&segment_info));
 		}
 		self.segment_serializer.close()
-	}
-
-	pub fn segment(&self,) -> Segment {
-		self.segment_serializer.segment()
 	}
 
 	fn for_segment(segment: Segment, schema: &Schema) -> io::Result<SegmentWriter> {

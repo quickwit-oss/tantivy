@@ -11,6 +11,7 @@ use core::fstmap::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
 use core::fastfield::FastFieldSerializer;
+use core::index::SegmentInfo;
 use std::cmp::Ordering;
 use core::schema::U32Field;
 use std::cmp::min;
@@ -52,10 +53,12 @@ impl PartialOrd for HeapItem {
 
 impl<'a> PostingsMerger<'a> {
     fn new(readers: &'a Vec<SegmentReader>) -> PostingsMerger<'a> {
-        let doc_offsets: Vec<DocId> = readers
-            .iter()
-            .map(|reader| reader.max_doc())
-            .collect();
+        let mut doc_offsets: Vec<DocId> = Vec::new();
+        let mut max_doc = 0;
+        for reader in readers.iter() {
+            doc_offsets.push(max_doc);
+            max_doc += reader.max_doc();
+        };
         let term_streams = readers
             .iter()
             .map(|reader| reader.term_infos().stream())
@@ -122,18 +125,24 @@ impl<'a> PostingsMerger<'a> {
 pub struct IndexMerger {
     schema: Schema,
     readers: Vec<SegmentReader>,
+    segment_info: SegmentInfo,
 }
 
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &Vec<Segment>) -> io::Result<IndexMerger> {
         let mut readers = Vec::new();
+        let mut max_doc = 0;
         for segment in segments.iter() {
             let reader = try!(SegmentReader::open(segment.clone()));
+            max_doc += reader.max_doc();
             readers.push(reader);
         }
         Ok(IndexMerger {
             schema: schema,
             readers: readers,
+            segment_info: SegmentInfo {
+                max_doc: max_doc
+            },
         })
     }
 
@@ -185,6 +194,7 @@ impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
         try!(self.write_postings(serializer.get_postings_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
+        try!(serializer.write_segment_info(&self.segment_info));
         serializer.close()
     }
 }
@@ -194,6 +204,8 @@ mod tests {
     use core::schema;
     use core::schema::Document;
     use core::index::Index;
+    use core::schema::Term;
+    use core::collector::TestCollector;
     use super::IndexMerger;
 
     #[test]
@@ -235,22 +247,42 @@ mod tests {
                 }
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "a d c");
-                    index_writer.add_document(doc).unwrap();
-                }
-                {
-                    let mut doc = Document::new();
                     doc.set(&text_field, "a b c g");
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait();
             }
         }
-        let segments = index.segments();
-        println!("before {:?}", index.segments());
-        let mut index_writer = index.writer_with_num_threads(1).unwrap();
-        index_writer.merge(&segments).unwrap();
-        println!("after {:?}", index.segments());
-        assert_eq!(2, 1);
+        {
+            let segments = index.segments();
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            index_writer.merge(&segments).unwrap();
+        }
+        {
+            let searcher = index.searcher().unwrap();
+            let get_doc_ids = |terms: Vec<Term>| {
+                let mut collector = TestCollector::new();
+                searcher.search(&terms, &mut collector);
+                collector.docs()
+            };
+            {
+                assert_eq!(
+                    get_doc_ids(vec!(Term::from_field_text(&text_field, "a"))),
+                    vec!(1, 2, 4,)
+                );
+                assert_eq!(
+                    get_doc_ids(vec!(Term::from_field_text(&text_field, "af"))),
+                    vec!(0, 3,)
+                );
+                assert_eq!(
+                    get_doc_ids(vec!(Term::from_field_text(&text_field, "g"))),
+                    vec!(4,)
+                );
+                assert_eq!(
+                    get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
+                    vec!(0, 1, 2, 3, 4,)
+                );
+            }
+        }
     }
 }

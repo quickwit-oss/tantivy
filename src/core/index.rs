@@ -138,7 +138,32 @@ impl Index {
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segment(&mut self, segment: &Segment) -> io::Result<()> {
-        self.metas.write().unwrap().segments.push(segment.segment_id.clone());
+        {
+            let mut meta_write = self.metas.write().unwrap();
+            meta_write.segments.push(segment.segment_id.clone());
+        }
+        self.save_metas()
+    }
+
+    pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> io::Result<()> {
+        {
+            let mut meta_write = self.metas.write().unwrap();
+            // meta_write.segments.
+            for segment in segments.iter() {
+                let segment_pos = meta_write
+                    .segments.iter()
+                    .position(|el| *el == segment.id());
+                match segment_pos {
+                    Some(pos) => {
+                        meta_write.segments.remove(pos);
+                    }
+                    None => {
+                        panic!("Segment");
+                    }
+                }
+            }
+            meta_write.segments.push(merged_segment.id());
+        }
         // TODO use logs
         self.save_metas()
     }

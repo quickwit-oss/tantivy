@@ -7,7 +7,7 @@ use core::collector::Collector;
 use std::io;
 use core::schema::Term;
 
-
+#[derive(Debug)]
 pub struct Searcher {
     segments: Vec<SegmentReader>,
 }

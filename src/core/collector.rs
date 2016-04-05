@@ -66,10 +66,6 @@ impl Collector for CountCollector {
     }
 }
 
-
-
-
-
 pub struct MultiCollector<'a> {
     collectors: Vec<&'a mut Collector>,
 }
@@ -96,6 +92,39 @@ impl<'a> Collector for MultiCollector<'a> {
         }
     }
 }
+
+pub struct TestCollector {
+    offset: DocId,
+    segment_max_doc: DocId,
+    docs: Vec<DocId>,
+}
+
+impl TestCollector {
+    pub fn new() -> TestCollector {
+        TestCollector {
+            docs: Vec::new(),
+            offset: 0,
+            segment_max_doc: 0,
+        }
+    }
+
+    pub fn docs(self,) -> Vec<DocId> {
+        self.docs
+    }
+}
+
+impl Collector for TestCollector {
+
+    fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) {
+        self.offset += self.segment_max_doc;
+        self.segment_max_doc = reader.max_doc();
+    }
+
+    fn collect(&mut self, doc_id: DocId) {
+        self.docs.push(doc_id + self.offset);
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

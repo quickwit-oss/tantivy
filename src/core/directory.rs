@@ -237,7 +237,7 @@ impl Directory for RAMDirectory {
                 Ok(ReadOnlySource::Anonymous(data_copy.into_inner()))
             },
             None =>
-                Err(io::Error::new(io::ErrorKind::NotFound, "File has never been created."))
+                Err(io::Error::new(io::ErrorKind::NotFound, format!("File has never been created. {:?}", path)))
         }
     }
     fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
