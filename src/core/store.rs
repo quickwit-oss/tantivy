@@ -54,19 +54,24 @@ impl StoreWriter {
         }
     }
 
-    pub fn stack_reader(&mut self, num_docs: DocId, reader: &StoreReader) -> io::Result<()> {
-        println!("num docs {} ", num_docs);
+    pub fn stack_reader(&mut self, reader: &StoreReader) -> io::Result<()> {
         if self.current_block.len() > 0 {
             try!(self.write_and_compress_block());
         }
-        try!(self.writer.write_all(reader.data.as_slice()));
-        for &OffsetIndex(doc, offset) in reader.offsets.iter() {
-            println!("{:?}", OffsetIndex(self.doc + doc, self.written + offset));
-            self.offsets.push(OffsetIndex(self.doc + doc, self.written + offset));
+        match reader.offsets.last() {
+            Some(&OffsetIndex(ref num_docs, ref body_size)) => {
+                try!(self.writer.write_all(&reader.data.as_slice()[0..*body_size as usize]));
+                for &OffsetIndex(doc, offset) in reader.offsets.iter() {
+                    self.offsets.push(OffsetIndex(self.doc + doc, self.written + offset));
+                }
+                self.written += *body_size;
+                self.doc += *num_docs;
+                Ok(())
+            },
+            None => {
+                Err(io::Error::new(io::ErrorKind::Other, "No offset for reader"))
+            }
         }
-        self.written += reader.data.len() as u64;
-        self.doc += num_docs;
-        Ok(())
     }
 
     pub fn store<'a>(&mut self, field_values: &Vec<&'a TextFieldValue>) -> io::Result<()> {

@@ -193,7 +193,7 @@ impl IndexMerger {
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> io::Result<()> {
         for reader in self.readers.iter() {
             let store_reader = reader.get_store_reader();
-            try!(store_writer.stack_reader(reader.max_doc(), store_reader));
+            try!(store_writer.stack_reader(store_reader));
         }
         Ok(())
     }
