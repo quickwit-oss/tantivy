@@ -154,7 +154,6 @@ impl IndexMerger {
             .enumerate()
             .filter(|&(_, field_entry)| field_entry.option.is_fast())
             .map(|(field_id, _)| U32Field(field_id as u8)) {
-
             let mut u32_readers = Vec::new();
             let mut min_val = u32::min_value();
             let mut max_val = 0;
@@ -216,6 +215,7 @@ mod tests {
     use core::index::Index;
     use core::schema::Term;
     use core::searcher::DocAddress;
+    use core::collector::FastFieldTestCollector;
     use core::collector::TestCollector;
 
     #[test]
@@ -223,6 +223,8 @@ mod tests {
         let mut schema = schema::Schema::new();
         let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed().set_stored();
         let text_field = schema.add_text_field("text", &text_fieldtype);
+        let score_fieldtype = schema::U32Options::new().set_fast();
+        let score_field = schema.add_u32_field("score", &score_fieldtype);
         let index = Index::create_in_ram(schema);
 
         {
@@ -232,16 +234,19 @@ mod tests {
                 {
                     let mut doc = Document::new();
                     doc.set(&text_field, "af b");
+                    doc.set_u32(&score_field, 3);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
                     doc.set(&text_field, "a b c");
+                    doc.set_u32(&score_field, 5);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
                     doc.set(&text_field, "a b c d");
+                    doc.set_u32(&score_field, 7);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();
@@ -253,11 +258,13 @@ mod tests {
                 {
                     let mut doc = Document::new();
                     doc.set(&text_field, "af b");
+                    doc.set_u32(&score_field, 11);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
                     doc.set(&text_field, "a b c g");
+                    doc.set_u32(&score_field, 13);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();
@@ -292,26 +299,37 @@ mod tests {
                     get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
                     vec!(0, 1, 2, 3, 4,)
                 );
-                {
-                    let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
-                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
-                }
-                {
-                    let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
-                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c");
-                }
-                {
-                    let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
-                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c d");
-                }
-                {
-                    let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
-                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
-                }
-                // {
-                //     let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
-                //     assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c g");
-                // }
+            }
+            {
+                let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
+                assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+            }
+            {
+                let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
+                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c");
+            }
+            {
+                let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
+                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c d");
+            }
+            {
+                let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
+                assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+            }
+            {
+                let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
+                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c g");
+            }
+            {
+                let get_fast_vals = |terms: Vec<Term>| {
+                    let mut collector = FastFieldTestCollector::for_field(score_field);
+                    searcher.search(&terms, &mut collector);
+                    collector.vals().clone()
+                };
+                assert_eq!(
+                    get_fast_vals(vec!(Term::from_field_text(&text_field, "a"))),
+                    vec!(5, 7, 13,)
+                );
             }
         }
     }

@@ -158,7 +158,6 @@ impl U32FastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         let val = doc.get_u32(&self.field).unwrap_or(0u32);
         self.add_val(val);
-
     }
 
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
@@ -248,7 +247,6 @@ impl U32FastFieldsReader {
             .map(|&(_, offset)| offset.clone())
             .collect();
         end_offsets.push(header_offset);
-
         let mut field_offsets_map: HashMap<U32Field, (u32, u32)> = HashMap::new();
         for (field_start_offsets, stop_offset) in field_offsets.iter().zip(end_offsets.iter().skip(1)) {
             let (field, start_offset) = field_start_offsets.clone();

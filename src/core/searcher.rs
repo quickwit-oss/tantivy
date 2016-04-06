@@ -48,14 +48,15 @@ impl Searcher {
         Ok(searcher)
     }
 
-    pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) {
+    pub fn search(&self, terms: &Vec<Term>, collector: &mut Collector) -> io::Result<()> {
         for (segment_ord, segment) in self.segments.iter().enumerate() {
-            collector.set_segment(segment_ord as SegmentLocalId, &segment);
+            try!(collector.set_segment(segment_ord as SegmentLocalId, &segment));
             let postings = segment.search(terms);
             for doc_id in postings {
                 collector.collect(doc_id);
             }
         }
+        Ok(())
     }
 
 }

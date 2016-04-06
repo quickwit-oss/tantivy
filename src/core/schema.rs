@@ -86,6 +86,15 @@ pub struct TextField(pub u8);
 
 
 impl U32Options {
+
+    pub fn new() -> U32Options {
+        U32Options {
+            fast: false,
+            indexed: false,
+            stored: false,
+        }
+    }
+
     pub fn is_indexed(&self,) -> bool {
         self.indexed
     }

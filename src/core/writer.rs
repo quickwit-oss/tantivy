@@ -80,12 +80,8 @@ impl IndexWriter {
 				}
 			})
 		}).collect();
-		// let segment = directory.new_segment();
-		// let segment_writer = try!(SegmentWriter::for_segment(segment, &schema));
-		// segment_writers.push(segment_writer);
 		Ok(IndexWriter {
 			threads: threads,
-			// segment_writers: segment_writers, //Rc::new(segment_writer),
 			index: index.clone(),
 			schema: schema,
 			queue_input: queue_input,
@@ -120,26 +116,6 @@ impl IndexWriter {
 		Ok(())
     }
 
-    pub fn commit(&mut self,) -> io::Result<Vec<Segment>> {
-		/*
-		let segment_writer_rc = self.segment_writer.clone();
-		let segment = self.directory.new_segment();
-		self.segment_writer = Rc::new(try!(SegmentWriter::for_segment(segment, &self.schema)));
-		match Rc::try_unwrap(segment_writer_rc) {
-			Ok(segment_writer) => {
-				let segment = segment_writer.segment();
-				try!(segment_writer.finalize());
-				try!(self.directory.sync(segment.clone()));
-				try!(self.directory.publish_segment(segment.clone()));
-				Ok(segment)
-			},
-			Err(_) => {
-				panic!("error while acquiring segment writer.");
-			}
-		}
-		*/
-		Ok(Vec::new())
-	}
 
 }
 
@@ -171,15 +147,12 @@ impl SegmentWriter {
 	// - the postings
 	// - the segment info
 	// The segment cannot be used after this.
-	fn finalize(mut self,) -> io::Result<()> {
-		try!(self.postings_writer.serialize(self.segment_serializer.get_postings_serializer()));
-		{
-			let segment_info = SegmentInfo {
-				max_doc: self.max_doc
-			};
-			try!(self.segment_serializer.write_segment_info(&segment_info));
-		}
-		self.segment_serializer.close()
+	fn finalize(	self,) -> io::Result<()> {
+		let segment_info = self.segment_info();
+		write(&self.postings_writer,
+			  &self.fast_field_writers,
+			  segment_info,
+			  self.segment_serializer)
 	}
 
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
@@ -207,7 +180,6 @@ impl SegmentWriter {
             }
 		}
 		self.fast_field_writers.add_document(&doc);
-
 		let stored_fieldvalues: Vec<&TextFieldValue> = doc
 			.text_fields()
 			.filter(|text_field_value| schema.text_field_options(&text_field_value.field).is_stored())
@@ -218,13 +190,29 @@ impl SegmentWriter {
 		Ok(())
     }
 
+	fn segment_info(&self,) -> SegmentInfo {
+		SegmentInfo {
+			max_doc: self.max_doc
+		}
+	}
+}
+
+fn write(postings_writer: &PostingsWriter,
+		 fast_field_writers: &U32FastFieldsWriter,
+		 segment_info: SegmentInfo,
+	  	mut serializer: SegmentSerializer) -> io::Result<()> {
+		try!(postings_writer.serialize(serializer.get_postings_serializer()));
+		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
+		try!(serializer.write_segment_info(&segment_info));
+		try!(serializer.close());
+		Ok(())
 }
 
 impl SerializableSegment for SegmentWriter {
 	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
-		try!(self.postings_writer.serialize(serializer.get_postings_serializer()));
-		try!(self.fast_field_writers.serialize(serializer.get_fast_field_serializer()));
-		try!(serializer.close());
-		Ok(())
+		write(&self.postings_writer,
+		      &self.fast_field_writers,
+			  self.segment_info(),
+		      serializer)
 	}
 }

@@ -2,9 +2,12 @@ use core::schema::DocId;
 use core::reader::SegmentReader;
 use core::searcher::SegmentLocalId;
 use core::searcher::DocAddress;
+use core::fastfield::U32FastFieldReader;
+use core::schema::U32Field;
+use std::io;
 
 pub trait Collector {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader);
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
     fn collect(&mut self, doc_id: DocId);
 }
 
@@ -30,8 +33,9 @@ impl FirstNCollector {
 
 impl Collector for FirstNCollector {
 
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, _: &SegmentReader) {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
         self.current_segment = segment_local_id;
+        Ok(())
     }
 
     fn collect(&mut self, doc_id: DocId) {
@@ -59,7 +63,9 @@ impl CountCollector {
 
 impl Collector for CountCollector {
 
-    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) {}
+    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
+        Ok(())
+    }
 
     fn collect(&mut self, _: DocId) {
         self.count += 1;
@@ -80,10 +86,11 @@ impl<'a> MultiCollector<'a> {
 
 impl<'a> Collector for MultiCollector<'a> {
 
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
         for collector in self.collectors.iter_mut() {
-            collector.set_segment(segment_local_id, segment);
+            try!(collector.set_segment(segment_local_id, segment));
         }
+        Ok(())
     }
 
     fn collect(&mut self, doc_id: DocId) {
@@ -115,15 +122,51 @@ impl TestCollector {
 
 impl Collector for TestCollector {
 
-    fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) {
+    fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
         self.offset += self.segment_max_doc;
         self.segment_max_doc = reader.max_doc();
+        Ok(())
     }
 
     fn collect(&mut self, doc_id: DocId) {
         self.docs.push(doc_id + self.offset);
     }
 }
+
+
+pub struct FastFieldTestCollector {
+    vals: Vec<u32>,
+    u32_field: U32Field,
+    ff_reader: Option<U32FastFieldReader>,
+}
+
+impl FastFieldTestCollector {
+    pub fn for_field(u32_field: U32Field) -> FastFieldTestCollector {
+        FastFieldTestCollector {
+            vals: Vec::new(),
+            u32_field: u32_field,
+            ff_reader: None,
+        }
+    }
+
+    pub fn vals(&self,) -> &Vec<u32> {
+        &self.vals
+    }
+}
+
+impl Collector for FastFieldTestCollector {
+
+    fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
+        self.ff_reader = Some(try!(reader.get_fast_field_reader(&self.u32_field)));
+        Ok(())
+    }
+
+    fn collect(&mut self, doc_id: DocId) {
+        let val = self.ff_reader.as_ref().unwrap().get(doc_id);
+        self.vals.push(val);
+    }
+}
+
 
 
 #[cfg(test)]
