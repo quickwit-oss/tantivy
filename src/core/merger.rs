@@ -11,6 +11,7 @@ use core::fstmap::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
 use core::fastfield::FastFieldSerializer;
+use core::store::StoreWriter;
 use core::index::SegmentInfo;
 use std::cmp::Ordering;
 use core::schema::U32Field;
@@ -188,12 +189,21 @@ impl IndexMerger {
         }
         Ok(())
     }
+
+    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> io::Result<()> {
+        for reader in self.readers.iter() {
+            let store_reader = reader.get_store_reader();
+            try!(store_writer.stack_reader(reader.max_doc(), store_reader));
+        }
+        Ok(())
+    }
 }
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
         try!(self.write_postings(serializer.get_postings_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
+        try!(self.write_storable_fields(serializer.get_store_writer()));
         try!(serializer.write_segment_info(&self.segment_info));
         serializer.close()
     }
@@ -205,12 +215,13 @@ mod tests {
     use core::schema::Document;
     use core::index::Index;
     use core::schema::Term;
+    use core::searcher::DocAddress;
     use core::collector::TestCollector;
 
     #[test]
     fn test_index_merger() {
         let mut schema = schema::Schema::new();
-        let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed();
+        let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed().set_stored();
         let text_field = schema.add_text_field("text", &text_fieldtype);
         let index = Index::create_in_ram(schema);
 
@@ -281,6 +292,26 @@ mod tests {
                     get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
                     vec!(0, 1, 2, 3, 4,)
                 );
+                {
+                    let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
+                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+                }
+                {
+                    let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
+                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c");
+                }
+                {
+                    let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
+                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c d");
+                }
+                {
+                    let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
+                    assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+                }
+                // {
+                //     let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
+                //     assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c g");
+                // }
             }
         }
     }

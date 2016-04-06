@@ -17,6 +17,9 @@ use lz4;
 
 const BLOCK_SIZE: usize = 131_072;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OffsetIndex(DocId, u64);
+
 pub struct StoreWriter {
     doc: DocId,
     offsets: Vec<OffsetIndex>, // TODO have a better index.
@@ -25,9 +28,6 @@ pub struct StoreWriter {
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct OffsetIndex(DocId, u64);
 
 impl BinarySerializable for OffsetIndex {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
@@ -52,6 +52,21 @@ impl StoreWriter {
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
         }
+    }
+
+    pub fn stack_reader(&mut self, num_docs: DocId, reader: &StoreReader) -> io::Result<()> {
+        println!("num docs {} ", num_docs);
+        if self.current_block.len() > 0 {
+            try!(self.write_and_compress_block());
+        }
+        try!(self.writer.write_all(reader.data.as_slice()));
+        for &OffsetIndex(doc, offset) in reader.offsets.iter() {
+            println!("{:?}", OffsetIndex(self.doc + doc, self.written + offset));
+            self.offsets.push(OffsetIndex(self.doc + doc, self.written + offset));
+        }
+        self.written += reader.data.len() as u64;
+        self.doc += num_docs;
+        Ok(())
     }
 
     pub fn store<'a>(&mut self, field_values: &Vec<&'a TextFieldValue>) -> io::Result<()> {

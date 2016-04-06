@@ -153,6 +153,18 @@ pub struct SegmentWriter {
 }
 
 impl SegmentWriter {
+
+	fn for_segment(segment: Segment, schema: &Schema) -> io::Result<SegmentWriter> {
+		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
+		Ok(SegmentWriter {
+			max_doc: 0,
+			postings_writer: PostingsWriter::new(),
+			segment_serializer: segment_serializer,
+			tokenizer: SimpleTokenizer::new(),
+			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
+		})
+	}
+
 	// Write on disk all of the stuff that
 	// is still on RAM :
 	// - the dictionary in an fst
@@ -168,17 +180,6 @@ impl SegmentWriter {
 			try!(self.segment_serializer.write_segment_info(&segment_info));
 		}
 		self.segment_serializer.close()
-	}
-
-	fn for_segment(segment: Segment, schema: &Schema) -> io::Result<SegmentWriter> {
-		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
-		Ok(SegmentWriter {
-			max_doc: 0,
-			postings_writer: PostingsWriter::new(),
-			segment_serializer: segment_serializer,
-			tokenizer: SimpleTokenizer::new(),
-			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
-		})
 	}
 
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
@@ -205,11 +206,14 @@ impl SegmentWriter {
                 self.postings_writer.suscribe(doc_id, term);
             }
 		}
-		let mut stored_fieldvalues_it = doc.text_fields().filter(|text_field_value| {
-			schema.text_field_options(&text_field_value.field).is_stored()
-		});
 		self.fast_field_writers.add_document(&doc);
-		try!(self.segment_serializer.store_doc(&mut stored_fieldvalues_it));
+
+		let stored_fieldvalues: Vec<&TextFieldValue> = doc
+			.text_fields()
+			.filter(|text_field_value| schema.text_field_options(&text_field_value.field).is_stored())
+			.collect();
+		let doc_writer = self.segment_serializer.get_store_writer();
+		try!(doc_writer.store(&stored_fieldvalues));
         self.max_doc += 1;
 		Ok(())
     }

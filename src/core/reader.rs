@@ -109,6 +109,10 @@ impl SegmentReader {
         self.segment_info.max_doc
     }
 
+    pub fn get_store_reader(&self,) -> &StoreReader {
+        &self.store_reader
+    }
+
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {

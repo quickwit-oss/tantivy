@@ -7,7 +7,6 @@ use core::index::SegmentComponent;
 use core::fastfield::FastFieldSerializer;
 use core::store::StoreWriter;
 use core::postings::PostingsSerializer;
-use core::schema::TextFieldValue;
 use core::convert_to_ioerror;
 
 pub struct SegmentSerializer {
@@ -40,10 +39,8 @@ impl SegmentSerializer {
         &mut self.fast_field_serializer
     }
 
-    pub fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&TextFieldValue>) -> io::Result<()> {
-        let field_values: Vec<&TextFieldValue> = field_values_it.collect();
-        try!(self.store_writer.store(&field_values));
-        Ok(())
+    pub fn get_store_writer(&mut self,) -> &mut StoreWriter {
+        &mut self.store_writer
     }
 
     pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> io::Result<()> {
