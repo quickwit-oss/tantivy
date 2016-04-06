@@ -40,10 +40,6 @@ impl SegmentSerializer {
         &mut self.fast_field_serializer
     }
 
-    pub fn segment(&self,) -> Segment {
-        self.segment.clone()
-    }
-
     pub fn store_doc(&mut self, field_values_it: &mut Iterator<Item=&TextFieldValue>) -> io::Result<()> {
         let field_values: Vec<&TextFieldValue> = field_values_it.collect();
         try!(self.store_writer.store(&field_values));

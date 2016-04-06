@@ -89,7 +89,7 @@ mod tests {
         let mut schema = schema::Schema::new();
         let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed();
         let text_field = schema.add_text_field("text", &text_fieldtype);
-        let index = Index::create_from_tempdir(schema).unwrap();
+        let index = Index::create_in_ram(schema);
 
         {
             // writing the segment
@@ -110,7 +110,7 @@ mod tests {
                 index_writer.add_document(doc).unwrap();
             }
             //let commit_result = index_writer.commit();
-            index_writer.wait();
+            index_writer.wait().unwrap();
             //commit_result.unwrap();
         }
         {

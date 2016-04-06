@@ -163,7 +163,7 @@ impl IndexMerger {
                 max_val = max(max_val, u32_reader.max_val());
                 u32_readers.push((reader.max_doc(), u32_reader));
             }
-            fast_field_serializer.new_u32_fast_field(field, min_val, max_val);
+            try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
             for (max_doc, u32_reader) in u32_readers {
                 for doc_id in 0..max_doc {
                     let val = u32_reader.get(doc_id);
@@ -206,7 +206,6 @@ mod tests {
     use core::index::Index;
     use core::schema::Term;
     use core::collector::TestCollector;
-    use super::IndexMerger;
 
     #[test]
     fn test_index_merger() {
@@ -234,7 +233,7 @@ mod tests {
                     doc.set(&text_field, "a b c d");
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.wait();
+                index_writer.wait().unwrap();
             }
 
             {
@@ -250,7 +249,7 @@ mod tests {
                     doc.set(&text_field, "a b c g");
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.wait();
+                index_writer.wait().unwrap();
             }
         }
         {
