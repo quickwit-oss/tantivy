@@ -30,6 +30,8 @@ extern crate num_cpus;
 
 mod core;
 
+pub use core::directory::Directory;
+pub use core::searcher::Searcher;
 pub use core::index::Index;
 pub use core::schema;
 pub use core::schema::Term;

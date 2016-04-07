@@ -95,7 +95,7 @@ impl<'a> PostingsMerger<'a> {
         {
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            for doc_id in reader.read_postings(heap_item.term_info.postings_offset) {
+            for doc_id in reader.read_postings(&heap_item.term_info) {
                 self.doc_ids.push(offset + doc_id);
             }
         }

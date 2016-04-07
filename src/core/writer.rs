@@ -76,7 +76,6 @@ impl IndexWriter {
 					segment_writer.finalize().unwrap();
 					index_clone.sync(&segment).unwrap();
 					index_clone.publish_segment(&segment).unwrap();
-					// segment_writer.commit().unwrap();
 				}
 			})
 		}).collect();
@@ -107,7 +106,7 @@ impl IndexWriter {
 	}
 
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
-		let arc_doc = ArcDoc::new(doc);
+        let arc_doc = ArcDoc::new(doc);
 		try!(
 			self.queue_input.send(arc_doc)
 				.map_err(|e| io::Error::new(ErrorKind::Other, e))

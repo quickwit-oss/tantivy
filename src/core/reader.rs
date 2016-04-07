@@ -42,10 +42,10 @@ impl SegmentPostings {
         }
     }
 
-    pub fn from_data(data: &[u8]) -> SegmentPostings {
+    pub fn from_data(doc_freq: DocId, data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
         let data: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
-        let mut doc_ids: Vec<u32> = (0u32..data.len() as u32 + 1_000 as u32).collect();
+        let mut doc_ids: Vec<u32> = (0u32..doc_freq).collect();
         let decoder = Decoder::new();
         let num_doc_ids = decoder.decode_sorted(&data, &mut doc_ids);
         doc_ids.truncate(num_doc_ids);
@@ -153,9 +153,10 @@ impl SegmentReader {
         self.fast_fields_reader.get_field(u32_field)
     }
 
-    pub fn read_postings(&self, offset: u32) -> SegmentPostings {
-        let postings_data = &self.postings_data.as_slice()[(offset as usize)..];
-        SegmentPostings::from_data(&postings_data)
+    pub fn read_postings(&self, term_info: &TermInfo) -> SegmentPostings {
+        let offset = term_info.postings_offset as usize;
+        let postings_data = &self.postings_data.as_slice()[offset..];
+        SegmentPostings::from_data(term_info.doc_freq, &postings_data)
     }
 
     fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
@@ -170,7 +171,7 @@ impl SegmentReader {
         for term in terms.iter() {
             match self.get_term(term) {
                 Some(term_info) => {
-                    let segment_posting = self.read_postings(term_info.postings_offset);
+                    let segment_posting = self.read_postings(&term_info);
                     segment_postings.push(segment_posting);
                 }
                 None => {
