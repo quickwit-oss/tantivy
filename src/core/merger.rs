@@ -279,7 +279,7 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
-                searcher.search(&terms, &mut collector);
+                assert!(searcher.search(&terms, &mut collector).is_ok());
                 collector.docs()
             };
             {
@@ -323,7 +323,7 @@ mod tests {
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let mut collector = FastFieldTestCollector::for_field(score_field);
-                    searcher.search(&terms, &mut collector);
+                    assert!(searcher.search(&terms, &mut collector).is_ok());
                     collector.vals().clone()
                 };
                 assert_eq!(

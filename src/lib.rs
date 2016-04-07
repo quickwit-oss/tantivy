@@ -72,9 +72,7 @@ mod tests {
                 doc.set(&text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
-
-            let commit_result = index_writer.commit();
-            assert!(commit_result.is_ok());
+            assert!(index_writer.wait().is_ok());
             // TODO reenable this test
             // let segment = commit_result.unwrap();
             // let segment_reader = SegmentReader::open(segment).unwrap();
@@ -117,7 +115,7 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
-                searcher.search(&terms, &mut collector);
+                assert!(searcher.search(&terms, &mut collector).is_ok());
                 collector.docs()
             };
             {

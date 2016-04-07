@@ -148,7 +148,6 @@ impl Index {
     pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> io::Result<()> {
         {
             let mut meta_write = self.metas.write().unwrap();
-            // meta_write.segments.
             for segment in segments.iter() {
                 let segment_pos = meta_write
                     .segments.iter()

@@ -107,7 +107,6 @@ impl IndexWriter {
 	}
 
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
-        // Rc::get_mut(&mut self.segment_writer).unwrap().add_document(&doc, &self.schema)
 		let arc_doc = ArcDoc::new(doc);
 		try!(
 			self.queue_input.send(arc_doc)
@@ -209,7 +208,7 @@ fn write(postings_writer: &PostingsWriter,
 }
 
 impl SerializableSegment for SegmentWriter {
-	fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
+	fn write(&self, serializer: SegmentSerializer) -> io::Result<()> {
 		write(&self.postings_writer,
 		      &self.fast_field_writers,
 			  self.segment_info(),
