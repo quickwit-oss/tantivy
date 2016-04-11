@@ -11,13 +11,14 @@ use std::io::Cursor;
 use std::io;
 use std::io::SeekFrom;
 use std::io::Seek;
+use std::cmp::Ordering;
 use lz4;
 
 // TODO cache uncompressed pages
 
 const BLOCK_SIZE: usize = 131_072;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 struct OffsetIndex(DocId, u64);
 
 pub struct StoreWriter {
@@ -90,7 +91,6 @@ impl StoreWriter {
     }
 
     fn write_and_compress_block(&mut self,) -> io::Result<()> {
-        // err handling
         self.intermediary_buffer.clear();
         {
             let mut encoder = lz4::EncoderBuilder::new()
@@ -131,25 +131,31 @@ pub struct StoreReader {
 impl StoreReader {
 
     fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
-        // todo err
+        // TODO err
+        // the first offset is implicitely (0, 0)
+        let mut offsets = vec!(OffsetIndex(0, 0));
         let mut cursor = Cursor::new(data.as_slice());
         cursor.seek(SeekFrom::End(-8)).unwrap();
         let offset = u64::deserialize(&mut cursor).unwrap();
         cursor.seek(SeekFrom::Start(offset)).unwrap();
-        Vec::deserialize(&mut cursor).unwrap()
+        offsets.append(&mut Vec::deserialize(&mut cursor).unwrap());
+        offsets
     }
 
-    fn block_offset(&self, doc_id: &DocId) -> OffsetIndex {
-        let mut offset = OffsetIndex(0, 0);
-        for &OffsetIndex(first_doc_id, block_offset) in self.offsets.iter() {
-            if first_doc_id > *doc_id {
-                break;
+    fn block_offset(&self, seek: &DocId) -> OffsetIndex {
+        fn search(offsets: &[OffsetIndex], seek: &DocId) -> OffsetIndex {
+            let m = offsets.len() / 2;
+            let pivot_offset = &offsets[m];
+            if offsets.len() <= 1 {
+                return pivot_offset.clone()
             }
-            else {
-                offset = OffsetIndex(first_doc_id, block_offset);
+            match pivot_offset.0.cmp(seek) {
+                Ordering::Less => search(&offsets[m..], seek),
+                Ordering::Equal => pivot_offset.clone(),
+                Ordering::Greater => search(&offsets[..m], seek),
             }
         }
-        return offset;
+        search(&self.offsets, seek)
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {

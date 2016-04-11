@@ -166,7 +166,6 @@ impl SegmentReader {
     /// Returns the list of doc ids containing all of the
     /// given terms.
     pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
-
         let mut segment_postings: Vec<SegmentPostings> = Vec::new();
         for term in terms.iter() {
             match self.get_term(term) {
@@ -185,8 +184,8 @@ impl SegmentReader {
     }
 
 }
-//
-//
+
+
 // impl SerializableSegment for SegmentReader {
 //
 //     fn write_postings(&self, mut serializer: PostingsSerializer) -> io::Result<()> {
