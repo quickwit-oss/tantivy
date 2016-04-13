@@ -7,20 +7,23 @@ use core::directory::ReadOnlySource;
 use std::io::Cursor;
 use core::schema::DocId;
 use core::index::SegmentComponent;
-use core::postings::Postings;
 use core::simdcompression::Decoder;
 use std::io;
+use std::iter;
 use std::str;
 use core::postings::TermInfo;
 use core::fstmap::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
+use core::timer::OpenTimer;
 use core::schema::U32Field;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
 use core::fastfield::U32FastFieldsReader;
 use core::fastfield::U32FastFieldReader;
+use core::simdcompression;
+use std::mem;
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -28,67 +31,94 @@ impl fmt::Debug for SegmentReader {
     }
 }
 
-pub struct SegmentPostings {
-    doc_id: usize,
-    doc_ids: Vec<DocId>,
+#[inline(never)]
+pub fn intersection(mut postings: Vec<SegmentPostings>) -> SegmentPostings {
+    let min_len = postings
+        .iter()
+        .map(|v| v.len())
+        .min()
+        .unwrap();
+    let mut buffer: Vec<u32> = postings.pop().unwrap().0;
+    let mut output: Vec<u32> = Vec::with_capacity(min_len);
+    unsafe { output.set_len(min_len); }
+    let mut pair = (output, buffer);
+    for posting in postings.iter() {
+        pair = (pair.1, pair.0);
+        let output_len = simdcompression::intersection(posting.0.as_slice(), pair.0.as_slice(), pair.1.as_mut_slice());
+        unsafe { pair.1.set_len(output_len); }
+    }
+    SegmentPostings(pair.1)
+}
+
+pub struct SegmentPostings(Vec<DocId>);
+
+impl IntoIterator for SegmentPostings {
+    type Item = DocId;
+    type IntoIter = ::std::vec::IntoIter<DocId>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl SegmentPostings {
 
     pub fn empty()-> SegmentPostings {
-        SegmentPostings {
-            doc_id: 0,
-            doc_ids: Vec::new(),
-        }
+        SegmentPostings(Vec::new())
+    }
+
+    pub fn len(&self,) -> usize {
+        self.0.len()
     }
 
     pub fn from_data(doc_freq: DocId, data: &[u8]) -> SegmentPostings {
         let mut cursor = Cursor::new(data);
-        let data: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
-        let mut doc_ids: Vec<u32> = (0u32..doc_freq).collect();
-        let decoder = Decoder::new();
-        let num_doc_ids = decoder.decode_sorted(&data, &mut doc_ids);
-        doc_ids.truncate(num_doc_ids);
-        SegmentPostings {
-            doc_ids: doc_ids,
-            doc_id: 0,
+        let num_u32s = u32::deserialize(&mut cursor).unwrap();
+        let data_u32: &[u32] = unsafe { mem::transmute(data) };
+        let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
+        unsafe { doc_ids.set_len(doc_freq as usize); }
+        {
+            let decoder = Decoder::new();
+            let num_doc_ids = decoder.decode_sorted(&data_u32[1..(num_u32s+1) as usize], &mut doc_ids);
+            SegmentPostings(doc_ids)
         }
     }
 
 }
+//
+// impl Postings for SegmentPostings {
+//     fn skip_next(&mut self, target: DocId) -> Option<DocId> {
+//         loop {
+//             match Iterator::next(self) {
+//                 Some(val) if val >= target => {
+//                     return Some(val);
+//                 },
+//                 None => {
+//                     return None;
+//                 },
+//                 _ => {}
+//             }
+//         }
+//     }
+// }
 
-impl Postings for SegmentPostings {
-    fn skip_next(&mut self, target: DocId) -> Option<DocId> {
-        loop {
-            match Iterator::next(self) {
-                Some(val) if val >= target => {
-                    return Some(val);
-                },
-                None => {
-                    return None;
-                },
-                _ => {}
-            }
-        }
-    }
-}
+//
+// impl Iterator for SegmentPostings {
+//
+//     type Item = DocId;
+//
+//     fn next(&mut self,) -> Option<DocId> {
+//         if self.doc_id < self.doc_ids.len() {
+//             let res = Some(self.doc_ids[self.doc_id]);
+//             self.doc_id += 1;
+//             return res;
+//         }
+//         else {
+//             None
+//         }
+//     }
+// }
 
-
-impl Iterator for SegmentPostings {
-
-    type Item = DocId;
-
-    fn next(&mut self,) -> Option<DocId> {
-        if self.doc_id < self.doc_ids.len() {
-            let res = Some(self.doc_ids[self.doc_id]);
-            self.doc_id += 1;
-            return res;
-        }
-        else {
-            None
-        }
-    }
-}
 
 pub struct SegmentReader {
     segment_info: SegmentInfo,
@@ -165,22 +195,40 @@ impl SegmentReader {
 
     /// Returns the list of doc ids containing all of the
     /// given terms.
-    pub fn search(&self, terms: &Vec<Term>) -> IntersectionPostings<SegmentPostings> {
-        let mut segment_postings: Vec<SegmentPostings> = Vec::new();
-        for term in terms.iter() {
-            match self.get_term(term) {
+    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> SegmentPostings {
+        if terms.len() == 1 {
+            match self.get_term(&terms[0]) {
                 Some(term_info) => {
-                    let segment_posting = self.read_postings(&term_info);
-                    segment_postings.push(segment_posting);
+                    self.read_postings(&term_info)
                 }
                 None => {
-                    segment_postings.clear();
-                    segment_postings.push(SegmentPostings::empty());
-                    break;
+                    SegmentPostings::empty()
                 }
             }
         }
-        IntersectionPostings::from_postings(segment_postings)
+        else {
+            let mut segment_postings: Vec<SegmentPostings> = Vec::new();
+            {
+                let mut decode_timer = timer.open("decode_all");
+                for term in terms.iter() {
+                    match self.get_term(term) {
+                        Some(term_info) => {
+                            let decode_one_timer = decode_timer.open("decode_one");
+                            let segment_posting = self.read_postings(&term_info);
+                            segment_postings.push(segment_posting);
+                        }
+                        None => {
+                            // currently this is a strict intersection.
+                            return SegmentPostings::empty();
+                        }
+                    }
+                }
+            }
+            {
+                let mut intersection_time = timer.open("intersection");
+                intersection(segment_postings)
+            }
+        }
     }
 
 }

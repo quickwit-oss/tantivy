@@ -15,6 +15,7 @@ pub mod index;
 pub mod fastfield;
 pub mod fastdivide;
 pub mod merger;
+pub mod timer;
 
 use std::error;
 use std::io;

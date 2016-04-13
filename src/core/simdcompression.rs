@@ -1,15 +1,21 @@
 use libc::size_t;
 use std::ptr;
-// use std::cmp::min;
-// use std::iter;
 
 extern {
     // fn encode_unsorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
     // fn decode_unsorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
-    // fn intersection_native(left_data: *const u32, left_size: size_t, right_data: *const u32, right_size: size_t, output: *mut u32) -> size_t;
+    fn intersection_native(left_data: *const u32, left_size: size_t, right_data: *const u32, right_size: size_t, output: *mut u32) -> size_t;
     fn encode_sorted_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_sorted_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+}
 
+pub fn intersection(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
+    unsafe {
+        intersection_native(
+            left.as_ptr(), left.len(),
+            right.as_ptr(), right.len(),
+            output.as_mut_ptr())
+    }
 }
 
 pub struct Encoder {
