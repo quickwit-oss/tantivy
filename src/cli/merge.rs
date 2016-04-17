@@ -1,13 +1,11 @@
 extern crate argparse;
 extern crate tantivy;
 
-use argparse::{ArgumentParser, StoreTrue, Store};
+use argparse::{ArgumentParser, Store};
 use tantivy::Index;
 use std::path::Path;
 
 fn main() {
-
-    let mut verbose = false;
     let mut directory = String::from(".");
     {
         let mut ap = ArgumentParser::new();

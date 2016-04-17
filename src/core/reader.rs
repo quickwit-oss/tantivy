@@ -16,7 +16,7 @@ use core::fstmap::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
-use core::timer::OpenTimer;
+use core::timer::TimerHandle;
 use core::schema::U32Field;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
@@ -195,7 +195,7 @@ impl SegmentReader {
 
     /// Returns the list of doc ids containing all of the
     /// given terms.
-    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> SegmentPostings {
+    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: TimerHandle<'a>) -> SegmentPostings {
         if terms.len() == 1 {
             match self.get_term(&terms[0]) {
                 Some(term_info) => {
@@ -225,7 +225,7 @@ impl SegmentReader {
                 }
             }
             {
-                let mut intersection_time = timer.open("intersection");
+                let intersection_time = timer.open("intersection");
                 intersection(segment_postings)
             }
         }

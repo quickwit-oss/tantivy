@@ -41,6 +41,7 @@ pub use core::collector;
 pub use core::schema::DocId;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;
+pub use core::timer::TimerTree;
 
 
 #[cfg(test)]

@@ -72,6 +72,34 @@ impl Collector for CountCollector {
     }
 }
 
+pub struct PairCollector<'a, 'b, CollectorLeft: Collector + 'a, CollectorRight: Collector + 'b> {
+    left: &'a mut CollectorLeft,
+    right: &'b mut CollectorRight,
+}
+
+impl<'a, 'b, CollectorLeft: Collector+ 'a, CollectorRight: Collector + 'b> PairCollector<'a, 'b, CollectorLeft, CollectorRight> {
+    pub fn from(left: &'a mut CollectorLeft, right: &'b mut CollectorRight) -> PairCollector<'a, 'b, CollectorLeft, CollectorRight> {
+        PairCollector {
+            left: left,
+            right: right,
+        }
+    }
+}
+
+impl<'a, 'b, CollectorLeft: Collector + 'a, CollectorRight: Collector + 'b>
+Collector for PairCollector<'a, 'b, CollectorLeft, CollectorRight> {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
+        try!(self.left.set_segment(segment_local_id, segment));
+        try!(self.right.set_segment(segment_local_id, segment));
+        Ok(())
+    }
+
+    fn collect(&mut self, doc_id: DocId) {
+        self.left.collect(doc_id);
+        self.right.collect(doc_id);
+    }
+}
+
 pub struct MultiCollector<'a> {
     collectors: Vec<&'a mut Collector>,
 }
