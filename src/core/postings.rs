@@ -10,6 +10,7 @@ use core::simdcompression;
 use core::serialize::BinarySerializable;
 use std::io::{Read, Write};
 use std::io;
+use std::collections::HashMap;
 
 #[derive(Debug,Ord,PartialOrd,Eq,PartialEq,Clone)]
 pub struct TermInfo {
@@ -37,7 +38,7 @@ impl BinarySerializable for TermInfo {
 
 pub struct PostingsWriter {
     postings: Vec<Vec<DocId>>,
-    term_index: BTreeMap<Term, usize>,
+    term_index: HashMap<Term, usize>,
 }
 
 impl PostingsWriter {
@@ -45,7 +46,7 @@ impl PostingsWriter {
     pub fn new() -> PostingsWriter {
         PostingsWriter {
             postings: Vec::new(),
-            term_index: BTreeMap::new(),
+            term_index: HashMap::new(),
         }
     }
 
@@ -70,7 +71,9 @@ impl PostingsWriter {
     }
 
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        for (term, postings_id) in self.term_index.iter() {
+        let mut sorted_terms: Vec<(&Term, &usize)> = self.term_index.iter().collect();
+        sorted_terms.sort();
+        for (term, postings_id) in sorted_terms.into_iter() {
             let doc_ids = &self.postings[postings_id.clone()];
             let term_docfreq = doc_ids.len() as u32;
             try!(serializer.new_term(&term, term_docfreq));

@@ -21,7 +21,6 @@ use std::sync::Arc;
 use core::merger::IndexMerger;
 
 pub struct IndexWriter {
-	// segment_writers: Vec<SegmentWriter>,
 	threads: Vec<JoinHandle<()>>,
 	index: Index,
 	schema: Schema,

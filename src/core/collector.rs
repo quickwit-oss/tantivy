@@ -100,34 +100,6 @@ Collector for PairCollector<'a, 'b, CollectorLeft, CollectorRight> {
     }
 }
 
-pub struct MultiCollector<'a> {
-    collectors: Vec<&'a mut Collector>,
-}
-
-impl<'a> MultiCollector<'a> {
-    pub fn from(collectors: Vec<&'a mut Collector>) -> MultiCollector {
-        MultiCollector {
-            collectors: collectors,
-        }
-    }
-}
-
-impl<'a> Collector for MultiCollector<'a> {
-
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
-        for collector in self.collectors.iter_mut() {
-            try!(collector.set_segment(segment_local_id, segment));
-        }
-        Ok(())
-    }
-
-    fn collect(&mut self, doc_id: DocId) {
-        for collector in self.collectors.iter_mut() {
-            collector.collect(doc_id);
-        }
-    }
-}
-
 pub struct TestCollector {
     offset: DocId,
     segment_max_doc: DocId,
@@ -215,15 +187,4 @@ mod tests {
         });
     }
 
-    // #[bench]
-    // fn build_first_3_collector(b: &mut Bencher) {
-    //     b.iter(|| {
-    //         let mut first3collector = FirstNCollector::with_limit(3);
-    //         let docs: Vec<u32> = (0..1_000_000).collect();
-    //         for doc in docs {
-    //             first3collector.collect(doc);
-    //         }
-    //         first3collector.docs()
-    //     });
-    // }
 }

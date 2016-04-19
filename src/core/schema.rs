@@ -11,6 +11,7 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use std::ops::BitOr;
 use std::borrow::Borrow;
+use std::convert::AsRef;
 
 /// u32 identifying a document within a segment.
 /// Document gets their doc id assigned incrementally,
@@ -207,6 +208,12 @@ impl BinarySerializable for TextFieldValue {
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term {
     data: Vec<u8>,
+}
+
+impl AsRef<[u8]> for Term {
+     fn as_ref(&self) -> &[u8] {
+         self.data.as_ref()
+     }
 }
 
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
