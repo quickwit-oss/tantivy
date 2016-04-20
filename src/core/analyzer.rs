@@ -1,6 +1,7 @@
 extern crate regex;
 
 use std::str::Chars;
+use std::ascii::AsciiExt;
 
 pub struct TokenIter<'a> {
     chars: Chars<'a>,
@@ -8,9 +9,10 @@ pub struct TokenIter<'a> {
 }
 
 fn append_char_lowercase(c: char, term_buffer: &mut String) {
-    for c_lower in c.to_lowercase() {
-        term_buffer.push(c_lower);
-    }
+    term_buffer.push(c.to_ascii_lowercase());
+    // for c_lower in c.to_lowercase() {
+    //     term_buffer.push(c_lower);
+    // }
 }
 
 pub trait StreamingIterator<'a, T> {
