@@ -10,9 +10,6 @@ pub struct TokenIter<'a> {
 
 fn append_char_lowercase(c: char, term_buffer: &mut String) {
     term_buffer.push(c.to_ascii_lowercase());
-    // for c_lower in c.to_lowercase() {
-    //     term_buffer.push(c_lower);
-    // }
 }
 
 pub trait StreamingIterator<'a, T> {

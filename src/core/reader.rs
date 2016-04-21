@@ -9,7 +9,6 @@ use core::schema::DocId;
 use core::index::SegmentComponent;
 use core::simdcompression::Decoder;
 use std::io;
-use std::iter;
 use std::str;
 use core::postings::TermInfo;
 use core::fstmap::FstMap;

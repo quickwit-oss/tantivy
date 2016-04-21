@@ -1,6 +1,5 @@
 use core::schema::DocId;
 use std::ptr;
-use std::collections::BTreeMap;
 use core::schema::Term;
 use core::fstmap::FstMapBuilder;
 use core::index::Segment;
