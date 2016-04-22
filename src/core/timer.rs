@@ -80,7 +80,7 @@ fn to_json_array(timings: &[Timing], root_depth: u32) -> Json {
            .map(|(offset, _)| offset) {
                offsets.push(offset + 1);
     }
-    let mut items: Vec<Json> = offsets.iter()
+    let items: Vec<Json> = offsets.iter()
             .zip(offsets[1..].iter())
             .map(|(&start, &stop)| to_json_obj(&timings[start..stop], root_depth))
             .collect();

@@ -37,7 +37,7 @@ pub fn intersection(mut postings: Vec<SegmentPostings>) -> SegmentPostings {
         .map(|v| v.len())
         .min()
         .unwrap();
-    let mut buffer: Vec<u32> = postings.pop().unwrap().0;
+    let buffer: Vec<u32> = postings.pop().unwrap().0;
     let mut output: Vec<u32> = Vec::with_capacity(min_len);
     unsafe { output.set_len(min_len); }
     let mut pair = (output, buffer);

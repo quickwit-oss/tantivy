@@ -20,5 +20,5 @@ fn main() {
     let mut index_writer = index.writer().unwrap();
     let segments = index.segments();
     println!("Merging {} segments", segments.len());
-    index_writer.merge(&segments);
+    index_writer.merge(&segments).unwrap();
 }
