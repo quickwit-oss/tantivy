@@ -2,7 +2,6 @@ use core::index::{Segment, SegmentId};
 use core::schema::Term;
 use core::store::StoreReader;
 use core::schema::Document;
-use core::postings::IntersectionPostings;
 use core::directory::ReadOnlySource;
 use std::io::Cursor;
 use core::schema::DocId;

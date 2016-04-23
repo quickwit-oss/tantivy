@@ -238,7 +238,7 @@ pub struct SegmentInfo {
 pub enum SegmentComponent {
     INFO,
     POSTINGS,
-    // POSITIONS,
+    POSITIONS,
     FASTFIELDS,
     TERMS,
     STORE,
@@ -264,7 +264,7 @@ impl Segment {
 
     fn path_suffix(component: &SegmentComponent)-> &'static str {
         match *component {
-            // SegmentComponent::POSITIONS => ".pos",
+            SegmentComponent::POSITIONS => ".pos",
             SegmentComponent::INFO => ".info",
             SegmentComponent::POSTINGS => ".idx",
             SegmentComponent::TERMS => ".term",

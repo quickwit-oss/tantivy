@@ -159,11 +159,13 @@ impl SegmentWriter {
 			let field_options = schema.text_field_options(&field_value.field);
 			if field_options.is_tokenized_indexed() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
+				let mut pos = 0u32;
 				loop {
 					match tokens.next() {
 						Some(token) => {
 							let term = Term::from_field_text(&field_value.field, token);
-							self.postings_writer.suscribe(doc_id, term);
+							self.postings_writer.suscribe(doc_id, pos.clone(), term);
+							pos += 1;
 						},
 						None => { break; }
 					}
@@ -174,7 +176,7 @@ impl SegmentWriter {
             let field_options = schema.u32_field_options(&field_value.field);
             if field_options.is_indexed() {
                 let term = Term::from_field_u32(&field_value.field, field_value.value);
-                self.postings_writer.suscribe(doc_id, term);
+                self.postings_writer.suscribe(doc_id, 0.clone(), term);
             }
 		}
 		self.fast_field_writers.add_document(&doc);

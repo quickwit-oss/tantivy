@@ -35,8 +35,85 @@ impl BinarySerializable for TermInfo {
 }
 
 
+pub trait U32sRecorder {
+    fn new() -> Self;
+    fn record(&mut self, val: u32);
+}
+
+pub struct VecRecorder(Vec<u32>);
+
+impl U32sRecorder for VecRecorder {
+    fn new() -> VecRecorder {
+        VecRecorder(Vec::new())
+    }
+    fn record(&mut self, val: u32) {
+        self.0.push(val);
+    }
+}
+
+pub struct ObliviousRecorder;
+
+impl U32sRecorder for ObliviousRecorder {
+    fn new() -> ObliviousRecorder {
+        ObliviousRecorder
+    }
+    fn record(&mut self, val: u32) {
+    }
+}
+
+struct TermPostingsWriter<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> {
+    doc_ids: Vec<DocId>,
+    term_freqs: TermFreqsRec,
+    positions: PositionsRec,
+    current_freq: u32,
+}
+
+impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<TermFreqsRec, PositionsRec> {
+    pub fn new() -> TermPostingsWriter<TermFreqsRec, PositionsRec> {
+        TermPostingsWriter {
+            doc_ids: Vec::new(),
+            term_freqs: TermFreqsRec::new(),
+            positions: PositionsRec::new(),
+            current_freq: 0,
+        }
+    }
+
+    fn close_doc(&mut self,) {
+        self.term_freqs.record(self.current_freq);
+        self.current_freq = 0;
+    }
+
+    fn close(&mut self,) {
+        if self.current_freq > 0 {
+            self.close_doc();
+        }
+    }
+
+    fn is_new_doc(&self, doc: &DocId) -> bool {
+        match self.doc_ids.last() {
+            Some(&last_doc) => last_doc != *doc,
+            None => true,
+        }
+    }
+
+    pub fn doc_freq(&self) -> u32 {
+        self.doc_ids.len() as u32
+    }
+
+    pub fn suscribe(&mut self, doc: DocId, pos: u32) {
+        if self.is_new_doc(&doc) {
+            // this is the first time we meet this term for this document
+            // first close the previous document, and write its doc_freq.
+            self.close_doc();
+            self.doc_ids.push(doc);
+		}
+        self.current_freq += 1;
+        self.positions.record(pos);
+    }
+}
+
 pub struct PostingsWriter {
-    postings: Vec<Vec<DocId>>,
+    postings: Vec<TermPostingsWriter<ObliviousRecorder, ObliviousRecorder>>,
     term_index: BTreeMap<Term, usize>,
 }
 
@@ -49,14 +126,12 @@ impl PostingsWriter {
         }
     }
 
-    pub fn suscribe(&mut self, doc: DocId, term: Term) {
-        let doc_ids: &mut Vec<DocId> = self.get_term_postings(term);
-        if doc_ids.len() == 0 || doc_ids[doc_ids.len() - 1] < doc {
-			doc_ids.push(doc);
-		}
+    pub fn suscribe(&mut self, doc: DocId, pos: u32, term: Term) {
+        let doc_ids: &mut TermPostingsWriter<ObliviousRecorder, ObliviousRecorder> = self.get_term_postings(term);
+        doc_ids.suscribe(doc, pos);
     }
 
-    fn get_term_postings(&mut self, term: Term) -> &mut Vec<DocId> {
+    fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<ObliviousRecorder, ObliviousRecorder> {
         match self.term_index.get(&term) {
             Some(unord_id) => {
                 return &mut self.postings[*unord_id];
@@ -64,17 +139,17 @@ impl PostingsWriter {
             None => {}
         }
         let unord_id = self.term_index.len();
-        self.postings.push(Vec::new());
+        self.postings.push(TermPostingsWriter::new());
         self.term_index.insert(term, unord_id.clone());
         &mut self.postings[unord_id]
     }
 
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
         for (term, postings_id) in self.term_index.iter() {
-            let doc_ids = &self.postings[postings_id.clone()];
-            let term_docfreq = doc_ids.len() as u32;
+            let term_postings_writer = &self.postings[postings_id.clone()];
+            let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(&term, term_docfreq));
-            try!(serializer.write_docs(&doc_ids));
+            try!(serializer.write_docs(&term_postings_writer.doc_ids));
         }
         Ok(())
     }
@@ -93,60 +168,62 @@ pub trait Postings: Iterator<Item=DocId> {
     fn skip_next(&mut self, target: DocId) -> Option<DocId>;
 }
 
-pub struct IntersectionPostings<T: Postings> {
-    postings: Vec<T>,
-}
-
-impl<T: Postings> IntersectionPostings<T> {
-    pub fn from_postings(postings: Vec<T>) -> IntersectionPostings<T> {
-        IntersectionPostings {
-            postings: postings,
-        }
-    }
-}
-
-impl<T: Postings> Iterator for IntersectionPostings<T> {
-    type Item = DocId;
-    fn next(&mut self,) -> Option<DocId> {
-        let mut candidate;
-        match self.postings[0].next() {
-            Some(val) => {
-                candidate = val;
-            },
-            None => {
-                return None;
-            }
-        }
-        'outer: loop {
-            for i in 1..self.postings.len() {
-                let skip_result = self.postings[i].skip_next(candidate);
-                match skip_result {
-                    None => {
-                        return None;
-                    },
-                    Some(x) if x == candidate => {
-                    },
-                    Some(greater) => {
-                        unsafe {
-                            let pa: *mut T = &mut self.postings[i];
-                            let pb: *mut T = &mut self.postings[0];
-                            ptr::swap(pa, pb);
-                        }
-                        candidate = greater;
-                        continue 'outer;
-                    },
-                }
-            }
-            return Some(candidate);
-        }
-
-    }
-}
+// pub struct IntersectionPostings<T: Postings> {
+//     postings: Vec<T>,
+// }
+//
+// impl<T: Postings> IntersectionPostings<T> {
+//     pub fn from_postings(postings: Vec<T>) -> IntersectionPostings<T> {
+//         IntersectionPostings {
+//             postings: postings,
+//         }
+//     }
+// }
+//
+// impl<T: Postings> Iterator for IntersectionPostings<T> {
+//     type Item = DocId;
+//     fn next(&mut self,) -> Option<DocId> {
+//         let mut candidate;
+//         match self.postings[0].next() {
+//             Some(val) => {
+//                 candidate = val;
+//             },
+//             None => {
+//                 return None;
+//             }
+//         }
+//         'outer: loop {
+//             for i in 1..self.postings.len() {
+//                 let skip_result = self.postings[i].skip_next(candidate);
+//                 match skip_result {
+//                     None => {
+//                         return None;
+//                     },
+//                     Some(x) if x == candidate => {
+//                     },
+//                     Some(greater) => {
+//                         unsafe {
+//                             let pa: *mut T = &mut self.postings[i];
+//                             let pb: *mut T = &mut self.postings[0];
+//                             ptr::swap(pa, pb);
+//                         }
+//                         candidate = greater;
+//                         continue 'outer;
+//                     },
+//                 }
+//             }
+//             return Some(candidate);
+//         }
+//
+//     }
+// }
 
 pub struct PostingsSerializer {
     terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
     postings_write: WritePtr,
+    positions_write: WritePtr,
     written_bytes_postings: usize,
+    written_bytes_positions: usize,
     encoder: simdcompression::Encoder,
 }
 
@@ -156,10 +233,13 @@ impl PostingsSerializer {
         let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
+        let positions_write = try!(segment.open_write(SegmentComponent::POSITIONS));
         Ok(PostingsSerializer {
             terms_fst_builder: terms_fst_builder,
             postings_write: postings_write,
+            positions_write: positions_write,
             written_bytes_postings: 0,
+            written_bytes_positions: 0,
             encoder: simdcompression::Encoder::new(),
         })
     }
@@ -246,32 +326,32 @@ mod tests {
     		}
     	}
     }
-
-    #[test]
-    fn test_intersection() {
-        {
-            let left = VecPostings::new(vec!(1, 3, 9));
-            let right = VecPostings::new(vec!(3, 4, 9, 18));
-            let inter = IntersectionPostings::from_postings(vec!(left, right));
-            let vals: Vec<DocId> = inter.collect();
-            assert_eq!(vals, vec!(3, 9));
-        }
-        {
-            let a = VecPostings::new(vec!(1, 3, 9));
-            let b = VecPostings::new(vec!(3, 4, 9, 18));
-            let c = VecPostings::new(vec!(1, 5, 9, 111));
-            let inter = IntersectionPostings::from_postings(vec!(a, b, c));
-            let vals: Vec<DocId> = inter.collect();
-            assert_eq!(vals, vec!(9));
-        }
-    }
-
-    #[bench]
-    fn bench_single_intersection(b: &mut Bencher) {
-        b.iter(|| {
-            let docs = VecPostings::new((0..1_000_000).collect());
-            let intersection = IntersectionPostings::from_postings(vec!(docs));
-            intersection.count()
-        });
-    }
+    //
+    // #[test]
+    // fn test_intersection() {
+    //     {
+    //         let left = VecPostings::new(vec!(1, 3, 9));
+    //         let right = VecPostings::new(vec!(3, 4, 9, 18));
+    //         let inter = IntersectionPostings::from_postings(vec!(left, right));
+    //         let vals: Vec<DocId> = inter.collect();
+    //         assert_eq!(vals, vec!(3, 9));
+    //     }
+    //     {
+    //         let a = VecPostings::new(vec!(1, 3, 9));
+    //         let b = VecPostings::new(vec!(3, 4, 9, 18));
+    //         let c = VecPostings::new(vec!(1, 5, 9, 111));
+    //         let inter = IntersectionPostings::from_postings(vec!(a, b, c));
+    //         let vals: Vec<DocId> = inter.collect();
+    //         assert_eq!(vals, vec!(9));
+    //     }
+    // }
+    //
+    // #[bench]
+    // fn bench_single_intersection(b: &mut Bencher) {
+    //     b.iter(|| {
+    //         let docs = VecPostings::new((0..1_000_000).collect());
+    //         let intersection = IntersectionPostings::from_postings(vec!(docs));
+    //         intersection.count()
+    //     });
+    // }
 }
