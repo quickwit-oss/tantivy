@@ -149,7 +149,10 @@ impl PostingsWriter {
             let term_postings_writer = &self.postings[postings_id.clone()];
             let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(&term, term_docfreq));
-            try!(serializer.write_docs(&term_postings_writer.doc_ids));
+            for doc in term_postings_writer.doc_ids.iter() {
+                try!(serializer.write_doc(doc.clone(), None));
+            }
+
         }
         Ok(())
     }
@@ -225,6 +228,7 @@ pub struct PostingsSerializer {
     written_bytes_postings: usize,
     written_bytes_positions: usize,
     encoder: simdcompression::Encoder,
+    doc_ids: Vec<DocId>,
 }
 
 impl PostingsSerializer {
@@ -241,10 +245,13 @@ impl PostingsSerializer {
             written_bytes_postings: 0,
             written_bytes_positions: 0,
             encoder: simdcompression::Encoder::new(),
+            doc_ids: Vec::new(),
         })
     }
 
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
+        try!(self.close_term());
+        self.doc_ids.clear();
         let term_info = TermInfo {
             doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
@@ -253,16 +260,33 @@ impl PostingsSerializer {
             .insert(term.as_slice(), &term_info)
     }
 
-    pub fn write_docs(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
-        let docs_data = self.encoder.encode_sorted(doc_ids);
-        self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
-        for num in docs_data {
-            self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+    pub fn close_term(&mut self,) -> io::Result<()> {
+        if !self.doc_ids.is_empty() {
+            let docs_data = self.encoder.encode_sorted(&self.doc_ids);
+            self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
+            for num in docs_data {
+                self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+            }
         }
         Ok(())
     }
 
+    pub fn write_doc(&mut self, doc_id: DocId, positions: Option<&[u32]>) -> io::Result<()> {
+        self.doc_ids.push(doc_id);
+        Ok(())
+    }
+
+    // pub fn add_doc(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
+    //     let docs_data = self.encoder.encode_sorted(doc_ids);
+    //     self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
+    //     for num in docs_data {
+    //         self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+    //     }
+    //     Ok(())
+    // }
+
     pub fn close(mut self,) -> io::Result<()> {
+        try!(self.close_term());
         try!(self.terms_fst_builder.finish());
         try!(self.postings_write.flush());
         Ok(())
