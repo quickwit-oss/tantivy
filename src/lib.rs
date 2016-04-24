@@ -19,7 +19,6 @@ extern crate atomicwrites;
 extern crate tempdir;
 extern crate bincode;
 extern crate time;
-extern crate serde;
 extern crate libc;
 extern crate lz4;
 extern crate uuid;
