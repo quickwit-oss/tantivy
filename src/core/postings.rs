@@ -65,6 +65,7 @@ struct TermPostingsWriter<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder
     doc_ids: Vec<DocId>,
     term_freqs: TermFreqsRec,
     positions: PositionsRec,
+    current_position: u32,
     current_freq: u32,
 }
 
@@ -74,13 +75,15 @@ impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<
             doc_ids: Vec::new(),
             term_freqs: TermFreqsRec::new(),
             positions: PositionsRec::new(),
-            current_freq: 0,
+            current_position: 0u32,
+            current_freq: 0u32,
         }
     }
 
     fn close_doc(&mut self,) {
         self.term_freqs.record(self.current_freq);
         self.current_freq = 0;
+        self.current_position = 0;
     }
 
     fn close(&mut self,) {
@@ -108,7 +111,8 @@ impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<
             self.doc_ids.push(doc);
 		}
         self.current_freq += 1;
-        self.positions.record(pos);
+        self.positions.record(pos - self.current_position);
+        self.current_position = pos;
     }
 }
 
@@ -152,7 +156,6 @@ impl PostingsWriter {
             for doc in term_postings_writer.doc_ids.iter() {
                 try!(serializer.write_doc(doc.clone(), None));
             }
-
         }
         Ok(())
     }
@@ -171,55 +174,6 @@ pub trait Postings: Iterator<Item=DocId> {
     fn skip_next(&mut self, target: DocId) -> Option<DocId>;
 }
 
-// pub struct IntersectionPostings<T: Postings> {
-//     postings: Vec<T>,
-// }
-//
-// impl<T: Postings> IntersectionPostings<T> {
-//     pub fn from_postings(postings: Vec<T>) -> IntersectionPostings<T> {
-//         IntersectionPostings {
-//             postings: postings,
-//         }
-//     }
-// }
-//
-// impl<T: Postings> Iterator for IntersectionPostings<T> {
-//     type Item = DocId;
-//     fn next(&mut self,) -> Option<DocId> {
-//         let mut candidate;
-//         match self.postings[0].next() {
-//             Some(val) => {
-//                 candidate = val;
-//             },
-//             None => {
-//                 return None;
-//             }
-//         }
-//         'outer: loop {
-//             for i in 1..self.postings.len() {
-//                 let skip_result = self.postings[i].skip_next(candidate);
-//                 match skip_result {
-//                     None => {
-//                         return None;
-//                     },
-//                     Some(x) if x == candidate => {
-//                     },
-//                     Some(greater) => {
-//                         unsafe {
-//                             let pa: *mut T = &mut self.postings[i];
-//                             let pb: *mut T = &mut self.postings[0];
-//                             ptr::swap(pa, pb);
-//                         }
-//                         candidate = greater;
-//                         continue 'outer;
-//                     },
-//                 }
-//             }
-//             return Some(candidate);
-//         }
-//
-//     }
-// }
 
 pub struct PostingsSerializer {
     terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
@@ -276,14 +230,6 @@ impl PostingsSerializer {
         Ok(())
     }
 
-    // pub fn add_doc(&mut self, doc_ids: &[DocId]) -> io::Result<()> {
-    //     let docs_data = self.encoder.encode_sorted(doc_ids);
-    //     self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
-    //     for num in docs_data {
-    //         self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
-    //     }
-    //     Ok(())
-    // }
 
     pub fn close(mut self,) -> io::Result<()> {
         try!(self.close_term());

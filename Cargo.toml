@@ -34,3 +34,11 @@ gcc = "0.3.24"
 [[bin]]
 name = "tantivy-merge"
 path = "src/cli/merge.rs"
+
+# [profile.release]
+# opt-level = 3
+# debug = true
+# rpath = false
+# lto = false
+# debug-assertions = false
+# codegen-units = 1
