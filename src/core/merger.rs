@@ -12,7 +12,7 @@ use std::collections::BinaryHeap;
 use datastruct::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
-use core::fastfield::FastFieldSerializer;
+use fastfield::FastFieldSerializer;
 use core::store::StoreWriter;
 use core::index::SegmentInfo;
 use std::cmp::Ordering;

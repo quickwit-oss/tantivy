@@ -2,7 +2,7 @@ use DocId;
 use core::reader::SegmentReader;
 use core::searcher::SegmentLocalId;
 use core::searcher::DocAddress;
-use core::fastfield::U32FastFieldReader;
+use fastfield::U32FastFieldReader;
 use core::schema::U32Field;
 use std::io;
 

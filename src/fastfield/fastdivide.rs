@@ -5,6 +5,7 @@ use std::num::Wrapping;
 // ported from  libdivide.h by ridiculous_fish
 
 
+
 const LIBDIVIDE_32_SHIFT_MASK: u8 = 0x1F;
 const LIBDIVIDE_ADD_MARKER: u8 = 0x40;
 const LIBDIVIDE_U32_SHIFT_PATH: u8 = 0x80;

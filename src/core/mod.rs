@@ -8,8 +8,6 @@ pub mod collector;
 pub mod serialize;
 pub mod store;
 pub mod index;
-pub mod fastfield;
-pub mod fastdivide;
 pub mod merger;
 pub mod timer;
 

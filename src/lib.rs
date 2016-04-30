@@ -32,6 +32,7 @@ mod datastruct;
 mod postings;
 mod directory;
 mod compression;
+mod fastfield;
 
 pub use directory::Directory;
 pub use core::analyzer;

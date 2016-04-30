@@ -8,7 +8,7 @@ use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use postings::PostingsWriter;
-use core::fastfield::U32FastFieldsWriter;
+use fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use std::sync::mpsc;
 use std::thread;

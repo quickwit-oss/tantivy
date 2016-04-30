@@ -17,8 +17,7 @@ use core::timer::OpenTimer;
 use core::schema::U32Field;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
-use core::fastfield::U32FastFieldsReader;
-use core::fastfield::U32FastFieldReader;
+use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use compression;
 use std::mem;
 

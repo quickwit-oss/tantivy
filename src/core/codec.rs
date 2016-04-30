@@ -4,7 +4,7 @@ use rustc_serialize::json;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use core::index::SegmentComponent;
-use core::fastfield::FastFieldSerializer;
+use fastfield::FastFieldSerializer;
 use core::store::StoreWriter;
 use core::convert_to_ioerror;
 
