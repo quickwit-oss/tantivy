@@ -13,7 +13,7 @@ use datastruct::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
 use fastfield::FastFieldSerializer;
-use core::store::StoreWriter;
+use store::StoreWriter;
 use core::index::SegmentInfo;
 use std::cmp::Ordering;
 use core::schema::U32Field;

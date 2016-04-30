@@ -33,6 +33,7 @@ mod postings;
 mod directory;
 mod compression;
 mod fastfield;
+mod store;
 
 pub use directory::Directory;
 pub use core::analyzer;

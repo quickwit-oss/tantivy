@@ -1,6 +1,6 @@
 use core::index::{Segment, SegmentId};
 use core::schema::Term;
-use core::store::StoreReader;
+use store::StoreReader;
 use core::schema::Document;
 use directory::ReadOnlySource;
 use std::io::Cursor;

@@ -5,7 +5,7 @@ use core::index::Segment;
 use core::index::SegmentInfo;
 use core::index::SegmentComponent;
 use fastfield::FastFieldSerializer;
-use core::store::StoreWriter;
+use store::StoreWriter;
 use core::convert_to_ioerror;
 
 use postings::PostingsSerializer;
