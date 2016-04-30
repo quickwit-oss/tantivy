@@ -28,19 +28,26 @@ extern crate num_cpus;
 #[cfg(test)] extern crate rand;
 
 mod core;
+mod datastruct;
+mod postings;
+mod directory;
+mod compression;
 
+pub use directory::Directory;
 pub use core::analyzer;
-pub use core::directory::Directory;
 pub use core::searcher::Searcher;
 pub use core::index::Index;
 pub use core::schema;
 pub use core::schema::Term;
 pub use core::schema::Document;
 pub use core::collector;
-pub use core::schema::DocId;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;
 
+/// u32 identifying a document within a segment.
+/// Document gets their doc id assigned incrementally,
+/// as they are added in the segment.
+pub type DocId = u32;
 
 #[cfg(test)]
 mod tests {

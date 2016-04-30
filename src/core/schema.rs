@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::slice;
 use std::fmt;
 use std::io;
+
 use std::io::Read;
 use core::serialize::BinarySerializable;
 use rustc_serialize::Decodable;
@@ -12,10 +13,6 @@ use rustc_serialize::Encoder;
 use std::ops::BitOr;
 use std::borrow::Borrow;
 
-/// u32 identifying a document within a segment.
-/// Document gets their doc id assigned incrementally,
-/// as they are added in the segment.
-pub type DocId = u32;
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {

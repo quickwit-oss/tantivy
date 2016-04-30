@@ -72,10 +72,10 @@ mod tests {
             {
                 let mut ab = a.open("b");
                 {
-                    let abc = ab.open("c");
+                    let _abc = ab.open("c");
                 }
                 {
-                    let abd = ab.open("d");
+                    let _abd = ab.open("d");
                 }
             }
         }

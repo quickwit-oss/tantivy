@@ -1,10 +1,10 @@
-use core::directory::WritePtr;
+use directory::{WritePtr, ReadOnlySource};
 use std::cell::RefCell;
-use core::schema::DocId;
+use DocId;
 use core::schema::Document;
 use core::schema::TextFieldValue;
 use core::serialize::BinarySerializable;
-use core::directory::ReadOnlySource;
+
 use std::io::Write;
 use std::io::Read;
 use std::io::Cursor;
@@ -212,7 +212,7 @@ mod tests {
     use core::schema::Schema;
     use core::schema::TextOptions;
     use core::schema::TextFieldValue;
-    use core::directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
+    use directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
         let mut schema = Schema::new();

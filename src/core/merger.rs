@@ -1,13 +1,15 @@
 use std::io;
 use core::reader::SegmentReader;
 use core::index::Segment;
-use core::schema::DocId;
+use DocId;
 use core::index::SerializableSegment;
 use core::codec::SegmentSerializer;
-use core::postings::PostingsSerializer;
-use core::postings::TermInfo;
+
+use postings::PostingsSerializer;
+use postings::TermInfo;
+
 use std::collections::BinaryHeap;
-use core::fstmap::FstMapIter;
+use datastruct::FstMapIter;
 use core::schema::Term;
 use core::schema::Schema;
 use core::fastfield::FastFieldSerializer;

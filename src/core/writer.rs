@@ -1,3 +1,4 @@
+use DocId;
 use core::schema::*;
 use core::codec::*;
 use core::index::Index;
@@ -6,7 +7,7 @@ use core::index::SerializableSegment;
 use core::analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
-use core::postings::PostingsWriter;
+use postings::PostingsWriter;
 use core::fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use std::sync::mpsc;

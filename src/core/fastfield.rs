@@ -1,12 +1,9 @@
-use std::io::Write;
 use std::io;
-use std::io::SeekFrom;
-use std::io::Seek;
-use core::directory::WritePtr;
+use std::io::{SeekFrom, Seek, Write};
+use directory::{WritePtr, ReadOnlySource};
 use core::serialize::BinarySerializable;
-use core::directory::ReadOnlySource;
 use std::collections::HashMap;
-use core::schema::DocId;
+use DocId;
 use core::schema::Schema;
 use core::schema::Document;
 use std::ops::Deref;
@@ -281,10 +278,8 @@ mod tests {
     use super::U32FastFieldsWriter;
     use core::schema::U32Field;
     use std::path::Path;
-    use core::directory::WritePtr;
-    use core::directory::Directory;
+    use directory::{Directory, WritePtr, RAMDirectory};
     use core::schema::Document;
-    use core::directory::RAMDirectory;
     use core::schema::Schema;
     use core::schema::FAST_U32;
     use core::fastfield::FastFieldSerializer;

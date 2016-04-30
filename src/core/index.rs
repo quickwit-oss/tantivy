@@ -1,14 +1,14 @@
 use std::path::{PathBuf, Path};
 use std::io;
 use core::schema::Schema;
-use core::schema::DocId;
+use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use rustc_serialize::json;
 use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
-use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
+use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;

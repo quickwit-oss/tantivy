@@ -1,13 +1,11 @@
 extern crate argparse;
 extern crate tantivy;
 
-use argparse::{ArgumentParser, StoreTrue, Store};
+use argparse::{ArgumentParser, Store};
 use tantivy::Index;
 use std::path::Path;
 
 fn main() {
-
-    let mut verbose = false;
     let mut directory = String::from(".");
     {
         let mut ap = ArgumentParser::new();
@@ -22,5 +20,5 @@ fn main() {
     let mut index_writer = index.writer().unwrap();
     let segments = index.segments();
     println!("Merging {} segments", segments.len());
-    index_writer.merge(&segments);
+    index_writer.merge(&segments).unwrap();
 }

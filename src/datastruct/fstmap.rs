@@ -5,7 +5,8 @@ use std::io::Cursor;
 use fst;
 use fst::raw::Fst;
 use fst::Streamer;
-use core::directory::ReadOnlySource;
+
+use directory::ReadOnlySource;
 use core::serialize::BinarySerializable;
 use std::marker::PhantomData;
 
@@ -125,9 +126,8 @@ impl<V: BinarySerializable> FstMap<V> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::directory::{RAMDirectory, Directory};
+    use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
-
     use fst::Streamer;
 
     #[test]
