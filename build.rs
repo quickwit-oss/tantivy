@@ -1,6 +1,13 @@
 extern crate gcc;
 
+
+use std::process::Command;
+
 fn main() {
+    Command::new("make")
+        .current_dir("cpp/SIMDCompressionAndIntersection")
+        .output()
+        .unwrap_or_else(|e| { panic!("Failed to make SIMDCompressionAndIntersection: {}", e) });
     gcc::Config::new()
                 .cpp(true)
                 .flag("-std=c++11")
