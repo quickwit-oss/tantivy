@@ -11,6 +11,7 @@ mod vints;
 pub use self::vints::{SortedVIntsEncoder, SortedVIntsDecoder};
 
 
+pub const NUM_DOCS_PER_BLOCK: usize = 128;
 
 #[cfg(test)]
 pub mod tests {

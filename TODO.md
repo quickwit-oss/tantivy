@@ -8,3 +8,4 @@ split postings into blocks
 add term frequency
 use skip list for each blocks
 find a clear way to put the tokenized/untokenized thing upstream
+index frequent bigrams

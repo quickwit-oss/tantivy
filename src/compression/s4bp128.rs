@@ -2,6 +2,8 @@
 use libc::size_t;
 use std::ptr;
 
+
+
 extern {
     // complete s4-bp128-dm
     fn encode_s4_bp128_dm_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;

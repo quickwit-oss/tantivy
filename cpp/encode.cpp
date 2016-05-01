@@ -36,14 +36,16 @@ extern "C" {
         return output_length;
   }
 
+  // returns the number of byte that have been read.
   size_t decode_sorted_block128_native(
     const uint32_t* compressed_data,
     const size_t compressed_size,
     uint32_t* uncompressed,
-    const size_t uncompressed_capacity) {
-      size_t num_ints = uncompressed_capacity;
-      simd_pack_sorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
-      return num_ints;
+    size_t& num_ints) {
+      // size_t num_ints = uncompressed_capacity;
+      const uint32_t* pointer_end = simd_pack_sorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+      return static_cast<size_t>(pointer_end - compressed_data);
+
   }
 
   size_t encode_sorted_vint_native(
