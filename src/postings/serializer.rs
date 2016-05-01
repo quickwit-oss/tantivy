@@ -1,6 +1,6 @@
 use datastruct::FstMapBuilder;
 use super::TermInfo;
-use core::schema::Term;
+use schema::Term;
 use directory::WritePtr;
 use compression;
 use DocId;

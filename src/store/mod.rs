@@ -14,9 +14,9 @@ mod tests {
     use super::*;
     use test::Bencher;
     use std::path::PathBuf;
-    use core::schema::Schema;
-    use core::schema::TextOptions;
-    use core::schema::TextFieldValue;
+    use schema::Schema;
+    use schema::TextOptions;
+    use schema::TextFieldValue;
     use directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {

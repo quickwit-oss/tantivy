@@ -2,11 +2,10 @@ use core::reader::SegmentReader;
 use core::index::Index;
 use core::index::Segment;
 use DocId;
-use core::schema::Document;
+use schema::{Document, Term};
 use core::collector::Collector;
 use std::io;
 use core::timer::TimerTree;
-use core::schema::Term;
 
 #[derive(Debug)]
 pub struct Searcher {

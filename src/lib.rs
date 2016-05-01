@@ -34,14 +34,14 @@ mod directory;
 mod compression;
 mod fastfield;
 mod store;
+pub mod schema;
 
 pub use directory::Directory;
 pub use core::analyzer;
 pub use core::searcher::Searcher;
 pub use core::index::Index;
-pub use core::schema;
-pub use core::schema::Term;
-pub use core::schema::Document;
+pub use schema::Term;
+pub use schema::Document;
 pub use core::collector;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;

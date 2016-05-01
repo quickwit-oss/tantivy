@@ -1,7 +1,7 @@
 use core::index::{Segment, SegmentId};
-use core::schema::Term;
+use schema::Term;
 use store::StoreReader;
-use core::schema::Document;
+use schema::Document;
 use directory::ReadOnlySource;
 use std::io::Cursor;
 use DocId;
@@ -14,7 +14,7 @@ use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
 use core::timer::OpenTimer;
-use core::schema::U32Field;
+use schema::U32Field;
 use core::convert_to_ioerror;
 use core::serialize::BinarySerializable;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};

@@ -1,6 +1,6 @@
 use core::serialize::BinarySerializable;
 use directory::WritePtr;
-use core::schema::U32Field;
+use schema::U32Field;
 use std::io;
 use std::io::{SeekFrom, Write};
 use super::compute_num_bits;

@@ -22,12 +22,12 @@ mod tests {
     use super::U32FastFieldsReader;
     use super::U32FastFieldsWriter;
     use super::FastFieldSerializer;
-    use core::schema::U32Field;
+    use schema::U32Field;
     use std::path::Path;
     use directory::{Directory, WritePtr, RAMDirectory};
-    use core::schema::Document;
-    use core::schema::Schema;
-    use core::schema::FAST_U32;
+    use schema::Document;
+    use schema::Schema;
+    use schema::FAST_U32;
     use test::Bencher;
     use test;
     use rand::Rng;

@@ -1,4 +1,4 @@
-use core::schema::{Schema, U32Field, Document};
+use schema::{Schema, U32Field, Document};
 use fastfield::FastFieldSerializer;
 use std::io;
 

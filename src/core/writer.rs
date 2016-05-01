@@ -1,5 +1,8 @@
 use DocId;
-use core::schema::*;
+use schema::Schema;
+use schema::Document;
+use schema::Term;
+use schema::TextFieldValue;
 use core::codec::*;
 use core::index::Index;
 use core::analyzer::SimpleTokenizer;

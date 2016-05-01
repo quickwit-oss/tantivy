@@ -3,7 +3,7 @@ use core::reader::SegmentReader;
 use core::searcher::SegmentLocalId;
 use core::searcher::DocAddress;
 use fastfield::U32FastFieldReader;
-use core::schema::U32Field;
+use schema::U32Field;
 use std::io;
 
 pub trait Collector {

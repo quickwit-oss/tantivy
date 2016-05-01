@@ -10,15 +10,11 @@ use postings::TermInfo;
 
 use std::collections::BinaryHeap;
 use datastruct::FstMapIter;
-use core::schema::Term;
-use core::schema::Schema;
+use schema::{Term, Schema, U32Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use core::index::SegmentInfo;
-use std::cmp::Ordering;
-use core::schema::U32Field;
-use std::cmp::min;
-use std::cmp::max;
+use std::cmp::{min, max, Ordering};
 
 struct PostingsMerger<'a> {
     doc_ids: Vec<DocId>,
@@ -214,10 +210,10 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
-    use core::schema;
-    use core::schema::Document;
+    use schema;
+    use schema::Document;
+    use schema::Term;
     use core::index::Index;
-    use core::schema::Term;
     use core::searcher::DocAddress;
     use core::collector::FastFieldTestCollector;
     use core::collector::TestCollector;

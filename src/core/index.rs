@@ -1,6 +1,6 @@
 use std::path::{PathBuf, Path};
 use std::io;
-use core::schema::Schema;
+use schema::Schema;
 use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};

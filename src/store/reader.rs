@@ -1,8 +1,8 @@
 use directory::ReadOnlySource;
 use std::cell::RefCell;
 use DocId;
-use core::schema::Document;
-use core::schema::TextFieldValue;
+use schema::Document;
+use schema::TextFieldValue;
 use core::serialize::BinarySerializable;
 
 use std::io::Read;

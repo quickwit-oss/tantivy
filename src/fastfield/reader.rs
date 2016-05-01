@@ -4,7 +4,7 @@ use fastfield::DividerU32;
 use core::serialize::BinarySerializable;
 use DocId;
 use std::collections::HashMap;
-use core::schema::U32Field;
+use schema::U32Field;
 use std::io::{SeekFrom, Seek};
 use std::ops::Deref;
 use super::compute_num_bits;

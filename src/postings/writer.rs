@@ -1,6 +1,6 @@
 use DocId;
 use std::collections::BTreeMap;
-use core::schema::Term;
+use schema::Term;
 use postings::PostingsSerializer;
 use std::io;
 

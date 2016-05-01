@@ -1,4 +1,3 @@
-pub mod schema;
 pub mod writer;
 pub mod analyzer;
 pub mod reader;
