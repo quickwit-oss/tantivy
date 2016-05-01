@@ -1,12 +1,14 @@
 use std::io;
+use std::io::{SeekFrom, Seek};
+use std::collections::HashMap;
+use std::ops::Deref;
+
 use directory::ReadOnlySource;
 use fastfield::DividerU32;
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use DocId;
-use std::collections::HashMap;
 use schema::U32Field;
-use std::io::{SeekFrom, Seek};
-use std::ops::Deref;
+
 use super::compute_num_bits;
 
 pub struct U32FastFieldReader {

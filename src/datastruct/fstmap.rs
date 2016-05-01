@@ -7,7 +7,7 @@ use fst::raw::Fst;
 use fst::Streamer;
 
 use directory::ReadOnlySource;
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use std::marker::PhantomData;
 
 fn convert_fst_error(e: fst::Error) -> io::Error {

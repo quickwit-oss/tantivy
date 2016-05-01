@@ -34,6 +34,8 @@ mod directory;
 mod compression;
 mod fastfield;
 mod store;
+mod common;
+
 pub mod schema;
 
 pub use directory::Directory;

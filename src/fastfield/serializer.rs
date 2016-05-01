@@ -1,4 +1,4 @@
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use directory::WritePtr;
 use schema::U32Field;
 use std::io;

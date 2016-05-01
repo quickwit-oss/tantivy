@@ -4,10 +4,8 @@ pub mod reader;
 pub mod codec;
 pub mod searcher;
 pub mod collector;
-pub mod serialize;
 pub mod index;
 pub mod merger;
-pub mod timer;
 
 use std::error;
 use std::io;

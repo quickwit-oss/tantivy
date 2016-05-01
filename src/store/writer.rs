@@ -1,7 +1,7 @@
 use directory::WritePtr;
 use DocId;
 use schema::TextFieldValue;
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use std::io::Write;
 use std::io::Read;
 use std::io;

@@ -1,4 +1,4 @@
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use std::io;
 
 #[derive(Debug,Ord,PartialOrd,Eq,PartialEq,Clone)]

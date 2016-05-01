@@ -5,7 +5,7 @@ use DocId;
 use schema::{Document, Term};
 use core::collector::Collector;
 use std::io;
-use core::timer::TimerTree;
+use common::TimerTree;
 
 #[derive(Debug)]
 pub struct Searcher {

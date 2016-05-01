@@ -7,7 +7,7 @@ use DocId;
 use core::index::Segment;
 use std::io;
 use core::index::SegmentComponent;
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 
 pub struct PostingsSerializer {
     terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"

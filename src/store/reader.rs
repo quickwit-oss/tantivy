@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use DocId;
 use schema::Document;
 use schema::TextFieldValue;
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 
 use std::io::Read;
 use std::io::Cursor;

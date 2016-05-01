@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::fmt;
 
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use super::U32Field;
 use super::TextField;
 

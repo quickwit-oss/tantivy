@@ -2,7 +2,7 @@ use std::io;
 use std::io::Write;
 use std::io::Read;
 
-use core::serialize::BinarySerializable;
+use common::BinarySerializable;
 use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
