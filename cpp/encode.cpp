@@ -40,10 +40,9 @@ extern "C" {
   size_t decode_sorted_block128_native(
     const uint32_t* compressed_data,
     const size_t compressed_size,
-    uint32_t* uncompressed,
-    size_t& num_ints) {
-      // size_t num_ints = uncompressed_capacity;
-      const uint32_t* pointer_end = simd_pack_sorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+    uint32_t* uncompressed) {
+      size_t output_capacity = 128;
+      const uint32_t* pointer_end = simd_pack_sorted.decodeArray(compressed_data, compressed_size, uncompressed, output_capacity);
       return static_cast<size_t>(pointer_end - compressed_data);
 
   }

@@ -1,26 +1,26 @@
+
 use libc::size_t;
 use std::ptr;
-use std::iter;
 
 extern {
     fn encode_sorted_block128_native(data: *mut u32, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_sorted_block128_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: &mut size_t) -> usize;
+    fn decode_sorted_block128_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32) -> usize;
 }
 
 //-------------------------
 // Block128
 
 pub struct Block128Encoder {
-    input_buffer: Vec<u32>,
-    output_buffer: Vec<u32>,
+    input_buffer: [u32; 128],
+    output_buffer: [u32; 129],
 }
 
 impl Block128Encoder {
 
     pub fn new() -> Block128Encoder {
         Block128Encoder {
-            input_buffer: Vec::with_capacity(128),
-            output_buffer: iter::repeat(0u32).take(256).collect(),
+            input_buffer: [0u32; 128],
+            output_buffer: [0u32; 129],
         }
     }
 
@@ -40,26 +40,27 @@ impl Block128Encoder {
     }
 }
 
-pub struct Block128Decoder;
+pub struct Block128Decoder {
+    output: [u32; 128],
+}
 
 impl Block128Decoder {
 
     pub fn new() -> Block128Decoder {
-        Block128Decoder
+        Block128Decoder {
+            output: [0u32; 128]
+        }
     }
 
     pub fn decode_sorted<'a, 'b>(
-          &self,
-          compressed_data: &'a [u32],
-          uncompressed_values: &'b mut [u32]) -> (&'a[u32], &'b[u32]) {
+          &'b mut self,
+          compressed_data: &'a [u32]) -> (&'a[u32], &'b[u32; 128]) {
         unsafe {
-            let mut uncompressed_len: usize = uncompressed_values.len();
             let consumed_num_bytes: usize = decode_sorted_block128_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
-                        uncompressed_values.as_mut_ptr(),
-                        &mut uncompressed_len);
-            (&compressed_data[consumed_num_bytes..], &uncompressed_values[..uncompressed_len])
+                        self.output.as_mut_ptr());
+            (&compressed_data[consumed_num_bytes..], &self.output)
         }
     }
 }
@@ -69,45 +70,49 @@ impl Block128Decoder {
 mod tests {
 
     use super::*;
-    use std::iter;
 
     #[test]
     fn test_encode_block() {
-        let mut encoder = Block128Encoder::new();
-        let expected_length = 21;
-        let input: Vec<u32> = (0u32..128u32)
-            .map(|i| i * 7 / 2)
-            .into_iter()
-            .collect();
-        let encoded_data = encoder.encode_sorted(&input);
-        assert_eq!(encoded_data.len(), expected_length);
-        let decoder = Block128Decoder::new();
-        let mut decoded_data: Vec<u32> = iter::repeat(0u32).take(128).collect();
-        let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_data[..], &mut decoded_data);
-        assert_eq!(remaining_input.len(), 0);
-        assert_eq!(128, uncompressed_values.len());
-        assert_eq!(uncompressed_values, &input[..]);
+        for num_extra_values in [0, 2, 11].into_iter() {
+            let mut encoder = Block128Encoder::new();
+            let mut input = [0u32; 128];
+            for i in 0u32..128u32 {
+                input[i as usize] = i * 7 / 2;
+            }
+            let mut encoded_vec: Vec<u32> = encoder.encode_sorted(&input).to_vec();
+            assert_eq!(encoded_vec.len(), 21);
+            for i in 0u32..*num_extra_values as u32 {
+                encoded_vec.push(i);
+            }
+            let mut decoder = Block128Decoder::new();
+            let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_vec[..]);
+            assert_eq!(remaining_input.len(), *num_extra_values);
+            for i in 0..128 {
+                assert_eq!(uncompressed_values[i], input[i]);
+            }
+            for i in 0..*num_extra_values {
+                assert_eq!(remaining_input[i], i as u32);
+            }
+        }
     }
 
-
-    #[test]
-    fn test_partial_decode_block() {
-        let mut encoder = Block128Encoder::new();
-        let expected_length = 21;
-        let input: Vec<u32> = (0u32..128u32)
-            .map(|i| i * 7 / 2)
-            .into_iter()
-            .collect();
-        let encoded_data: &[u32] = encoder.encode_sorted(&input);
-        let mut encoded_vec: Vec<u32> = encoded_data.to_vec();
-        encoded_vec.push(9u32);
-        encoded_vec.push(14u32);
-        assert_eq!(encoded_data.len(), expected_length);
-        let decoder = Block128Decoder::new();
-        let mut decoded_data: Vec<u32> = iter::repeat(0u32).take(128).collect();
-        let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_vec[..], &mut decoded_data);
-        assert_eq!(remaining_input, [9u32, 14u32]);
-        assert_eq!(128, uncompressed_values.len());
-        assert_eq!(uncompressed_values, &input[..]);
-    }
+    //
+    // #[test]
+    // fn test_partial_decode_block() {
+    //     let mut encoder = Block128Encoder::new();
+    //     let expected_length = 21;
+    //     let input: Vec<u32> = (0u32..128u32)
+    //         .map(|i| i * 7 / 2)
+    //         .into_iter()
+    //         .collect();
+    //     let encoded_data: &[u32] = encoder.encode_sorted(&input);
+    //     let mut encoded_vec: Vec<u32> = encoded_data.to_vec();
+    //     encoded_vec.push(9u32);
+    //     encoded_vec.push(14u32);
+    //     assert_eq!(encoded_data.len(), expected_length);
+    //     let decoder = Block128Decoder::new();
+    //     let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_vec[..]);
+    //     assert_eq!(remaining_input, [9u32, 14u32]);
+    //     assert_eq!(*uncompressed_values, &input[..]);
+    // }
 }

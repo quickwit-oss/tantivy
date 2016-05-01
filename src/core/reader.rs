@@ -13,8 +13,6 @@ use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
-use common::TimerTree;
-use common::Timing;
 use common::OpenTimer;
 use schema::U32Field;
 use core::convert_to_ioerror;
