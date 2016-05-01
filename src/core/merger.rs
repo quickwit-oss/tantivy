@@ -215,8 +215,8 @@ mod tests {
     use schema::Term;
     use core::index::Index;
     use core::searcher::DocAddress;
-    use core::collector::FastFieldTestCollector;
-    use core::collector::TestCollector;
+    use collector::FastFieldTestCollector;
+    use collector::TestCollector;
 
     #[test]
     fn test_index_merger() {

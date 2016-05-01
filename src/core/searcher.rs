@@ -3,7 +3,7 @@ use core::index::Index;
 use core::index::Segment;
 use DocId;
 use schema::{Document, Term};
-use core::collector::Collector;
+use collector::Collector;
 use std::io;
 use common::TimerTree;
 

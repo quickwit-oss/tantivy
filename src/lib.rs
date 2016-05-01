@@ -35,16 +35,16 @@ mod compression;
 mod fastfield;
 mod store;
 mod common;
+pub mod analyzer;
+pub mod collector;
 
 pub mod schema;
 
 pub use directory::Directory;
-pub use core::analyzer;
 pub use core::searcher::Searcher;
 pub use core::index::Index;
 pub use schema::Term;
 pub use schema::Document;
-pub use core::collector;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;
 

@@ -1,9 +1,7 @@
 pub mod writer;
-pub mod analyzer;
 pub mod reader;
 pub mod codec;
 pub mod searcher;
-pub mod collector;
 pub mod index;
 pub mod merger;
 
