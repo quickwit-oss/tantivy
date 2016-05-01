@@ -10,7 +10,7 @@ byteorder = "0.4"
 memmap = "0.2"
 lazy_static = "0.1.*"
 regex = "0.1"
-fst = { path = "../fst" }
+fst = "0.1.29"
 atomicwrites = "0.0.14"
 tempfile = "2.0.0"
 rustc-serialize = "0.3.16"
