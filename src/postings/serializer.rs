@@ -2,7 +2,7 @@ use datastruct::FstMapBuilder;
 use super::TermInfo;
 use schema::Term;
 use directory::WritePtr;
-use compression;
+use compression::S4BP128Encoder;
 use DocId;
 use core::index::Segment;
 use std::io;
@@ -15,7 +15,7 @@ pub struct PostingsSerializer {
     positions_write: WritePtr,
     written_bytes_postings: usize,
     written_bytes_positions: usize,
-    encoder: compression::Encoder,
+    encoder: S4BP128Encoder,
     doc_ids: Vec<DocId>,
 }
 
@@ -32,7 +32,7 @@ impl PostingsSerializer {
             positions_write: positions_write,
             written_bytes_postings: 0,
             written_bytes_positions: 0,
-            encoder: compression::Encoder::new(),
+            encoder: S4BP128Encoder::new(),
             doc_ids: Vec::new(),
         })
     }

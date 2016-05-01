@@ -19,6 +19,7 @@ use core::convert_to_ioerror;
 use common::BinarySerializable;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use compression;
+use compression::S4BP128Decoder;
 use std::mem;
 
 impl fmt::Debug for SegmentReader {
@@ -74,7 +75,7 @@ impl SegmentPostings {
         let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
         unsafe { doc_ids.set_len(doc_freq as usize); }
         {
-            let decoder = compression::Decoder::new();
+            let decoder = compression::S4BP128Decoder::new();
             decoder.decode_sorted(&data_u32[1..(num_u32s+1) as usize], &mut doc_ids);
             SegmentPostings(doc_ids)
         }

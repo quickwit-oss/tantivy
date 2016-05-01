@@ -70,7 +70,7 @@ extern "C" {
   }
 
 
-  size_t encode_sorted_native(
+  size_t encode_s4_bp128_dm_native(
        uint32_t* begin,
        const size_t num_els,
        uint32_t* output,
@@ -82,6 +82,17 @@ extern "C" {
                           output_length);
         return output_length;
   }
+
+  size_t decode_s4_bp128_dm_native(
+      const uint32_t* compressed_data,
+      const size_t compressed_size,
+      uint32_t* uncompressed,
+      const size_t uncompressed_capacity) {
+        size_t num_ints = uncompressed_capacity;
+        codec_sorted -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+        return num_ints;
+  }
+
 
   size_t encode_unsorted_native(
        uint32_t* begin,
@@ -96,15 +107,7 @@ extern "C" {
         return output_length;
   }
 
-  size_t decode_sorted_native(
-      const uint32_t* compressed_data,
-      const size_t compressed_size,
-      uint32_t* uncompressed,
-      const size_t uncompressed_capacity) {
-        size_t num_ints = uncompressed_capacity;
-        codec_sorted -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
-        return num_ints;
-  }
+
 
   size_t decode_unsorted_native(
       const uint32_t* compressed_data,
