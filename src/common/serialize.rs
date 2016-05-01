@@ -4,20 +4,19 @@ use std::fmt;
 use std::io::Write;
 use std::io::Read;
 use std::io;
+use common::VInt;
 use byteorder;
 
-
+pub trait BinarySerializable : fmt::Debug + Sized {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize>;
+    fn deserialize(reader: &mut Read) -> io::Result<Self>;
+}
 
 fn convert_byte_order_error(byteorder_error: byteorder::Error) -> io::Error {
     match byteorder_error {
         byteorder::Error::UnexpectedEOF => io::Error::new(io::ErrorKind::InvalidData, "Reached EOF unexpectedly"),
         byteorder::Error::Io(e) => e,
     }
-}
-
-pub trait BinarySerializable : fmt::Debug + Sized {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize>;
-    fn deserialize(reader: &mut Read) -> io::Result<Self>;
 }
 
 impl BinarySerializable for () {
@@ -31,14 +30,14 @@ impl BinarySerializable for () {
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let mut total_size = try!((self.len() as u32).serialize(writer));
+        let mut total_size = try!(VInt(self.len() as u64).serialize(writer));
         for it in self.iter() {
             total_size += try!(it.serialize(writer));
         }
         Ok(total_size)
     }
     fn deserialize(reader: &mut Read) -> io::Result<Vec<T>> {
-        let num_items = try!(u32::deserialize(reader));
+        let num_items = try!(VInt::deserialize(reader)).val();
         let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
             let item = try!(T::deserialize(reader));
@@ -99,17 +98,15 @@ impl BinarySerializable for u8 {
 
 impl BinarySerializable for String {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        // TODO error
         let data: &[u8] = self.as_bytes();
-        let mut size = try!((data.len() as u32).serialize(writer));
+        let mut size = try!(VInt(data.len() as u64).serialize(writer));
         size += data.len();
         try!(writer.write_all(data));
         Ok(size)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<String> {
-        // TODO error
-        let string_length = try!(u32::deserialize(reader)) as usize;
+        let string_length = try!(VInt::deserialize(reader)).val() as usize;
         let mut result = String::with_capacity(string_length);
         try!(reader.take(string_length as u64).read_to_string(&mut result));
         Ok(result)
@@ -120,84 +117,55 @@ impl BinarySerializable for String {
 #[cfg(test)]
 mod test {
 
-    use core::serialize::BinarySerializable;
+
     use std::io::Cursor;
+    use common::VInt;
+    use super::*;
+
+    fn serialize_test<T: BinarySerializable + Eq>(v: T, num_bytes: usize) {
+        let mut buffer: Vec<u8> = Vec::new();
+        assert_eq!(v.serialize(&mut buffer).unwrap(), num_bytes);
+        assert_eq!(buffer.len(), num_bytes);
+        let mut cursor = Cursor::new(&buffer[..]);
+        let deser = T::deserialize(&mut cursor).unwrap();
+        assert_eq!(deser, v);
+    }
 
     #[test]
     fn test_serialize_u8() {
-        let mut buffer: Vec<u8> = Vec::new();
-        {
-            let x: u8 = 3;
-            x.serialize(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 1);
-        }
-        {
-            let x: u8 = 5;
-            x.serialize(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 2);
-        }
-        let mut cursor = Cursor::new(&buffer[..]);
-        assert_eq!(3, u8::deserialize(&mut cursor).unwrap());
-        assert_eq!(5, u8::deserialize(&mut cursor).unwrap());
-        assert!(u8::deserialize(&mut cursor).is_err());
+        serialize_test(3u8, 1);
+        serialize_test(5u8, 1);
     }
-
 
     #[test]
     fn test_serialize_u32() {
-        let mut buffer: Vec<u8> = Vec::new();
-        {
-            let x: u32 = 3;
-            x.serialize(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 4);
-        }
-        {
-            let x: u32 = 5;
-            x.serialize(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), 8);
-        }
-        let mut cursor = Cursor::new(&buffer[..]);
-        assert_eq!(3, u32::deserialize(&mut cursor).unwrap());
-        assert_eq!(5, u32::deserialize(&mut cursor).unwrap());
-        assert!(u32::deserialize(&mut cursor).is_err());
+        serialize_test(3u32, 4);
+        serialize_test(5u32, 4);
+        serialize_test(u32::max_value(), 4);
     }
 
     #[test]
     fn test_serialize_string() {
-        let mut buffer: Vec<u8> = Vec::new();
-        let first_length = 4 + 3 * 4;
-        let second_length = 4 + 3 * 8;
-        {
-            let x: String = String::from("ぽよぽよ");
-            assert_eq!(x.serialize(&mut buffer).unwrap(), first_length);
-            assert_eq!(buffer.len(), first_length);
-        }
-        {
-            let x: String = String::from("富士さん見える。");
-            assert_eq!(x.serialize(&mut buffer).unwrap(), second_length);
-            assert_eq!(buffer.len(), first_length + second_length);
-        }
-        let mut cursor = Cursor::new(&buffer[..]);
-        assert_eq!("ぽよぽよ", String::deserialize(&mut cursor).unwrap());
-        assert_eq!("富士さん見える。", String::deserialize(&mut cursor).unwrap());
-        assert!(u32::deserialize(&mut cursor).is_err());
+        serialize_test(String::from(""), 1);
+        serialize_test(String::from("ぽよぽよ"), 1 + 3*4);
+        serialize_test(String::from("富士さん見える。"), 1 + 3*8);
     }
 
     #[test]
     fn test_serialize_vec() {
-        let mut buffer: Vec<u8> = Vec::new();
-        let first_length = 4 + 3 * 4;
-        let second_length = 4 + 3 * 8;
-        let vec = vec!(String::from("ぽよぽよ"), String::from("富士さん見える。"));
-        assert_eq!(vec.serialize(&mut buffer).unwrap(), first_length + second_length + 4);
-        let mut cursor = Cursor::new(&buffer[..]);
-        {
-            let deser: Vec<String> = Vec::deserialize(&mut cursor).unwrap();
-            assert_eq!(deser.len(), 2);
-            assert_eq!("ぽよぽよ", deser[0]);
-            assert_eq!("富士さん見える。", deser[1]);
-        }
+        let v: Vec<u8> = Vec::new();
+        serialize_test(v, 1);
+        serialize_test(vec!(1u32, 3u32), 1 + 4*2);
     }
 
-
+    #[test]
+    fn test_serialize_vint() {
+        serialize_test(VInt(7u64), 1);
+        serialize_test(VInt(127u64), 1);
+        serialize_test(VInt(128u64), 2);
+        serialize_test(VInt(1234u64), 2);
+        serialize_test(VInt(16_383), 2);
+        serialize_test(VInt(16_384), 3);
+        serialize_test(VInt(u64::max_value()), 10);
+    }
 }

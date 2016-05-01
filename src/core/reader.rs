@@ -1,27 +1,27 @@
 use core::index::{Segment, SegmentId};
-use core::schema::Term;
-use core::store::StoreReader;
-use core::schema::Document;
-use core::postings::IntersectionPostings;
-use core::directory::ReadOnlySource;
+use schema::Term;
+use store::StoreReader;
+use schema::Document;
+use directory::ReadOnlySource;
 use std::io::Cursor;
-use core::schema::DocId;
+use DocId;
 use core::index::SegmentComponent;
-use core::simdcompression::Decoder;
 use std::io;
 use std::str;
-use core::postings::TermInfo;
-use core::fstmap::FstMap;
+use postings::TermInfo;
+use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
-use core::timer::TimerHandle;
-use core::schema::U32Field;
+use common::TimerTree;
+use common::Timing;
+use common::OpenTimer;
+use schema::U32Field;
 use core::convert_to_ioerror;
-use core::serialize::BinarySerializable;
-use core::fastfield::U32FastFieldsReader;
-use core::fastfield::U32FastFieldReader;
-use core::simdcompression;
+use common::BinarySerializable;
+use fastfield::{U32FastFieldsReader, U32FastFieldReader};
+use compression;
+use compression::S4BP128Decoder;
 use std::mem;
 
 impl fmt::Debug for SegmentReader {
@@ -43,7 +43,7 @@ pub fn intersection(mut postings: Vec<SegmentPostings>) -> SegmentPostings {
     let mut pair = (output, buffer);
     for posting in postings.iter() {
         pair = (pair.1, pair.0);
-        let output_len = simdcompression::intersection(posting.0.as_slice(), pair.0.as_slice(), pair.1.as_mut_slice());
+        let output_len = compression::intersection(posting.0.as_slice(), pair.0.as_slice(), pair.1.as_mut_slice());
         unsafe { pair.1.set_len(output_len); }
     }
     SegmentPostings(pair.1)
@@ -77,8 +77,8 @@ impl SegmentPostings {
         let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
         unsafe { doc_ids.set_len(doc_freq as usize); }
         {
-            let decoder = Decoder::new();
-            let num_doc_ids = decoder.decode_sorted(&data_u32[1..(num_u32s+1) as usize], &mut doc_ids);
+            let decoder = S4BP128Decoder::new();
+            decoder.decode_sorted(&data_u32[1..(num_u32s+1) as usize], &mut doc_ids);
             SegmentPostings(doc_ids)
         }
     }
@@ -194,7 +194,7 @@ impl SegmentReader {
 
     /// Returns the list of doc ids containing all of the
     /// given terms.
-    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: TimerHandle<'a>) -> SegmentPostings {
+    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> SegmentPostings {
         if terms.len() == 1 {
             match self.get_term(&terms[0]) {
                 Some(term_info) => {
@@ -212,7 +212,7 @@ impl SegmentReader {
                 for term in terms.iter() {
                     match self.get_term(term) {
                         Some(term_info) => {
-                            let decode_one_timer = decode_timer.open("decode_one");
+                            let _decode_one_timer = decode_timer.open("decode_one");
                             let segment_posting = self.read_postings(&term_info);
                             segment_postings.push(segment_posting);
                         }
@@ -224,7 +224,7 @@ impl SegmentReader {
                 }
             }
             {
-                let intersection_time = timer.open("intersection");
+                let _intersection_time = timer.open("intersection");
                 intersection(segment_postings)
             }
         }

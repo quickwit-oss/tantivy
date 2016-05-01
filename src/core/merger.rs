@@ -1,22 +1,20 @@
 use std::io;
 use core::reader::SegmentReader;
 use core::index::Segment;
-use core::schema::DocId;
+use DocId;
 use core::index::SerializableSegment;
 use core::codec::SegmentSerializer;
-use core::postings::PostingsSerializer;
-use core::postings::TermInfo;
+
+use postings::PostingsSerializer;
+use postings::TermInfo;
+
 use std::collections::BinaryHeap;
-use core::fstmap::FstMapIter;
-use core::schema::Term;
-use core::schema::Schema;
-use core::fastfield::FastFieldSerializer;
-use core::store::StoreWriter;
+use datastruct::FstMapIter;
+use schema::{Term, Schema, U32Field};
+use fastfield::FastFieldSerializer;
+use store::StoreWriter;
 use core::index::SegmentInfo;
-use std::cmp::Ordering;
-use core::schema::U32Field;
-use std::cmp::min;
-use std::cmp::max;
+use std::cmp::{min, max, Ordering};
 
 struct PostingsMerger<'a> {
     doc_ids: Vec<DocId>,
@@ -181,7 +179,9 @@ impl IndexMerger {
             match postings_merger.next() {
                 Some((term, doc_ids)) => {
                     try!(postings_serializer.new_term(&Term::from(&term), doc_ids.len() as DocId));
-                    try!(postings_serializer.write_docs(doc_ids));
+                    for doc_id in doc_ids.iter() {
+                        try!(postings_serializer.write_doc(doc_id.clone(), None));
+                    }
                 }
                 None => { break; }
             }
@@ -210,13 +210,13 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
-    use core::schema;
-    use core::schema::Document;
+    use schema;
+    use schema::Document;
+    use schema::Term;
     use core::index::Index;
-    use core::schema::Term;
     use core::searcher::DocAddress;
-    use core::collector::FastFieldTestCollector;
-    use core::collector::TestCollector;
+    use collector::FastFieldTestCollector;
+    use collector::TestCollector;
 
     #[test]
     fn test_index_merger() {

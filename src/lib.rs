@@ -19,7 +19,6 @@ extern crate atomicwrites;
 extern crate tempdir;
 extern crate bincode;
 extern crate time;
-extern crate serde;
 extern crate libc;
 extern crate lz4;
 extern crate uuid;
@@ -29,20 +28,31 @@ extern crate num_cpus;
 #[cfg(test)] extern crate rand;
 
 mod core;
+mod datastruct;
+mod postings;
+mod directory;
+mod compression;
+mod fastfield;
+mod store;
+mod common;
+pub mod analyzer;
+pub mod collector;
 
-pub use core::analyzer;
-pub use core::directory::Directory;
+pub mod schema;
+
+pub use directory::Directory;
 pub use core::searcher::Searcher;
 pub use core::index::Index;
-pub use core::schema;
-pub use core::schema::Term;
-pub use core::schema::Document;
-pub use core::collector;
-pub use core::schema::DocId;
+pub use schema::Term;
+pub use schema::Document;
 pub use core::reader::SegmentReader;
 pub use core::searcher::SegmentLocalId;
-pub use core::timer::TimerTree;
+pub use self::common::TimerTree;
 
+/// u32 identifying a document within a segment.
+/// Document gets their doc id assigned incrementally,
+/// as they are added in the segment.
+pub type DocId = u32;
 
 #[cfg(test)]
 mod tests {

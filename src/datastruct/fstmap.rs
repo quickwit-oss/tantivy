@@ -5,8 +5,9 @@ use std::io::Cursor;
 use fst;
 use fst::raw::Fst;
 use fst::Streamer;
-use core::directory::ReadOnlySource;
-use core::serialize::BinarySerializable;
+
+use directory::ReadOnlySource;
+use common::BinarySerializable;
 use std::marker::PhantomData;
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
@@ -125,9 +126,8 @@ impl<V: BinarySerializable> FstMap<V> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::directory::{RAMDirectory, Directory};
+    use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
-
     use fst::Streamer;
 
     #[test]

@@ -4,10 +4,11 @@ use rustc_serialize::json;
 use core::index::Segment;
 use core::index::SegmentInfo;
 use core::index::SegmentComponent;
-use core::fastfield::FastFieldSerializer;
-use core::store::StoreWriter;
-use core::postings::PostingsSerializer;
+use fastfield::FastFieldSerializer;
+use store::StoreWriter;
 use core::convert_to_ioerror;
+
+use postings::PostingsSerializer;
 
 pub struct SegmentSerializer {
     segment: Segment,

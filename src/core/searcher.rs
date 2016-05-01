@@ -1,12 +1,11 @@
 use core::reader::SegmentReader;
 use core::index::Index;
 use core::index::Segment;
-use core::schema::DocId;
-use core::schema::Document;
-use core::collector::Collector;
+use DocId;
+use schema::{Document, Term};
+use collector::Collector;
 use std::io;
-use core::timer::TimerTree;
-use core::schema::Term;
+use common::TimerTree;
 
 #[derive(Debug)]
 pub struct Searcher {
@@ -56,12 +55,12 @@ impl Searcher {
             for (segment_ord, segment) in self.segments.iter().enumerate() {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
-                    let set_segment_timer = segment_search_timer.open("set_segment");
+                    let _ = segment_search_timer.open("set_segment");
                     try!(collector.set_segment(segment_ord as SegmentLocalId, &segment));
                 }
                 let postings = segment.search(terms, segment_search_timer.open("get_postings"));
                 {
-                    let collection_timer = segment_search_timer.open("collection");
+                    let _collection_timer = segment_search_timer.open("collection");
                     for doc_id in postings {
                         collector.collect(doc_id);
                     }

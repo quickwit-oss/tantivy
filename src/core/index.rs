@@ -1,14 +1,14 @@
 use std::path::{PathBuf, Path};
 use std::io;
-use core::schema::Schema;
-use core::schema::DocId;
+use schema::Schema;
+use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use rustc_serialize::json;
 use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
-use core::directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
+use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;
@@ -238,7 +238,7 @@ pub struct SegmentInfo {
 pub enum SegmentComponent {
     INFO,
     POSTINGS,
-    // POSITIONS,
+    POSITIONS,
     FASTFIELDS,
     TERMS,
     STORE,
@@ -264,7 +264,7 @@ impl Segment {
 
     fn path_suffix(component: &SegmentComponent)-> &'static str {
         match *component {
-            // SegmentComponent::POSITIONS => ".pos",
+            SegmentComponent::POSITIONS => ".pos",
             SegmentComponent::INFO => ".info",
             SegmentComponent::POSTINGS => ".idx",
             SegmentComponent::TERMS => ".term",

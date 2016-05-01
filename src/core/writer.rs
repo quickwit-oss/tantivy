@@ -1,13 +1,17 @@
-use core::schema::*;
+use DocId;
+use schema::Schema;
+use schema::Document;
+use schema::Term;
+use schema::TextFieldValue;
 use core::codec::*;
 use core::index::Index;
-use core::analyzer::SimpleTokenizer;
+use analyzer::SimpleTokenizer;
 use core::index::SerializableSegment;
-use core::analyzer::StreamingIterator;
+use analyzer::StreamingIterator;
 use core::index::Segment;
 use core::index::SegmentInfo;
-use core::postings::PostingsWriter;
-use core::fastfield::U32FastFieldsWriter;
+use postings::PostingsWriter;
+use fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use std::sync::mpsc;
 use std::thread;
@@ -158,11 +162,13 @@ impl SegmentWriter {
 			let field_options = schema.text_field_options(&field_value.field);
 			if field_options.is_tokenized_indexed() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
+				let mut pos = 0u32;
 				loop {
 					match tokens.next() {
 						Some(token) => {
 							let term = Term::from_field_text(&field_value.field, token);
-							self.postings_writer.suscribe(doc_id, term);
+							self.postings_writer.suscribe(doc_id, pos.clone(), term);
+							pos += 1;
 						},
 						None => { break; }
 					}
@@ -173,7 +179,7 @@ impl SegmentWriter {
             let field_options = schema.u32_field_options(&field_value.field);
             if field_options.is_indexed() {
                 let term = Term::from_field_u32(&field_value.field, field_value.value);
-                self.postings_writer.suscribe(doc_id, term);
+                self.postings_writer.suscribe(doc_id, 0.clone(), term);
             }
 		}
 		self.fast_field_writers.add_document(&doc);
