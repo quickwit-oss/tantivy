@@ -41,23 +41,27 @@ impl VIntsEncoder {
 
 
 
-pub struct VIntsDecoder;
+pub struct VIntsDecoder {
+    output: [u32; 128],
+}
 
 impl VIntsDecoder {
 
     pub fn new() -> VIntsDecoder {
-        VIntsDecoder
+        VIntsDecoder {
+            output: [0u32; 128]
+        }
     }
 
-    pub fn decode_sorted(&self,
-                  compressed_data: &[u32],
-                  uncompressed_values: &mut [u32]) -> size_t {
+    pub fn decode_sorted(&mut self,
+                  compressed_data: &[u32]) -> &[u32] {
         unsafe {
-            return decode_sorted_vint_native(
+            let num_uncompressed = decode_sorted_vint_native(
                 compressed_data.as_ptr(),
                 compressed_data.len() as size_t,
-                uncompressed_values.as_mut_ptr(),
-                uncompressed_values.len() as size_t);
+                self.output.as_mut_ptr(),
+                128);
+            &self.output[..num_uncompressed]
         }
     }
 }
@@ -65,8 +69,7 @@ impl VIntsDecoder {
 
 #[cfg(test)]
 mod tests {
-
-    use std::iter;
+    
     use super::*;
 
     #[test]
@@ -80,9 +83,9 @@ mod tests {
                 .collect();
             let encoded_data = encoder.encode_sorted(&input);
             assert_eq!(encoded_data.len(), expected_length);
-            let decoder = VIntsDecoder::new();
-            let mut decoded_data: Vec<u32> = iter::repeat(0u32).take(128).collect();
-            assert_eq!(123, decoder.decode_sorted(&encoded_data[..], &mut decoded_data));
+            let mut decoder = VIntsDecoder::new();
+            let decoded_data = decoder.decode_sorted(&encoded_data[..]);
+            assert_eq!(123, decoded_data.len());
             assert_eq!(&decoded_data[0..123], &input[..]);
         }
         {
@@ -91,6 +94,15 @@ mod tests {
             let encoded_data = encoder.encode_sorted(&input);
             assert_eq!(encoded_data.len(), 1);
             assert_eq!(encoded_data[0], 2167049859u32);
+        }
+        {
+            let mut encoder = VIntsEncoder::new();
+            let input = vec!(0u32, 1u32, 2u32);
+            let encoded_data = encoder.encode_sorted(&input);
+            let mut decoder = VIntsDecoder::new();
+            let decoded_data = decoder.decode_sorted(&encoded_data[..]);
+            assert_eq!(3, decoded_data.len());
+            assert_eq!(&decoded_data[..], &input[..]);
         }
     }
 

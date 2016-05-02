@@ -2,12 +2,14 @@ use datastruct::FstMapBuilder;
 use super::TermInfo;
 use schema::Term;
 use directory::WritePtr;
-use compression::S4BP128Encoder;
+use compression::NUM_DOCS_PER_BLOCK;
+use compression::{Block128Encoder, VIntsEncoder};
 use DocId;
 use core::index::Segment;
 use std::io;
 use core::index::SegmentComponent;
 use common::BinarySerializable;
+use common::VInt;
 
 pub struct PostingsSerializer {
     terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
@@ -15,7 +17,8 @@ pub struct PostingsSerializer {
     positions_write: WritePtr,
     written_bytes_postings: usize,
     written_bytes_positions: usize,
-    encoder: S4BP128Encoder,
+    block_encoder: Block128Encoder,
+    vints_encoder: VIntsEncoder,
     doc_ids: Vec<DocId>,
 }
 
@@ -32,7 +35,8 @@ impl PostingsSerializer {
             positions_write: positions_write,
             written_bytes_postings: 0,
             written_bytes_positions: 0,
-            encoder: S4BP128Encoder::new(),
+            block_encoder: Block128Encoder::new(),
+            vints_encoder: VIntsEncoder::new(),
             doc_ids: Vec::new(),
         })
     }
@@ -48,11 +52,12 @@ impl PostingsSerializer {
             .insert(term.as_slice(), &term_info)
     }
 
+
     pub fn close_term(&mut self,) -> io::Result<()> {
         if !self.doc_ids.is_empty() {
-            let docs_data = self.encoder.encode_sorted(&self.doc_ids);
-            self.written_bytes_postings += try!((docs_data.len() as u32).serialize(&mut self.postings_write));
-            for num in docs_data {
+            let block_encoded = self.vints_encoder.encode_sorted(&self.doc_ids[..]);
+            self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
+            for num in block_encoded {
                 self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
             }
         }
@@ -61,6 +66,12 @@ impl PostingsSerializer {
 
     pub fn write_doc(&mut self, doc_id: DocId, positions: Option<&[u32]>) -> io::Result<()> {
         self.doc_ids.push(doc_id);
+        if self.doc_ids.len() == 128 {
+            let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.doc_ids);
+            for num in block_encoded {
+                self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+            }
+        }
         Ok(())
     }
 

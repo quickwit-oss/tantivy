@@ -11,7 +11,6 @@ pub struct Term {
 }
 
 
-
 impl Term {
 
     pub fn from_field_u32(field: &U32Field, val: u32) -> Term {
@@ -49,6 +48,6 @@ impl Term {
 
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Term({})", self.data[0])
+        write!(f, "Term({:?})", &self.data[..])
     }
 }

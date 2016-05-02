@@ -31,8 +31,6 @@ impl U32sRecorder for ObliviousRecorder {
 }
 
 
-
-
 struct TermPostingsWriter<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> {
     doc_ids: Vec<DocId>,
     term_freqs: TermFreqsRec,
@@ -87,10 +85,6 @@ impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<
         self.current_position = pos;
     }
 }
-
-
-
-
 
 
 pub struct PostingsWriter {

@@ -12,6 +12,7 @@ use postings::TermInfo;
 use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
+use common::VInt;
 use core::index::SegmentInfo;
 use common::OpenTimer;
 use schema::U32Field;
@@ -19,7 +20,7 @@ use core::convert_to_ioerror;
 use common::BinarySerializable;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use compression;
-use compression::S4BP128Decoder;
+use compression::{Block128Decoder, VIntsDecoder};
 use std::mem;
 
 impl fmt::Debug for SegmentReader {
@@ -69,16 +70,28 @@ impl SegmentPostings {
     }
 
     pub fn from_data(doc_freq: DocId, data: &[u8]) -> SegmentPostings {
-        let mut cursor = Cursor::new(data);
-        let num_u32s = u32::deserialize(&mut cursor).unwrap();
-        let data_u32: &[u32] = unsafe { mem::transmute(data) };
+        let mut data_u32: &[u32] = unsafe { mem::transmute(data) };
         let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
-        unsafe { doc_ids.set_len(doc_freq as usize); }
         {
-            let decoder = S4BP128Decoder::new();
-            decoder.decode_sorted(&data_u32[1..(num_u32s+1) as usize], &mut doc_ids);
-            SegmentPostings(doc_ids)
+            let mut block_decoder = Block128Decoder::new();
+            let num_blocks = doc_freq / (compression::NUM_DOCS_PER_BLOCK as u32);
+            for _ in 0..num_blocks {
+                let (remaining, uncompressed) = block_decoder.decode_sorted(data_u32);
+                doc_ids.extend_from_slice(uncompressed);
+                data_u32 = remaining;
+            }
+            if doc_freq % 128 != 0 {
+                let mut data_u8: &[u8] = unsafe { mem::transmute(data_u32) };
+                let mut cursor = Cursor::new(data_u8);
+                let vint_len: usize = VInt::deserialize(&mut cursor).unwrap().val() as usize;
+                let cursor_pos = cursor.position() as usize;
+                let vint_data: &[u32] = unsafe { mem::transmute(&data_u8[cursor_pos..])};
+                let mut vints_decoder = VIntsDecoder::new();
+                doc_ids.extend_from_slice(vints_decoder.decode_sorted(&vint_data[..vint_len]));
+            }
         }
+        SegmentPostings(doc_ids)
+
     }
 
 }
@@ -139,7 +152,6 @@ impl SegmentReader {
     pub fn get_store_reader(&self,) -> &StoreReader {
         &self.store_reader
     }
-
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {

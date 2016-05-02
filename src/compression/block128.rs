@@ -150,23 +150,5 @@ mod tests {
         }
     }
 
-    //
-    // #[test]
-    // fn test_partial_decode_block() {
-    //     let mut encoder = Block128Encoder::new();
-    //     let expected_length = 21;
-    //     let input: Vec<u32> = (0u32..128u32)
-    //         .map(|i| i * 7 / 2)
-    //         .into_iter()
-    //         .collect();
-    //     let encoded_data: &[u32] = encoder.encode_sorted(&input);
-    //     let mut encoded_vec: Vec<u32> = encoded_data.to_vec();
-    //     encoded_vec.push(9u32);
-    //     encoded_vec.push(14u32);
-    //     assert_eq!(encoded_data.len(), expected_length);
-    //     let decoder = Block128Decoder::new();
-    //     let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_vec[..]);
-    //     assert_eq!(remaining_input, [9u32, 14u32]);
-    //     assert_eq!(*uncompressed_values, &input[..]);
-    // }
+
 }

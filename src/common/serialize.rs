@@ -117,7 +117,6 @@ impl BinarySerializable for String {
 #[cfg(test)]
 mod test {
 
-
     use std::io::Cursor;
     use common::VInt;
     use super::*;
