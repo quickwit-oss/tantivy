@@ -8,7 +8,7 @@ mod block128;
 pub use self::block128::{Block128Encoder, Block128Decoder};
 
 mod vints;
-pub use self::vints::{SortedVIntsEncoder, SortedVIntsDecoder};
+pub use self::vints::{VIntsEncoder, VIntsDecoder};
 
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128;

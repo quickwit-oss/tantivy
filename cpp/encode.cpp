@@ -17,11 +17,38 @@ static VariableByte<false> codec_unsorted = VariableByte<false>();
 
 static SIMDBinaryPacking<SIMDIntegratedBlockPacker<Max4DeltaSIMD, true>> simd_pack_sorted = SIMDBinaryPacking<SIMDIntegratedBlockPacker<Max4DeltaSIMD, true>>();
 
+static SIMDBinaryPacking<SIMDBlockPacker<NoDelta, false>> simd_pack = SIMDBinaryPacking<SIMDBlockPacker<NoDelta, false>>();
+
+
 static VariableByte<true> vint_codec = VariableByte<true>();
-// SIMDBinaryPacking<SIMDBlockPacker<RegularDeltaSIMD, true>
+// SIMDBinaryPacking<SIMDBlockPacker<NoDelta, true>
 
 extern "C" {
 
+
+  // encode 128 u32 at a time.
+  size_t encode_block128_native(
+      uint32_t* begin,
+      uint32_t* output,
+      const size_t output_capacity) {
+        size_t output_length = output_capacity;
+        simd_pack.encodeArray(begin,
+                        128,
+                        output,
+                        output_length);
+        return output_length;
+  }
+
+  // returns the number of byte that have been read.
+  size_t decode_block128_native(
+    const uint32_t* compressed_data,
+    const size_t compressed_size,
+    uint32_t* uncompressed) {
+      size_t output_capacity = 128;
+      const uint32_t* pointer_end = simd_pack.decodeArray(compressed_data, compressed_size, uncompressed, output_capacity);
+      return static_cast<size_t>(pointer_end - compressed_data);
+
+  }
 
   // encode 128 u32 at a time.
   size_t encode_sorted_block128_native(
@@ -128,5 +155,4 @@ extern "C" {
       uint32_t* output) {
         return IntersectionFactory::getFromName("simd")(left, left_size, right, right_size, output);
   }
-
 }

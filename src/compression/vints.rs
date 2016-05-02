@@ -7,15 +7,15 @@ extern {
     fn decode_sorted_vint_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 }
 
-pub struct SortedVIntsEncoder {
+pub struct VIntsEncoder {
     input_buffer: Vec<u32>,
     output_buffer: Vec<u32>,
 }
 
-impl SortedVIntsEncoder {
+impl VIntsEncoder {
 
-    pub fn new() -> SortedVIntsEncoder {
-        SortedVIntsEncoder {
+    pub fn new() -> VIntsEncoder {
+        VIntsEncoder {
             input_buffer: Vec::with_capacity(128),
             output_buffer: iter::repeat(0u32).take(256).collect(),
         }
@@ -41,12 +41,12 @@ impl SortedVIntsEncoder {
 
 
 
-pub struct SortedVIntsDecoder;
+pub struct VIntsDecoder;
 
-impl SortedVIntsDecoder {
+impl VIntsDecoder {
 
-    pub fn new() -> SortedVIntsDecoder {
-        SortedVIntsDecoder
+    pub fn new() -> VIntsDecoder {
+        VIntsDecoder
     }
 
     pub fn decode_sorted(&self,
@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn test_encode_vint() {
         {
-            let mut encoder = SortedVIntsEncoder::new();
+            let mut encoder = VIntsEncoder::new();
             let expected_length = 31;
             let input: Vec<u32> = (0u32..123u32)
                 .map(|i| i * 7 / 2)
@@ -80,13 +80,13 @@ mod tests {
                 .collect();
             let encoded_data = encoder.encode_sorted(&input);
             assert_eq!(encoded_data.len(), expected_length);
-            let decoder = SortedVIntsDecoder::new();
+            let decoder = VIntsDecoder::new();
             let mut decoded_data: Vec<u32> = iter::repeat(0u32).take(128).collect();
             assert_eq!(123, decoder.decode_sorted(&encoded_data[..], &mut decoded_data));
             assert_eq!(&decoded_data[0..123], &input[..]);
         }
         {
-            let mut encoder = SortedVIntsEncoder::new();
+            let mut encoder = VIntsEncoder::new();
             let input = vec!(3, 17u32, 187);
             let encoded_data = encoder.encode_sorted(&input);
             assert_eq!(encoded_data.len(), 1);
