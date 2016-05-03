@@ -81,7 +81,7 @@ impl SegmentPostings {
                 data_u32 = remaining;
             }
             if doc_freq % 128 != 0 {
-                let mut data_u8: &[u8] = unsafe { mem::transmute(data_u32) };
+                let data_u8: &[u8] = unsafe { mem::transmute(data_u32) };
                 let mut cursor = Cursor::new(data_u8);
                 let vint_len: usize = VInt::deserialize(&mut cursor).unwrap().val() as usize;
                 let cursor_pos = cursor.position() as usize;
