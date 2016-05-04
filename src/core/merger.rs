@@ -180,7 +180,8 @@ impl IndexMerger {
                 Some((term, doc_ids)) => {
                     try!(postings_serializer.new_term(&Term::from(&term), doc_ids.len() as DocId));
                     for doc_id in doc_ids.iter() {
-                        try!(postings_serializer.write_doc(doc_id.clone(), None));
+                        // TODO fix this
+                        // try!(postings_serializer.write_doc(doc_id.clone(), None));
                     }
                 }
                 None => { break; }

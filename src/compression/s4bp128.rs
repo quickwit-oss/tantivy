@@ -13,21 +13,19 @@ extern {
 //-------------------------
 // s4-bp128-dm
 
-
 pub struct S4BP128Encoder {
     input_buffer: Vec<u32>,
     output_buffer: Vec<u32>,
 }
 
 impl S4BP128Encoder {
-
     pub fn new() -> S4BP128Encoder {
         S4BP128Encoder {
             input_buffer: Vec::new(),
             output_buffer: Vec::new(),
         }
     }
-
+    
     pub fn encode_sorted(&mut self, input: &[u32]) -> &[u32] {
         self.input_buffer.clear();
         let input_len = input.len();
@@ -49,7 +47,6 @@ impl S4BP128Encoder {
         }
     }
 }
-
 
 pub struct S4BP128Decoder;
 

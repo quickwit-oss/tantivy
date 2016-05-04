@@ -86,6 +86,7 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     }
 }
 
+
 pub struct SkipList<'a, T: BinarySerializable> {
     data_layer: Layer<'a, T>,
     skip_layers: Vec<Layer<'a, u32>>,

@@ -51,6 +51,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     }
 }
 
+
 pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
     data_layer: LayerBuilder<T>,

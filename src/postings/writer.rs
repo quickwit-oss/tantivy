@@ -7,6 +7,8 @@ use std::io;
 pub trait U32sRecorder {
     fn new() -> Self;
     fn record(&mut self, val: u32);
+    fn get(&self, idx: usize) -> u32;
+    fn slice(&self, start: usize, stop: usize) -> &[u32];
 }
 
 pub struct VecRecorder(Vec<u32>);
@@ -15,10 +17,21 @@ impl U32sRecorder for VecRecorder {
     fn new() -> VecRecorder {
         VecRecorder(Vec::new())
     }
+    
     fn record(&mut self, val: u32) {
         self.0.push(val);
     }
+    
+    fn get(&self, idx: usize) -> u32 {
+        self.0[idx]
+    }
+    
+    fn slice(&self, start: usize, stop: usize) -> &[u32] {
+        &self.0[start..stop]
+    }
 }
+
+const EMPTY_ARRAY: [u32; 0] = [];
 
 pub struct ObliviousRecorder;
 
@@ -27,9 +40,17 @@ impl U32sRecorder for ObliviousRecorder {
         ObliviousRecorder
     }
     fn record(&mut self, _: u32) {
+        // do nothing here.
+    }
+     
+    fn get(&self, _idx: usize) -> u32 {
+        0u32
+    }
+    
+    fn slice(&self, _start: usize, _stop: usize) -> &[u32] {
+        &EMPTY_ARRAY[0..0]
     }
 }
-
 
 struct TermPostingsWriter<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> {
     doc_ids: Vec<DocId>,
@@ -38,6 +59,7 @@ struct TermPostingsWriter<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder
     current_position: u32,
     current_freq: u32,
 }
+
 
 impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<TermFreqsRec, PositionsRec> {
     pub fn new() -> TermPostingsWriter<TermFreqsRec, PositionsRec> {
@@ -84,6 +106,17 @@ impl<TermFreqsRec: U32sRecorder, PositionsRec: U32sRecorder> TermPostingsWriter<
         self.positions.record(pos - self.current_position);
         self.current_position = pos;
     }
+    
+    pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
+        let mut positions_idx = 0;
+        for (i, doc) in self.doc_ids.iter().enumerate() {
+            let term_freq: u32 = self.term_freqs.get(i);
+            let positions: &[u32] = self.positions.slice(positions_idx, positions_idx + term_freq as usize); 
+            try!(serializer.write_doc(doc.clone(), term_freq, positions));
+            positions_idx += term_freq as usize;
+        }
+        Ok(())
+    }       
 }
 
 
@@ -98,6 +131,12 @@ impl PostingsWriter {
         PostingsWriter {
             postings: Vec::new(),
             term_index: BTreeMap::new(),
+        }
+    }
+    
+    pub fn close(&mut self,) {
+        for term_postings_writer in self.postings.iter_mut() {
+            term_postings_writer.close();
         }
     }
 
@@ -124,9 +163,7 @@ impl PostingsWriter {
             let term_postings_writer = &self.postings[postings_id.clone()];
             let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(&term, term_docfreq));
-            for doc in term_postings_writer.doc_ids.iter() {
-                try!(serializer.write_doc(doc.clone(), None));
-            }
+            try!(term_postings_writer.serialize(serializer));
         }
         Ok(())
     }

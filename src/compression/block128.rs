@@ -68,7 +68,7 @@ impl Block128Decoder {
             output: [0u32; 128]
         }
     }
-
+    
     pub fn decode<'a, 'b>(
           &'b mut self,
           compressed_data: &'a [u32]) -> (&'a[u32], &'b[u32; 128]) {

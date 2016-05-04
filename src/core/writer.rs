@@ -107,7 +107,7 @@ impl IndexWriter {
 		}
 		Ok(())
 	}
-
+ 
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
         let arc_doc = ArcDoc::new(doc);
 		try!(
@@ -147,9 +147,10 @@ impl SegmentWriter {
 	// - the dictionary in an fst
 	// - the postings
 	// - the segment info
-	// The segment cannot be used after this.
-	fn finalize(	self,) -> io::Result<()> {
+	// The segment writer cannot be used after this.
+	fn finalize(mut self,) -> io::Result<()> {
 		let segment_info = self.segment_info();
+		self.postings_writer.close();
 		write(&self.postings_writer,
 			  &self.fast_field_writers,
 			  segment_info,
