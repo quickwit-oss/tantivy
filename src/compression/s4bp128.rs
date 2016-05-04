@@ -8,6 +8,10 @@ extern {
     // complete s4-bp128-dm
     fn encode_s4_bp128_dm_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_s4_bp128_dm_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+
+    fn encode_composite_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
+    fn decode_composite_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+
 }
 
 //-------------------------
@@ -26,6 +30,28 @@ impl S4BP128Encoder {
         }
     }
     
+    pub fn encode(&mut self, input: &[u32]) -> &[u32] {
+        self.input_buffer.clear();
+        let input_len = input.len();
+        if input_len + 10000 >= self.input_buffer.len() {
+            let target_length = input_len + 1024;
+            self.input_buffer.resize(target_length, 0);
+            self.output_buffer.resize(target_length, 0);
+        }
+        // TODO use clone_from when available
+        let written_size;
+        unsafe {
+            ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
+            written_size = encode_composite_native(
+                self.input_buffer.as_mut_ptr(),
+                input_len as size_t,
+                self.output_buffer.as_mut_ptr(),
+                self.output_buffer.len() as size_t,
+            );
+        }
+        &self.output_buffer[0..written_size]
+    }    
+     
     pub fn encode_sorted(&mut self, input: &[u32]) -> &[u32] {
         self.input_buffer.clear();
         let input_len = input.len();
@@ -35,16 +61,17 @@ impl S4BP128Encoder {
             self.output_buffer.resize(target_length, 0);
         }
         // TODO use clone_from when available
+        let written_size;
         unsafe {
             ptr::copy_nonoverlapping(input.as_ptr(), self.input_buffer.as_mut_ptr(), input_len);
-            let written_size = encode_s4_bp128_dm_native(
+            written_size = encode_s4_bp128_dm_native(
                 self.input_buffer.as_mut_ptr(),
                 input_len as size_t,
                 self.output_buffer.as_mut_ptr(),
                 self.output_buffer.len() as size_t,
             );
-            return &self.output_buffer[0..written_size];
         }
+        return &self.output_buffer[0..written_size];
     }
 }
 
@@ -67,18 +94,18 @@ impl S4BP128Decoder {
                         uncompressed_values.len() as size_t);
         }
     }
-
-    // pub fn decode_unsorted(&self,
-    //               compressed_data: &[u32],
-    //               uncompressed_values: &mut [u32]) -> size_t {
-    //     unsafe {
-    //         return decode_unsorted_native(
-    //                     compressed_data.as_ptr(),
-    //                     compressed_data.len() as size_t,
-    //                     uncompressed_values.as_mut_ptr(),
-    //                     uncompressed_values.len() as size_t);
-    //     }
-    // }
+    
+    pub fn decode(&self,
+            compressed_data: &[u32],
+            uncompressed_values: &mut [u32]) -> size_t {
+        unsafe {
+            return decode_composite_native(
+                        compressed_data.as_ptr(),
+                        compressed_data.len() as size_t,
+                        uncompressed_values.as_mut_ptr(),
+                        uncompressed_values.len() as size_t);
+        }
+    }
 }
 
 
@@ -91,7 +118,7 @@ mod tests {
     use compression::tests::generate_array;
 
     #[test]
-    fn test_encode_big() {
+    fn test_encode_sorted_big() {
         let mut encoder = S4BP128Encoder::new();
         let num_ints = 10000 as usize;
         let expected_length = 1274;
@@ -103,6 +130,22 @@ mod tests {
         let decoder = S4BP128Decoder::new();
         let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
         assert_eq!(num_ints, decoder.decode_sorted(&encoded_data[..], &mut decoded_data));
+        assert_eq!(decoded_data, input);
+    }
+    
+        #[test]
+    fn test_encode_unsorted_big() {
+        let mut encoder = S4BP128Encoder::new();
+        let num_ints = 10000 as usize;
+        let expected_length = 1897;
+        let input: Vec<u32> = (0..num_ints as u32)
+            .map(|i| i * 7 % 37)
+            .into_iter().collect();
+        let encoded_data = encoder.encode(&input);
+        assert_eq!(encoded_data.len(), expected_length);
+        let decoder = S4BP128Decoder::new();
+        let mut decoded_data: Vec<u32> = (0..num_ints as u32).collect();
+        assert_eq!(num_ints, decoder.decode(&encoded_data[..], &mut decoded_data));
         assert_eq!(decoded_data, input);
     }
 

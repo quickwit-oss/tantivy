@@ -12,6 +12,8 @@ using namespace SIMDCompressionLib;
 // sorted
 static shared_ptr<IntegerCODEC> codec_sorted =  CODECFactory::getFromName("s4-bp128-dm");
 
+static CompositeCodec<SIMDBinaryPacking<SIMDBlockPacker<NoDelta, false>>, VariableByte<false>> composite_codec_unsorted = CompositeCodec<SIMDBinaryPacking<SIMDBlockPacker<NoDelta, false>>, VariableByte<false>>();
+
 // variable byte
 static VariableByte<false> codec_unsorted = VariableByte<false>();
 
@@ -118,6 +120,29 @@ extern "C" {
       const size_t uncompressed_capacity) {
         size_t num_ints = uncompressed_capacity;
         codec_sorted -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+        return num_ints;
+  }
+  
+    size_t encode_composite_native(
+       uint32_t* begin,
+       const size_t num_els,
+       uint32_t* output,
+       const size_t output_capacity) {
+        size_t output_length = output_capacity;
+        composite_codec_unsorted.encodeArray(begin,
+                          num_els,
+                          output,
+                          output_length);
+        return output_length;
+  }
+
+  size_t decode_composite_native(
+      const uint32_t* compressed_data,
+      const size_t compressed_size,
+      uint32_t* uncompressed,
+      const size_t uncompressed_capacity) {
+        size_t num_ints = uncompressed_capacity;
+        composite_codec_unsorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
         return num_ints;
   }
 
