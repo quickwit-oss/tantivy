@@ -103,7 +103,7 @@ impl PostingsSerializer {
         if self.is_positions_enabled {
             self.position_deltas.extend_from_slice(position_deltas);
         }
-        if self.doc_ids.len() == 128 { 
+        if self.doc_ids.len() == NUM_DOCS_PER_BLOCK { 
             {
                 // encode the positions
                 let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.doc_ids);

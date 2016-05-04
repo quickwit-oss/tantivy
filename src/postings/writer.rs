@@ -47,11 +47,9 @@ impl<Rec: Recorder> TermPostingsWriter<Rec> {
     }
     
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        let mut positions_idx = 0;
         for (i, doc) in self.doc_ids.iter().enumerate() {
             let (term_freq, position_deltas) = self.recorder.get_tf_and_posdeltas(i);
             try!(serializer.write_doc(doc.clone(), term_freq, position_deltas));
-            positions_idx += term_freq as usize;
         }
         Ok(())
     }       

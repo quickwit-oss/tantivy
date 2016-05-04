@@ -18,13 +18,13 @@ impl Recorder for NothingRecorder {
         NothingRecorder
     }
     
-    fn record_position(&mut self, position: u32) {
+    fn record_position(&mut self, _position: u32) {
     }
     
     fn close_doc(&mut self,) {
     }
     
-    fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]) {
+    fn get_tf_and_posdeltas(&self, _: usize) -> (u32, &[u32]) {
         (0u32, &EMPTY_ARRAY)
     }
 }
@@ -43,7 +43,7 @@ impl Recorder for TermFrequencyRecorder {
         }
     }
     
-    fn record_position(&mut self, position: u32) {
+    fn record_position(&mut self, _position: u32) {
         self.current_tf += 1;
     }
     
