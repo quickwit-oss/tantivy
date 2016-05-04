@@ -73,51 +73,60 @@ impl PostingsSerializer {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }
             }
-            {
-                let block_encoded = self.vints_encoder.encode_sorted(&self.term_freqs[..]);
-                self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
-                for num in block_encoded {
-                    self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+            if self.is_termfreq_enabled {
+                {
+                    let block_encoded = self.vints_encoder.encode_sorted(&self.term_freqs[..]);
+                    self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
+                    for num in block_encoded {
+                        self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
+                    }
+                    self.term_freqs.clear();
                 }
-            }
-            if self.is_positions_enabled {
-                let mut num_blocks = self.position_deltas.len() / NUM_DOCS_PER_BLOCK;
-                let mut offset = 0;
-                for _ in 0..num_blocks {
-                    let block_encoded = self.positions_encoder.encode(&self.position_deltas[offset..offset + NUM_DOCS_PER_BLOCK]);
-                    offset += NUM_DOCS_PER_BLOCK;
-                    // self.positions_write.wr
+                if self.is_positions_enabled {
+                    let positions_encoded: &[u32] = self.positions_encoder.encode(&self.position_deltas[..]);
+                    for num in positions_encoded {
+                        self.written_bytes_positions += try!(num.serialize(&mut self.positions_write));
+                    }
+                    self.position_deltas.clear();
                 }
-                // self.position_deltas.extend_from_slice(position_deltas);
-                // let block_encoded &[u32] = self.positions_encoder.encode(&self.positions[..]);
             }
             self.doc_ids.clear();
-            self.term_freqs.clear();
         }
         Ok(())
     }
 
     pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) -> io::Result<()> {
         self.doc_ids.push(doc_id);
-        self.term_freqs.push(term_freq as u32);
+        if self.is_termfreq_enabled {
+            self.term_freqs.push(term_freq as u32);
+        }
+        if self.is_positions_enabled {
+            self.position_deltas.extend_from_slice(position_deltas);
+        }
         if self.doc_ids.len() == 128 { 
             {
+                // encode the positions
                 let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.doc_ids);
                 for num in block_encoded {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }
             }
             if self.is_termfreq_enabled {
+                // encode the term_freqs
                 let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.term_freqs);
                 for num in block_encoded {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }
-            }
-            if self.is_positions_enabled {
-                self.position_deltas.extend_from_slice(position_deltas);
+                if self.is_positions_enabled {
+                    let positions_encoded: &[u32] = self.positions_encoder.encode(&self.position_deltas[..]);
+                    for num in positions_encoded {
+                        self.written_bytes_positions += try!(num.serialize(&mut self.positions_write));
+                    }
+                    self.position_deltas.clear();
+                }
+                self.term_freqs.clear();
             }
             self.doc_ids.clear();
-            self.term_freqs.clear();
         }
         Ok(())
     }
