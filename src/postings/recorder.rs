@@ -30,6 +30,7 @@ impl Recorder for NothingRecorder {
 }
 
 
+
 pub struct TermFrequencyRecorder {
     term_freqs: Vec<u32>,
     current_tf: u32,

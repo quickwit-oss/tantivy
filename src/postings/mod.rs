@@ -10,7 +10,7 @@ pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAnd
 pub use self::serializer::PostingsSerializer;
 pub use self::writer::PostingsWriter;
 pub use self::term_info::TermInfo;
-pub use self::postings::Postings;
+pub use self::postings::{Postings, SkipResult};
 pub use self::vec_postings::VecPostings;
 pub use self::chained_postings::ChainedPostings;
 
@@ -19,6 +19,7 @@ mod tests {
     
     use super::*;
     
+    #[test]
     fn test_chained_postings() {
         let left = VecPostings::new(vec!(1u32, 3u32, 7u32));
         let right = VecPostings::new(vec!(0u32, 13u32));

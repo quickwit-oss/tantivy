@@ -133,7 +133,7 @@ mod tests {
         assert_eq!(decoded_data, input);
     }
     
-        #[test]
+    #[test]
     fn test_encode_unsorted_big() {
         let mut encoder = S4BP128Encoder::new();
         let num_ints = 10_000 as usize;
