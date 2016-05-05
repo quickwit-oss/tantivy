@@ -31,19 +31,24 @@ impl fmt::Debug for SegmentReader {
 
 #[inline(never)]
 pub fn intersection(mut postings: Vec<SegmentPostings>) -> SegmentPostings {
-    let min_len = postings
-        .iter()
-        .map(|v| v.len())
-        .min()
-        .unwrap();
+    let min_len = postings.iter()
+                          .map(|v| v.len())
+                          .min()
+                          .unwrap();
     let buffer: Vec<u32> = postings.pop().unwrap().0;
     let mut output: Vec<u32> = Vec::with_capacity(min_len);
-    unsafe { output.set_len(min_len); }
+    unsafe {
+        output.set_len(min_len);
+    }
     let mut pair = (output, buffer);
     for posting in postings.iter() {
         pair = (pair.1, pair.0);
-        let output_len = compression::intersection(posting.0.as_slice(), pair.0.as_slice(), pair.1.as_mut_slice());
-        unsafe { pair.1.set_len(output_len); }
+        let output_len = compression::intersection(posting.0.as_slice(),
+                                                   pair.0.as_slice(),
+                                                   pair.1.as_mut_slice());
+        unsafe {
+            pair.1.set_len(output_len);
+        }
     }
     SegmentPostings(pair.1)
 }
@@ -60,12 +65,11 @@ impl IntoIterator for SegmentPostings {
 }
 
 impl SegmentPostings {
-
-    pub fn empty()-> SegmentPostings {
+    pub fn empty() -> SegmentPostings {
         SegmentPostings(Vec::new())
     }
 
-    pub fn len(&self,) -> usize {
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
@@ -85,7 +89,7 @@ impl SegmentPostings {
                 let mut cursor = Cursor::new(data_u8);
                 let vint_len: usize = VInt::deserialize(&mut cursor).unwrap().val() as usize;
                 let cursor_pos = cursor.position() as usize;
-                let vint_data: &[u32] = unsafe { mem::transmute(&data_u8[cursor_pos..])};
+                let vint_data: &[u32] = unsafe { mem::transmute(&data_u8[cursor_pos..]) };
                 let mut vints_decoder = VIntsDecoder::new();
                 doc_ids.extend_from_slice(vints_decoder.decode_sorted(&vint_data[..vint_len]));
             }
@@ -93,9 +97,7 @@ impl SegmentPostings {
         SegmentPostings(doc_ids)
 
     }
-
 }
-//
 // impl Postings for SegmentPostings {
 //     fn skip_next(&mut self, target: DocId) -> Option<DocId> {
 //         loop {
@@ -112,7 +114,6 @@ impl SegmentPostings {
 //     }
 // }
 
-//
 // impl Iterator for SegmentPostings {
 //
 //     type Item = DocId;
@@ -140,29 +141,30 @@ pub struct SegmentReader {
 }
 
 impl SegmentReader {
-
     /// Returns the highest document id ever attributed in
     /// this segment + 1.
     /// Today, `tantivy` does not handle deletes so, it happens
     /// to also be the number of documents in the index.
-    pub fn max_doc(&self,) -> DocId {
+    pub fn max_doc(&self) -> DocId {
         self.segment_info.max_doc
     }
 
-    pub fn get_store_reader(&self,) -> &StoreReader {
+    pub fn get_store_reader(&self) -> &StoreReader {
         &self.store_reader
     }
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> io::Result<SegmentReader> {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
-        let segment_info_data = try!(str::from_utf8(&*segment_info_reader).map_err(convert_to_ioerror));
-        let segment_info: SegmentInfo = try!(json::decode(&segment_info_data).map_err(convert_to_ioerror));
+        let segment_info_data = try!(str::from_utf8(&*segment_info_reader)
+                                         .map_err(convert_to_ioerror));
+        let segment_info: SegmentInfo = try!(json::decode(&segment_info_data)
+                                                 .map_err(convert_to_ioerror));
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_infos = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
-        let fast_field_data =  try!(segment.open_read(SegmentComponent::FASTFIELDS));
+        let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
         let fast_fields_reader = try!(U32FastFieldsReader::open(fast_field_data));
         Ok(SegmentReader {
             segment_info: segment_info,
@@ -175,7 +177,7 @@ impl SegmentReader {
     }
 
 
-    pub fn term_infos(&self,) -> &FstMap<TermInfo> {
+    pub fn term_infos(&self) -> &FstMap<TermInfo> {
         &self.term_infos
     }
 
@@ -184,7 +186,7 @@ impl SegmentReader {
     /// bearing the given doc id.
     /// This method is slow and should seldom be called from
     /// within a collector.
-    pub fn  doc(&self, doc_id: &DocId) -> io::Result<Document> {
+    pub fn doc(&self, doc_id: &DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
     }
 
@@ -207,15 +209,10 @@ impl SegmentReader {
     pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> SegmentPostings {
         if terms.len() == 1 {
             match self.get_term(&terms[0]) {
-                Some(term_info) => {
-                    self.read_postings(&term_info)
-                }
-                None => {
-                    SegmentPostings::empty()
-                }
+                Some(term_info) => self.read_postings(&term_info),
+                None => SegmentPostings::empty(),
             }
-        }
-        else {
+        } else {
             let mut segment_postings: Vec<SegmentPostings> = Vec::new();
             {
                 let mut decode_timer = timer.open("decode_all");
@@ -239,7 +236,6 @@ impl SegmentReader {
             }
         }
     }
-
 }
 
 
