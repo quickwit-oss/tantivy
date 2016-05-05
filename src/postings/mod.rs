@@ -3,6 +3,7 @@ mod recorder;
 mod serializer;
 mod writer;
 mod term_info;
+mod chained_postings;
 mod vec_postings;
 
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
@@ -11,8 +12,29 @@ pub use self::writer::PostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 pub use self::vec_postings::VecPostings;
+pub use self::chained_postings::ChainedPostings;
 
-
+#[cfg(test)]
+mod tests {
+    
+    use super::*;
+    
+    fn test_chained_postings() {
+        let left = VecPostings::new(vec!(1u32, 3u32, 7u32));
+        let right = VecPostings::new(vec!(0u32, 13u32));
+        let mut chain = ChainedPostings::new(left, right, 16u32);
+        assert!(chain.next());
+        assert_eq!(chain.doc(), 1u32);
+        assert!(chain.next());
+        assert_eq!(chain.doc(), 3u32);
+        assert!(chain.next());
+        assert_eq!(chain.doc(), 7u32);
+        assert!(chain.next());
+        assert_eq!(chain.doc(), 16u32);
+        assert!(chain.next());
+        assert_eq!(chain.doc(), 29u32);
+    }
+}
 
 // #[cfg(test)]
 // mod tests {
