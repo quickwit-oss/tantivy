@@ -7,7 +7,7 @@ use core::codec::SegmentSerializer;
 
 use postings::PostingsSerializer;
 use postings::TermInfo;
-
+use postings::Postings;
 use std::collections::BinaryHeap;
 use datastruct::FstMapIter;
 use schema::{Term, Schema, U32Field};
@@ -93,8 +93,9 @@ impl<'a> PostingsMerger<'a> {
         {
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            for doc_id in reader.read_postings(&heap_item.term_info) {
-                self.doc_ids.push(offset + doc_id);
+            let mut segment_postings = reader.read_postings(&heap_item.term_info); 
+            while segment_postings.next() {
+                self.doc_ids.push(segment_postings.doc());
             }
         }
         self.push_next_segment_el(heap_item.segment_ord);
@@ -179,6 +180,7 @@ impl IndexMerger {
             match postings_merger.next() {
                 Some((term, doc_ids)) => {
                     try!(postings_serializer.new_term(&Term::from(&term), doc_ids.len() as DocId));
+                    
                     for doc_id in doc_ids.iter() {
                         // TODO fix this
                         // try!(postings_serializer.write_doc(doc_id.clone(), None));

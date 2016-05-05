@@ -5,6 +5,8 @@ mod writer;
 mod term_info;
 mod chained_postings;
 mod vec_postings;
+mod segment_postings;
+mod intersection;
 
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
@@ -13,6 +15,9 @@ pub use self::term_info::TermInfo;
 pub use self::postings::{Postings, SkipResult};
 pub use self::vec_postings::VecPostings;
 pub use self::chained_postings::ChainedPostings;
+pub use self::segment_postings::SegmentPostings;
+pub use self::intersection::intersection;
+pub use self::intersection::IntersectionPostings;
 
 #[cfg(test)]
 mod tests {

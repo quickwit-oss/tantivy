@@ -6,6 +6,7 @@ use schema::{Document, Term};
 use collector::Collector;
 use std::io;
 use common::TimerTree;
+use postings::Postings;
 
 #[derive(Debug)]
 pub struct Searcher {
@@ -58,11 +59,11 @@ impl Searcher {
                     let _ = segment_search_timer.open("set_segment");
                     try!(collector.set_segment(segment_ord as SegmentLocalId, &segment));
                 }
-                let postings = segment.search(terms, segment_search_timer.open("get_postings"));
+                let mut postings = segment.search(terms, segment_search_timer.open("get_postings"));
                 {
                     let _collection_timer = segment_search_timer.open("collection");
-                    for doc_id in postings {
-                        collector.collect(doc_id);
+                    while postings.next() {
+                        collector.collect(postings.doc());
                     }
                 }
             }

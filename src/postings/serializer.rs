@@ -68,7 +68,7 @@ impl PostingsSerializer {
         if !self.doc_ids.is_empty() {
             {
                 let block_encoded = self.vints_encoder.encode_sorted(&self.doc_ids[..]);
-                self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
+                // self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
                 for num in block_encoded {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }

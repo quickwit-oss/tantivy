@@ -5,8 +5,13 @@ use std::ptr;
 extern {
     fn encode_sorted_block128_native(data: *mut u32, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_sorted_block128_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32) -> usize;
+
     fn encode_block128_native(data: *mut u32, output: *mut u32, output_capacity: size_t) -> size_t;
     fn decode_block128_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32) -> usize;
+
+    fn encode_sorted_vint_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
+    fn decode_sorted_vint_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+
 }
 
 //-------------------------
@@ -71,26 +76,42 @@ impl Block128Decoder {
     
     pub fn decode<'a, 'b>(
           &'b mut self,
-          compressed_data: &'a [u32]) -> (&'a[u32], &'b[u32; 128]) {
+          compressed_data: &'a [u32]) -> &'a[u32] {
         unsafe {
             let consumed_num_bytes: usize = decode_block128_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
                         self.output.as_mut_ptr());
-            (&compressed_data[consumed_num_bytes..], &self.output)
+            &compressed_data[consumed_num_bytes..]
         }
     }
 
     pub fn decode_sorted<'a, 'b>(
           &'b mut self,
-          compressed_data: &'a [u32]) -> (&'a[u32], &'b[u32; 128]) {
+          compressed_data: &'a [u32]) -> &'a [u32] {
         unsafe {
             let consumed_num_bytes: usize = decode_sorted_block128_native(
                         compressed_data.as_ptr(),
                         compressed_data.len() as size_t,
                         self.output.as_mut_ptr());
-            (&compressed_data[consumed_num_bytes..], &self.output)
+            &compressed_data[consumed_num_bytes..]
         }
+    }
+    
+    pub fn decode_sorted_remaining(&mut self,
+        compressed_data: &[u32]) -> &[u32] {
+        unsafe {
+            let num_uncompressed = decode_sorted_vint_native(
+                compressed_data.as_ptr(),
+                compressed_data.len() as size_t,
+                self.output.as_mut_ptr(),
+                128);
+            &self.output[..num_uncompressed]
+        }
+    }
+    
+    pub fn output(&self,) -> &[u32; 128] {
+        &self.output
     }
 }
 
@@ -114,7 +135,8 @@ mod tests {
                 encoded_vec.push(i);
             }
             let mut decoder = Block128Decoder::new();
-            let (remaining_input, uncompressed_values) = decoder.decode_sorted(&encoded_vec[..]);
+            let remaining_input = decoder.decode_sorted(&encoded_vec[..]);
+            let uncompressed_values = decoder.output();
             assert_eq!(remaining_input.len(), *num_extra_values);
             for i in 0..128 {
                 assert_eq!(uncompressed_values[i], input[i]);
@@ -139,7 +161,8 @@ mod tests {
                 encoded_vec.push(i);
             }
             let mut decoder = Block128Decoder::new();
-            let (remaining_input, uncompressed_values) = decoder.decode(&encoded_vec[..]);
+            let remaining_input = decoder.decode(&encoded_vec[..]);
+            let uncompressed_values = decoder.output();
             assert_eq!(remaining_input.len(), *num_extra_values);
             for i in 0..128 {
                 assert_eq!(uncompressed_values[i], input[i]);

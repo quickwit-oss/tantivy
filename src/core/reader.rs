@@ -3,7 +3,6 @@ use schema::Term;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
-use std::io::Cursor;
 use DocId;
 use core::index::SegmentComponent;
 use std::io;
@@ -12,123 +11,20 @@ use postings::TermInfo;
 use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
-use common::VInt;
 use core::index::SegmentInfo;
 use common::OpenTimer;
 use schema::U32Field;
 use core::convert_to_ioerror;
-use common::BinarySerializable;
+use postings::SegmentPostings;
+use postings::Postings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
-use compression;
-use compression::{Block128Decoder, VIntsDecoder};
-use std::mem;
+use postings::intersection;
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
     }
 }
-
-#[inline(never)]
-pub fn intersection(mut postings: Vec<SegmentPostings>) -> SegmentPostings {
-    let min_len = postings.iter()
-                          .map(|v| v.len())
-                          .min()
-                          .unwrap();
-    let buffer: Vec<u32> = postings.pop().unwrap().0;
-    let mut output: Vec<u32> = Vec::with_capacity(min_len);
-    unsafe {
-        output.set_len(min_len);
-    }
-    let mut pair = (output, buffer);
-    for posting in postings.iter() {
-        pair = (pair.1, pair.0);
-        let output_len = compression::intersection(posting.0.as_slice(),
-                                                   pair.0.as_slice(),
-                                                   pair.1.as_mut_slice());
-        unsafe {
-            pair.1.set_len(output_len);
-        }
-    }
-    SegmentPostings(pair.1)
-}
-
-pub struct SegmentPostings(Vec<DocId>);
-
-impl IntoIterator for SegmentPostings {
-    type Item = DocId;
-    type IntoIter = ::std::vec::IntoIter<DocId>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl SegmentPostings {
-    pub fn empty() -> SegmentPostings {
-        SegmentPostings(Vec::new())
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn from_data(doc_freq: DocId, data: &[u8]) -> SegmentPostings {
-        let mut data_u32: &[u32] = unsafe { mem::transmute(data) };
-        let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
-        {
-            let mut block_decoder = Block128Decoder::new();
-            let num_blocks = doc_freq / (compression::NUM_DOCS_PER_BLOCK as u32);
-            for _ in 0..num_blocks {
-                let (remaining, uncompressed) = block_decoder.decode_sorted(data_u32);
-                doc_ids.extend_from_slice(uncompressed);
-                data_u32 = remaining;
-            }
-            if doc_freq % 128 != 0 {
-                let data_u8: &[u8] = unsafe { mem::transmute(data_u32) };
-                let mut cursor = Cursor::new(data_u8);
-                let vint_len: usize = VInt::deserialize(&mut cursor).unwrap().val() as usize;
-                let cursor_pos = cursor.position() as usize;
-                let vint_data: &[u32] = unsafe { mem::transmute(&data_u8[cursor_pos..]) };
-                let mut vints_decoder = VIntsDecoder::new();
-                doc_ids.extend_from_slice(vints_decoder.decode_sorted(&vint_data[..vint_len]));
-            }
-        }
-        SegmentPostings(doc_ids)
-
-    }
-}
-// impl Postings for SegmentPostings {
-//     fn skip_next(&mut self, target: DocId) -> Option<DocId> {
-//         loop {
-//             match Iterator::next(self) {
-//                 Some(val) if val >= target => {
-//                     return Some(val);
-//                 },
-//                 None => {
-//                     return None;
-//                 },
-//                 _ => {}
-//             }
-//         }
-//     }
-// }
-
-// impl Iterator for SegmentPostings {
-//
-//     type Item = DocId;
-//
-//     fn next(&mut self,) -> Option<DocId> {
-//         if self.doc_id < self.doc_ids.len() {
-//             let res = Some(self.doc_ids[self.doc_id]);
-//             self.doc_id += 1;
-//             return res;
-//         }
-//         else {
-//             None
-//         }
-//     }
-// }
 
 
 pub struct SegmentReader {
@@ -206,11 +102,16 @@ impl SegmentReader {
 
     /// Returns the list of doc ids containing all of the
     /// given terms.
-    pub fn search<'a>(&self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> SegmentPostings {
+    pub fn search<'a, 'b>(&'b self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> Box<Postings + 'b> {
         if terms.len() == 1 {
             match self.get_term(&terms[0]) {
-                Some(term_info) => self.read_postings(&term_info),
-                None => SegmentPostings::empty(),
+                Some(term_info) => {
+                    let postings: SegmentPostings<'b> = self.read_postings(&term_info);
+                    Box::new(postings)
+                },
+                None => {
+                    Box::new(SegmentPostings::empty())
+                },
             }
         } else {
             let mut segment_postings: Vec<SegmentPostings> = Vec::new();
@@ -225,15 +126,12 @@ impl SegmentReader {
                         }
                         None => {
                             // currently this is a strict intersection.
-                            return SegmentPostings::empty();
+                            return Box::new(SegmentPostings::empty());
                         }
                     }
                 }
             }
-            {
-                let _intersection_time = timer.open("intersection");
-                intersection(segment_postings)
-            }
+            Box::new(intersection(segment_postings))
         }
     }
 }
