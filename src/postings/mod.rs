@@ -22,12 +22,6 @@ pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::intersection;
 pub use self::intersection::IntersectionPostings;
 
-#[cfg(test)]
-mod tests {
-    
-    use super::*;
- 
-}
 
 // #[cfg(test)]
 // mod tests {

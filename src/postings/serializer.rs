@@ -68,7 +68,7 @@ impl PostingsSerializer {
         if !self.doc_ids.is_empty() {
             {
                 let block_encoded = self.vints_encoder.encode_sorted(&self.doc_ids[..]);
-                // self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
+                self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
                 for num in block_encoded {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }
@@ -83,10 +83,9 @@ impl PostingsSerializer {
                     self.term_freqs.clear();
                 }
                 if self.is_positions_enabled {
-                    let positions_encoded: &[u32] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    for num in positions_encoded {
-                        self.written_bytes_positions += try!(num.serialize(&mut self.positions_write));
-                    }
+                    let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
+                    self.positions_write.write_all(positions_encoded);
+                    self.written_bytes_positions += positions_encoded.len();
                     self.position_deltas.clear();
                 }
             }
@@ -106,22 +105,19 @@ impl PostingsSerializer {
         if self.doc_ids.len() == NUM_DOCS_PER_BLOCK { 
             {
                 // encode the positions
-                let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.doc_ids);
-                for num in block_encoded {
-                    self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
-                }
+                let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.doc_ids);
+                self.postings_write.write_all(block_encoded);
+                self.written_bytes_postings += block_encoded.len();
             }
             if self.is_termfreq_enabled {
                 // encode the term_freqs
-                let block_encoded: &[u32] = self.block_encoder.encode_sorted(&self.term_freqs);
-                for num in block_encoded {
-                    self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
-                }
+                let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.term_freqs);
+                self.postings_write.write_all(block_encoded);
+                self.written_bytes_postings += block_encoded.len();
                 if self.is_positions_enabled {
-                    let positions_encoded: &[u32] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    for num in positions_encoded {
-                        self.written_bytes_positions += try!(num.serialize(&mut self.positions_write));
-                    }
+                    let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
+                    self.positions_write.write_all(positions_encoded);
+                    self.written_bytes_positions += positions_encoded.len();
                     self.position_deltas.clear();
                 }
                 self.term_freqs.clear();

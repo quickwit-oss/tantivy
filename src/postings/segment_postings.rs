@@ -10,11 +10,11 @@ use std::num::Wrapping;
 pub struct SegmentPostings<'a> {
     doc_freq: usize,
     block_decoder: Block128Decoder,
-    remaining_data: &'a [u32],
+    remaining_data: &'a [u8],
     cur: Wrapping<usize>,
 }
 
-const EMPTY_ARRAY: [u32; 0] = [];
+const EMPTY_ARRAY: [u8; 0] = [];
 
 impl<'a> SegmentPostings<'a> {
     
@@ -40,7 +40,7 @@ impl<'a> SegmentPostings<'a> {
         SegmentPostings {
             doc_freq: doc_freq as usize,
             block_decoder: Block128Decoder::new(),
-            remaining_data: unsafe { mem::transmute(data) },
+            remaining_data: data,
             cur: Wrapping(usize::max_value()),
         }
         // let mut data_u32: &[u32] = unsafe { mem::transmute(data) };

@@ -43,7 +43,7 @@ impl<'a> Postings for ChainedPostings<'a> {
         self.chained_postings[self.posting_id].doc()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
+    fn skip_next(&mut self, _target: DocId) -> SkipResult {
         // TODO implement.
         panic!("not implemented");
     }

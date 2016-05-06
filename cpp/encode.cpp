@@ -31,71 +31,73 @@ extern "C" {
   // encode 128 u32 at a time.
   size_t encode_block128_native(
       uint32_t* begin,
-      uint32_t* output,
+      uint8_t* output,
       const size_t output_capacity) {
-        size_t output_length = output_capacity;
+        size_t output_length = output_capacity / 4;
         simd_pack.encodeArray(begin,
                         128,
-                        output,
+                        reinterpret_cast<uint32_t*>(output),
                         output_length);
-        return output_length;
+        return output_length * 4;
   }
 
   // returns the number of byte that have been read.
   size_t decode_block128_native(
-    const uint32_t* compressed_data,
+    const uint8_t* compressed_data,
     const size_t compressed_size,
     uint32_t* uncompressed) {
       size_t output_capacity = 128;
-      const uint32_t* pointer_end = simd_pack.decodeArray(compressed_data, compressed_size, uncompressed, output_capacity);
-      return static_cast<size_t>(pointer_end - compressed_data);
+      const uint32_t* pointer_end = simd_pack.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, output_capacity);
+      const uint8_t* pointer_end_u8 = reinterpret_cast<const uint8_t*>(pointer_end);
+      return static_cast<size_t>(pointer_end_u8 - compressed_data) * 4;
 
   }
 
   // encode 128 u32 at a time.
   size_t encode_sorted_block128_native(
       uint32_t* begin,
-      uint32_t* output,
+      uint8_t* output,
       const size_t output_capacity) {
         size_t output_length = output_capacity;
         simd_pack_sorted.encodeArray(begin,
                         128,
-                        output,
+                        reinterpret_cast<uint32_t*>(output),
                         output_length);
-        return output_length;
+        return output_length * 4;
   }
 
   // returns the number of byte that have been read.
   size_t decode_sorted_block128_native(
-    const uint32_t* compressed_data,
+    const uint8_t* compressed_data,
     const size_t compressed_size,
     uint32_t* uncompressed) {
       size_t output_capacity = 128;
-      const uint32_t* pointer_end = simd_pack_sorted.decodeArray(compressed_data, compressed_size, uncompressed, output_capacity);
-      return static_cast<size_t>(pointer_end - compressed_data);
+      const uint32_t* pointer_end = simd_pack_sorted.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, output_capacity);
+      const uint8_t* pointer_end_u8 = reinterpret_cast<const uint8_t*>(pointer_end);
+      return static_cast<size_t>(pointer_end_u8 - compressed_data);
 
   }
 
   size_t encode_sorted_vint_native(
       uint32_t* begin,
       const size_t num_els,
-      uint32_t* output,
+      uint8_t* output,
       const size_t output_capacity) {
-        size_t output_length = output_capacity;
+        size_t output_length = output_capacity / 4;
         vint_codec.encodeArray(begin,
                         num_els,
-                        output,
+                        reinterpret_cast<uint32_t*>(output),
                         output_length);
-        return output_length;
+        return output_length * 4;
   }
 
   size_t decode_sorted_vint_native(
-    const uint32_t* compressed_data,
+    const uint8_t* compressed_data,
     const size_t compressed_size,
     uint32_t* uncompressed,
     const size_t uncompressed_capacity) {
       size_t num_ints = uncompressed_capacity;
-      vint_codec.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+      vint_codec.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, num_ints);
       return num_ints;
   }
 
@@ -103,46 +105,46 @@ extern "C" {
   size_t encode_s4_bp128_dm_native(
        uint32_t* begin,
        const size_t num_els,
-       uint32_t* output,
+       uint8_t* output,
        const size_t output_capacity) {
-        size_t output_length = output_capacity;
+        size_t output_length = output_capacity / 4;
         codec_sorted -> encodeArray(begin,
                           num_els,
-                          output,
+                          reinterpret_cast<uint32_t*>(output),
                           output_length);
-        return output_length;
+        return output_length * 4;
   }
 
   size_t decode_s4_bp128_dm_native(
-      const uint32_t* compressed_data,
+      const uint8_t* compressed_data,
       const size_t compressed_size,
       uint32_t* uncompressed,
       const size_t uncompressed_capacity) {
         size_t num_ints = uncompressed_capacity;
-        codec_sorted -> decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+        codec_sorted -> decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, num_ints);
         return num_ints;
   }
   
     size_t encode_composite_native(
-       uint32_t* begin,
+       uint32_t* uncompressed,
        const size_t num_els,
-       uint32_t* output,
+       uint8_t* output,
        const size_t output_capacity) {
-        size_t output_length = output_capacity;
-        composite_codec_unsorted.encodeArray(begin,
+        size_t output_length = output_capacity / 4;
+        composite_codec_unsorted.encodeArray(uncompressed,
                           num_els,
-                          output,
+                          reinterpret_cast<uint32_t*>(output),
                           output_length);
-        return output_length;
+        return output_length * 4;
   }
 
   size_t decode_composite_native(
-      const uint32_t* compressed_data,
+      const uint8_t* compressed_data,
       const size_t compressed_size,
       uint32_t* uncompressed,
       const size_t uncompressed_capacity) {
         size_t num_ints = uncompressed_capacity;
-        composite_codec_unsorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+        composite_codec_unsorted.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size/4, uncompressed, num_ints);
         return num_ints;
   }
 
@@ -150,25 +152,25 @@ extern "C" {
   size_t encode_unsorted_native(
        uint32_t* begin,
        const size_t num_els,
-       uint32_t* output,
+       uint8_t* output,
        const size_t output_capacity) {
-         size_t output_length = output_capacity;
+         size_t output_length = output_capacity / 4;
          codec_unsorted.encodeArray(begin,
                            num_els,
-                           output,
+                           reinterpret_cast<uint32_t*>(output),
                            output_length);
-        return output_length;
+        return output_length * 4;
   }
 
 
 
   size_t decode_unsorted_native(
-      const uint32_t* compressed_data,
+      const uint8_t* compressed_data,
       const size_t compressed_size,
       uint32_t* uncompressed,
       const size_t uncompressed_capacity) {
          size_t num_ints = uncompressed_capacity;
-         codec_unsorted.decodeArray(compressed_data, compressed_size, uncompressed, num_ints);
+         codec_unsorted.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, num_ints);
          return num_ints;
   }
 

@@ -6,11 +6,11 @@ use std::ptr;
 
 extern {
     // complete s4-bp128-dm
-    fn encode_s4_bp128_dm_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_s4_bp128_dm_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+    fn encode_s4_bp128_dm_native(data: *mut u32, num_els: size_t, output: *mut u8, output_capacity: size_t) -> size_t;
+    fn decode_s4_bp128_dm_native(compressed_data: *const u8, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 
-    fn encode_composite_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_composite_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+    fn encode_composite_native(data: *mut u32, num_els: size_t, output: *mut u8, output_capacity: size_t) -> size_t;
+    fn decode_composite_native(compressed_data: *const u8, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 
 }
 
@@ -19,7 +19,7 @@ extern {
 
 pub struct S4BP128Encoder {
     input_buffer: Vec<u32>,
-    output_buffer: Vec<u32>,
+    output_buffer: Vec<u8>,
 }
 
 impl S4BP128Encoder {
@@ -30,13 +30,13 @@ impl S4BP128Encoder {
         }
     }
     
-    pub fn encode(&mut self, input: &[u32]) -> &[u32] {
+    pub fn encode(&mut self, input: &[u32]) -> &[u8] {
         self.input_buffer.clear();
         let input_len = input.len();
         if input_len + 10000 >= self.input_buffer.len() {
             let target_length = input_len + 1024;
             self.input_buffer.resize(target_length, 0);
-            self.output_buffer.resize(target_length, 0);
+            self.output_buffer.resize(target_length * 4, 0);
         }
         // TODO use clone_from when available
         let written_size;
@@ -52,13 +52,13 @@ impl S4BP128Encoder {
         &self.output_buffer[0..written_size]
     }    
      
-    pub fn encode_sorted(&mut self, input: &[u32]) -> &[u32] {
+    pub fn encode_sorted(&mut self, input: &[u32]) -> &[u8] {
         self.input_buffer.clear();
         let input_len = input.len();
         if input_len + 10000 >= self.input_buffer.len() {
             let target_length = input_len + 1024;
             self.input_buffer.resize(target_length, 0);
-            self.output_buffer.resize(target_length, 0);
+            self.output_buffer.resize(target_length * 4, 0);
         }
         // TODO use clone_from when available
         let written_size;
@@ -84,7 +84,7 @@ impl S4BP128Decoder {
     }
 
     pub fn decode_sorted(&self,
-                  compressed_data: &[u32],
+                  compressed_data: &[u8],
                   uncompressed_values: &mut [u32]) -> size_t {
         unsafe {
             return decode_s4_bp128_dm_native(
@@ -96,7 +96,7 @@ impl S4BP128Decoder {
     }
     
     pub fn decode(&self,
-            compressed_data: &[u32],
+            compressed_data: &[u8],
             uncompressed_values: &mut [u32]) -> size_t {
         unsafe {
             return decode_composite_native(

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod intersection;
 pub use self::intersection::intersection;
 

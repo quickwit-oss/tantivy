@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use DocId;
 use postings::{Postings, SkipResult};
 use std::num::Wrapping;
