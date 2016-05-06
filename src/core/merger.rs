@@ -19,7 +19,6 @@ use core::index::SegmentInfo;
 use std::cmp::{min, max, Ordering};
 
 struct PostingsMerger<'a> {
-    // doc_ids: Vec<DocId>,
     doc_offsets: Vec<DocId>,
     heap: BinaryHeap<HeapItem>,
     term_streams: Vec<FstMapIter<'a, TermInfo>>,

@@ -121,7 +121,7 @@ mod tests {
     fn test_encode_sorted_big() {
         let mut encoder = S4BP128Encoder::new();
         let num_ints = 10_000 as usize;
-        let expected_length = 1_274;
+        let expected_length = 5_096;
         let input: Vec<u32> = (0..num_ints as u32)
             .map(|i| i * 7 / 2)
             .into_iter().collect();
@@ -137,7 +137,7 @@ mod tests {
     fn test_encode_unsorted_big() {
         let mut encoder = S4BP128Encoder::new();
         let num_ints = 10_000 as usize;
-        let expected_length = 1_897;
+        let expected_length = 7_588;
         let input: Vec<u32> = (0..num_ints as u32)
             .map(|i| i * 7 % 37)
             .into_iter().collect();

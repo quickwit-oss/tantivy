@@ -129,7 +129,7 @@ mod tests {
         skip_list_builder.insert(2, &3).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
         assert_eq!(output.len(), 13);
-        assert_eq!(output[0], 1);
+        assert_eq!(output[0], 1u8 + 128u8);
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod tests {
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
         assert_eq!(output.len(), 117);
-        assert_eq!(output[0], 3);
+        assert_eq!(output[0], 3u8 + 128u8);
     }
 
     #[test]
@@ -154,7 +154,7 @@ mod tests {
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
         assert_eq!(output.len(), 81);
-        assert_eq!(output[0], 3);
+        assert_eq!(output[0], 128u8 + 3u8);
     }
 
 }

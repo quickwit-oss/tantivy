@@ -18,15 +18,14 @@ impl BinarySerializable for VInt {
         let mut written: usize = 0;
         let mut buffer = [0u8; 10];
         loop {
-            let mut next_byte: u8 = (remaining % 128u64) as u8;
+            let next_byte: u8 = (remaining % 128u64) as u8;
             remaining /= 128u64;
             if remaining == 0u64 {
-                buffer[written] = next_byte;
+                buffer[written] = next_byte | 128u8;
                 written += 1;
                 break;
             }
             else {
-                next_byte |= 128u8;
                 buffer[written] = next_byte;
                 written += 1;
             }
@@ -43,7 +42,7 @@ impl BinarySerializable for VInt {
             match bytes.next() {
                 Some(Ok(b)) => {
                     result += ((b % 128u8) as u64) << shift;
-                    if b & 128 == 0u8 {
+                    if b & 128u8 != 0u8 {
                         break;
                     }
                     shift += 7;
@@ -56,3 +55,4 @@ impl BinarySerializable for VInt {
         Ok(VInt(result))
     }
 }
+

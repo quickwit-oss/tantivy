@@ -130,7 +130,7 @@ mod tests {
                 input[i as usize] = i * 7 / 2;
             }
             let mut encoded_vec: Vec<u8> = encoder.encode_sorted(&input).to_vec();
-            assert_eq!(encoded_vec.len(), 21);
+            assert_eq!(encoded_vec.len(), 84);
             for i in 0u8..*num_extra_values as u8 {
                 encoded_vec.push(i);
             }
@@ -142,7 +142,7 @@ mod tests {
                 assert_eq!(uncompressed_values[i], input[i]);
             }
             for i in 0..*num_extra_values {
-                assert_eq!(remaining_input[i], i as u32);
+                assert_eq!(remaining_input[i], i as u8);
             }
         }
     }

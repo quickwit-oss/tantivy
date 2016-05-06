@@ -69,6 +69,7 @@ impl PostingsSerializer {
             {
                 let block_encoded = self.vints_encoder.encode_sorted(&self.doc_ids[..]);
                 self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
+                
                 for num in block_encoded {
                     self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                 }
@@ -84,7 +85,8 @@ impl PostingsSerializer {
                 }
                 if self.is_positions_enabled {
                     let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    self.positions_write.write_all(positions_encoded);
+                    self.written_bytes_positions += try!(VInt(positions_encoded.len() as u64).serialize(&mut self.positions_write));
+                    try!(self.positions_write.write_all(positions_encoded));
                     self.written_bytes_positions += positions_encoded.len();
                     self.position_deltas.clear();
                 }
@@ -106,17 +108,17 @@ impl PostingsSerializer {
             {
                 // encode the positions
                 let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.doc_ids);
-                self.postings_write.write_all(block_encoded);
+                try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();
             }
             if self.is_termfreq_enabled {
                 // encode the term_freqs
                 let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.term_freqs);
-                self.postings_write.write_all(block_encoded);
+                try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();
                 if self.is_positions_enabled {
                     let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    self.positions_write.write_all(positions_encoded);
+                    try!(self.positions_write.write_all(positions_encoded));
                     self.written_bytes_positions += positions_encoded.len();
                     self.position_deltas.clear();
                 }

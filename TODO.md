@@ -1,3 +1,4 @@
+pass over offset from previous block
 error management
 split directory
 add doc values

@@ -1,7 +1,6 @@
 use directory::{Directory, ReadOnlySource};
 use std::io::{Cursor, Write, Seek, SeekFrom};
 use std::io;
-use atomicwrites;
 use std::fmt;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
@@ -71,10 +70,8 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
-        let meta_file = atomicwrites::AtomicFile::new(PathBuf::from(path), atomicwrites::AllowOverwrite);
-        meta_file.write(|f| {
-            f.write_all(data)
-        })
+        let mut write = try!(self.open_write(path));
+        write.write_all(data)
     }
 
     fn sync(&self, _: &Path) -> io::Result<()> {

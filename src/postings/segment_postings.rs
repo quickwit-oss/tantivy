@@ -2,9 +2,11 @@ use postings::Postings;
 use compression::{NUM_DOCS_PER_BLOCK, Block128Decoder};
 use DocId;
 use std::cmp::Ordering;
-use std::mem;
 use postings::SkipResult;
+use std::io::Cursor;
+use common::VInt;
 use std::num::Wrapping;
+use common::BinarySerializable;
 
 // No Term Frequency, no postings.
 pub struct SegmentPostings<'a> {
@@ -32,6 +34,10 @@ impl<'a> SegmentPostings<'a> {
             self.remaining_data = self.block_decoder.decode_sorted(self.remaining_data);
         }
         else {
+            let mut cursor = Cursor::new(self.remaining_data);
+            let remaining_len: usize = VInt::deserialize(&mut cursor).unwrap().0 as usize;
+            let position = cursor.position() as usize;
+            self.remaining_data = &self.remaining_data[position..position+remaining_len];
             self.block_decoder.decode_sorted_remaining(self.remaining_data);
         }
     }
@@ -43,28 +49,6 @@ impl<'a> SegmentPostings<'a> {
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
         }
-        // let mut data_u32: &[u32] = unsafe { mem::transmute(data) };
-        // let mut doc_ids: Vec<u32> = Vec::with_capacity(doc_freq as usize);
-        // {
-        //     let mut block_decoder = Block128Decoder::new();
-        //     let num_blocks = doc_freq / (NUM_DOCS_PER_BLOCK as u32);
-        //     for _ in 0..num_blocks {
-        //         let (remaining = block_decoder.decode_sorted(data_u32);
-        //         doc_ids.extend_from_slice(uncompressed);
-        //         data_u32 = remaining;
-        //     }
-        //     if doc_freq % 128 != 0 {
-        //         let data_u8: &[u8] = unsafe { mem::transmute(data_u32) };
-        //         let mut cursor = Cursor::new(data_u8);
-        //         let vint_len: usize = VInt::deserialize(&mut cursor).unwrap().val() as usize;
-        //         let cursor_pos = cursor.position() as usize;
-        //         let vint_data: &[u32] = unsafe { mem::transmute(&data_u8[cursor_pos..]) };
-        //         let mut vints_decoder = VIntsDecoder::new();
-        //         doc_ids.extend_from_slice(vints_decoder.decode_sorted(&vint_data[..vint_len]));
-        //     }
-        // }
-        // SegmentPostings(doc_ids)
-
     }
 }
 

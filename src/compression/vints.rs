@@ -3,13 +3,13 @@ use std::ptr;
 use std::iter;
 
 extern {
-    fn encode_sorted_vint_native(data: *mut u32, num_els: size_t, output: *mut u32, output_capacity: size_t) -> size_t;
-    fn decode_sorted_vint_native(compressed_data: *const u32, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
+    fn encode_sorted_vint_native(data: *mut u32, num_els: size_t, output: *mut u8, output_capacity: size_t) -> size_t;
+    fn decode_sorted_vint_native(compressed_data: *const u8, compressed_size: size_t, uncompressed: *mut u32, output_capacity: size_t) -> size_t;
 }
 
 pub struct VIntsEncoder {
     input_buffer: Vec<u32>,
-    output_buffer: Vec<u32>,
+    output_buffer: Vec<u8>,
 }
 
 impl VIntsEncoder {
@@ -17,11 +17,11 @@ impl VIntsEncoder {
     pub fn new() -> VIntsEncoder {
         VIntsEncoder {
             input_buffer: Vec::with_capacity(128),
-            output_buffer: iter::repeat(0u32).take(256).collect(),
+            output_buffer: iter::repeat(0u8).take(256 * 4).collect(),
         }
     }
 
-    pub fn encode_sorted(&mut self, input: &[u32]) -> &[u32] {
+    pub fn encode_sorted(&mut self, input: &[u32]) -> &[u8] {
         assert!(input.len() < 128);
         let input_len = input.len();
         let written_size: usize;
@@ -32,7 +32,7 @@ impl VIntsEncoder {
                 self.input_buffer.as_mut_ptr(),
                 input_len as size_t,
                 self.output_buffer.as_mut_ptr(),
-                256,
+                256 * 4,
             );
         }
         return &self.output_buffer[0..written_size];
@@ -54,7 +54,7 @@ impl VIntsDecoder {
     }
 
     pub fn decode_sorted(&mut self,
-                  compressed_data: &[u32]) -> &[u32] {
+                  compressed_data: &[u8]) -> &[u32] {
         unsafe {
             let num_uncompressed = decode_sorted_vint_native(
                 compressed_data.as_ptr(),
@@ -76,7 +76,7 @@ mod tests {
     fn test_encode_vint() {
         {
             let mut encoder = VIntsEncoder::new();
-            let expected_length = 31;
+            let expected_length = 124;
             let input: Vec<u32> = (0u32..123u32)
                 .map(|i| i * 7 / 2)
                 .into_iter()
@@ -90,10 +90,13 @@ mod tests {
         }
         {
             let mut encoder = VIntsEncoder::new();
-            let input = vec!(3, 17u32, 187);
+            let input = vec!(3u32, 17u32, 187u32);
             let encoded_data = encoder.encode_sorted(&input);
-            assert_eq!(encoded_data.len(), 1);
-            assert_eq!(encoded_data[0], 2167049859u32);
+            assert_eq!(encoded_data.len(), 4);
+            assert_eq!(encoded_data[0], 3u8 + 128u8);
+            assert_eq!(encoded_data[1], (17u8 - 3u8) + 128u8);
+            assert_eq!(encoded_data[2], (187u8 - 17u8 - 128u8));
+            assert_eq!(encoded_data[3], (1u8 + 128u8));
         }
         {
             let mut encoder = VIntsEncoder::new();

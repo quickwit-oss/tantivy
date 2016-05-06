@@ -49,7 +49,7 @@ extern "C" {
       size_t output_capacity = 128;
       const uint32_t* pointer_end = simd_pack.decodeArray(reinterpret_cast<const uint32_t*>(compressed_data), compressed_size / 4, uncompressed, output_capacity);
       const uint8_t* pointer_end_u8 = reinterpret_cast<const uint8_t*>(pointer_end);
-      return static_cast<size_t>(pointer_end_u8 - compressed_data) * 4;
+      return static_cast<size_t>(pointer_end_u8 - compressed_data);
 
   }
 
