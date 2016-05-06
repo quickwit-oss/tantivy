@@ -29,6 +29,10 @@ impl Postings for VecPostings {
         self.doc_ids[self.cursor.0]
     }
 
+    fn doc_freq(&self,) -> usize {
+        self.doc_ids.len()
+    }
+    
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         let mut start: usize = self.cursor.0;
         match self.doc_ids[start].cmp(&target)  {

@@ -1,58 +1,54 @@
 use DocId;
 use postings::{Postings, SkipResult};
+use postings::OffsetPostings;
 
-pub struct ChainedPostings<LeftPostings: Postings, RightPostings: Postings> {
-    left: LeftPostings,
-    right: RightPostings,
-    right_offset: DocId,
-    on_right: bool,
+pub struct ChainedPostings<'a> {
+    chained_postings: Vec<OffsetPostings<'a>>,
+    posting_id: usize,
+    doc_freq: usize,
 }
 
-impl<LeftPostings: Postings, RightPostings: Postings> ChainedPostings<LeftPostings, RightPostings> {
+impl<'a> ChainedPostings<'a> {
     
-    pub fn new(left: LeftPostings, right: RightPostings, right_offset: DocId) -> ChainedPostings<LeftPostings, RightPostings> {
+    pub fn new(chained_postings: Vec<OffsetPostings<'a>>) -> ChainedPostings {
+        let mut doc_freq: usize = 0;
+        for segment_postings in chained_postings.iter() {
+            doc_freq += segment_postings.doc_freq();
+        }
         ChainedPostings {
-            left: left,
-            right: right,
-            right_offset: right_offset,
-            on_right: false,
+            chained_postings: chained_postings,
+            posting_id: 0,
+            doc_freq: doc_freq,
         }
     }
     
 }
 
-impl<LeftPostings: Postings, RightPostings: Postings> Postings for ChainedPostings<LeftPostings, RightPostings> {
+impl<'a> Postings for ChainedPostings<'a> {
     
     fn next(&mut self,) -> bool {
-        if self.on_right {
-            self.right.next()
+        if self.posting_id == self.chained_postings.len() {
+            return false;
         }
-        else {
-            if self.left.next() {
-                true
-            }
-            else {
-                self.on_right = true;
-                self.right.next()
-            }
+        while !self.chained_postings[self.posting_id].next() {
+            self.posting_id += 1;
+            if self.posting_id == self.chained_postings.len() {
+                return false;
+            }   
         }
+        return true
     }
     
     fn doc(&self,) -> DocId {
-        if self.on_right {
-            self.right.doc() + self.right_offset
-        }
-        else {
-            self.left.doc()
-        }
+        self.chained_postings[self.posting_id].doc()
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if self.on_right {
-            self.right.skip_next(target)
-        }
-        else {
-            self.left.skip_next(target)
-        }
+        // TODO implement.
+        panic!("not implemented");
+    }
+    
+    fn doc_freq(&self,) -> usize {
+        self.doc_freq
     }
 }

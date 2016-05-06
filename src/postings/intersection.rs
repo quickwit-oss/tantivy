@@ -74,6 +74,12 @@ impl<'a> Postings for IntersectionPostings<'a> {
     fn doc(&self,) -> DocId {
         self.left.doc()
     }
+    
+    fn doc_freq(&self,) -> usize {
+        // TODO not a great idea.
+        panic!("intersectiond does not implement doc freq");
+    }
+    
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         loop {

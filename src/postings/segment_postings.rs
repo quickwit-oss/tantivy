@@ -105,5 +105,9 @@ impl<'a> Postings for SegmentPostings<'a> {
                 return SkipResult::End;
             }
         }
-    }   
+    }
+    
+    fn doc_freq(&self,) -> usize {
+        self.doc_freq
+    }
 }

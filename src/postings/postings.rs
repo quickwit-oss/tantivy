@@ -8,8 +8,6 @@ pub enum SkipResult {
 }
 
 pub trait Postings {
-    
-    
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     fn next(&mut self,) -> bool;
@@ -20,5 +18,7 @@ pub trait Postings {
     // the iterator in such a way that doc() will return a
     // value greater or equal to target.
     fn skip_next(&mut self, target: DocId) -> SkipResult;
+    
+    fn doc_freq(&self,) -> usize;
 }
 

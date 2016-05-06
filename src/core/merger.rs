@@ -13,11 +13,13 @@ use datastruct::FstMapIter;
 use schema::{Term, Schema, U32Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
+use postings::ChainedPostings;
+use postings::OffsetPostings;
 use core::index::SegmentInfo;
 use std::cmp::{min, max, Ordering};
 
 struct PostingsMerger<'a> {
-    doc_ids: Vec<DocId>,
+    // doc_ids: Vec<DocId>,
     doc_offsets: Vec<DocId>,
     heap: BinaryHeap<HeapItem>,
     term_streams: Vec<FstMapIter<'a, TermInfo>>,
@@ -65,7 +67,6 @@ impl<'a> PostingsMerger<'a> {
         let mut postings_merger = PostingsMerger {
             heap: BinaryHeap::new(),
             term_streams: term_streams,
-            doc_ids: Vec::new(),
             doc_offsets: doc_offsets,
             readers: readers,
         };
@@ -74,7 +75,9 @@ impl<'a> PostingsMerger<'a> {
         }
         postings_merger
     }
-
+    
+    // pushes the term_reader associated with the given segment ordinal
+    // into the heap.
     fn push_next_segment_el(&mut self, segment_ord: usize) {
         match self.term_streams[segment_ord].next() {
             Some((term, term_info)) => {
@@ -89,38 +92,40 @@ impl<'a> PostingsMerger<'a> {
         }
     }
 
-    fn append_segment(&mut self, heap_item: &HeapItem) {
+    fn append_segment(&mut self, heap_item: &HeapItem, segment_postings_list: &mut Vec<OffsetPostings<'a>>) {
         {
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            let mut segment_postings = reader.read_postings(&heap_item.term_info); 
-            while segment_postings.next() {
-                self.doc_ids.push(segment_postings.doc());
-            }
+            let segment_postings = reader.read_postings(&heap_item.term_info);
+            let offset_postings = OffsetPostings::new(segment_postings, offset); 
+            segment_postings_list.push(offset_postings);
         }
         self.push_next_segment_el(heap_item.segment_ord);
     }
 
-    fn next(&mut self,) -> Option<(Vec<u8>, &Vec<DocId>)> {
+    fn next(&mut self,) -> Option<(Vec<u8>, ChainedPostings<'a>)> {
         // TODO remove the Vec<u8> allocations
         match self.heap.pop() {
             Some(heap_it) => {
-                self.doc_ids.clear();
-                self.append_segment(&heap_it);
+                let mut segment_postings_list = Vec::new();
+                self.append_segment(&heap_it, &mut segment_postings_list);
                 loop {
                     match self.heap.peek() {
                         Some(&ref next_heap_it) if next_heap_it.term == heap_it.term => {},
                         _ => { break; }
                     }
                     let next_heap_it = self.heap.pop().unwrap();
-                    self.append_segment(&next_heap_it);
+                    self.append_segment(&next_heap_it, &mut segment_postings_list);
                 }
-                Some((heap_it.term, &self.doc_ids))
+                let chained_posting = ChainedPostings::new(segment_postings_list);
+                Some((heap_it.term, chained_posting))
             },
             None => None
         }
     }
 }
+
+const EMPTY_ARRAY: [u32; 0] = [];
 
 pub struct IndexMerger {
     schema: Schema,
@@ -178,13 +183,12 @@ impl IndexMerger {
         let mut postings_merger = PostingsMerger::new(&self.readers);
         loop {
             match postings_merger.next() {
-                Some((term, doc_ids)) => {
-                    try!(postings_serializer.new_term(&Term::from(&term), doc_ids.len() as DocId));
-                    
-                    for doc_id in doc_ids.iter() {
-                        // TODO fix this
-                        // try!(postings_serializer.write_doc(doc_id.clone(), None));
+                Some((term, mut merged_doc_ids)) => {
+                    try!(postings_serializer.new_term(&Term::from(&term), merged_doc_ids.doc_freq() as DocId));
+                    while merged_doc_ids.next() {
+                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), 0, &EMPTY_ARRAY));
                     }
+                    try!(postings_serializer.close_term());
                 }
                 None => { break; }
             }

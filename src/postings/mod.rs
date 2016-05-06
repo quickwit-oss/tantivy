@@ -7,7 +7,10 @@ mod chained_postings;
 mod vec_postings;
 mod segment_postings;
 mod intersection;
+mod offset_postings;
 
+
+pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
 pub use self::writer::PostingsWriter;
@@ -23,23 +26,7 @@ pub use self::intersection::IntersectionPostings;
 mod tests {
     
     use super::*;
-    
-    #[test]
-    fn test_chained_postings() {
-        let left = VecPostings::new(vec!(1u32, 3u32, 7u32));
-        let right = VecPostings::new(vec!(0u32, 13u32));
-        let mut chain = ChainedPostings::new(left, right, 16u32);
-        assert!(chain.next());
-        assert_eq!(chain.doc(), 1u32);
-        assert!(chain.next());
-        assert_eq!(chain.doc(), 3u32);
-        assert!(chain.next());
-        assert_eq!(chain.doc(), 7u32);
-        assert!(chain.next());
-        assert_eq!(chain.doc(), 16u32);
-        assert!(chain.next());
-        assert_eq!(chain.doc(), 29u32);
-    }
+ 
 }
 
 // #[cfg(test)]
