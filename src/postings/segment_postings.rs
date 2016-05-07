@@ -1,17 +1,15 @@
 use postings::Postings;
-use compression::{NUM_DOCS_PER_BLOCK, Block128Decoder};
+use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
 use DocId;
 use std::cmp::Ordering;
 use postings::SkipResult;
-use std::io::Cursor;
-use common::VInt;
 use std::num::Wrapping;
-use common::BinarySerializable;
 
 // No Term Frequency, no postings.
 pub struct SegmentPostings<'a> {
     doc_freq: usize,
-    block_decoder: Block128Decoder,
+    doc_offset: u32,
+    block_decoder: SIMDBlockDecoder,
     remaining_data: &'a [u8],
     cur: Wrapping<usize>,
 }
@@ -23,29 +21,29 @@ impl<'a> SegmentPostings<'a> {
     pub fn empty() -> SegmentPostings<'a> {
         SegmentPostings {
             doc_freq: 0,
-            block_decoder: Block128Decoder::new(),
+            doc_offset: 0,
+            block_decoder: SIMDBlockDecoder::new(),
             remaining_data: &EMPTY_ARRAY,
             cur: Wrapping(usize::max_value()),
         }
     }
     
     pub fn load_next_block(&mut self,) {
-        if self.doc_freq - self.cur.0 >= NUM_DOCS_PER_BLOCK {
-            self.remaining_data = self.block_decoder.decode_sorted(self.remaining_data);
+        let num_remaining_docs = self.doc_freq - self.cur.0; 
+        if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
+            self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
+            self.doc_offset = self.block_decoder.output()[NUM_DOCS_PER_BLOCK - 1];
         }
         else {
-            let mut cursor = Cursor::new(self.remaining_data);
-            let remaining_len: usize = VInt::deserialize(&mut cursor).unwrap().0 as usize;
-            let position = cursor.position() as usize;
-            self.remaining_data = &self.remaining_data[position..position+remaining_len];
-            self.block_decoder.decode_sorted_remaining(self.remaining_data);
+            self.remaining_data = self.block_decoder.uncompress_vint_sorted(self.remaining_data, self.doc_offset, num_remaining_docs);
         }
     }
     
     pub fn from_data(doc_freq: u32, data: &'a [u8]) -> SegmentPostings<'a> {
         SegmentPostings {
             doc_freq: doc_freq as usize,
-            block_decoder: Block128Decoder::new(),
+            doc_offset: 0,
+            block_decoder: SIMDBlockDecoder::new(),
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
         }

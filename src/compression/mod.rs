@@ -1,18 +1,10 @@
 #![allow(dead_code)]
 
-mod intersection;
-pub use self::intersection::intersection;
-
-mod s4bp128;
-pub use self::s4bp128::{S4BP128Encoder, S4BP128Decoder};
-
-mod block128;
-pub use self::block128::{Block128Encoder, Block128Decoder};
-
-mod vints;
-pub use self::vints::{VIntsEncoder, VIntsDecoder};
-
 mod simdcomp;
+pub use self::simdcomp::{SIMDBlockEncoder, SIMDBlockDecoder};
+
+mod composite;
+pub use self::composite::CompositeEncoder;
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128;
 

@@ -2,7 +2,7 @@ use datastruct::FstMapBuilder;
 use super::TermInfo;
 use schema::Term;
 use directory::WritePtr;
-use compression::{NUM_DOCS_PER_BLOCK, Block128Encoder, VIntsEncoder, S4BP128Encoder};
+use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockEncoder, CompositeEncoder};
 use DocId;
 use core::index::Segment;
 use std::io;
@@ -17,9 +17,9 @@ pub struct PostingsSerializer {
     positions_write: WritePtr,
     written_bytes_postings: usize,
     written_bytes_positions: usize,
-    positions_encoder: S4BP128Encoder,
-    block_encoder: Block128Encoder,
-    vints_encoder: VIntsEncoder,
+    last_doc_id_encoded: u32,
+    positions_encoder: CompositeEncoder,
+    block_encoder: SIMDBlockEncoder,
     doc_ids: Vec<DocId>,
     term_freqs: Vec<u32>,
     position_deltas: Vec<u32>,
@@ -40,9 +40,9 @@ impl PostingsSerializer {
             positions_write: positions_write,
             written_bytes_postings: 0,
             written_bytes_positions: 0,
-            positions_encoder: S4BP128Encoder::new(),
-            block_encoder: Block128Encoder::new(),
-            vints_encoder: VIntsEncoder::new(),
+            last_doc_id_encoded: 0u32,
+            positions_encoder: CompositeEncoder::new(),
+            block_encoder: SIMDBlockEncoder::new(),
             doc_ids: Vec::new(),
             term_freqs: Vec::new(),
             position_deltas: Vec::new(),
@@ -54,6 +54,7 @@ impl PostingsSerializer {
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         try!(self.close_term());
         self.doc_ids.clear();
+        self.last_doc_id_encoded = 0;
         self.term_freqs.clear();
         self.position_deltas.clear();
         let term_info = TermInfo {
@@ -67,16 +68,13 @@ impl PostingsSerializer {
     pub fn close_term(&mut self,) -> io::Result<()> {
         if !self.doc_ids.is_empty() {
             {
-                let block_encoded = self.vints_encoder.encode_sorted(&self.doc_ids[..]);
-                self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
-                
-                for num in block_encoded {
-                    self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
-                }
+                let block_encoded = self.block_encoder.compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                self.written_bytes_postings += block_encoded.len();
+                try!(self.postings_write.write_all(block_encoded));
             }
             if self.is_termfreq_enabled {
                 {
-                    let block_encoded = self.vints_encoder.encode_sorted(&self.term_freqs[..]);
+                    let block_encoded = self.block_encoder.compress_vint_unsorted(&self.term_freqs[..]);
                     self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
                     for num in block_encoded {
                         self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
@@ -84,8 +82,7 @@ impl PostingsSerializer {
                     self.term_freqs.clear();
                 }
                 if self.is_positions_enabled {
-                    let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    self.written_bytes_positions += try!(VInt(positions_encoded.len() as u64).serialize(&mut self.positions_write));
+                    let positions_encoded: &[u8] = self.positions_encoder.compress_unsorted(&self.position_deltas[..]);
                     try!(self.positions_write.write_all(positions_encoded));
                     self.written_bytes_positions += positions_encoded.len();
                     self.position_deltas.clear();
@@ -107,21 +104,16 @@ impl PostingsSerializer {
         if self.doc_ids.len() == NUM_DOCS_PER_BLOCK { 
             {
                 // encode the positions
-                let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.doc_ids);
+                let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();
             }
             if self.is_termfreq_enabled {
                 // encode the term_freqs
-                let block_encoded: &[u8] = self.block_encoder.encode_sorted(&self.term_freqs);
+                let block_encoded: &[u8] = self.block_encoder.compress_block_unsorted(&self.term_freqs);
                 try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();
-                if self.is_positions_enabled {
-                    let positions_encoded: &[u8] = self.positions_encoder.encode(&self.position_deltas[..]);
-                    try!(self.positions_write.write_all(positions_encoded));
-                    self.written_bytes_positions += positions_encoded.len();
-                    self.position_deltas.clear();
-                }
                 self.term_freqs.clear();
             }
             self.doc_ids.clear();
