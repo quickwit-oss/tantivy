@@ -12,6 +12,7 @@ pub use self::block128::{Block128Encoder, Block128Decoder};
 mod vints;
 pub use self::vints::{VIntsEncoder, VIntsDecoder};
 
+mod simdcomp;
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128;
 
