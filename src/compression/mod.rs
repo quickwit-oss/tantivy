@@ -8,6 +8,7 @@ pub use self::composite::CompositeEncoder;
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128;
 
+
 #[cfg(test)]
 pub mod tests {
 
@@ -28,3 +29,5 @@ pub mod tests {
         generate_array_with_seed(n, ratio, 4)
     }
 }
+
+

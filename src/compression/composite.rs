@@ -12,7 +12,7 @@ impl CompositeEncoder {
     pub fn new() -> CompositeEncoder {
         CompositeEncoder {
             block_encoder: SIMDBlockEncoder::new(),
-            output: Vec::new(),
+            output: Vec::with_capacity(500_000),
         }
     }
     
@@ -56,11 +56,15 @@ impl CompositeDecoder {
     pub fn new() -> CompositeDecoder {
         CompositeDecoder {
             block_decoder: SIMDBlockDecoder::new(),
-            vals: Vec::new(),
+            vals: Vec::with_capacity(500_000),
         }    
     }
     
     pub fn uncompress_sorted(&mut self, mut compressed_data: &[u8], doc_freq: usize) -> &[u32] {
+        if doc_freq > self.vals.capacity() {
+            let extra_capacity = doc_freq - self.vals.capacity();
+            self.vals.reserve(extra_capacity);
+        }
         let mut offset = 0u32;
         self.vals.clear();
         let num_blocks = doc_freq / NUM_DOCS_PER_BLOCK;
@@ -86,3 +90,64 @@ impl CompositeDecoder {
         &self.vals
     }
 }
+
+
+#[cfg(test)]
+pub mod tests {
+    
+    use test::Bencher;
+    use super::*;
+    use compression::tests::generate_array;
+
+    #[test]
+    fn test_composite_unsorted() {
+        let data = generate_array(10_000, 0.1);
+        let mut encoder = CompositeEncoder::new();
+        let compressed = encoder.compress_unsorted(&data);
+        assert_eq!(compressed.len(), 19_790);
+        let mut decoder = CompositeDecoder::new();
+        let result = decoder.uncompress_unsorted(&compressed, data.len());
+        for i in 0..data.len() {
+            assert_eq!(data[i], result[i]);
+        } 
+    }
+
+    #[test]
+    fn test_composite_sorted() {
+        let data = generate_array(10_000, 0.1);
+        let mut encoder = CompositeEncoder::new();
+        let compressed = encoder.compress_sorted(&data);
+        assert_eq!(compressed.len(), 7_822);
+        let mut decoder = CompositeDecoder::new();
+        let result = decoder.uncompress_sorted(&compressed, data.len());
+        for i in 0..data.len() {
+            assert_eq!(data[i], result[i]);
+        } 
+    }
+    
+    
+    const BENCH_NUM_INTS: usize = 99_968;
+    
+    #[bench]
+    fn bench_compress(b: &mut Bencher) {
+        let mut encoder = CompositeEncoder::new();
+        let data = generate_array(BENCH_NUM_INTS, 0.1);
+        b.iter(|| {
+            encoder.compress_sorted(&data);
+        });
+    }
+    
+    #[bench]
+    fn bench_uncompress(b: &mut Bencher) {
+        let mut encoder = CompositeEncoder::new();
+        let data = generate_array(BENCH_NUM_INTS, 0.1);
+        let compressed = encoder.compress_sorted(&data);
+        let mut decoder = CompositeDecoder::new(); 
+        b.iter(|| {
+            decoder.uncompress_sorted(compressed, BENCH_NUM_INTS);
+        });
+    }
+}
+
+
+

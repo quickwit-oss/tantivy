@@ -177,6 +177,9 @@ impl SIMDBlockDecoder {
 mod tests {
 
     use super::*;
+    use test::Bencher;
+    use compression::NUM_DOCS_PER_BLOCK;
+    use compression::tests::generate_array;
 
     #[test]
     fn test_encode_sorted_block() {
@@ -281,4 +284,29 @@ mod tests {
         }
     }
 
+
+    #[bench]
+    fn bench_compress(b: &mut Bencher) {
+        let mut encoder = SIMDBlockEncoder::new();
+        let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        b.iter(|| {
+            encoder.compress_block_sorted(&data, 0u32);
+        });
+    }
+    
+    #[bench]
+    fn bench_uncompress(b: &mut Bencher) {
+        let mut encoder = SIMDBlockEncoder::new();
+        let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        let compressed = encoder.compress_block_sorted(&data, 0u32);
+        let mut decoder = SIMDBlockDecoder::new(); 
+        b.iter(|| {
+            decoder.uncompress_block_sorted(compressed, 0u32);
+        });
+    }
+
 }
+
+
+
+    
