@@ -8,6 +8,7 @@ mod vec_postings;
 mod segment_postings;
 mod intersection;
 mod offset_postings;
+mod freq_handler;
 
 
 pub use self::offset_postings::OffsetPostings;
@@ -21,7 +22,7 @@ pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::intersection;
 pub use self::intersection::IntersectionPostings;
-
+pub use self::freq_handler::FreqHandler;
 
 // #[cfg(test)]
 // mod tests {
