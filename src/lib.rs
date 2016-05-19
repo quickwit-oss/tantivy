@@ -63,11 +63,9 @@ mod tests {
     #[test]
     fn test_indexing() {
         let mut schema = schema::Schema::new();
-        let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed();
-        let text_field = schema.add_text_field("text", &text_fieldtype);
+        let text_field = schema.add_text_field("text", &schema::TEXT);
 
         let index = Index::create_from_tempdir(schema).unwrap();
-
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
@@ -99,8 +97,7 @@ mod tests {
     #[test]
     fn test_searcher() {
         let mut schema = schema::Schema::new();
-        let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed();
-        let text_field = schema.add_text_field("text", &text_fieldtype);
+        let text_field = schema.add_text_field("text", &schema::TEXT);
         let index = Index::create_in_ram(schema);
 
         {

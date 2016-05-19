@@ -10,17 +10,74 @@ use std::ops::BitOr;
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct TextField(pub u8);
 
+#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash, RustcDecodable, RustcEncodable)]
+pub enum TextIndexingOptions {
+    Unindexed,
+    Untokenized,
+    TokenizedNoFreq,
+    TokenizedWithFreq,
+    TokenizedWithFreqAndPosition,
+}
+
+impl TextIndexingOptions {
+    pub fn is_termfreq_enabled(&self) -> bool {
+        match *self {
+            TextIndexingOptions::TokenizedWithFreq => true,
+            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            _ => false,
+        }
+    }
+    
+    pub fn is_tokenized(&self,) -> bool {
+        match *self {
+            TextIndexingOptions::TokenizedNoFreq => true,
+            TextIndexingOptions::TokenizedWithFreq => true,
+            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            _ => false,
+        }
+    } 
+    
+    pub fn is_position_enabled(&self,) -> bool {
+        match *self {
+            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            _ => false,
+        }
+    }
+}
+
+
+impl BitOr for TextIndexingOptions {
+     type Output = TextIndexingOptions;
+
+    fn bitor(self, other: TextIndexingOptions) -> TextIndexingOptions {
+        use super::TextIndexingOptions::*;
+        if self == Unindexed {
+            other
+        }
+        else if other == Unindexed {
+            self
+        }
+        else if self == other {
+            self
+        }
+        else {
+            // make it possible
+            panic!("Combining {:?} and {:?} is ambiguous");
+        }
+    }
+}
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {
-    tokenized_indexed: bool,
+    indexing_options: TextIndexingOptions,
     stored: bool,
     fast: bool,
 }
 
 impl TextOptions {
-    pub fn is_tokenized_indexed(&self,) -> bool {
-        self.tokenized_indexed
+    
+    pub fn indexing_options(&self,) -> TextIndexingOptions {
+        self.indexing_options.clone()
     }
 
     pub fn is_stored(&self,) -> bool {
@@ -41,15 +98,15 @@ impl TextOptions {
         self
     }
 
-    pub fn set_tokenized_indexed(mut self,) -> TextOptions {
-        self.tokenized_indexed = true;
+    pub fn set_indexing_options(mut self, indexing_options: TextIndexingOptions) -> TextOptions {
+        self.indexing_options = indexing_options;
         self
     }
 
     pub fn new() -> TextOptions {
         TextOptions {
             fast: false,
-            tokenized_indexed: false,
+            indexing_options: TextIndexingOptions::Unindexed,
             stored: false,
         }
     }
@@ -94,12 +151,17 @@ pub struct TextFieldValue {
 }
 
 
-
+/// The field will be untokenized and indexed
+pub const STRING: TextOptions = TextOptions {
+    indexing_options: TextIndexingOptions::Untokenized,
+    stored: false,
+    fast: false,
+};
 
 
 /// The field will be tokenized and indexed
 pub const TEXT: TextOptions = TextOptions {
-    tokenized_indexed: true,
+    indexing_options: TextIndexingOptions::TokenizedWithFreqAndPosition,
     stored: false,
     fast: false,
 };
@@ -109,7 +171,7 @@ pub const TEXT: TextOptions = TextOptions {
 /// Reading the stored fields of a document is relatively slow.
 /// (100 microsecs)
 pub const STORED: TextOptions = TextOptions {
-    tokenized_indexed: false,
+    indexing_options: TextIndexingOptions::Unindexed,
     stored: true,
     fast: false,
 };
@@ -117,7 +179,7 @@ pub const STORED: TextOptions = TextOptions {
 /// Fast field are used for field you need to access many times during
 /// collection. (e.g: for sort, aggregates).
 pub const FAST: TextOptions = TextOptions {
-    tokenized_indexed: false,
+    indexing_options: TextIndexingOptions::Unindexed,
     stored: false,
     fast: true
 };
@@ -129,7 +191,7 @@ impl BitOr for TextOptions {
 
     fn bitor(self, other: TextOptions) -> TextOptions {
         let mut res = TextOptions::new();
-        res.tokenized_indexed = self.tokenized_indexed || other.tokenized_indexed;
+        res.indexing_options = self.indexing_options | other.indexing_options;
         res.stored = self.stored || other.stored;
         res.fast = self.fast || other.fast;
         res
@@ -148,19 +210,19 @@ mod tests {
             let field_options = STORED | FAST;
             assert!(field_options.is_stored());
             assert!(field_options.is_fast());
-            assert!(!field_options.is_tokenized_indexed());
+            assert!(!field_options.indexing_options().is_tokenized());
         }
         {
             let field_options = STORED | TEXT;
             assert!(field_options.is_stored());
             assert!(!field_options.is_fast());
-            assert!(field_options.is_tokenized_indexed());
+            assert!(field_options.indexing_options().is_tokenized());
         }
         {
             let mut schema = Schema::new();
             let _body_field: TextField = schema.add_text_field("body", &TEXT);
             let field = schema.text_field("body");
-            assert!(schema.text_field_options(&field).is_tokenized_indexed());
+            assert!(schema.text_field_options(&field).indexing_options().is_tokenized());
         }
     }
 }

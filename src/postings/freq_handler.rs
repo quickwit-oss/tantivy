@@ -1,5 +1,4 @@
 use compression::SIMDBlockDecoder;
-use DocId;
 
 pub enum FreqHandler {
     FreqReader(SIMDBlockDecoder),
@@ -8,6 +7,11 @@ pub enum FreqHandler {
 }
 
 impl FreqHandler {
+
+    pub fn new_freq_reader() -> FreqHandler {
+        FreqHandler::FreqReader(SIMDBlockDecoder::new())
+    }
+
     pub fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
         match *self {
             FreqHandler::FreqReader(ref mut block_decoder) => {

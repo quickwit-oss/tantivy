@@ -24,6 +24,27 @@ impl Term {
         }
     }
 
+    fn type_num(&self,) -> u8 {
+        self.data[0]
+    }
+
+    pub fn is_u32(&self,) -> bool {
+        !self.is_text()
+    }
+
+    pub fn is_text(&self,) -> bool {
+        self.type_num() & 128 == 0
+    }
+
+    pub fn get_text_field(&self,) -> Option<TextField> {
+        if self.is_text() {
+            Some(TextField(self.type_num()))
+        }
+        else {
+            None
+        }
+    }
+
     pub fn from_field_text(field: &TextField, text: &str) -> Term {
         let mut buffer = Vec::with_capacity(1 + text.len());
         let TextField(field_idx) = *field;

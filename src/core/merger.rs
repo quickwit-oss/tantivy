@@ -74,7 +74,7 @@ impl<'a> PostingsMerger<'a> {
         }
         postings_merger
     }
-    
+
     // pushes the term_reader associated with the given segment ordinal
     // into the heap.
     fn push_next_segment_el(&mut self, segment_ord: usize) {
@@ -96,7 +96,7 @@ impl<'a> PostingsMerger<'a> {
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
             let segment_postings = reader.read_postings(&heap_item.term_info);
-            let offset_postings = OffsetPostings::new(segment_postings, offset); 
+            let offset_postings = OffsetPostings::new(segment_postings, offset);
             segment_postings_list.push(offset_postings);
         }
         self.push_next_segment_el(heap_item.segment_ord);
@@ -223,11 +223,12 @@ mod tests {
     use core::searcher::DocAddress;
     use collector::FastFieldTestCollector;
     use collector::TestCollector;
+    use schema::TextIndexingOptions;
 
     #[test]
     fn test_index_merger() {
         let mut schema = schema::Schema::new();
-        let text_fieldtype = schema::TextOptions::new().set_tokenized_indexed().set_stored();
+        let text_fieldtype = schema::TextOptions::new().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
         let text_field = schema.add_text_field("text", &text_fieldtype);
         let score_fieldtype = schema::U32Options::new().set_fast();
         let score_field = schema.add_u32_field("score", &score_fieldtype);

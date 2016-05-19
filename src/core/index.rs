@@ -258,6 +258,10 @@ impl fmt::Debug for Segment {
 
 impl Segment {
 
+    pub fn schema(&self,) -> Schema {
+        self.index.schema()
+    }
+
     pub fn id(&self,) -> SegmentId {
         self.segment_id.clone()
     }

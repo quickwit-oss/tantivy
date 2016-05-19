@@ -33,19 +33,18 @@ pub struct U32FieldEntry {
 /// # Examples
 ///
 /// ```
-/// use tantivy::schema::{Schema, TextOptions};
+/// use tantivy::schema::*;
 ///
 /// fn create_schema() -> Schema {
 ///   let mut schema = Schema::new();
 ///   let str_fieldtype = TextOptions::new();
-///   let text_fieldtype = TextOptions::new().set_tokenized_indexed();
-///   let id_field = schema.add_text_field("id", &str_fieldtype);
-///   let url_field = schema.add_text_field("url", &str_fieldtype);
-///   let body_field = schema.add_text_field("body", &text_fieldtype);
-///   let id_field = schema.add_text_field("id", &str_fieldtype);
-///   let url_field = schema.add_text_field("url", &str_fieldtype);
-///   let title_field = schema.add_text_field("title", &text_fieldtype);
-///   let body_field = schema.add_text_field("body", &text_fieldtype);
+///   let id_field = schema.add_text_field("id", &STRING);
+///   let url_field = schema.add_text_field("url", &STRING);
+///   let body_field = schema.add_text_field("body", &TEXT);
+///   let id_field = schema.add_text_field("id", &STRING);
+///   let url_field = schema.add_text_field("url", &STRING);
+///   let title_field = schema.add_text_field("title", &TEXT);
+///   let body_field = schema.add_text_field("body", &TEXT);
 ///   schema
 /// }
 ///

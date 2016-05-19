@@ -1,6 +1,8 @@
 use datastruct::FstMapBuilder;
 use super::TermInfo;
 use schema::Term;
+use schema::Schema;
+use schema::TextIndexingOptions;
 use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockEncoder, CompositeEncoder};
 use DocId;
@@ -23,8 +25,8 @@ pub struct PostingsSerializer {
     doc_ids: Vec<DocId>,
     term_freqs: Vec<u32>,
     position_deltas: Vec<u32>,
-    is_termfreq_enabled: bool,
-    is_positions_enabled: bool,
+    schema: Schema,
+    text_indexing_options: TextIndexingOptions,
 }
 
 impl PostingsSerializer {
@@ -34,6 +36,7 @@ impl PostingsSerializer {
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
         let positions_write = try!(segment.open_write(SegmentComponent::POSITIONS));
+        let schema = segment.schema();
         Ok(PostingsSerializer {
             terms_fst_builder: terms_fst_builder,
             postings_write: postings_write,
@@ -46,13 +49,26 @@ impl PostingsSerializer {
             doc_ids: Vec::new(),
             term_freqs: Vec::new(),
             position_deltas: Vec::new(),
-            is_positions_enabled: false,
-            is_termfreq_enabled: false,
+            schema: schema,
+            text_indexing_options: TextIndexingOptions::Unindexed,
         })
+    }
+
+    pub fn load_indexing_options(&mut self, term: &Term) {
+        self.text_indexing_options = match term.get_text_field() {
+            Some(text_field) => {
+                let text_options = self.schema.text_field_options(&text_field);
+                text_options.indexing_options() 
+            }
+            None => {
+                TextIndexingOptions::Unindexed
+            }
+        };
     }
 
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         try!(self.close_term());
+        self.load_indexing_options(term);
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();
@@ -72,7 +88,7 @@ impl PostingsSerializer {
                 self.written_bytes_postings += block_encoded.len();
                 try!(self.postings_write.write_all(block_encoded));
             }
-            if self.is_termfreq_enabled {
+            if self.text_indexing_options.is_termfreq_enabled() {
                 {
                     let block_encoded = self.block_encoder.compress_vint_unsorted(&self.term_freqs[..]);
                     self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
@@ -81,7 +97,7 @@ impl PostingsSerializer {
                     }
                     self.term_freqs.clear();
                 }
-                if self.is_positions_enabled {
+                if self.text_indexing_options.is_position_enabled() {
                     let positions_encoded: &[u8] = self.positions_encoder.compress_unsorted(&self.position_deltas[..]);
                     try!(self.positions_write.write_all(positions_encoded));
                     self.written_bytes_positions += positions_encoded.len();
@@ -95,13 +111,13 @@ impl PostingsSerializer {
 
     pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) -> io::Result<()> {
         self.doc_ids.push(doc_id);
-        if self.is_termfreq_enabled {
+        if self.text_indexing_options.is_termfreq_enabled() {
             self.term_freqs.push(term_freq as u32);
         }
-        if self.is_positions_enabled {
+        if self.text_indexing_options.is_position_enabled() {
             self.position_deltas.extend_from_slice(position_deltas);
         }
-        if self.doc_ids.len() == NUM_DOCS_PER_BLOCK { 
+        if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
             {
                 // encode the positions
                 let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
@@ -109,7 +125,7 @@ impl PostingsSerializer {
                 try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();
             }
-            if self.is_termfreq_enabled {
+            if self.text_indexing_options.is_termfreq_enabled() {
                 // encode the term_freqs
                 let block_encoded: &[u8] = self.block_encoder.compress_block_unsorted(&self.term_freqs);
                 try!(self.postings_write.write_all(block_encoded));
@@ -120,7 +136,7 @@ impl PostingsSerializer {
         }
         Ok(())
     }
-    
+
     pub fn close(mut self,) -> io::Result<()> {
         try!(self.close_term());
         try!(self.terms_fst_builder.finish());

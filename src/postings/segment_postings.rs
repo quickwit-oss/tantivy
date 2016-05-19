@@ -50,7 +50,7 @@ impl<'a> SegmentPostings<'a> {
             doc_freq: doc_freq as usize,
             doc_offset: 0,
             block_decoder: SIMDBlockDecoder::new(),
-            freq_reader: FreqHandler::NoFreq,
+            freq_reader: FreqHandler::new_freq_reader(),
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
         }

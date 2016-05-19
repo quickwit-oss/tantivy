@@ -161,7 +161,7 @@ impl SegmentWriter {
         let doc_id = self.max_doc;
         for field_value in doc.text_fields() {
 			let field_options = schema.text_field_options(&field_value.field);
-			if field_options.is_tokenized_indexed() {
+			if field_options.indexing_options().is_tokenized() {
 				let mut tokens = self.tokenizer.tokenize(&field_value.text);
 				let mut pos = 0u32;
 				loop {
