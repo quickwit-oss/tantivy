@@ -24,6 +24,38 @@ pub use self::intersection::intersection;
 pub use self::intersection::IntersectionPostings;
 pub use self::freq_handler::FreqHandler;
 
+
+
+#[cfg(test)]
+mod tests {
+    
+    use super::*;
+    use schema::{TEXT, Schema, Term};
+    use core::index::SegmentComponent;
+    use core::index::Index;
+    
+    #[test]
+    pub fn test_position_write() {
+        let mut schema = Schema::new();
+        let text_field = schema.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema);
+        let segment = index.new_segment();
+        let mut posting_serializer = PostingsSerializer::open(&segment).unwrap();
+        let term = Term::from_field_text(&text_field, "abc");
+        posting_serializer.new_term(&term, 3).unwrap();
+        for _ in 0..3 {
+            let a = vec!(1,2,3,2);
+            posting_serializer.write_doc(0, 2, &a).unwrap();
+        }
+        posting_serializer.close_term().unwrap();
+        let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
+        assert_eq!(read.len(), 12);
+    }
+        
+}
+
+
+
 // #[cfg(test)]
 // mod tests {
 //
@@ -57,3 +89,4 @@ pub use self::freq_handler::FreqHandler;
 //         });
 //     }
 // }
+//

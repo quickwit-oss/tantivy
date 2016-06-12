@@ -45,7 +45,9 @@ impl ReadOnlySource {
 
     pub fn as_slice(&self,) -> &[u8] {
         match *self {
-            ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { mmap_read_only.as_slice() },
+            ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { 
+                mmap_read_only.as_slice()
+            },
             ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
         }
     }
