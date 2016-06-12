@@ -51,7 +51,7 @@ mod tests {
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert_eq!(read.len(), 12);
     }
-        
+     
 }
 
 

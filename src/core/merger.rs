@@ -223,6 +223,7 @@ mod tests {
     use core::searcher::DocAddress;
     use collector::FastFieldTestCollector;
     use collector::TestCollector;
+    use query::MultiTermQuery;
     use schema::TextIndexingOptions;
 
     #[test]
@@ -286,7 +287,8 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
-                assert!(searcher.search(&terms, &mut collector).is_ok());
+                let query = MultiTermQuery::new(terms);
+                assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()
             };
             {
@@ -329,8 +331,9 @@ mod tests {
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {
+                    let query = MultiTermQuery::new(terms);
                     let mut collector = FastFieldTestCollector::for_field(score_field);
-                    assert!(searcher.search(&terms, &mut collector).is_ok());
+                    assert!(searcher.search(&query, &mut collector).is_ok());
                     collector.vals().clone()
                 };
                 assert_eq!(

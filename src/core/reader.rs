@@ -96,7 +96,7 @@ impl SegmentReader {
         SegmentPostings::from_data(term_info.doc_freq, &postings_data)
     }
 
-    fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
+    pub fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }
 

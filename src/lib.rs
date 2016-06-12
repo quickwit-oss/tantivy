@@ -35,6 +35,8 @@ mod compression;
 mod fastfield;
 mod store;
 mod common;
+pub mod query;
+
 pub mod analyzer;
 pub mod collector;
 
@@ -59,6 +61,7 @@ mod tests {
 
     use super::*;
     use collector::TestCollector;
+    use query::MultiTermQuery;
 
     #[test]
     fn test_indexing() {
@@ -123,8 +126,9 @@ mod tests {
         {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
+                let query = MultiTermQuery::new(terms);
                 let mut collector = TestCollector::new();
-                assert!(searcher.search(&terms, &mut collector).is_ok());
+                assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()
             };
             {
@@ -158,5 +162,34 @@ mod tests {
                     vec!(1, 2));
             }
         }
+    }
+    
+    #[test]
+    fn test_searcher_2() {
+        let mut schema = schema::Schema::new();
+        let text_field = schema.add_text_field("text", &schema::TEXT);
+        let index = Index::create_in_ram(schema);
+
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.set(&text_field, "af b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let mut doc = Document::new();
+                doc.set(&text_field, "a b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let mut doc = Document::new();
+                doc.set(&text_field, "a b c d");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.wait().unwrap();
+        }
+        index.searcher().unwrap();
     }
 }
