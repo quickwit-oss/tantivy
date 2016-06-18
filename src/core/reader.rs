@@ -13,12 +13,14 @@ use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
 use common::OpenTimer;
-use schema::U32Field;
+use schema::Field;
 use core::convert_to_ioerror;
 use postings::SegmentPostings;
 use postings::Postings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use postings::intersection;
+use schema::FieldEntry;
+use schema::Schema;
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -34,6 +36,7 @@ pub struct SegmentReader {
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
+    schema: Schema,
 }
 
 impl SegmentReader {
@@ -62,6 +65,8 @@ impl SegmentReader {
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
         let fast_fields_reader = try!(U32FastFieldsReader::open(fast_field_data));
+        
+        let schema = segment.schema();
         Ok(SegmentReader {
             segment_info: segment_info,
             postings_data: postings_shared_mmap,
@@ -69,6 +74,7 @@ impl SegmentReader {
             segment_id: segment.id(),
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
+            schema: schema,
         })
     }
 
@@ -86,8 +92,19 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    pub fn get_fast_field_reader(&self, u32_field: &U32Field) -> io::Result<U32FastFieldReader> {
-        self.fast_fields_reader.get_field(u32_field)
+    pub fn get_fast_field_reader(&self, field: &Field) -> io::Result<U32FastFieldReader> {
+        let field_entry = self.schema.field_entry(field);
+        match *field_entry {
+            FieldEntry::Text(_, _) => {
+                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+            },
+            FieldEntry::U32(_, ref options) => {
+                //if options.
+                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+                self.fast_fields_reader.get_field(field)
+            },
+        }
+        
     }
 
     pub fn read_postings(&self, term_info: &TermInfo) -> SegmentPostings {

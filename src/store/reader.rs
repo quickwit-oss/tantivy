@@ -2,7 +2,7 @@ use directory::ReadOnlySource;
 use std::cell::RefCell;
 use DocId;
 use schema::Document;
-use schema::TextFieldValue;
+use schema::FieldValue;
 use common::BinarySerializable;
 
 use std::io::Read;
@@ -72,16 +72,14 @@ impl StoreReader {
             try!(cursor.seek(SeekFrom::Current(block_length as i64)));
         }
         try!(u32::deserialize(&mut cursor));
-        let mut text_field_values = Vec::new();
+        let mut field_values = Vec::new();
         let num_fields = try!(u32::deserialize(&mut cursor));
         for _ in 0..num_fields {
-            let text_field_value = try!(TextFieldValue::deserialize(&mut cursor));
-            text_field_values.push(text_field_value);
+            let field_value = try!(FieldValue::deserialize(&mut cursor));
+            field_values.push(field_value);
         }
-        let u32_field_values = Vec::new();
         Ok(Document {
-            text_field_values: text_field_values,
-            u32_field_values: u32_field_values,
+            field_values: Vec::new(),
         })
     }
 

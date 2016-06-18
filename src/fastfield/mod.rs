@@ -22,7 +22,7 @@ mod tests {
     use super::U32FastFieldsReader;
     use super::U32FastFieldsWriter;
     use super::FastFieldSerializer;
-    use schema::U32Field;
+    use schema::Field;
     use std::path::Path;
     use directory::{Directory, WritePtr, RAMDirectory};
     use schema::Document;
@@ -45,9 +45,9 @@ mod tests {
         assert_eq!(compute_num_bits(256), 9u8);
     }
 
-    fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: &U32Field, value: u32) {
+    fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: &Field, value: u32) {
         let mut doc = Document::new();
-        doc.set_u32(field, value);
+        doc.add_u32(field, value);
         fast_field_writers.add_document(&doc);
     }
 

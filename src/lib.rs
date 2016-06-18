@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn test_indexing() {
         let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", &schema::TEXT);
+        let text_field = schema.add_text_field("text", schema::TEXT);
 
         let index = Index::create_from_tempdir(schema).unwrap();
         {
@@ -74,17 +74,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "af b");
+                doc.add_text(&text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c");
+                doc.add_text(&text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c d");
+                doc.add_text(&text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.wait().is_ok());
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn test_searcher() {
         let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", &schema::TEXT);
+        let text_field = schema.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema);
 
         {
@@ -108,17 +108,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "af b");
+                doc.add_text(&text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c");
+                doc.add_text(&text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c d");
+                doc.add_text(&text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.wait().unwrap();
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn test_searcher_2() {
         let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", &schema::TEXT);
+        let text_field = schema.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema);
 
         {
@@ -175,17 +175,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "af b");
+                doc.add_text(&text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c");
+                doc.add_text(&text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.set(&text_field, "a b c d");
+                doc.add_text(&text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.wait().unwrap();

@@ -6,8 +6,9 @@ use std::ops::Deref;
 use directory::ReadOnlySource;
 use fastfield::DividerU32;
 use common::BinarySerializable;
+use schema::FieldEntry;
 use DocId;
-use schema::U32Field;
+use schema::Field;
 
 use super::compute_num_bits;
 
@@ -68,13 +69,13 @@ impl U32FastFieldReader {
 
 pub struct U32FastFieldsReader {
     source: ReadOnlySource,
-    field_offsets: HashMap<U32Field, (u32, u32)>,
+    field_offsets: HashMap<Field, (u32, u32)>,
 }
 
 impl U32FastFieldsReader {
     pub fn open(source: ReadOnlySource) -> io::Result<U32FastFieldsReader> {
         let header_offset;
-        let field_offsets: Vec<(U32Field, u32)>;
+        let field_offsets: Vec<(Field, u32)>;
         {
             let mut cursor = source.cursor();
             header_offset = try!(u32::deserialize(&mut cursor));
@@ -86,7 +87,7 @@ impl U32FastFieldsReader {
             .map(|&(_, offset)| offset.clone())
             .collect();
         end_offsets.push(header_offset);
-        let mut field_offsets_map: HashMap<U32Field, (u32, u32)> = HashMap::new();
+        let mut field_offsets_map: HashMap<Field, (u32, u32)> = HashMap::new();
         for (field_start_offsets, stop_offset) in field_offsets.iter().zip(end_offsets.iter().skip(1)) {
             let (field, start_offset) = field_start_offsets.clone();
             field_offsets_map.insert(field.clone(), (start_offset.clone(), stop_offset.clone()));
@@ -97,7 +98,7 @@ impl U32FastFieldsReader {
         })
     }
 
-    pub fn get_field(&self, field: &U32Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_field(&self, field: &Field) -> io::Result<U32FastFieldReader> {
         match self.field_offsets.get(field) {
             Some(&(start, stop)) => {
                 let field_source = self.source.slice(start as usize, stop as usize);

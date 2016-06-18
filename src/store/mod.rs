@@ -16,34 +16,28 @@ mod tests {
     use std::path::PathBuf;
     use schema::Schema;
     use schema::TextOptions;
-    use schema::TextFieldValue;
+    use schema::FieldValue;
     use directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
         let mut schema = Schema::new();
-        let field_body = schema.add_text_field("body", &TextOptions::new().set_stored());
-        let field_title = schema.add_text_field("title", &TextOptions::new().set_stored());
+        let field_body = schema.add_text_field("body", TextOptions::new().set_stored());
+        let field_title = schema.add_text_field("title", TextOptions::new().set_stored());
         let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
         {
             let mut store_writer = StoreWriter::new(writer);
             for i in 0..1000 {
-                let mut fields: Vec<TextFieldValue> = Vec::new();
+                let mut fields: Vec<FieldValue> = Vec::new();
                 {
-                    let field_value = TextFieldValue {
-                        field: field_body.clone(),
-                        text: lorem.clone(),
-                    };
+                    let field_value = FieldValue::Text(field_body.clone(), lorem.clone());
                     fields.push(field_value);
                 }
                 {
                     let title_text = format!("Doc {}", i);
-                    let field_value = TextFieldValue {
-                        field: field_title.clone(),
-                        text: title_text,
-                    };
+                    let field_value = FieldValue::Text(field_title.clone(), title_text);
                     fields.push(field_value);
                 }
-                let fields_refs: Vec<&TextFieldValue> = fields.iter().collect();
+                let fields_refs: Vec<&FieldValue> = fields.iter().collect();
                 store_writer.store(&fields_refs).unwrap();
             }
             store_writer.close().unwrap();
@@ -58,11 +52,11 @@ mod tests {
         let mut directory = RAMDirectory::create();
         let store_file = directory.open_write(&path).unwrap();
         let schema = write_lorem_ipsum_store(store_file);
-        let field_title = schema.text_field("title");
+        let field_title = schema.get_field("title").unwrap();
         let store_source = directory.open_read(&path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
-            assert_eq!(*store.get(&i).unwrap().get_first_text(&field_title).unwrap(), format!("Doc {}", i));
+            assert_eq!(*store.get(&i).unwrap().get_first(&field_title).unwrap().text(), format!("Doc {}", i));
         }
     }
 

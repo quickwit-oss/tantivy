@@ -2,7 +2,7 @@ use DocId;
 use SegmentReader;
 use SegmentLocalId;
 use fastfield::U32FastFieldReader;
-use schema::U32Field;
+use schema::Field;
 use std::io;
 
 
@@ -56,15 +56,15 @@ impl Collector for TestCollector {
 
 pub struct FastFieldTestCollector {
     vals: Vec<u32>,
-    u32_field: U32Field,
+    field: Field,
     ff_reader: Option<U32FastFieldReader>,
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(u32_field: U32Field) -> FastFieldTestCollector {
+    pub fn for_field(field: Field) -> FastFieldTestCollector {
         FastFieldTestCollector {
             vals: Vec::new(),
-            u32_field: u32_field,
+            field: field,
             ff_reader: None,
         }
     }
@@ -77,7 +77,7 @@ impl FastFieldTestCollector {
 impl Collector for FastFieldTestCollector {
 
     fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
-        self.ff_reader = Some(try!(reader.get_fast_field_reader(&self.u32_field)));
+        self.ff_reader = Some(try!(reader.get_fast_field_reader(&self.field)));
         Ok(())
     }
 

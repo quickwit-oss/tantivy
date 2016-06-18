@@ -2,7 +2,7 @@ use DocId;
 use schema::Schema;
 use schema::Document;
 use schema::Term;
-use schema::TextFieldValue;
+use schema::FieldEntry;
 use core::codec::*;
 use core::index::Index;
 use analyzer::SimpleTokenizer;
@@ -159,37 +159,44 @@ impl SegmentWriter {
 
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
-        for field_value in doc.text_fields() {
-			let field_options = schema.text_field_options(&field_value.field);
-			if field_options.indexing_options().is_tokenized() {
-				let mut tokens = self.tokenizer.tokenize(&field_value.text);
-				let mut pos = 0u32;
-				loop {
-					match tokens.next() {
-						Some(token) => {
-							let term = Term::from_field_text(&field_value.field, token);
-							self.postings_writer.suscribe(doc_id, pos.clone(), term);
-							pos += 1;
-						},
-						None => { break; }
+        for field_value in doc.get_fields() {
+			let field_options = schema.field_entry(field_value.field());
+			match *field_options {
+				FieldEntry::Text(_, ref text_options) => {
+					if text_options.indexing_options().is_tokenized() {
+						let mut tokens = self.tokenizer.tokenize(field_value.text());
+						let mut pos = 0u32;
+						let field = field_value.field();
+						loop {
+							match tokens.next() {
+								Some(token) => {
+									let term = Term::from_field_text(&field, token);
+									self.postings_writer.suscribe(doc_id, pos.clone(), term);
+									pos += 1;
+								},
+								None => { break; }
+							}
+						}
+					}
+					// TODO untokenized yet indexed
+				}
+				FieldEntry::U32(_, ref u32_options) => {
+					if u32_options.is_indexed() {
+						let term = Term::from_field_u32(&field_value.field(), field_value.u32_value());
+						self.postings_writer.suscribe(doc_id, 0.clone(), term);
 					}
 				}
 			}
 		}
-		for field_value in doc.u32_fields() {
-            let field_options = schema.u32_field_options(&field_value.field);
-            if field_options.is_indexed() {
-                let term = Term::from_field_u32(&field_value.field, field_value.value);
-                self.postings_writer.suscribe(doc_id, 0.clone(), term);
-            }
-		}
 		self.fast_field_writers.add_document(&doc);
-		let stored_fieldvalues: Vec<&TextFieldValue> = doc
-			.text_fields()
-			.filter(|text_field_value| schema.text_field_options(&text_field_value.field).is_stored())
-			.collect();
-		let doc_writer = self.segment_serializer.get_store_writer();
-		try!(doc_writer.store(&stored_fieldvalues));
+		
+		// TODO add stored field
+		// let stored_fieldvalues: Vec<&TextFieldValue> = doc
+		// 	.text_fields()
+		// 	.filter(|text_field_value| schema.text_field_options(&text_field_value.field).is_stored())
+		// 	.collect();
+		// let doc_writer = self.segment_serializer.get_store_writer();
+		// try!(doc_writer.store(&stored_fieldvalues));
         self.max_doc += 1;
 		Ok(())
     }

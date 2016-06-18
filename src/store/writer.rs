@@ -1,6 +1,6 @@
 use directory::WritePtr;
 use DocId;
-use schema::TextFieldValue;
+use schema::FieldValue;
 use common::BinarySerializable;
 use std::io::Write;
 use std::io::Read;
@@ -65,7 +65,7 @@ impl StoreWriter {
         }
     }
 
-    pub fn store<'a>(&mut self, field_values: &Vec<&'a TextFieldValue>) -> io::Result<()> {
+    pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) -> io::Result<()> {
         self.intermediary_buffer.clear();
         try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
         for field_value in field_values.iter() {

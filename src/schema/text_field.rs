@@ -7,8 +7,51 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use std::ops::BitOr;
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct TextField(pub u8);
+
+#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
+pub struct TextOptions {
+    indexing_options: TextIndexingOptions,
+    stored: bool,
+    fast: bool,
+}
+
+impl TextOptions {
+    
+    pub fn indexing_options(&self,) -> TextIndexingOptions {
+        self.indexing_options.clone()
+    }
+
+    pub fn is_stored(&self,) -> bool {
+        self.stored
+    }
+
+    pub fn is_fast(&self,) -> bool {
+        self.fast
+    }
+
+    pub fn set_stored(mut self,) -> TextOptions {
+        self.stored = true;
+        self
+    }
+
+    pub fn set_fast(mut self,) -> TextOptions {
+        self.fast = true;
+        self
+    }
+
+    pub fn set_indexing_options(mut self, indexing_options: TextIndexingOptions) -> TextOptions {
+        self.indexing_options = indexing_options;
+        self
+    }
+
+    pub fn new() -> TextOptions {
+        TextOptions {
+            fast: false,
+            indexing_options: TextIndexingOptions::Unindexed,
+            stored: false,
+        }
+    }
+}
 
 #[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash, RustcDecodable, RustcEncodable)]
 pub enum TextIndexingOptions {
@@ -67,88 +110,32 @@ impl BitOr for TextIndexingOptions {
     }
 }
 
-#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
-pub struct TextOptions {
-    indexing_options: TextIndexingOptions,
-    stored: bool,
-    fast: bool,
-}
 
-impl TextOptions {
-    
-    pub fn indexing_options(&self,) -> TextIndexingOptions {
-        self.indexing_options.clone()
-    }
+// #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
+// pub struct TextFieldValue {
+//     pub field: TextField,
+//     pub text: String,
+// }
 
-    pub fn is_stored(&self,) -> bool {
-        self.stored
-    }
-
-    pub fn is_fast(&self,) -> bool {
-        self.fast
-    }
-
-    pub fn set_stored(mut self,) -> TextOptions {
-        self.stored = true;
-        self
-    }
-
-    pub fn set_fast(mut self,) -> TextOptions {
-        self.fast = true;
-        self
-    }
-
-    pub fn set_indexing_options(mut self, indexing_options: TextIndexingOptions) -> TextOptions {
-        self.indexing_options = indexing_options;
-        self
-    }
-
-    pub fn new() -> TextOptions {
-        TextOptions {
-            fast: false,
-            indexing_options: TextIndexingOptions::Unindexed,
-            stored: false,
-        }
-    }
-}
-
-
-impl BinarySerializable for TextField {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let TextField(field_id) = *self;
-        field_id.serialize(writer)
-    }
-
-    fn deserialize(reader: &mut Read) -> io::Result<TextField> {
-        u8::deserialize(reader).map(TextField)
-    }
-}
-
-
-impl BinarySerializable for TextFieldValue {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        Ok(
-            try!(self.field.serialize(writer)) +
-            try!(self.text.serialize(writer))
-        )
-    }
-    fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        let field = try!(TextField::deserialize(reader));
-        let text = try!(String::deserialize(reader));
-        Ok(TextFieldValue {
-            field: field,
-            text: text,
-        })
-    }
-}
+// impl BinarySerializable for TextFieldValue {
+//     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+//         Ok(
+//             try!(self.field.serialize(writer)) +
+//             try!(self.text.serialize(writer))
+//         )
+//     }
+//     fn deserialize(reader: &mut Read) -> io::Result<Self> {
+//         let field = try!(TextField::deserialize(reader));
+//         let text = try!(String::deserialize(reader));
+//         Ok(TextFieldValue {
+//             field: field,
+//             text: text,
+//         })
+//     }
+// }
 
 
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
-pub struct TextFieldValue {
-    pub field: TextField,
-    pub text: String,
-}
 
 
 /// The field will be untokenized and indexed
@@ -202,8 +189,10 @@ impl BitOr for TextOptions {
 #[cfg(test)]
 mod tests {
     use schema::Schema;
+    use schema::Field;
+    use schema::FieldEntry;
     use super::*;
-
+    
     #[test]
     fn test_field_options() {
         {
@@ -220,9 +209,17 @@ mod tests {
         }
         {
             let mut schema = Schema::new();
-            let _body_field: TextField = schema.add_text_field("body", &TEXT);
-            let field = schema.text_field("body");
-            assert!(schema.text_field_options(&field).indexing_options().is_tokenized());
+            let _body_field: Field = schema.add_text_field("body", TEXT);
+            let field = schema.get_field("body").unwrap();
+            let field_entry = schema.field_entry(&field);
+            match field_entry {
+                &FieldEntry::Text(_, ref text_options) => {
+                    assert!(text_options.indexing_options().is_tokenized());
+                }
+                _ => {
+                    panic!("");
+                }
+            }
         }
     }
 }

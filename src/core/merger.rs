@@ -10,7 +10,7 @@ use postings::TermInfo;
 use postings::Postings;
 use std::collections::BinaryHeap;
 use datastruct::FstMapIter;
-use schema::{Term, Schema, U32Field};
+use schema::{Term, Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use postings::ChainedPostings;
@@ -151,30 +151,31 @@ impl IndexMerger {
     }
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
-        for field in self.schema
-            .get_u32_fields()
-            .iter()
-            .enumerate()
-            .filter(|&(_, field_entry)| field_entry.option.is_fast())
-            .map(|(field_id, _)| U32Field(field_id as u8)) {
-            let mut u32_readers = Vec::new();
-            let mut min_val = u32::min_value();
-            let mut max_val = 0;
-            for reader in self.readers.iter() {
-                let u32_reader = try!(reader.get_fast_field_reader(&field));
-                min_val = min(min_val, u32_reader.min_val());
-                max_val = max(max_val, u32_reader.max_val());
-                u32_readers.push((reader.max_doc(), u32_reader));
-            }
-            try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
-            for (max_doc, u32_reader) in u32_readers {
-                for doc_id in 0..max_doc {
-                    let val = u32_reader.get(doc_id);
-                    try!(fast_field_serializer.add_val(val));
-                }
-            }
-            try!(fast_field_serializer.close_field());
-        }
+        // TODO implement fast field
+        // for field in self.schema
+        //     .get_u32_fields()
+        //     .iter()
+        //     .enumerate()
+        //     .filter(|&(_, field_entry)| field_entry.option.is_fast())
+        //     .map(|(field_id, _)| Field(field_id as u8)) {
+        //     let mut u32_readers = Vec::new();
+        //     let mut min_val = u32::min_value();
+        //     let mut max_val = 0;
+        //     for reader in self.readers.iter() {
+        //         let u32_reader = try!(reader.get_fast_field_reader(&field));
+        //         min_val = min(min_val, u32_reader.min_val());
+        //         max_val = max(max_val, u32_reader.max_val());
+        //         u32_readers.push((reader.max_doc(), u32_reader));
+        //     }
+        //     try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
+        //     for (max_doc, u32_reader) in u32_readers {
+        //         for doc_id in 0..max_doc {
+        //             let val = u32_reader.get(doc_id);
+        //             try!(fast_field_serializer.add_val(val));
+        //         }
+        //     }
+        //     try!(fast_field_serializer.close_field());
+        // }
         Ok(())
     }
 
@@ -230,9 +231,9 @@ mod tests {
     fn test_index_merger() {
         let mut schema = schema::Schema::new();
         let text_fieldtype = schema::TextOptions::new().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
-        let text_field = schema.add_text_field("text", &text_fieldtype);
+        let text_field = schema.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::U32Options::new().set_fast();
-        let score_field = schema.add_u32_field("score", &score_fieldtype);
+        let score_field = schema.add_u32_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema);
 
         {
@@ -241,20 +242,20 @@ mod tests {
                 let mut index_writer = index.writer_with_num_threads(1).unwrap();
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "af b");
-                    doc.set_u32(&score_field, 3);
+                    doc.add_text(&text_field, "af b");
+                    doc.add_u32(&score_field, 3);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "a b c");
-                    doc.set_u32(&score_field, 5);
+                    doc.add_text(&text_field, "a b c");
+                    doc.add_u32(&score_field, 5);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "a b c d");
-                    doc.set_u32(&score_field, 7);
+                    doc.add_text(&text_field, "a b c d");
+                    doc.add_u32(&score_field, 7);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();
@@ -265,14 +266,14 @@ mod tests {
                 let mut index_writer = index.writer_with_num_threads(1).unwrap();
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "af b");
-                    doc.set_u32(&score_field, 11);
+                    doc.add_text(&text_field, "af b");
+                    doc.add_u32(&score_field, 11);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.set(&text_field, "a b c g");
-                    doc.set_u32(&score_field, 13);
+                    doc.add_text(&text_field, "a b c g");
+                    doc.add_u32(&score_field, 13);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();
@@ -311,23 +312,23 @@ mod tests {
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
-                assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+                assert_eq!(doc.get_first(&text_field).unwrap().text(), "af b");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
-                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c");
+                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
-                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c d");
+                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c d");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
-                assert_eq!(doc.get_first_text(&text_field).unwrap(), "af b");
+                assert_eq!(doc.get_first(&text_field).unwrap().text(), "af b");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
-                assert_eq!(doc.get_first_text(&text_field).unwrap(), "a b c g");
+                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c g");
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {

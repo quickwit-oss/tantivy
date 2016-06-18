@@ -1,6 +1,6 @@
 use common::BinarySerializable;
 use directory::WritePtr;
-use schema::U32Field;
+use schema::Field;
 use std::io;
 use std::io::{SeekFrom, Write};
 use super::compute_num_bits;
@@ -8,7 +8,7 @@ use super::compute_num_bits;
 pub struct FastFieldSerializer {
     write: WritePtr,
     written_size: usize,
-    fields: Vec<(U32Field, u32)>,
+    fields: Vec<(Field, u32)>,
     num_bits: u8,
 
     min_value: u32,
@@ -34,7 +34,7 @@ impl FastFieldSerializer {
         })
     }
 
-    pub fn new_u32_fast_field(&mut self, field: U32Field, min_value: u32, max_value: u32) -> io::Result<()> {
+    pub fn new_u32_fast_field(&mut self, field: Field, min_value: u32, max_value: u32) -> io::Result<()> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
         }

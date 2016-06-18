@@ -1,4 +1,4 @@
-use schema::{Schema, U32Field, Document};
+use schema::{Schema, FieldValue, Field, Document};
 use fastfield::FastFieldSerializer;
 use std::io;
 
@@ -9,16 +9,18 @@ pub struct U32FastFieldsWriter {
 impl U32FastFieldsWriter {
 
     pub fn from_schema(schema: &Schema) -> U32FastFieldsWriter {
-        let u32_fields: Vec<U32Field> = schema.get_u32_fields()
-            .iter()
-            .enumerate()
-            .filter(|&(_, field_entry)| field_entry.option.is_fast())
-            .map(|(field_id, _)| U32Field(field_id as u8))
-            .collect();
-        U32FastFieldsWriter::new(u32_fields)
+        // TODO fix
+        // let u32_fields: Vec<Field> = schema.fields
+        //     .iter()
+        //     .enumerate()
+        //     .filter(|&(_, field_entry)| field_entry.option.is_fast())
+        //     .map(|(field_id, _)| Field(field_id as u8))
+        //     .collect();
+        //U32FastFieldsWriter::new(u32_fields)
+        U32FastFieldsWriter::new(Vec::new())
     }
 
-    pub fn new(fields: Vec<U32Field>) -> U32FastFieldsWriter {
+    pub fn new(fields: Vec<Field>) -> U32FastFieldsWriter {
         U32FastFieldsWriter {
             field_writers: fields
                 .iter()
@@ -42,12 +44,12 @@ impl U32FastFieldsWriter {
 }
 
 pub struct U32FastFieldWriter {
-    field: U32Field,
+    field: Field,
     vals: Vec<u32>,
 }
 
 impl U32FastFieldWriter {
-    pub fn new(field: &U32Field) -> U32FastFieldWriter {
+    pub fn new(field: &Field) -> U32FastFieldWriter {
         U32FastFieldWriter {
             field: field.clone(),
             vals: Vec::new(),
@@ -57,9 +59,26 @@ impl U32FastFieldWriter {
     pub fn add_val(&mut self, val: u32) {
         self.vals.push(val);
     }
-
+    
+    
+    
+    fn extract_val(&self, doc: &Document) -> u32 {
+        match doc.get_first(&self.field) {
+            Some(field_value) => {
+                match field_value {
+                    &FieldValue::U32(_, val) => { return val; }
+                    _ => { panic!("Expected a u32field, got {:?} ", field_value) }
+                }
+            },
+            None => {
+                // TODO make default value configurable
+                return 0u32;
+            }            
+        }
+    }
+    
     pub fn add_document(&mut self, doc: &Document) {
-        let val = doc.get_u32(&self.field).unwrap_or(0u32);
+        let val = self.extract_val(doc);
         self.add_val(val);
     }
 
