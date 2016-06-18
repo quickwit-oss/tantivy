@@ -170,7 +170,7 @@ impl SegmentWriter {
 						loop {
 							match tokens.next() {
 								Some(token) => {
-									let term = Term::from_field_text(&field, token);
+									let term = Term::from_field_text(field, token);
 									self.postings_writer.suscribe(doc_id, pos.clone(), term);
 									pos += 1;
 								},

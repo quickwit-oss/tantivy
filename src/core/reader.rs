@@ -92,7 +92,7 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    pub fn get_fast_field_reader(&self, field: &Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.field_entry(field);
         match *field_entry {
             FieldEntry::Text(_, _) => {

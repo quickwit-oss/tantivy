@@ -30,7 +30,7 @@ impl Term {
         }
     }
 
-    pub fn from_field_text(field: &Field, text: &str) -> Term {
+    pub fn from_field_text(field: Field, text: &str) -> Term {
         let mut buffer = Vec::with_capacity(1 + text.len());
         buffer.clear();
         field.serialize(&mut buffer).unwrap();

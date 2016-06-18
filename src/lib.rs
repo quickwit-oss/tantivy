@@ -133,32 +133,33 @@ mod tests {
             };
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "a"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "a"))),
                     vec!(1, 2));
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "af"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "af"))),
                     vec!(0));
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"))),
                     vec!(0, 1, 2));
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "c"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "c"))),
                     vec!(1, 2));
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "d"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "d"))),
                     vec!(2));
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "b"), Term::from_field_text(&text_field, "a"), )),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"), 
+                                     Term::from_field_text(text_field, "a"), )),
                     vec!(1, 2));
             }
         }

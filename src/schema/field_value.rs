@@ -14,12 +14,12 @@ pub enum FieldValue {
 }
 
 impl FieldValue {
-    pub fn field(&self) -> &Field {
+    pub fn field(&self) -> Field {
         match self {
-            &FieldValue::Text(ref field, _) => {
+            &FieldValue::Text(field, _) => {
                 field
             },
-            &FieldValue::U32(ref field, _) => {
+            &FieldValue::U32(field, _) => {
                 field
             }
         }

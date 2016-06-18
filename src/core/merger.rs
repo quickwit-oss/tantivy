@@ -294,41 +294,41 @@ mod tests {
             };
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "a"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "a"))),
                     vec!(1, 2, 4,)
                 );
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "af"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "af"))),
                     vec!(0, 3,)
                 );
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "g"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "g"))),
                     vec!(4,)
                 );
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(&text_field, "b"))),
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"))),
                     vec!(0, 1, 2, 3, 4,)
                 );
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
-                assert_eq!(doc.get_first(&text_field).unwrap().text(), "af b");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
-                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
-                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c d");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c d");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
-                assert_eq!(doc.get_first(&text_field).unwrap().text(), "af b");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
-                assert_eq!(doc.get_first(&text_field).unwrap().text(), "a b c g");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c g");
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {
@@ -338,7 +338,7 @@ mod tests {
                     collector.vals().clone()
                 };
                 assert_eq!(
-                    get_fast_vals(vec!(Term::from_field_text(&text_field, "a"))),
+                    get_fast_vals(vec!(Term::from_field_text(text_field, "a"))),
                     vec!(5, 7, 13,)
                 );
             }

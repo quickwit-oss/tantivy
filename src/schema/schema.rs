@@ -94,7 +94,7 @@ impl Schema {
     }
 
     
-    pub fn field_entry(&self, field: &Field) -> &FieldEntry {
+    pub fn field_entry(&self, field: Field) -> &FieldEntry {
         &self.fields[field.0 as usize]
     }
     

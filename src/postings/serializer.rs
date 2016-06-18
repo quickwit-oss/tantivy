@@ -56,7 +56,7 @@ impl PostingsSerializer {
         })
     }
 
-    pub fn load_indexing_options(&mut self, field: &Field) {
+    pub fn load_indexing_options(&mut self, field: Field) {
         let field_entry: &FieldEntry = self.schema.field_entry(field);
         self.text_indexing_options = match field_entry {
             &FieldEntry::Text(_, ref text_options) => {
@@ -70,7 +70,7 @@ impl PostingsSerializer {
 
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         try!(self.close_term());
-        self.load_indexing_options(&term.get_field());
+        self.load_indexing_options(term.get_field());
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();

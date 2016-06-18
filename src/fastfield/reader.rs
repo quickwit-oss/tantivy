@@ -98,8 +98,8 @@ impl U32FastFieldsReader {
         })
     }
 
-    pub fn get_field(&self, field: &Field) -> io::Result<U32FastFieldReader> {
-        match self.field_offsets.get(field) {
+    pub fn get_field(&self, field: Field) -> io::Result<U32FastFieldReader> {
+        match self.field_offsets.get(&field) {
             Some(&(start, stop)) => {
                 let field_source = self.source.slice(start as usize, stop as usize);
                 U32FastFieldReader::open(field_source)

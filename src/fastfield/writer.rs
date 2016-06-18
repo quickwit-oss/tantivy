@@ -63,7 +63,7 @@ impl U32FastFieldWriter {
     
     
     fn extract_val(&self, doc: &Document) -> u32 {
-        match doc.get_first(&self.field) {
+        match doc.get_first(self.field) {
             Some(field_value) => {
                 match field_value {
                     &FieldValue::U32(_, val) => { return val; }

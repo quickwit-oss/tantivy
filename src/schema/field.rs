@@ -6,11 +6,12 @@ use common::BinarySerializable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use std::ops::BitOr;
+use std::marker::Copy;
 
 
 // TODO impl Copy trait
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
+#[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Field(pub u8);
 
 impl BinarySerializable for Field {

@@ -77,7 +77,7 @@ impl FastFieldTestCollector {
 impl Collector for FastFieldTestCollector {
 
     fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
-        self.ff_reader = Some(try!(reader.get_fast_field_reader(&self.field)));
+        self.ff_reader = Some(try!(reader.get_fast_field_reader(self.field)));
         Ok(())
     }
 

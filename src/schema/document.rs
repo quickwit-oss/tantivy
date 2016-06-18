@@ -81,18 +81,17 @@ impl Document {
         &self.field_values
     }
     
-    pub fn get_all<'a>(&'a self, field: &Field) -> Vec<&'a FieldValue> {
+    pub fn get_all<'a>(&'a self, field: Field) -> Vec<&'a FieldValue> {
         self.field_values
             .iter()
-            .filter(|field_value| *field_value.field() == *field)
-            // .map(|field_value| &field_value.text)
+            .filter(|field_value| field_value.field() == field)
             .collect()
     }
 
-    pub fn get_first<'a>(&'a self, field: &Field) -> Option<&'a FieldValue> {
+    pub fn get_first<'a>(&'a self, field: Field) -> Option<&'a FieldValue> {
         self.field_values
             .iter()
-            .filter(|field_value| *field_value.field() == *field)
+            .filter(|field_value| field_value.field() == field)
             .next()
     }
 }

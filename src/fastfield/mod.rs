@@ -73,7 +73,7 @@ mod tests {
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
             assert_eq!(fast_field_reader.get(0), 13u32);
             assert_eq!(fast_field_reader.get(1), 14u32);
             assert_eq!(fast_field_reader.get(2), 2u32);
@@ -108,7 +108,7 @@ mod tests {
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u32);
             assert_eq!(fast_field_reader.get(1), 14_082_001u32);
             assert_eq!(fast_field_reader.get(2), 3_052u32);
@@ -150,7 +150,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
             let mut a = 0u32;
             for _ in 0..n {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
@@ -205,7 +205,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
             b.iter(|| {
                 let n = test::black_box(7000u32);
                 let mut a = 0u32;
@@ -237,7 +237,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(&field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
             b.iter(|| {
                 let n = test::black_box(1000u32);
                 let mut a = 0u32;

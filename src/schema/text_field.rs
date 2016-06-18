@@ -211,7 +211,7 @@ mod tests {
             let mut schema = Schema::new();
             let _body_field: Field = schema.add_text_field("body", TEXT);
             let field = schema.get_field("body").unwrap();
-            let field_entry = schema.field_entry(&field);
+            let field_entry = schema.field_entry(field);
             match field_entry {
                 &FieldEntry::Text(_, ref text_options) => {
                     assert!(text_options.indexing_options().is_tokenized());

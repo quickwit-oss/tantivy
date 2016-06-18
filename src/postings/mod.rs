@@ -41,7 +41,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let segment = index.new_segment();
         let mut posting_serializer = PostingsSerializer::open(&segment).unwrap();
-        let term = Term::from_field_text(&text_field, "abc");
+        let term = Term::from_field_text(text_field, "abc");
         posting_serializer.new_term(&term, 3).unwrap();
         for _ in 0..3 {
             let a = vec!(1,2,3,2);
