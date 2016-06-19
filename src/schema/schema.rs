@@ -98,6 +98,10 @@ impl Schema {
         &self.fields[field.0 as usize]
     }
     
+    pub fn fields(&self,) -> &Vec<FieldEntry> {
+        &self.fields
+    }
+    
     // pub fn get_u32_fields(&self,) -> &Vec<U32FieldEntry> {
     //     &self.u32_fields
     // }

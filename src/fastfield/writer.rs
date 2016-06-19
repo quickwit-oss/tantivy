@@ -1,4 +1,5 @@
 use schema::{Schema, FieldValue, Field, Document};
+use schema::FieldEntry;
 use fastfield::FastFieldSerializer;
 use std::io;
 
@@ -6,18 +7,29 @@ pub struct U32FastFieldsWriter {
     field_writers: Vec<U32FastFieldWriter>,
 }
 
+
+fn is_u32_fast(field_entry: &FieldEntry) -> bool {
+    match field_entry {
+        &FieldEntry::U32(_, ref options) => {
+            options.is_fast()
+        }
+        _ => {
+            false
+        }
+    }
+}
+
 impl U32FastFieldsWriter {
 
     pub fn from_schema(schema: &Schema) -> U32FastFieldsWriter {
         // TODO fix
-        // let u32_fields: Vec<Field> = schema.fields
-        //     .iter()
-        //     .enumerate()
-        //     .filter(|&(_, field_entry)| field_entry.option.is_fast())
-        //     .map(|(field_id, _)| Field(field_id as u8))
-        //     .collect();
-        //U32FastFieldsWriter::new(u32_fields)
-        U32FastFieldsWriter::new(Vec::new())
+        let u32_fields: Vec<Field> = schema.fields()
+            .iter()
+            .enumerate()
+            .filter(|&(_, field_entry)| is_u32_fast(field_entry)) 
+            .map(|(field_id, _)| Field(field_id as u8))
+            .collect();
+        U32FastFieldsWriter::new(u32_fields)
     }
 
     pub fn new(fields: Vec<Field>) -> U32FastFieldsWriter {
