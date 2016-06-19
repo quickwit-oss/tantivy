@@ -6,7 +6,7 @@ use std::io;
 use core::searcher::Searcher;
 use collector::Collector;
 use core::searcher::SegmentLocalId;
-use core::reader::SegmentReader;
+use core::SegmentReader;
 use postings::Postings;
 use postings::SegmentPostings;
 use postings::intersection;

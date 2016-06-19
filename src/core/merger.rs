@@ -1,5 +1,5 @@
 use std::io;
-use core::reader::SegmentReader;
+use core::SegmentReader;
 use core::index::Segment;
 use DocId;
 use core::index::SerializableSegment;
@@ -241,20 +241,20 @@ mod tests {
                 let mut index_writer = index.writer_with_num_threads(1).unwrap();
                 {
                     let mut doc = Document::new();
-                    doc.add_text(&text_field, "af b");
-                    doc.add_u32(&score_field, 3);
+                    doc.add_text(text_field, "af b");
+                    doc.add_u32(score_field, 3);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.add_text(&text_field, "a b c");
-                    doc.add_u32(&score_field, 5);
+                    doc.add_text(text_field, "a b c");
+                    doc.add_u32(score_field, 5);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.add_text(&text_field, "a b c d");
-                    doc.add_u32(&score_field, 7);
+                    doc.add_text(text_field, "a b c d");
+                    doc.add_u32(score_field, 7);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();
@@ -265,14 +265,14 @@ mod tests {
                 let mut index_writer = index.writer_with_num_threads(1).unwrap();
                 {
                     let mut doc = Document::new();
-                    doc.add_text(&text_field, "af b");
-                    doc.add_u32(&score_field, 11);
+                    doc.add_text(text_field, "af b");
+                    doc.add_u32(score_field, 11);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
                     let mut doc = Document::new();
-                    doc.add_text(&text_field, "a b c g");
-                    doc.add_u32(&score_field, 13);
+                    doc.add_text(text_field, "a b c g");
+                    doc.add_u32(score_field, 13);
                     index_writer.add_document(doc).unwrap();
                 }
                 index_writer.wait().unwrap();

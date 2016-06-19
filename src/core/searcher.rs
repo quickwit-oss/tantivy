@@ -1,4 +1,4 @@
-use core::reader::SegmentReader;
+use core::SegmentReader;
 use core::index::Index;
 use core::index::Segment;
 use DocId;

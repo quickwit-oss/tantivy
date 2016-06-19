@@ -45,7 +45,7 @@ mod tests {
         assert_eq!(compute_num_bits(256), 9u8);
     }
 
-    fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: &Field, value: u32) {
+    fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: Field, value: u32) {
         let mut doc = Document::new();
         doc.add_u32(field, value);
         fast_field_writers.add_document(&doc);
@@ -61,9 +61,9 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            add_single_field_doc(&mut fast_field_writers, &field, 13u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 14u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 2u32);
+            add_single_field_doc(&mut fast_field_writers, field, 13u32);
+            add_single_field_doc(&mut fast_field_writers, field, 14u32);
+            add_single_field_doc(&mut fast_field_writers, field, 2u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
@@ -90,15 +90,15 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            add_single_field_doc(&mut fast_field_writers, &field, 4u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 14_082_001u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 3_052u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 9002u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 15_001u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 777u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 1_002u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 1_501u32);
-            add_single_field_doc(&mut fast_field_writers, &field, 215u32);
+            add_single_field_doc(&mut fast_field_writers, field, 4u32);
+            add_single_field_doc(&mut fast_field_writers, field, 14_082_001u32);
+            add_single_field_doc(&mut fast_field_writers, field, 3_052u32);
+            add_single_field_doc(&mut fast_field_writers, field, 9002u32);
+            add_single_field_doc(&mut fast_field_writers, field, 15_001u32);
+            add_single_field_doc(&mut fast_field_writers, field, 777u32);
+            add_single_field_doc(&mut fast_field_writers, field, 1_002u32);
+            add_single_field_doc(&mut fast_field_writers, field, 1_501u32);
+            add_single_field_doc(&mut fast_field_writers, field, 215u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
@@ -142,7 +142,7 @@ mod tests {
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
             for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, &field, x.clone());
+                add_single_field_doc(&mut fast_field_writers, field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -197,7 +197,7 @@ mod tests {
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
             for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, &field, x.clone());
+                add_single_field_doc(&mut fast_field_writers, field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -229,7 +229,7 @@ mod tests {
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
             for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, &field, x.clone());
+                add_single_field_doc(&mut fast_field_writers, field, x.clone());
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();

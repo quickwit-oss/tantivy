@@ -47,7 +47,7 @@ pub use core::searcher::Searcher;
 pub use core::index::Index;
 pub use schema::Term;
 pub use schema::Document;
-pub use core::reader::SegmentReader;
+pub use core::SegmentReader;
 pub use core::searcher::SegmentLocalId;
 pub use self::common::TimerTree;
 
@@ -74,17 +74,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "af b");
+                doc.add_text(text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c");
+                doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c d");
+                doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.wait().is_ok());
@@ -108,17 +108,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "af b");
+                doc.add_text(text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c");
+                doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c d");
+                doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.wait().unwrap();
@@ -176,17 +176,17 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "af b");
+                doc.add_text(text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c");
+                doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
                 let mut doc = Document::new();
-                doc.add_text(&text_field, "a b c d");
+                doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.wait().unwrap();

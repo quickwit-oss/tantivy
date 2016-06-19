@@ -21,11 +21,11 @@ impl Document {
         self.field_values.len()
     }
 
-    pub fn add_text(&mut self, field: &Field, text: &str) {
+    pub fn add_text(&mut self, field: Field, text: &str) {
         self.add(FieldValue::Text(field.clone(), String::from(text)));
     }
 
-    pub fn add_u32(&mut self, field: &Field, value: u32) {
+    pub fn add_u32(&mut self, field: Field, value: u32) {
         self.add(FieldValue::U32(field.clone(), value));
     }
 
@@ -58,4 +58,25 @@ impl From<Vec<FieldValue>> for Document {
             field_values: field_values
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+
+    
+    use super::*;
+    use schema::Schema;
+    use schema::TEXT;
+    
+    #[test]
+    fn test_doc() {
+        let mut schema = Schema::new();
+        let text_field = schema.add_text_field("title", TEXT);
+        let mut doc = Document::new();
+        doc.add_text(text_field, "My title");
+        assert_eq!(doc.get_fields().len(), 1);
+    }
+    
 }
