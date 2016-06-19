@@ -66,8 +66,8 @@ impl BinarySerializable for FieldValue {
         Ok(written_size)
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        let TYPE_CODE = try!(u8::deserialize(reader));
-        match TYPE_CODE {
+        let type_code = try!(u8::deserialize(reader));
+        match type_code {
             TEXT_CODE => {
                 let field = try!(Field::deserialize(reader));
                 let text = try!(String::deserialize(reader));
@@ -79,7 +79,7 @@ impl BinarySerializable for FieldValue {
                 Ok(FieldValue::U32(field, value))
             }
             _ => {
-                Err(io::Error::new(io::ErrorKind::InvalidData, format!("No field type is associated with code {:?}", TYPE_CODE)))
+                Err(io::Error::new(io::ErrorKind::InvalidData, format!("No field type is associated with code {:?}", type_code)))
             }
         }      
     }

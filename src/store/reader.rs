@@ -78,9 +78,7 @@ impl StoreReader {
             let field_value = try!(FieldValue::deserialize(&mut cursor));
             field_values.push(field_value);
         }
-        Ok(Document {
-            field_values: Vec::new(),
-        })
+        Ok(Document::from(field_values))
     }
 
     pub fn new(data: ReadOnlySource) -> StoreReader {

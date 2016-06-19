@@ -98,8 +98,8 @@ impl SegmentReader {
             FieldEntry::Text(_, _) => {
                 Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
             },
-            FieldEntry::U32(_, ref options) => {
-                //if options.
+            FieldEntry::U32(_, _) => {
+                // TODO check that the schema allows that
                 //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
                 self.fast_fields_reader.get_field(field)
             },

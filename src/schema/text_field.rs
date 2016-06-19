@@ -1,8 +1,3 @@
-use std::io::Write;
-use std::io;
-
-use std::io::Read;
-use common::BinarySerializable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use std::ops::BitOr;

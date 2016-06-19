@@ -23,6 +23,7 @@ use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 use std::sync::Arc;
 use core::merger::IndexMerger;
+use schema::FieldValue;
 
 pub struct IndexWriter {
 	threads: Vec<JoinHandle<()>>,
@@ -189,14 +190,13 @@ impl SegmentWriter {
 			}
 		}
 		self.fast_field_writers.add_document(&doc);
-		
-		// TODO add stored field
-		// let stored_fieldvalues: Vec<&TextFieldValue> = doc
-		// 	.text_fields()
-		// 	.filter(|text_field_value| schema.text_field_options(&text_field_value.field).is_stored())
-		// 	.collect();
-		// let doc_writer = self.segment_serializer.get_store_writer();
-		// try!(doc_writer.store(&stored_fieldvalues));
+		let stored_fieldvalues: Vec<&FieldValue> = doc
+			.get_fields()
+			.iter()
+			.filter(|field_value| schema.field_entry(field_value.field()).is_stored())
+			.collect();
+		let doc_writer = self.segment_serializer.get_store_writer();
+		try!(doc_writer.store(&stored_fieldvalues));
         self.max_doc += 1;
 		Ok(())
     }

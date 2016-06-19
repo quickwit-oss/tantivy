@@ -1,31 +1,5 @@
-use std::io;
-use std::io::Write;
-use std::io::Read;
-
-use common::BinarySerializable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
-
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
-pub struct U32Field(pub u8);
-
-impl BinarySerializable for U32Field {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let U32Field(field_id) = *self;
-        field_id.serialize(writer)
-    }
-
-    fn deserialize(reader: &mut Read) -> io::Result<U32Field> {
-        u8::deserialize(reader).map(U32Field)
-    }
-}
-
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
-pub struct U32FieldValue {
-    pub field: U32Field,
-    pub value: u32,
-}
-
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct U32Options {
@@ -33,7 +7,6 @@ pub struct U32Options {
     fast: bool,
     stored: bool,
 }
-
 
 impl U32Options {
 
@@ -44,7 +17,11 @@ impl U32Options {
             stored: false,
         }
     }
-
+    
+    pub fn is_stored(&self,) -> bool {
+        self.stored
+    }
+    
     pub fn is_indexed(&self,) -> bool {
         self.indexed
     }

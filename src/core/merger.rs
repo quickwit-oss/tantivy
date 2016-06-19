@@ -152,30 +152,29 @@ impl IndexMerger {
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
         // TODO implement fast field
-        // for field in self.schema
-        //     .get_u32_fields()
-        //     .iter()
-        //     .enumerate()
-        //     .filter(|&(_, field_entry)| field_entry.option.is_fast())
-        //     .map(|(field_id, _)| Field(field_id as u8)) {
-        //     let mut u32_readers = Vec::new();
-        //     let mut min_val = u32::min_value();
-        //     let mut max_val = 0;
-        //     for reader in self.readers.iter() {
-        //         let u32_reader = try!(reader.get_fast_field_reader(&field));
-        //         min_val = min(min_val, u32_reader.min_val());
-        //         max_val = max(max_val, u32_reader.max_val());
-        //         u32_readers.push((reader.max_doc(), u32_reader));
-        //     }
-        //     try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
-        //     for (max_doc, u32_reader) in u32_readers {
-        //         for doc_id in 0..max_doc {
-        //             let val = u32_reader.get(doc_id);
-        //             try!(fast_field_serializer.add_val(val));
-        //         }
-        //     }
-        //     try!(fast_field_serializer.close_field());
-        // }
+        for field in self.schema.fields()
+             .iter()
+             .enumerate()
+             .filter(|&(_, field_entry)| field_entry.is_u32_fast())
+             .map(|(field_id, _)| Field(field_id as u8)) {
+            let mut u32_readers = Vec::new();
+            let mut min_val = u32::min_value();
+            let mut max_val = 0;
+            for reader in self.readers.iter() {
+                let u32_reader = try!(reader.get_fast_field_reader(field));
+                min_val = min(min_val, u32_reader.min_val());
+                max_val = max(max_val, u32_reader.max_val());
+                u32_readers.push((reader.max_doc(), u32_reader));
+            }
+            try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
+            for (max_doc, u32_reader) in u32_readers {
+                for doc_id in 0..max_doc {
+                    let val = u32_reader.get(doc_id);
+                    try!(fast_field_serializer.add_val(val));
+                }
+            }
+            try!(fast_field_serializer.close_field());
+        }
         Ok(())
     }
 

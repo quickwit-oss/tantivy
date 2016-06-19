@@ -6,7 +6,6 @@ use std::ops::Deref;
 use directory::ReadOnlySource;
 use fastfield::DividerU32;
 use common::BinarySerializable;
-use schema::FieldEntry;
 use DocId;
 use schema::Field;
 

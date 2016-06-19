@@ -1,8 +1,6 @@
-use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
-use schema::Field;
 use schema::TextOptions;
 use schema::U32Options;
 
@@ -22,5 +20,28 @@ impl FieldEntry {
                 field_name
             }
         }
-    } 
+    }
+    
+    pub fn is_u32_fast(&self,) -> bool {
+        match self {
+            &FieldEntry::U32(_, ref options) => {
+                options.is_fast()
+            }
+            _ => {
+                false
+            }
+        }
+    }
+    
+    pub fn is_stored(&self,) -> bool {
+        match self {
+            &FieldEntry::U32(_, ref options) => {
+                // TODO handle stored u32
+                options.is_stored()
+            }
+            &FieldEntry::Text(_, ref options) => {
+                options.is_stored()
+            }
+        }
+    }
 } 
