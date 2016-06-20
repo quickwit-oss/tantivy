@@ -51,9 +51,8 @@ impl MultiTermQuery {
     
     fn search_segment<'a, 'b>(&'b self, reader: &'b SegmentReader, mut timer: OpenTimer<'a>) -> Box<Postings + 'b> {
         if self.terms.len() == 1 {
-            match reader.get_term(&self.terms[0]) {
-                Some(term_info) => {
-                    let postings: SegmentPostings<'b> = reader.read_postings(&term_info);
+            match reader.read_postings(&self.terms[0]) {
+                Some(postings) => {
                     Box::new(postings)
                 },
                 None => {
@@ -65,11 +64,10 @@ impl MultiTermQuery {
             {
                 let mut decode_timer = timer.open("decode_all");
                 for term in self.terms.iter() {
-                    match reader.get_term(term) {
-                        Some(term_info) => {
-                            let _decode_one_timer = decode_timer.open("decode_one");
-                            let segment_posting = reader.read_postings(&term_info);
-                            segment_postings.push(segment_posting);
+                    let _decode_one_timer = decode_timer.open("decode_one");
+                    match reader.read_postings(term) {
+                        Some(postings) => {
+                            segment_postings.push(postings);
                         }
                         None => {
                             // currently this is a strict intersection.

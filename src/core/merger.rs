@@ -95,9 +95,10 @@ impl<'a> PostingsMerger<'a> {
         {
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            let segment_postings = reader.read_postings(&heap_item.term_info);
-            let offset_postings = OffsetPostings::new(segment_postings, offset);
-            segment_postings_list.push(offset_postings);
+            // TODO FIX MERGER!!!!!!!!!
+            // let segment_postings = reader.read_postings(&heap_item.term_info);
+            // let offset_postings = OffsetPostings::new(segment_postings, offset);
+            // segment_postings_list.push(offset_postings);
         }
         self.push_next_segment_el(heap_item.segment_ord);
     }

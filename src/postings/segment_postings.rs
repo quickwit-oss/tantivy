@@ -12,7 +12,7 @@ pub struct SegmentPostings<'a> {
     doc_freq: usize,
     doc_offset: u32,
     block_decoder: SIMDBlockDecoder,
-    freq_reader: FreqHandler,
+    freq_handler: FreqHandler,
     remaining_data: &'a [u8],
     cur: Wrapping<usize>,
 }
@@ -26,7 +26,7 @@ impl<'a> SegmentPostings<'a> {
             doc_freq: 0,
             doc_offset: 0,
             block_decoder: SIMDBlockDecoder::new(),
-            freq_reader: FreqHandler::NoFreq,
+            freq_handler: FreqHandler::NoFreq,
             remaining_data: &EMPTY_ARRAY,
             cur: Wrapping(usize::max_value()),
         }
@@ -36,21 +36,21 @@ impl<'a> SegmentPostings<'a> {
         let num_remaining_docs = self.doc_freq - self.cur.0;
         if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
             self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
-            self.remaining_data = self.freq_reader.read_freq_block(self.remaining_data);
+            self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
             self.doc_offset = self.block_decoder.output()[NUM_DOCS_PER_BLOCK - 1];
         }
         else {
             self.remaining_data = self.block_decoder.uncompress_vint_sorted(self.remaining_data, self.doc_offset, num_remaining_docs);
-            self.freq_reader.read_freq_vint(self.remaining_data, num_remaining_docs);
+            self.freq_handler.read_freq_vint(self.remaining_data, num_remaining_docs);
         }
     }
 
-    pub fn from_data(doc_freq: u32, data: &'a [u8]) -> SegmentPostings<'a> {
+    pub fn from_data(doc_freq: u32, data: &'a [u8], freq_handler: FreqHandler) -> SegmentPostings<'a> {
         SegmentPostings {
             doc_freq: doc_freq as usize,
             doc_offset: 0,
             block_decoder: SIMDBlockDecoder::new(),
-            freq_reader: FreqHandler::new_freq_reader(),
+            freq_handler: freq_handler,
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
         }

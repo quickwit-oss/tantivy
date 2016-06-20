@@ -90,9 +90,7 @@ impl<'a> Postings for IntersectionPostings<'a> {
                 Ordering::Greater => {
                     return SkipResult::OverStep;
                 }
-                Ordering::Less => {
-                    //
-                }
+                Ordering::Less => {}
             }
             if !self.next() {
                 return SkipResult::End;
@@ -100,9 +98,6 @@ impl<'a> Postings for IntersectionPostings<'a> {
         }
     }
 }
-
-
-
 
 #[inline(never)]
 pub fn intersection<'a>(postings: Vec<SegmentPostings<'a>>) -> IntersectionPostings<'a> {
@@ -114,24 +109,4 @@ pub fn intersection<'a>(postings: Vec<SegmentPostings<'a>>) -> IntersectionPosti
         })
         .collect();
     IntersectionPostings::new(boxed_postings)
-    // let min_len = postings.iter()
-    //                       .map(|v| v.len())
-    //                       .min()
-    //                       .unwrap();
-    // let buffer: Vec<u32> = postings.pop().unwrap().0;
-    // let mut output: Vec<u32> = Vec::with_capacity(min_len);
-    // unsafe {
-    //     output.set_len(min_len);
-    // }
-    // let mut pair = (output, buffer);
-    // for posting in postings.iter() {
-    //     pair = (pair.1, pair.0);
-    //     let output_len = compression::intersection(posting.0.as_slice(),
-    //                                                pair.0.as_slice(),
-    //                                                pair.1.as_mut_slice());
-    //     unsafe {
-    //         pair.1.set_len(output_len);
-    //     }
-    // }
-    // SegmentPostings(pair.1)
 }

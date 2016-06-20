@@ -51,6 +51,29 @@ mod tests {
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert_eq!(read.len(), 12);
     }
+
+    #[test]
+    fn test_intersection() {
+        {
+            let left = Box::new(VecPostings::new(vec!(1, 3, 9)));
+            let right = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
+            let mut intersection = IntersectionPostings::new(vec!(left, right));
+            assert!(intersection.next());
+            assert_eq!(intersection.doc(), 3);
+            assert!(intersection.next());
+            assert_eq!(intersection.doc(), 9);
+            assert!(!intersection.next());
+        }
+        {
+            let a = Box::new(VecPostings::new(vec!(1, 3, 9)));
+            let b = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
+            let c = Box::new(VecPostings::new(vec!(1, 5, 9, 111)));
+            let mut intersection = IntersectionPostings::new(vec!(a, b, c));
+            assert!(intersection.next());
+            assert_eq!(intersection.doc(), 9);
+            assert!(!intersection.next());
+        }
+    }
      
 }
 
@@ -58,27 +81,10 @@ mod tests {
 
 // #[cfg(test)]
 // mod tests {
-//
+
 //     use super::*;
 //     use test::Bencher;
-//     #[test]
-//     fn test_intersection() {
-//         {
-//             let left = VecPostings::new(vec!(1, 3, 9));
-//             let right = VecPostings::new(vec!(3, 4, 9, 18));
-//             let inter = IntersectionPostings::from_postings(vec!(left, right));
-//             let vals: Vec<DocId> = inter.collect();
-//             assert_eq!(vals, vec!(3, 9));
-//         }
-//         {
-//             let a = VecPostings::new(vec!(1, 3, 9));
-//             let b = VecPostings::new(vec!(3, 4, 9, 18));
-//             let c = VecPostings::new(vec!(1, 5, 9, 111));
-//             let inter = IntersectionPostings::from_postings(vec!(a, b, c));
-//             let vals: Vec<DocId> = inter.collect();
-//             assert_eq!(vals, vec!(9));
-//         }
-//     }
+
 //
 //     #[bench]
 //     fn bench_single_intersection(b: &mut Bencher) {

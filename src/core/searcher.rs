@@ -57,27 +57,4 @@ impl Searcher {
     pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> io::Result<TimerTree> {
         query.search(self, collector)
     }
-    
-    // pub fn search<C: Collector>(&self, terms: &Vec<Term>, collector: &mut C) -> io::Result<TimerTree> {
-    //     let mut timer_tree = TimerTree::new();
-    //     {
-    //         let mut search_timer = timer_tree.open("search");
-    //         for (segment_ord, segment) in self.segments.iter().enumerate() {
-    //             let mut segment_search_timer = search_timer.open("segment_search");
-    //             {
-    //                 let _ = segment_search_timer.open("set_segment");
-    //                 try!(collector.set_segment(segment_ord as SegmentLocalId, &segment));
-    //             }
-    //             let mut postings = segment.search(terms, segment_search_timer.open("get_postings"));
-    //             {
-    //                 let _collection_timer = segment_search_timer.open("collection");
-    //                 while postings.next() {
-    //                     collector.collect(postings.doc());
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     Ok(timer_tree)
-    // }
-
 }

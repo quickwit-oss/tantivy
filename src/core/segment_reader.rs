@@ -22,7 +22,7 @@ use postings::intersection;
 use schema::FieldEntry;
 use schema::Schema;
 use schema::FieldValue;
-
+use postings::FreqHandler;
 
 pub struct SegmentReader {
     segment_info: SegmentInfo,
@@ -35,12 +35,29 @@ pub struct SegmentReader {
 }
 
 impl SegmentReader {
+
+
     /// Returns the highest document id ever attributed in
     /// this segment + 1.
     /// Today, `tantivy` does not handle deletes so, it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
         self.segment_info.max_doc
+    }
+
+    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        match *field_entry {
+            FieldEntry::Text(_, _) => {
+                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+            },
+            FieldEntry::U32(_, _) => {
+                // TODO check that the schema allows that
+                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+                self.fast_fields_reader.get_field(field)
+            },
+        }
+        
     }
 
     pub fn get_store_reader(&self) -> &StoreReader {
@@ -73,11 +90,9 @@ impl SegmentReader {
         })
     }
 
-
     pub fn term_infos(&self) -> &FstMap<TermInfo> {
         &self.term_infos
     }
-
 
     /// Returns the document (or to be accurate, its stored field)
     /// bearing the given doc id.
@@ -87,87 +102,33 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn read_postings(&self, term: &Term) -> Option<SegmentPostings> {
+        let field = term.get_field();
         let field_entry = self.schema.get_field_entry(field);
-        match *field_entry {
-            FieldEntry::Text(_, _) => {
-                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
-            },
-            FieldEntry::U32(_, _) => {
-                // TODO check that the schema allows that
-                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
-                self.fast_fields_reader.get_field(field)
-            },
-        }
-        
-    }
-
-    pub fn read_postings(&self, term_info: &TermInfo) -> SegmentPostings {
+        let term_info = get!(self.get_term_info(&term));
         let offset = term_info.postings_offset as usize;
-        let postings_data = &self.postings_data.as_slice()[offset..];
-        SegmentPostings::from_data(term_info.doc_freq, &postings_data)
-    }
-    
-    // TODO better error handling
-    pub fn read_postings_with_positions(&self, field_value: &FieldValue) -> SegmentPostings {
-        let field = field_value.field();
-        let field_entry = self.schema.get_field_entry(field);
-        match field_entry {
+        let postings_data = &self.postings_data[offset..];
+        let freq_handler = match field_entry {
             &FieldEntry::Text(_, ref options) => {
-                if !options.get_indexing_options().is_position_enabled() {
-                    panic!("Position not indexed");
-                } 
+                if options.get_indexing_options().is_termfreq_enabled() {
+                    FreqHandler::new_freq_reader()
+                }
+                else {
+                    FreqHandler::NoFreq
+                }
             }
             _ => {
                 panic!("Expected text field, got {:?}", field_entry);
             }
-        }
-        let term = field_value.to_term();
-        let term_info = self.get_term(&term).unwrap();
-        let offset = term_info.postings_offset as usize;
-        let postings_data = &self.postings_data[offset..];
-        SegmentPostings::from_data(term_info.doc_freq, &postings_data)
+        };
+        Some(SegmentPostings::from_data(term_info.doc_freq, &postings_data, freq_handler))
     }
     
-    pub fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
+    pub fn get_term_info<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }
-
-    /// Returns the list of doc ids containing all of the
-    /// given terms.
-    pub fn search<'a, 'b>(&'b self, terms: &Vec<Term>, mut timer: OpenTimer<'a>) -> Box<Postings + 'b> {
-        if terms.len() == 1 {
-            match self.get_term(&terms[0]) {
-                Some(term_info) => {
-                    let postings: SegmentPostings<'b> = self.read_postings(&term_info);
-                    Box::new(postings)
-                },
-                None => {
-                    Box::new(SegmentPostings::empty())
-                },
-            }
-        } else {
-            let mut segment_postings: Vec<SegmentPostings> = Vec::new();
-            {
-                let mut decode_timer = timer.open("decode_all");
-                for term in terms.iter() {
-                    match self.get_term(term) {
-                        Some(term_info) => {
-                            let _decode_one_timer = decode_timer.open("decode_one");
-                            let segment_posting = self.read_postings(&term_info);
-                            segment_postings.push(segment_posting);
-                        }
-                        None => {
-                            // currently this is a strict intersection.
-                            return Box::new(SegmentPostings::empty());
-                        }
-                    }
-                }
-            }
-            Box::new(intersection(segment_postings))
-        }
-    }
 }
+
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

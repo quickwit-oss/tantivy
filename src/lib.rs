@@ -27,6 +27,13 @@ extern crate num_cpus;
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
 
+#[macro_use]
+mod macros {
+    macro_rules! get(
+        ($e:expr) => (match $e { Some(e) => e, None => return None })
+    );
+}
+
 mod core;
 mod datastruct;
 mod postings;
@@ -55,6 +62,8 @@ pub use self::common::TimerTree;
 /// Document gets their doc id assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
+
+
 
 #[cfg(test)]
 mod tests {
