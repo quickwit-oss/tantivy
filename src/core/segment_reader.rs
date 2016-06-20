@@ -21,7 +21,7 @@ use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use postings::intersection;
 use schema::FieldEntry;
 use schema::Schema;
-
+use schema::FieldValue;
 
 
 pub struct SegmentReader {
@@ -88,7 +88,7 @@ impl SegmentReader {
     }
 
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
-        let field_entry = self.schema.field_entry(field);
+        let field_entry = self.schema.get_field_entry(field);
         match *field_entry {
             FieldEntry::Text(_, _) => {
                 Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
@@ -107,7 +107,28 @@ impl SegmentReader {
         let postings_data = &self.postings_data.as_slice()[offset..];
         SegmentPostings::from_data(term_info.doc_freq, &postings_data)
     }
-
+    
+    // TODO better error handling
+    pub fn read_postings_with_positions(&self, field_value: &FieldValue) -> SegmentPostings {
+        let field = field_value.field();
+        let field_entry = self.schema.get_field_entry(field);
+        match field_entry {
+            &FieldEntry::Text(_, ref options) => {
+                if !options.get_indexing_options().is_position_enabled() {
+                    panic!("Position not indexed");
+                } 
+            }
+            _ => {
+                panic!("Expected text field, got {:?}", field_entry);
+            }
+        }
+        let term = field_value.to_term();
+        let term_info = self.get_term(&term).unwrap();
+        let offset = term_info.postings_offset as usize;
+        let postings_data = &self.postings_data[offset..];
+        SegmentPostings::from_data(term_info.doc_freq, &postings_data)
+    }
+    
     pub fn get_term<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }

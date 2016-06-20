@@ -12,7 +12,7 @@ pub struct TextOptions {
 
 impl TextOptions {
     
-    pub fn indexing_options(&self,) -> TextIndexingOptions {
+    pub fn get_indexing_options(&self,) -> TextIndexingOptions {
         self.indexing_options.clone()
     }
 
@@ -106,33 +106,6 @@ impl BitOr for TextIndexingOptions {
 }
 
 
-// #[derive(Clone,Debug,PartialEq,PartialOrd,Eq)]
-// pub struct TextFieldValue {
-//     pub field: TextField,
-//     pub text: String,
-// }
-
-// impl BinarySerializable for TextFieldValue {
-//     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-//         Ok(
-//             try!(self.field.serialize(writer)) +
-//             try!(self.text.serialize(writer))
-//         )
-//     }
-//     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-//         let field = try!(TextField::deserialize(reader));
-//         let text = try!(String::deserialize(reader));
-//         Ok(TextFieldValue {
-//             field: field,
-//             text: text,
-//         })
-//     }
-// }
-
-
-
-
-
 /// The field will be untokenized and indexed
 pub const STRING: TextOptions = TextOptions {
     indexing_options: TextIndexingOptions::Untokenized,
@@ -194,22 +167,22 @@ mod tests {
             let field_options = STORED | FAST;
             assert!(field_options.is_stored());
             assert!(field_options.is_fast());
-            assert!(!field_options.indexing_options().is_tokenized());
+            assert!(!field_options.get_indexing_options().is_tokenized());
         }
         {
             let field_options = STORED | TEXT;
             assert!(field_options.is_stored());
             assert!(!field_options.is_fast());
-            assert!(field_options.indexing_options().is_tokenized());
+            assert!(field_options.get_indexing_options().is_tokenized());
         }
         {
             let mut schema = Schema::new();
             let _body_field: Field = schema.add_text_field("body", TEXT);
             let field = schema.get_field("body").unwrap();
-            let field_entry = schema.field_entry(field);
+            let field_entry = schema.get_field_entry(field);
             match field_entry {
                 &FieldEntry::Text(_, ref text_options) => {
-                    assert!(text_options.indexing_options().is_tokenized());
+                    assert!(text_options.get_indexing_options().is_tokenized());
                 }
                 _ => {
                     panic!("");

@@ -20,7 +20,7 @@ impl Term {
         Field(self.type_num())
     }
 
-    pub fn from_field_u32(field: &Field, val: u32) -> Term {
+    pub fn from_field_u32(field: Field, val: u32) -> Term {
         let mut buffer = Vec::with_capacity(1 + 4);
         buffer.clear();
         field.serialize(&mut buffer).unwrap();

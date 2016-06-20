@@ -161,10 +161,10 @@ impl SegmentWriter {
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for field_value in doc.get_fields() {
-			let field_options = schema.field_entry(field_value.field());
+			let field_options = schema.get_field_entry(field_value.field());
 			match *field_options {
 				FieldEntry::Text(_, ref text_options) => {
-					if text_options.indexing_options().is_tokenized() {
+					if text_options.get_indexing_options().is_tokenized() {
 						let mut tokens = self.tokenizer.tokenize(field_value.text());
 						let mut pos = 0u32;
 						let field = field_value.field();
@@ -183,7 +183,7 @@ impl SegmentWriter {
 				}
 				FieldEntry::U32(_, ref u32_options) => {
 					if u32_options.is_indexed() {
-						let term = Term::from_field_u32(&field_value.field(), field_value.u32_value());
+						let term = Term::from_field_u32(field_value.field(), field_value.u32_value());
 						self.postings_writer.suscribe(doc_id, 0.clone(), term);
 					}
 				}
@@ -193,7 +193,7 @@ impl SegmentWriter {
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.get_fields()
 			.iter()
-			.filter(|field_value| schema.field_entry(field_value.field()).is_stored())
+			.filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
 			.collect();
 		let doc_writer = self.segment_serializer.get_store_writer();
 		try!(doc_writer.store(&stored_fieldvalues));

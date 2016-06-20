@@ -3,6 +3,7 @@ use common::BinarySerializable;
 use std::io::Read;
 use std::io::Write;
 use schema::Field;
+use schema::Term;
 
 const TEXT_CODE: u8 = 0;
 const U32_CODE: u8 = 1;
@@ -43,6 +44,17 @@ impl FieldValue {
             }
             _ => {
                 panic!("This is not a text field.")
+            }
+        }
+    }
+    
+    pub fn to_term(&self,) -> Term {
+        match self {
+            &FieldValue::Text(field, ref text) => {
+                Term::from_field_text(field, &text)
+            }
+            &FieldValue::U32(field, val) => {
+                Term::from_field_u32(field, val)
             }
         }
     }
