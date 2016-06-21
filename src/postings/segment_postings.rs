@@ -55,6 +55,10 @@ impl<'a> SegmentPostings<'a> {
             cur: Wrapping(usize::max_value()),
         }
     }
+
+    pub fn freq(&self,) -> u32 {
+        self.freq_handler.output()[self.cur.0]
+    }
 }
 
 impl<'a> Postings for SegmentPostings<'a> {
@@ -99,4 +103,6 @@ impl<'a> Postings for SegmentPostings<'a> {
     fn doc_freq(&self,) -> usize {
         self.doc_freq
     }
+
+
 }

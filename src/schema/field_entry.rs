@@ -1,4 +1,3 @@
-use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use schema::TextOptions;

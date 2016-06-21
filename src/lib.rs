@@ -71,6 +71,7 @@ mod tests {
     use super::*;
     use collector::TestCollector;
     use query::MultiTermQuery;
+    use postings::Postings;
 
     #[test]
     fn test_indexing() {
@@ -107,6 +108,32 @@ mod tests {
 
 
     #[test]
+    fn test_docfreq() {
+        let mut schema = schema::Schema::new();
+        let text_field = schema.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "af af af bc bc");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.wait().unwrap();
+        }
+        {
+            let searcher = index.searcher().unwrap();
+            let reader = &searcher.segments()[0];
+            let mut postings = reader.read_postings(&Term::from_field_text(text_field, "af")).unwrap();
+            assert!(postings.next());
+            assert_eq!(postings.doc(), 0);
+            assert_eq!(postings.freq(), 3);
+            assert!(!postings.next());
+        }
+    }
+    
+    #[test]
     fn test_searcher() {
         let mut schema = schema::Schema::new();
         let text_field = schema.add_text_field("text", schema::TEXT);
@@ -117,7 +144,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
                 let mut doc = Document::new();
-                doc.add_text(text_field, "af b");
+                doc.add_text(text_field, "af af af b");
                 index_writer.add_document(doc).unwrap();
             }
             {

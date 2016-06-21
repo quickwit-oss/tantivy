@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use schema::Term;
 use postings::PostingsSerializer;
 use std::io;
-pub use postings::Recorder;
-pub use postings::NothingRecorder;
+use postings::Recorder;
+use postings::TermFrequencyRecorder;
 
 
 
@@ -25,24 +25,22 @@ impl<Rec: Recorder> TermPostingsWriter<Rec> {
         self.recorder.close_doc();
     }
     
-    fn is_new_doc(&self, doc: &DocId) -> bool {
-        match self.doc_ids.last() {
-            Some(&last_doc) => last_doc != *doc,
-            None => true,
-        }
-    }
-
     pub fn doc_freq(&self) -> u32 {
         self.doc_ids.len() as u32
     }
 
     pub fn suscribe(&mut self, doc: DocId, pos: u32) {
-        if self.is_new_doc(&doc) {
-            // this is the first time we meet this term for this document
-            // first close the previous document, and write its doc_freq.
-            self.close_doc();
-            self.doc_ids.push(doc);
-		}
+         match self.doc_ids.last() {
+            Some(&last_doc) => {
+                if last_doc != doc {
+                    self.close_doc();
+                    self.doc_ids.push(doc);
+                }
+            },
+            None => {
+                self.doc_ids.push(doc)
+            },
+        }
         self.recorder.record_position(pos);
     }
     
@@ -55,9 +53,10 @@ impl<Rec: Recorder> TermPostingsWriter<Rec> {
     }       
 }
 
+// TODO use something faster than the TermFrequencyRecorder when possible.
 
 pub struct PostingsWriter {
-    postings: Vec<TermPostingsWriter<NothingRecorder>>,
+    postings: Vec<TermPostingsWriter<TermFrequencyRecorder>>,
     term_index: BTreeMap<Term, usize>,
 }
 
@@ -77,11 +76,11 @@ impl PostingsWriter {
     }
 
     pub fn suscribe(&mut self, doc: DocId, pos: u32, term: Term) {
-        let doc_ids: &mut TermPostingsWriter<NothingRecorder> = self.get_term_postings(term);
+        let doc_ids: &mut TermPostingsWriter<TermFrequencyRecorder> = self.get_term_postings(term);
         doc_ids.suscribe(doc, pos);
     }
 
-    fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<NothingRecorder> {
+    fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<TermFrequencyRecorder> {
         match self.term_index.get(&term) {
             Some(unord_id) => {
                 return &mut self.postings[*unord_id];

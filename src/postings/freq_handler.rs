@@ -6,6 +6,8 @@ pub enum FreqHandler {
     NoFreq,
 }
 
+const EMPTY: [u32; 0] = [];
+
 impl FreqHandler {
 
     pub fn new_freq_reader() -> FreqHandler {
@@ -34,39 +36,15 @@ impl FreqHandler {
 
     }
 
+    pub fn output(&self,)-> &[u32] {
+        match *self {
+            FreqHandler::FreqReader(ref block_decoder) => {
+                block_decoder.output()
+            }
+            FreqHandler::NoFreq => {
+                &EMPTY
+            }
+        }
+    }
+
 }
-//
-//
-// pub struct FreqReader {
-//     block_decoder: SIMDBlockDecoder,
-// }
-//
-// impl FreqReader {
-//     fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
-//         self.block_decoder.uncompress_block_unsorted(data)
-//     }
-//
-//     fn term_freq_block(&self, doc: DocId) -> u32 {
-//         self.block_decoder.output()[doc as usize]
-//     }
-//
-//     fn read_freq_vint(&mut self, data: &[u8], num_els: usize) {
-//         self.block_decoder.uncompress_vint_unsorted(data, num_els)
-//     }
-// }
-//
-//
-// pub struct NoFreqReader;
-//
-// impl FreqHandler for NoFreqReader {
-//     fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
-//         data
-//     }
-//
-//     fn term_freq_block(&self, _doc: DocId) -> u32 {
-//         0
-//     }
-//
-//     fn read_freq_vint(&mut self, _data: &[u8], _num_els: usize) {
-//     }
-// }

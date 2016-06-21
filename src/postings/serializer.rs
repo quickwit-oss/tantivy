@@ -12,7 +12,6 @@ use core::index::Segment;
 use std::io;
 use core::index::SegmentComponent;
 use common::BinarySerializable;
-use common::VInt;
 
 
 pub struct PostingsSerializer {
@@ -93,7 +92,6 @@ impl PostingsSerializer {
             if self.text_indexing_options.is_termfreq_enabled() {
                 {
                     let block_encoded = self.block_encoder.compress_vint_unsorted(&self.term_freqs[..]);
-                    self.written_bytes_postings += try!(VInt(block_encoded.len() as u64).serialize(&mut self.postings_write));
                     for num in block_encoded {
                         self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
                     }

@@ -12,16 +12,13 @@ use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
-use common::OpenTimer;
 use schema::Field;
 use core::convert_to_ioerror;
 use postings::SegmentPostings;
 use postings::Postings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
-use postings::intersection;
 use schema::FieldEntry;
 use schema::Schema;
-use schema::FieldValue;
 use postings::FreqHandler;
 
 pub struct SegmentReader {
