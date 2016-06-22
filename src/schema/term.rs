@@ -40,13 +40,21 @@ impl Term {
         }
     }
 
-    pub fn from(data: &[u8]) -> Term {
+    pub fn as_slice(&self,)->&[u8] {
+        &self.data
+    }
+}
+
+impl<'a> From<&'a [u8]> for Term {
+    fn from(data: &[u8]) -> Term {
         Term {
             data: Vec::from(data),
         }
     }
+}
 
-    pub fn as_slice(&self,)->&[u8] {
+impl AsRef<[u8]> for Term {
+    fn as_ref(&self) -> &[u8] {
         &self.data
     }
 }

@@ -66,31 +66,24 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     }))
 }
 
-pub struct FstMapIter<'a, V: 'static + BinarySerializable> {
+pub struct FstKeyIter<'a, V: 'static + BinarySerializable> {
     streamer: fst::map::Stream<'a>,
-    fst_map: &'a FstMap<V>,
     __phantom__: PhantomData<V>
 }
 
-impl<'a, V: 'static + BinarySerializable> FstMapIter<'a, V> {
-    pub fn next(&mut self) -> Option<(&[u8], V)> {
-        let next_item = self.streamer.next();
-        match next_item {
-            Some((key, offset)) => {
-                let val = self.fst_map.read_value(offset);
-                Some((key, val))
-            },
-            None => None
-        }
+impl<'a, V: 'static + BinarySerializable> FstKeyIter<'a, V> {
+    pub fn next(&mut self) -> Option<(&[u8])> {
+        self.streamer
+            .next()
+            .map(|(k, _)| k)
     }
 }
 
 impl<V: BinarySerializable> FstMap<V> {
 
-    pub fn stream<'a>(&'a self,) -> FstMapIter<'a, V> {
-        FstMapIter {
+    pub fn keys<'a>(&'a self,) -> FstKeyIter<'a, V> {
+        FstKeyIter {
             streamer: self.fst_index.stream(),
-            fst_map: self,
             __phantom__: PhantomData,
         }
     }
@@ -145,10 +138,10 @@ mod tests {
         let fstmap: FstMap<u32> = FstMap::from_source(source).unwrap();
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
-        let mut stream = fstmap.stream();
-        assert_eq!(stream.next().unwrap(), ("abc".as_bytes(), 34u32));
-        assert_eq!(stream.next().unwrap(), ("abcd".as_bytes(), 346u32));
-        assert_eq!(stream.next(), None);
+        let mut keys = fstmap.keys();
+        assert_eq!(keys.next().unwrap(), "abc".as_bytes());
+        assert_eq!(keys.next().unwrap(), "abcd".as_bytes());
+        assert_eq!(keys.next(), None);
     }
 
 }

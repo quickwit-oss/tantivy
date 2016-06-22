@@ -13,7 +13,11 @@ impl<'a> OffsetPostings<'a> {
             underlying: underlying,
             offset: offset,
         }
-    }   
+    }
+
+    pub fn freq(&self,) -> u32 {
+        self.underlying.freq()
+    }
 }
 
 impl<'a> Postings for OffsetPostings<'a> {

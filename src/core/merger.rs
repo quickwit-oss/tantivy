@@ -9,7 +9,7 @@ use postings::PostingsSerializer;
 use postings::TermInfo;
 use postings::Postings;
 use std::collections::BinaryHeap;
-use datastruct::FstMapIter;
+use datastruct::FstKeyIter;
 use schema::{Term, Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
@@ -21,15 +21,14 @@ use std::cmp::{min, max, Ordering};
 struct PostingsMerger<'a> {
     doc_offsets: Vec<DocId>,
     heap: BinaryHeap<HeapItem>,
-    term_streams: Vec<FstMapIter<'a, TermInfo>>,
+    term_streams: Vec<FstKeyIter<'a, TermInfo>>,
     readers: &'a Vec<SegmentReader>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
 struct HeapItem {
-    term: Vec<u8>,
+    term: Term,
     segment_ord: usize,
-    term_info: TermInfo,
 }
 
 impl Ord for HeapItem {
@@ -61,7 +60,7 @@ impl<'a> PostingsMerger<'a> {
         };
         let term_streams = readers
             .iter()
-            .map(|reader| reader.term_infos().stream())
+            .map(|reader| reader.term_infos().keys())
             .collect();
         let mut postings_merger = PostingsMerger {
             heap: BinaryHeap::new(),
@@ -79,11 +78,10 @@ impl<'a> PostingsMerger<'a> {
     // into the heap.
     fn push_next_segment_el(&mut self, segment_ord: usize) {
         match self.term_streams[segment_ord].next() {
-            Some((term, term_info)) => {
+            Some(term) => {
                 let it = HeapItem {
-                    term: Vec::from(term),
+                    term: Term::from(term),
                     segment_ord: segment_ord,
-                    term_info: term_info.clone(),
                 };
                 self.heap.push(it);
             }
@@ -91,19 +89,25 @@ impl<'a> PostingsMerger<'a> {
         }
     }
 
-    fn append_segment(&mut self, heap_item: &HeapItem, segment_postings_list: &mut Vec<OffsetPostings<'a>>) {
+    fn append_segment(&mut self,
+                      heap_item: &HeapItem,
+                      segment_postings_list: &mut Vec<OffsetPostings<'a>>) {
         {
+            
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
             // TODO FIX MERGER!!!!!!!!!
             // let segment_postings = reader.read_postings(&heap_item.term_info);
             // let offset_postings = OffsetPostings::new(segment_postings, offset);
             // segment_postings_list.push(offset_postings);
+            let segment_postings = reader.read_postings(&heap_item.term).unwrap();
+            let offset_postings = OffsetPostings::new(segment_postings, offset);
+            segment_postings_list.push(offset_postings);
         }
         self.push_next_segment_el(heap_item.segment_ord);
     }
 
-    fn next(&mut self,) -> Option<(Vec<u8>, ChainedPostings<'a>)> {
+    fn next(&mut self,) -> Option<(Term, ChainedPostings<'a>)> {
         // TODO remove the Vec<u8> allocations
         match self.heap.pop() {
             Some(heap_it) => {
@@ -184,9 +188,9 @@ impl IndexMerger {
         loop {
             match postings_merger.next() {
                 Some((term, mut merged_doc_ids)) => {
-                    try!(postings_serializer.new_term(&Term::from(&term), merged_doc_ids.doc_freq() as DocId));
+                    try!(postings_serializer.new_term(&term, merged_doc_ids.doc_freq() as DocId));
                     while merged_doc_ids.next() {
-                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), 0, &EMPTY_ARRAY));
+                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.freq(), &EMPTY_ARRAY));
                     }
                     try!(postings_serializer.close_term());
                 }

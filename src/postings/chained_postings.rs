@@ -22,6 +22,10 @@ impl<'a> ChainedPostings<'a> {
         }
     }
     
+
+    pub fn freq(&self,) -> u32 {
+        self.chained_postings[self.posting_id].freq()
+    }
 }
 
 impl<'a> Postings for ChainedPostings<'a> {
