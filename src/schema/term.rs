@@ -5,15 +5,12 @@ use common::BinarySerializable;
 use super::Field;
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct Term {
-    data: Vec<u8>,
-}
-
+pub struct Term(Vec<u8>);
 
 impl Term {
 
     fn type_num(&self,) -> u8 {
-        self.data[0]
+        self.0[0]
     }
 
     pub fn get_field(&self,) -> Field {
@@ -25,9 +22,7 @@ impl Term {
         buffer.clear();
         field.serialize(&mut buffer).unwrap();
         val.serialize(&mut buffer).unwrap();
-        Term {
-            data: buffer,
-        }
+        Term(buffer)
     }
 
     pub fn from_field_text(field: Field, text: &str) -> Term {
@@ -35,32 +30,28 @@ impl Term {
         buffer.clear();
         field.serialize(&mut buffer).unwrap();
         buffer.extend(text.as_bytes());
-        Term {
-            data: buffer,
-        }
+        Term(buffer)
     }
 
     pub fn as_slice(&self,)->&[u8] {
-        &self.data
+        &self.0
     }
 }
 
 impl<'a> From<&'a [u8]> for Term {
     fn from(data: &[u8]) -> Term {
-        Term {
-            data: Vec::from(data),
-        }
+        Term(Vec::from(data))
     }
 }
 
 impl AsRef<[u8]> for Term {
     fn as_ref(&self) -> &[u8] {
-        &self.data
+        &self.0
     }
 }
 
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Term({:?})", &self.data[..])
+        write!(f, "Term({:?})", &self.0[..])
     }
 }
