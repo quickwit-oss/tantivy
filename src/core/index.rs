@@ -13,7 +13,7 @@ use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;
 use num_cpus;
-use core::codec::SegmentSerializer;
+use core::segment_serializer::SegmentSerializer;
 
 
 #[derive(Clone, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]

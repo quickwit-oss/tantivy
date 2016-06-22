@@ -3,7 +3,7 @@ use core::SegmentReader;
 use core::index::Segment;
 use DocId;
 use core::index::SerializableSegment;
-use core::codec::SegmentSerializer;
+use core::segment_serializer::SegmentSerializer;
 
 use postings::PostingsSerializer;
 use postings::TermInfo;

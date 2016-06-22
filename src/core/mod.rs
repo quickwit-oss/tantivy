@@ -1,9 +1,9 @@
 pub mod writer;
-pub mod codec;
 pub mod searcher;
 pub mod index;
 pub mod merger;
 
+mod segment_serializer;
 mod segment_writer;
 mod segment_reader;
 

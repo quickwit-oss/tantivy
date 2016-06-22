@@ -3,7 +3,7 @@ use schema::Schema;
 use schema::Document;
 use schema::Term;
 use schema::FieldEntry;
-use core::codec::SegmentSerializer;
+use core::segment_serializer::SegmentSerializer;
 use core::index::SegmentInfo;
 use core::index::Segment;
 use analyzer::SimpleTokenizer;

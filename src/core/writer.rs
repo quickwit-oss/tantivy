@@ -1,6 +1,6 @@
 use schema::Schema;
 use schema::Document;
-use core::codec::*;
+use core::segment_serializer::SegmentSerializer;
 use core::index::Index;
 use core::index::SerializableSegment;
 use core::index::Segment;
