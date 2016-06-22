@@ -3,6 +3,8 @@ pub mod codec;
 pub mod searcher;
 pub mod index;
 pub mod merger;
+
+mod segment_writer;
 mod segment_reader;
 
 use std::error;
