@@ -57,6 +57,13 @@ impl SegmentReader {
         
     }
 
+    pub fn doc_freq(&self, term: &Term) -> u32 {
+        match self.get_term_info(term) {
+            Some(term_info) => term_info.doc_freq,
+            None => 0,
+        }
+    }    
+
     pub fn get_store_reader(&self) -> &StoreReader {
         &self.store_reader
     }

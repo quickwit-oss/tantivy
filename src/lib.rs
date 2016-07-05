@@ -2,6 +2,7 @@
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
+#![feature(iter_arith)]
 
 
 #[macro_use]
@@ -106,9 +107,54 @@ mod tests {
 
     }
 
-
     #[test]
     fn test_docfreq() {
+        let mut schema = schema::Schema::new();
+        let text_field = schema.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut doc = Document::new();
+            doc.add_text(text_field, "a b c");
+            index_writer.add_document(doc).unwrap();
+            index_writer.wait().unwrap();
+        }
+        {
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "a");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "a a");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.wait().unwrap();
+        }
+        {
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut doc = Document::new();
+            doc.add_text(text_field, "c");
+            index_writer.add_document(doc).unwrap();
+            index_writer.wait().unwrap();
+        }
+        {
+            let searcher = index.searcher().unwrap();
+            let term_a = Term::from_field_text(text_field, "a");
+            assert_eq!(searcher.doc_freq(&term_a), 3);
+            let term_b = Term::from_field_text(text_field, "b");
+            assert_eq!(searcher.doc_freq(&term_b), 1);
+            let term_c = Term::from_field_text(text_field, "c");
+            assert_eq!(searcher.doc_freq(&term_c), 2);
+            let term_d = Term::from_field_text(text_field, "d");
+            assert_eq!(searcher.doc_freq(&term_d), 0);            
+        }
+    }
+
+    #[test]
+    fn test_termfreq() {
         let mut schema = schema::Schema::new();
         let text_field = schema.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema);

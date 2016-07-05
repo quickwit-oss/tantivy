@@ -8,6 +8,7 @@ use std::io;
 use common::TimerTree;
 use postings::Postings;
 use query::Query;
+use schema::Term;
 
 #[derive(Debug)]
 pub struct Searcher {
@@ -28,6 +29,13 @@ impl Searcher {
         let DocAddress(ref segment_local_id, ref doc_id) = *doc_address;
         let segment_reader = &self.segments[*segment_local_id as usize];
         segment_reader.doc(doc_id)
+    }
+
+    pub fn doc_freq(&self, term: &Term) -> u32 {
+        self.segments
+            .iter()
+            .map(|segment_reader| segment_reader.doc_freq(term))
+            .sum()
     }
 
     fn add_segment(&mut self, segment: Segment) -> io::Result<()> {
