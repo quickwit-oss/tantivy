@@ -5,6 +5,7 @@ use std::collections::BinaryHeap;
 use postings::SkipResult;
 use std::cmp::Ordering;
 use std::ops::Index;
+use query::MultiTermScorer;
 
 #[derive(Eq, PartialEq)]
 struct HeapItem(DocId, usize);
@@ -26,10 +27,15 @@ pub struct UnionPostings<TPostings: Postings> {
     queue: BinaryHeap<HeapItem>,
     active_posting_ordinals: Vec<usize>,
     doc: DocId,
+    scorer: MultiTermScorer
 }
 
-impl<TPostings: Postings> From<Vec<TPostings>> for UnionPostings<TPostings> {
-    fn from(postings: Vec<TPostings>) -> UnionPostings<TPostings> {
+impl<TPostings: Postings> UnionPostings<TPostings> {
+    pub fn active_posting_ordinals(&self,) -> &[usize] {
+        &self.active_posting_ordinals
+    }
+
+    pub fn new(postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
         let num_postings = postings.len();
         let active_posting_ordinals: Vec<usize> = (0..num_postings).into_iter().collect();
         UnionPostings {
@@ -37,13 +43,8 @@ impl<TPostings: Postings> From<Vec<TPostings>> for UnionPostings<TPostings> {
             queue: BinaryHeap::new(),
             active_posting_ordinals: active_posting_ordinals,
             doc: 0,
+            scorer: multi_term_scorer
         }
-    }
-}
-
-impl<TPostings: Postings> UnionPostings<TPostings> {
-    pub fn active_posting_ordinals(&self,) -> &[usize] {
-        &self.active_posting_ordinals
     }
 }
 
@@ -116,12 +117,14 @@ mod tests {
     use super::*;
     use postings::VecPostings;
     use postings::Postings;
+    use query::MultiTermScorer;
     
     #[test]
     pub fn test_union_postings() {
         let left = VecPostings::new(vec!(1, 2, 3));
         let right = VecPostings::new(vec!(1, 3, 8));
-        let mut union = UnionPostings::from(vec!(left, right));
+        let multi_term_scorer = MultiTermScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
+        let mut union = UnionPostings::new(vec!(left, right), multi_term_scorer);
         assert!(union.next());
         assert_eq!(union.doc(), 1);
         assert_eq!(union.active_posting_ordinals(), [0, 1]);

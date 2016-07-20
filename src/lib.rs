@@ -64,7 +64,7 @@ pub use self::common::TimerTree;
 /// as they are added in the segment.
 pub type DocId = u32;
 
-
+pub type Score = f32;
 
 #[cfg(test)]
 mod tests {

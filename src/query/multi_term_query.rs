@@ -10,13 +10,15 @@ use core::SegmentReader;
 use postings::Postings;
 use postings::SegmentPostings;
 use postings::UnionPostings;
+use query::MultiTermScorer;
+use std::iter;
 
 pub struct MultiTermQuery {
     terms: Vec<Term>,    
 }
 
 impl Query for MultiTermQuery {
-    
+
     fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
         {
@@ -28,14 +30,12 @@ impl Query for MultiTermQuery {
                     try!(collector.set_segment(segment_ord as SegmentLocalId, &segment_reader));
                 }
                 let mut postings = self.search_segment(segment_reader, segment_search_timer.open("get_postings"));
-                
                 {
                     let _collection_timer = segment_search_timer.open("collection");
                     let mut score: f32 = 0.0;
                     while postings.next() {
                         for &ord in postings.active_posting_ordinals() {
-                            let term_freq = postings[ord].freq();
-                            score += (term_freq as f32); // * idf
+                            
                         }
                         // collector.collect(postings.doc(), score);
                     }
@@ -48,6 +48,15 @@ impl Query for MultiTermQuery {
 
 impl MultiTermQuery {
     
+    // fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
+    //     let doc_freqs: Vec<u32> = self.terms.iter()
+    //         .map(|term| searcher.doc_freq(term))
+    //         .collect();
+    //     MultiTermScorer {
+    //         search.doc_freq()
+    //     }
+    // }
+
     pub fn new(terms: Vec<Term>) -> MultiTermQuery {
         MultiTermQuery {
             terms: terms,
@@ -71,6 +80,9 @@ impl MultiTermQuery {
                 }
             }
         }
-        UnionPostings::from(segment_postings)
+        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
+        let idf = iter::repeat(1f32).take(self.terms.len()).collect();
+        let multi_term_scorer = MultiTermScorer::new(query_coord, idf);
+        UnionPostings::new(segment_postings, multi_term_scorer)
     }
 }

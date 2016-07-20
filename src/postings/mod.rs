@@ -25,8 +25,6 @@ pub use self::intersection::intersection;
 pub use self::intersection::IntersectionPostings;
 pub use self::freq_handler::FreqHandler;
 
-
-
 #[cfg(test)]
 mod tests {
     
