@@ -26,7 +26,7 @@ impl Collector for CountCollector {
         Ok(())
     }
 
-    fn collect(&mut self, _: DocId) {
+    fn collect(&mut self, _: DocId, _: f32) {
         self.count += 1;
     }
 }

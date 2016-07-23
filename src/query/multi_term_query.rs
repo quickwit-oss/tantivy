@@ -7,9 +7,10 @@ use core::searcher::Searcher;
 use collector::Collector;
 use core::searcher::SegmentLocalId;
 use core::SegmentReader;
-use postings::Postings;
 use postings::SegmentPostings;
 use postings::UnionPostings;
+use postings::ScoredDocSet;
+use postings::DocSet;
 use query::MultiTermScorer;
 use std::iter;
 
@@ -21,6 +22,11 @@ impl Query for MultiTermQuery {
 
     fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
+        
+        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
+        let idf = iter::repeat(1f32).take(self.terms.len()).collect();
+        let multi_term_scorer = MultiTermScorer::new(query_coord, idf);
+
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segments().iter().enumerate() {
@@ -29,14 +35,14 @@ impl Query for MultiTermQuery {
                     let _ = segment_search_timer.open("set_segment");
                     try!(collector.set_segment(segment_ord as SegmentLocalId, &segment_reader));
                 }
-                let mut postings = self.search_segment(segment_reader, segment_search_timer.open("get_postings"));
+                let mut postings = self.search_segment(
+                        segment_reader,
+                        multi_term_scorer.clone(),
+                        segment_search_timer.open("get_postings"));
                 {
                     let _collection_timer = segment_search_timer.open("collection");
-                    let mut score: f32 = 0.0;
                     while postings.next() {
-                        for &ord in postings.active_posting_ordinals() {
-                            
-                        }
+                        collector.collect(postings.doc(), postings.score());
                         // collector.collect(postings.doc(), score);
                     }
                 }
@@ -63,7 +69,7 @@ impl MultiTermQuery {
         }
     }
         
-    fn search_segment<'a, 'b>(&'b self, reader: &'b SegmentReader, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings> {
+    fn search_segment<'a, 'b>(&'b self, reader: &'b SegmentReader, multi_term_scorer: MultiTermScorer, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings> {
         let mut segment_postings: Vec<SegmentPostings> = Vec::new();
         {
             let mut decode_timer = timer.open("decode_all");
@@ -80,9 +86,6 @@ impl MultiTermQuery {
                 }
             }
         }
-        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
-        let idf = iter::repeat(1f32).take(self.terms.len()).collect();
-        let multi_term_scorer = MultiTermScorer::new(query_coord, idf);
         UnionPostings::new(segment_postings, multi_term_scorer)
     }
 }

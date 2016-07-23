@@ -73,6 +73,7 @@ mod tests {
     use collector::TestCollector;
     use query::MultiTermQuery;
     use postings::Postings;
+    use postings::DocSet;
 
     #[test]
     fn test_indexing() {
@@ -174,7 +175,7 @@ mod tests {
             let mut postings = reader.read_postings(&Term::from_field_text(text_field, "af")).unwrap();
             assert!(postings.next());
             assert_eq!(postings.doc(), 0);
-            assert_eq!(postings.freq(), 3);
+            assert_eq!(postings.term_freq(), 3);
             assert!(!postings.next());
         }
     }
@@ -242,7 +243,7 @@ mod tests {
                 assert_eq!(
                     get_doc_ids(vec!(Term::from_field_text(text_field, "b"), 
                                      Term::from_field_text(text_field, "a"), )),
-                    vec!(1, 2));
+                    vec!(0, 1, 2));
             }
         }
     }

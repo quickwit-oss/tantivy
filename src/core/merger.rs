@@ -8,6 +8,7 @@ use core::segment_serializer::SegmentSerializer;
 use postings::PostingsSerializer;
 use postings::TermInfo;
 use postings::Postings;
+use postings::DocSet;
 use std::collections::BinaryHeap;
 use datastruct::FstKeyIter;
 use schema::{Term, Schema, Field};
@@ -190,7 +191,7 @@ impl IndexMerger {
                 Some((term, mut merged_doc_ids)) => {
                     try!(postings_serializer.new_term(&term, merged_doc_ids.doc_freq() as DocId));
                     while merged_doc_ids.next() {
-                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.freq(), &EMPTY_ARRAY));
+                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), &EMPTY_ARRAY));
                     }
                     try!(postings_serializer.close_term());
                 }

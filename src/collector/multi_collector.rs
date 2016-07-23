@@ -25,9 +25,9 @@ impl<'a> Collector for MultiCollector<'a> {
         Ok(())
     }
 
-    fn collect(&mut self, doc_id: DocId) {
+    fn collect(&mut self, doc_id: DocId, score: f32) {
         for collector in self.collectors.iter_mut() {
-            collector.collect(doc_id);
+            collector.collect(doc_id, score);
         }
     }
 }

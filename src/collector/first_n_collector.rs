@@ -32,7 +32,7 @@ impl Collector for FirstNCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc_id: DocId) {
+    fn collect(&mut self, doc_id: DocId, _: f32) {
         if self.docs.len() < self.limit {
             self.docs.push(DocAddress(self.current_segment.clone(), doc_id));
         }

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use DocId;
-use postings::{Postings, SkipResult};
+use postings::{Postings, DocSet, SkipResult};
 use std::num::Wrapping;
 use std::cmp::Ordering;
 
@@ -19,9 +19,7 @@ impl VecPostings {
     }
 }
 
-
-impl Postings for VecPostings {
-    
+impl DocSet for VecPostings {
     fn next(&mut self,) -> bool {
         self.cursor += Wrapping(1);
         self.doc_ids.len() > self.cursor.0
@@ -92,12 +90,18 @@ impl Postings for VecPostings {
     }
 }
 
+impl Postings for VecPostings {
+    fn term_freq(&self,) -> u32 {
+        1u32
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     
     use super::*;
     use DocId;   
-    use postings::{Postings, SkipResult}; 
+    use postings::{Postings, SkipResult, DocSet}; 
     
     
     #[test]
@@ -108,6 +112,7 @@ pub mod tests {
         assert_eq!(postings.doc(), 0u32);
         assert!(postings.next());
         assert_eq!(postings.doc(), 3u32);
+        assert_eq!(postings.term_freq(), 1u32);
         assert_eq!(postings.skip_next(14u32), SkipResult::OverStep);
         assert_eq!(postings.doc(), 15u32);
         assert_eq!(postings.skip_next(300u32), SkipResult::Reached);

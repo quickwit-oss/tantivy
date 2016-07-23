@@ -10,20 +10,25 @@ mod intersection;
 mod offset_postings;
 mod freq_handler;
 mod union_postings;
+mod docset;
+mod scored_docset;
 
+pub use self::docset::{SkipResult, DocSet};
 pub use self::union_postings::UnionPostings;
 pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
 pub use self::writer::PostingsWriter;
 pub use self::term_info::TermInfo;
-pub use self::postings::{Postings, SkipResult};
+pub use self::postings::Postings;
 pub use self::vec_postings::VecPostings;
 pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::intersection;
-pub use self::intersection::IntersectionPostings;
+pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
+pub use self::scored_docset::ScoredDocSet;
+
 
 #[cfg(test)]
 mod tests {
@@ -56,7 +61,7 @@ mod tests {
         {
             let left = Box::new(VecPostings::new(vec!(1, 3, 9)));
             let right = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
-            let mut intersection = IntersectionPostings::new(vec!(left, right));
+            let mut intersection = IntersectionDocSet::new(vec!(left, right));
             assert!(intersection.next());
             assert_eq!(intersection.doc(), 3);
             assert!(intersection.next());
@@ -67,7 +72,7 @@ mod tests {
             let a = Box::new(VecPostings::new(vec!(1, 3, 9)));
             let b = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
             let c = Box::new(VecPostings::new(vec!(1, 5, 9, 111)));
-            let mut intersection = IntersectionPostings::new(vec!(a, b, c));
+            let mut intersection = IntersectionDocSet::new(vec!(a, b, c));
             assert!(intersection.next());
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.next());
@@ -89,7 +94,7 @@ mod tests {
 //     fn bench_single_intersection(b: &mut Bencher) {
 //         b.iter(|| {
 //             let docs = VecPostings::new((0..1_000_000).collect());
-//             let intersection = IntersectionPostings::from_postings(vec!(docs));
+//             let intersection = IntersectionDocSet::from_postings(vec!(docs));
 //             intersection.count()
 //         });
 //     }

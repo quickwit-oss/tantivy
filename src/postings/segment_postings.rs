@@ -1,9 +1,7 @@
-use postings::Postings;
-use postings::FreqHandler;
 use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
 use DocId;
 use std::cmp::Ordering;
-use postings::SkipResult;
+use postings::{Postings, FreqHandler, SkipResult, DocSet};
 use std::num::Wrapping;
 
 
@@ -56,12 +54,10 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 
-    pub fn freq(&self,) -> u32 {
-        self.freq_handler.output()[self.cur.0]
-    }
 }
 
-impl<'a> Postings for SegmentPostings<'a> {
+
+impl<'a> DocSet for SegmentPostings<'a> {
 
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
@@ -103,6 +99,11 @@ impl<'a> Postings for SegmentPostings<'a> {
     fn doc_freq(&self,) -> usize {
         self.doc_freq
     }
+}
 
 
+impl<'a> Postings for SegmentPostings<'a> {
+    fn term_freq(&self,) -> u32 {
+        self.freq_handler.output()[self.cur.0]
+    }
 }

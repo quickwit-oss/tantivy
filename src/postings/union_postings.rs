@@ -1,14 +1,15 @@
 
 use DocId;
-use postings::Postings;
+use postings::{Postings, DocSet};
 use std::collections::BinaryHeap;
 use postings::SkipResult;
 use std::cmp::Ordering;
-use std::ops::Index;
 use query::MultiTermScorer;
+use postings::ScoredDocSet;
+use query::Scorer;
 
 #[derive(Eq, PartialEq)]
-struct HeapItem(DocId, usize);
+struct HeapItem(DocId, usize, u32);
 
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other:&Self) -> Option<Ordering> {
@@ -25,60 +26,66 @@ impl Ord for HeapItem {
 pub struct UnionPostings<TPostings: Postings> {
     postings: Vec<TPostings>,
     queue: BinaryHeap<HeapItem>,
-    active_posting_ordinals: Vec<usize>,
     doc: DocId,
     scorer: MultiTermScorer
 }
 
 impl<TPostings: Postings> UnionPostings<TPostings> {
-    pub fn active_posting_ordinals(&self,) -> &[usize] {
-        &self.active_posting_ordinals
-    }
-
     pub fn new(postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
         let num_postings = postings.len();
-        let active_posting_ordinals: Vec<usize> = (0..num_postings).into_iter().collect();
-        UnionPostings {
+        let mut union_postings = UnionPostings {
             postings: postings,
             queue: BinaryHeap::new(),
-            active_posting_ordinals: active_posting_ordinals,
             doc: 0,
             scorer: multi_term_scorer
+        };
+        for ord in 0..num_postings {
+            union_postings.enqueue(ord);    
+        }
+        union_postings
+    }
+
+    fn enqueue(&mut self, ord: usize) {
+        let cur_postings = &mut self.postings[ord];
+        if cur_postings.next() {
+            let doc = cur_postings.doc();
+            let tf = cur_postings.term_freq();
+            self.queue.push(HeapItem(doc, ord, tf));
         }
     }
-}
-
-impl<TPostings: Postings> Index<usize> for UnionPostings<TPostings> {
-    type Output = TPostings;
-    fn index(&self, index: usize) -> &TPostings {
-        &self.postings[index]
-    }
 
 }
 
-impl<TPostings: Postings> Postings for UnionPostings<TPostings> {
+impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
     
     fn next(&mut self,) -> bool {
-        if self.active_posting_ordinals.is_empty() {
-            return false;
-        }
-        for &ord in self.active_posting_ordinals.iter() {
-            if self.postings[ord].next() {
-                let doc = self.postings[ord].doc();
-                self.queue.push(HeapItem(doc, ord));
-            }
-        }
-        self.active_posting_ordinals.clear();
+        self.scorer.clear();
+
+        // if self.active_posting_ordinals.is_empty() {
+        //     return false;
+        // }
+
+        // for &ord in self.active_posting_ordinals.iter() {
+        //     let cur_postings = &self.postings[ord];
+        //     if cur_postings.next() {
+        //         let doc = cur_postings.doc();
+        //         let tf = cur_postings.freq();
+        //         self.queue.push(HeapItem(doc, ord, tf));
+        //     }
+        // }
+        // self.active_posting_ordinals.clear();
+        
         let head = self.queue.pop(); 
         match head {
-            Some(HeapItem(doc, ord)) => {
-                self.active_posting_ordinals.push(ord);
+            Some(HeapItem(doc, ord, tf)) => {
+                self.scorer.update(ord, tf);
+                self.enqueue(ord);
                 self.doc = doc;
                 loop {
                     {
                         let peek = self.queue.peek();
                         match peek {
-                            Some(&HeapItem(peek_doc, _))  => {
+                            Some(&HeapItem(peek_doc, _, _))  => {
                                 if peek_doc != doc {
                                     break;
                                 }
@@ -86,8 +93,9 @@ impl<TPostings: Postings> Postings for UnionPostings<TPostings> {
                             None => { break; }   
                         }
                     }
-                    let HeapItem(_, peek_ord) = self.queue.pop().unwrap();
-                    self.active_posting_ordinals.push(peek_ord);
+                    let HeapItem(_, peek_ord, peek_tf) = self.queue.pop().unwrap();
+                    self.scorer.update(peek_ord, peek_tf);
+                    self.enqueue(peek_ord);
                 }
             }
             None => {
@@ -96,7 +104,8 @@ impl<TPostings: Postings> Postings for UnionPostings<TPostings> {
         }
         return true;
     }
-       
+
+
     fn skip_next(&mut self, _: DocId) -> SkipResult {
         SkipResult::End
     }
@@ -110,15 +119,19 @@ impl<TPostings: Postings> Postings for UnionPostings<TPostings> {
     }
 }
 
+impl<TPostings: Postings> ScoredDocSet for UnionPostings<TPostings> {
+    fn score(&self,) -> f32 {
+        self.scorer.score()
+    }
+}
 
 #[cfg(test)]
 mod tests {
     
     use super::*;
-    use postings::VecPostings;
-    use postings::Postings;
+    use postings::{DocSet, VecPostings};
     use query::MultiTermScorer;
-    
+
     #[test]
     pub fn test_union_postings() {
         let left = VecPostings::new(vec!(1, 2, 3));
@@ -127,16 +140,16 @@ mod tests {
         let mut union = UnionPostings::new(vec!(left, right), multi_term_scorer);
         assert!(union.next());
         assert_eq!(union.doc(), 1);
-        assert_eq!(union.active_posting_ordinals(), [0, 1]);
+        // assert_eq!(union.active_posting_ordinals(), [0, 1]);
         assert!(union.next());
         assert_eq!(union.doc(), 2);
-        assert_eq!(union.active_posting_ordinals(), [0]);
+        // assert_eq!(union.active_posting_ordinals(), [0]);
         assert!(union.next());
         assert_eq!(union.doc(), 3);
-        assert_eq!(union.active_posting_ordinals(), [0, 1]);
+        // assert_eq!(union.active_posting_ordinals(), [0, 1]);
         assert!(union.next());
         assert_eq!(union.doc(), 8);
-        assert_eq!(union.active_posting_ordinals(), [1]);
+        // assert_eq!(union.active_posting_ordinals(), [1]);
         assert!(!union.next());
     }
 

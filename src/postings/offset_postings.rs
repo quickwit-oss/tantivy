@@ -1,7 +1,10 @@
 use postings::Postings;
 use postings::SegmentPostings;
 use postings::SkipResult;
+use postings::DocSet;
 use DocId;
+
+
 pub struct OffsetPostings<'a> {
     underlying: SegmentPostings<'a>,
     offset: DocId,
@@ -14,13 +17,9 @@ impl<'a> OffsetPostings<'a> {
             offset: offset,
         }
     }
-
-    pub fn freq(&self,) -> u32 {
-        self.underlying.freq()
-    }
 }
 
-impl<'a> Postings for OffsetPostings<'a> {
+impl<'a> DocSet for OffsetPostings<'a> {
     fn next(&mut self,) -> bool {
         self.underlying.next()
     }
@@ -40,5 +39,11 @@ impl<'a> Postings for OffsetPostings<'a> {
     
     fn doc_freq(&self,) -> usize {
         self.underlying.doc_freq()
+    }
+}
+
+impl<'a> Postings for OffsetPostings<'a> {
+    fn term_freq(&self,) -> u32 {
+        self.underlying.term_freq()
     }
 }

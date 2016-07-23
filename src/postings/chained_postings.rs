@@ -1,6 +1,7 @@
 use DocId;
 use postings::{Postings, SkipResult};
 use postings::OffsetPostings;
+use postings::DocSet;
 
 pub struct ChainedPostings<'a> {
     chained_postings: Vec<OffsetPostings<'a>>,
@@ -21,15 +22,10 @@ impl<'a> ChainedPostings<'a> {
             doc_freq: doc_freq,
         }
     }
-    
-
-    pub fn freq(&self,) -> u32 {
-        self.chained_postings[self.posting_id].freq()
-    }
 }
 
-impl<'a> Postings for ChainedPostings<'a> {
-    
+impl<'a> DocSet for ChainedPostings<'a> {
+
     fn next(&mut self,) -> bool {
         if self.posting_id == self.chained_postings.len() {
             return false;
@@ -42,7 +38,7 @@ impl<'a> Postings for ChainedPostings<'a> {
         }
         return true
     }
-    
+
     fn doc(&self,) -> DocId {
         self.chained_postings[self.posting_id].doc()
     }
@@ -55,4 +51,12 @@ impl<'a> Postings for ChainedPostings<'a> {
     fn doc_freq(&self,) -> usize {
         self.doc_freq
     }
+}
+
+impl<'a> Postings for ChainedPostings<'a> {
+    
+    fn term_freq(&self,) -> u32 {
+        self.chained_postings[self.posting_id].term_freq()
+    }
+    
 }

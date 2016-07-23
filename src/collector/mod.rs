@@ -1,3 +1,4 @@
+
 use DocId;
 use SegmentReader;
 use SegmentLocalId;
@@ -5,6 +6,10 @@ use fastfield::U32FastFieldReader;
 use schema::Field;
 use std::io;
 
+pub trait Collector {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
+    fn collect(&mut self, doc_id: DocId, score: f32);
+}
 
 mod count_collector;
 pub use self::count_collector::CountCollector;
@@ -15,10 +20,6 @@ pub use self::first_n_collector::FirstNCollector;
 mod multi_collector;
 pub use self::multi_collector::MultiCollector;
 
-pub trait Collector {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
-    fn collect(&mut self, doc_id: DocId);
-}
 
 pub struct TestCollector {
     offset: DocId,
@@ -48,7 +49,7 @@ impl Collector for TestCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc_id: DocId) {
+    fn collect(&mut self, doc_id: DocId, _score: f32) {
         self.docs.push(doc_id + self.offset);
     }
 }
@@ -81,7 +82,7 @@ impl Collector for FastFieldTestCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc_id: DocId) {
+    fn collect(&mut self, doc_id: DocId, _score: f32) {
         let val = self.ff_reader.as_ref().unwrap().get(doc_id);
         self.vals.push(val);
     }
@@ -101,7 +102,7 @@ mod tests {
             let mut count_collector = CountCollector::new();
             let docs: Vec<u32> = (0..1_000_000).collect();
             for doc in docs {
-                count_collector.collect(doc);
+                count_collector.collect(doc, 1f32);
             }
             count_collector.count()
         });
