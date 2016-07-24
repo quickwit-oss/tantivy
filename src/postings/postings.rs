@@ -1,5 +1,4 @@
 use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use postings::docset::DocSet;
 
 

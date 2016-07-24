@@ -6,7 +6,6 @@ use schema::Document;
 use collector::Collector;
 use std::io;
 use common::TimerTree;
-use postings::Postings;
 use query::Query;
 use schema::Term;
 

@@ -2,16 +2,17 @@ use query::Scorer;
 
 #[derive(Clone)]
 pub struct MultiTermScorer {
-    query_coord: Vec<f32>,
+    coords: Vec<f32>,
     idf: Vec<f32>,
     score: f32,
     num_fields: usize,
 }
 
 impl MultiTermScorer {
-    pub fn new(query_coord: Vec<f32>, idf: Vec<f32>) -> MultiTermScorer {
+    pub fn new(mut coords: Vec<f32>, idf: Vec<f32>) -> MultiTermScorer {
+        coords.insert(0, 0f32);
         MultiTermScorer {
-            query_coord: query_coord,
+            coords: coords,
             idf: idf,
             score: 0f32,
             num_fields: 0,
@@ -23,8 +24,8 @@ impl MultiTermScorer {
         self.num_fields += 1;
     }
 
-    fn coord(&mut self, term_ord: usize, term_freq: u32) {
-        self.score += (term_freq as f32) * self.idf[term_ord];
+    fn coord(&self,) -> f32 {
+        self.coords[self.num_fields]
     }
 
     pub fn clear(&mut self,) {
@@ -37,6 +38,6 @@ impl MultiTermScorer {
 
 impl Scorer for MultiTermScorer {
     fn score(&self, ) -> f32 {
-        self.score
+        self.score * self.coord()
     }
 }

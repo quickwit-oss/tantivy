@@ -15,7 +15,6 @@ use core::index::SegmentInfo;
 use schema::Field;
 use core::convert_to_ioerror;
 use postings::SegmentPostings;
-use postings::Postings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use schema::FieldEntry;
 use schema::Schema;

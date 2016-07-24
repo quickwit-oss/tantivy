@@ -60,21 +60,6 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
     
     fn next(&mut self,) -> bool {
         self.scorer.clear();
-
-        // if self.active_posting_ordinals.is_empty() {
-        //     return false;
-        // }
-
-        // for &ord in self.active_posting_ordinals.iter() {
-        //     let cur_postings = &self.postings[ord];
-        //     if cur_postings.next() {
-        //         let doc = cur_postings.doc();
-        //         let tf = cur_postings.freq();
-        //         self.queue.push(HeapItem(doc, ord, tf));
-        //     }
-        // }
-        // self.active_posting_ordinals.clear();
-        
         let head = self.queue.pop(); 
         match head {
             Some(HeapItem(doc, ord, tf)) => {
@@ -82,32 +67,39 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
                 self.enqueue(ord);
                 self.doc = doc;
                 loop {
-                    {
-                        let peek = self.queue.peek();
-                        match peek {
-                            Some(&HeapItem(peek_doc, _, _))  => {
-                                if peek_doc != doc {
-                                    break;
-                                }
+                    match self.queue.peek() {
+                        Some(&HeapItem(peek_doc, _, _))  => {
+                            if peek_doc != doc {
+                                break;
                             }
-                            None => { break; }   
                         }
+                        None => { break; }   
                     }
                     let HeapItem(_, peek_ord, peek_tf) = self.queue.pop().unwrap();
                     self.scorer.update(peek_ord, peek_tf);
                     self.enqueue(peek_ord);
                 }
+                return true;
             }
             None => {
                 return false;
             }
         }
-        return true;
     }
 
-
-    fn skip_next(&mut self, _: DocId) -> SkipResult {
-        SkipResult::End
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        // TODO skip the underlying posting object.
+        loop {
+            match self.doc.cmp(&target) {
+                Ordering::Less => {
+                    if !self.next() {
+                        return SkipResult::End;
+                    }
+                },
+                Ordering::Equal => { return SkipResult::Reached },
+                Ordering::Greater => { return SkipResult::OverStep },
+            }
+        }
     }
     
     fn doc(&self,) -> DocId {
@@ -129,7 +121,7 @@ impl<TPostings: Postings> ScoredDocSet for UnionPostings<TPostings> {
 mod tests {
     
     use super::*;
-    use postings::{DocSet, VecPostings};
+    use postings::{DocSet, VecPostings, ScoredDocSet};
     use query::MultiTermScorer;
 
     #[test]
@@ -140,16 +132,15 @@ mod tests {
         let mut union = UnionPostings::new(vec!(left, right), multi_term_scorer);
         assert!(union.next());
         assert_eq!(union.doc(), 1);
-        // assert_eq!(union.active_posting_ordinals(), [0, 1]);
+        assert_eq!(union.score(), 10f32);
         assert!(union.next());
         assert_eq!(union.doc(), 2);
-        // assert_eq!(union.active_posting_ordinals(), [0]);
+        assert_eq!(union.score(), 1f32);
         assert!(union.next());
         assert_eq!(union.doc(), 3);
-        // assert_eq!(union.active_posting_ordinals(), [0, 1]);
         assert!(union.next());
+        assert_eq!(union.score(), 4f32);
         assert_eq!(union.doc(), 8);
-        // assert_eq!(union.active_posting_ordinals(), [1]);
         assert!(!union.next());
     }
 
