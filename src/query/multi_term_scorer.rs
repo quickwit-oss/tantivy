@@ -41,3 +41,41 @@ impl Scorer for MultiTermScorer {
         self.score * self.coord()
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    
+    use super::*;
+    use query::Scorer;
+
+    #[test]
+    pub fn test_multiterm_scorer() {
+        let mut multi_term_scorer = MultiTermScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
+        {
+            multi_term_scorer.update(0, 1);
+            assert_eq!(multi_term_scorer.score(), 1f32);    
+           multi_term_scorer.clear();
+        }
+        {
+            multi_term_scorer.update(1, 1);
+            assert_eq!(multi_term_scorer.score(), 4f32);    
+           multi_term_scorer.clear();
+        }
+        {
+            multi_term_scorer.update(0, 2);
+            assert_eq!(multi_term_scorer.score(), 2f32);    
+            multi_term_scorer.clear();
+        }
+        {
+            multi_term_scorer.update(0, 1);
+            multi_term_scorer.update(1, 1);
+            assert_eq!(multi_term_scorer.score(), 10f32);    
+            multi_term_scorer.clear();
+        }
+
+
+    }
+
+}

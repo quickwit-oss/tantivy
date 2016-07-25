@@ -23,10 +23,7 @@ impl Query for MultiTermQuery {
     fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
         
-        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
-        let idf = iter::repeat(1f32).take(self.terms.len()).collect();
-        let multi_term_scorer = MultiTermScorer::new(query_coord, idf);
-
+        let multi_term_scorer = self.scorer(searcher);
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segments().iter().enumerate() {
@@ -43,7 +40,6 @@ impl Query for MultiTermQuery {
                     let _collection_timer = segment_search_timer.open("collection");
                     while postings.next() {
                         collector.collect(postings.doc(), postings.score());
-                        // collector.collect(postings.doc(), score);
                     }
                 }
             }
@@ -54,14 +50,21 @@ impl Query for MultiTermQuery {
 
 impl MultiTermQuery {
     
-    // fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
-    //     let doc_freqs: Vec<u32> = self.terms.iter()
-    //         .map(|term| searcher.doc_freq(term))
-    //         .collect();
-    //     MultiTermScorer {
-    //         search.doc_freq()
-    //     }
-    // }
+    fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
+        let idfs: Vec<f32> = self.terms.iter()
+            .map(|term| searcher.doc_freq(term))
+            .map(|doc_freq| {
+                if doc_freq == 0 {
+                    return 1.
+                }
+                else {
+                    1.0 / (doc_freq as f32)
+                }
+            })
+            .collect();
+        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
+        MultiTermScorer::new(query_coord, idfs)
+    }
 
     pub fn new(terms: Vec<Term>) -> MultiTermQuery {
         MultiTermQuery {
@@ -80,7 +83,6 @@ impl MultiTermQuery {
                         segment_postings.push(postings);
                     }
                     None => {
-                        // currently this is a strict intersection.
                         segment_postings.push(SegmentPostings::empty());
                     }
                 }
