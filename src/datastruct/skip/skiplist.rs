@@ -1,4 +1,3 @@
-use std::io::Read;
 use common::BinarySerializable;
 use std::io::Cursor;
 use std::io::SeekFrom;

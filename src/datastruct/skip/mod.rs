@@ -12,8 +12,6 @@ pub use self::skiplist::SkipList;
 mod tests {
 
     use super::*;
-    use std::io::{Write, Read};
-    use std::io::Seek;
 
     #[test]
     fn test_skiplist() {

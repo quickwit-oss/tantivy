@@ -1,6 +1,3 @@
-use rustc_serialize::Decoder;
-use rustc_serialize::Encoder;
-
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct U32Options {
     indexed: bool,

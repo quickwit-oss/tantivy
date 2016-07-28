@@ -6,7 +6,6 @@ use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use rustc_serialize::json;
-use std::io::Read;
 use std::io::ErrorKind as IOErrorKind;
 use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;

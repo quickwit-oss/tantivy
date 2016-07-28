@@ -34,7 +34,7 @@ impl Searcher {
         self.segments
             .iter()
             .map(|segment_reader| segment_reader.doc_freq(term))
-            .sum()
+            .fold(0u32, |acc, val| acc + val)
     }
 
     fn add_segment(&mut self, segment: Segment) -> io::Result<()> {

@@ -2,7 +2,6 @@
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![feature(iter_arith)]
 
 
 #[macro_use]
@@ -15,7 +14,6 @@ extern crate memmap;
 extern crate regex;
 extern crate tempfile;
 extern crate rustc_serialize;
-extern crate combine;
 extern crate atomicwrites;
 extern crate tempdir;
 extern crate bincode;
@@ -24,6 +22,7 @@ extern crate libc;
 extern crate lz4;
 extern crate uuid;
 extern crate num_cpus;
+extern crate combine;
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;

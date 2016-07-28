@@ -46,7 +46,6 @@ impl Decodable for Schema {
         try!(d.read_seq(|d, num_fields| {
             for _ in 0..num_fields {
                 let field_entry = try!(FieldEntry::decode(d));
-                // let field_options: &TextOptions = &field_entry.option;
                 schema.add_field(field_entry);
             }
             Ok(())

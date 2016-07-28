@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::fmt;
 
 use common::BinarySerializable;

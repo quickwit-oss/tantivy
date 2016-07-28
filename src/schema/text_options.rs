@@ -1,5 +1,3 @@
-use rustc_serialize::Decoder;
-use rustc_serialize::Encoder;
 use std::ops::BitOr;
 
 

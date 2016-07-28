@@ -121,7 +121,6 @@ mod tests {
     use super::*;
     use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
-    use fst::Streamer;
 
     #[test]
     fn test_fstmap() {
