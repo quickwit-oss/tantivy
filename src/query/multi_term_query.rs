@@ -14,6 +14,7 @@ use postings::DocSet;
 use query::MultiTermScorer;
 use std::iter;
 
+
 pub struct MultiTermQuery {
     terms: Vec<Term>,    
 }
