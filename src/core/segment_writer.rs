@@ -41,7 +41,8 @@ impl SegmentWriter {
 	// - the dictionary in an fst
 	// - the postings
 	// - the segment info
-	// The segment writer cannot be used after this.
+	// The segment writer cannot be used after this, which is
+	// enforced by the fact that "self" is moved.
 	pub fn finalize(mut self,) -> io::Result<()> {
 		let segment_info = self.segment_info();
 		self.postings_writer.close();

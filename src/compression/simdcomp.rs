@@ -199,7 +199,7 @@ mod tests {
             assert_eq!(remaining_data.len(), 0);
         }
         for i in 0..128 {
-            assert_eq!(vals[i], decoder.output()[i]);
+            assert_eq!(vals[i], decoder.output(i));
         }
     }
 
@@ -214,7 +214,7 @@ mod tests {
             assert_eq!(remaining_data.len(), 0);
         }
         for i in 0..128 {
-            assert_eq!(vals[i], decoder.output()[i]);
+            assert_eq!(vals[i], decoder.output(i));
         }
     }
     
@@ -234,7 +234,7 @@ mod tests {
             assert_eq!(remaining_data[0], 173u8);
         }
         for i in 0..n {
-            assert_eq!(vals[i], decoder.output()[i]);
+            assert_eq!(vals[i], decoder.output(i));
         }
     }
 
@@ -254,7 +254,7 @@ mod tests {
             assert_eq!(remaining_data[0], 173u8);
         }
         for i in 0..n {
-            assert_eq!(vals[i], decoder.output()[i]);
+            assert_eq!(vals[i], decoder.output(i));
         }
     }
     
@@ -274,7 +274,7 @@ mod tests {
                 let mut decoder = SIMDBlockDecoder::new();
                 let remaining_data = decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
                 assert_eq!(0, remaining_data.len());
-                for (&decoded, &expected) in decoder.output().iter().zip(input.iter()) {
+                for (&decoded, &expected) in decoder.output_array().iter().zip(input.iter()) {
                     assert_eq!(decoded, expected);
                 }
             }

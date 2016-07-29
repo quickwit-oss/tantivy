@@ -15,7 +15,7 @@ use num_cpus;
 use core::segment_serializer::SegmentSerializer;
 
 
-#[derive(Clone, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]
 pub struct SegmentId(Uuid);
 
 impl SegmentId {
@@ -47,6 +47,12 @@ impl IndexMeta {
             segments: Vec::new(),
             schema: schema,
         }
+    }
+
+    fn segment_ordinal(&self, segment_id: SegmentId) -> Option<usize> {
+        self.segments
+            .iter()
+            .position(|&el| el == segment_id)
     }
 }
 
@@ -147,10 +153,8 @@ impl Index {
     pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> io::Result<()> {
         {
             let mut meta_write = self.metas.write().unwrap();
-            for segment in segments.iter() {
-                let segment_pos = meta_write
-                    .segments.iter()
-                    .position(|el| *el == segment.id());
+            for segment in segments {
+                let segment_pos = meta_write.segment_ordinal(segment.id());
                 match segment_pos {
                     Some(pos) => {
                         meta_write.segments.remove(pos);
@@ -176,17 +180,16 @@ impl Index {
     }
 
     pub fn segments(&self,) -> Vec<Segment> {
-        // TODO handle error
         self.segment_ids()
             .into_iter()
-            .map(|segment_id| self.segment(&segment_id))
+            .map(|segment_id| self.segment(segment_id))
             .collect()
     }
 
-    pub fn segment(&self, segment_id: &SegmentId) -> Segment {
+    pub fn segment(&self, segment_id: SegmentId) -> Segment {
         Segment {
             index: self.clone(),
-            segment_id: segment_id.clone()
+            segment_id: segment_id
         }
     }
 
@@ -201,7 +204,7 @@ impl Index {
     }
 
     pub fn new_segment(&self,) -> Segment {
-        self.segment(&SegmentId::new())
+        self.segment(SegmentId::new())
     }
 
     pub fn load_metas(&mut self,) -> io::Result<()> {
@@ -262,7 +265,7 @@ impl Segment {
     }
 
     pub fn id(&self,) -> SegmentId {
-        self.segment_id.clone()
+        self.segment_id
     }
 
     fn path_suffix(component: &SegmentComponent)-> &'static str {

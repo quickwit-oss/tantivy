@@ -226,7 +226,7 @@ mod tests {
     use schema::Document;
     use schema::Term;
     use core::index::Index;
-    use core::searcher::DocAddress;
+    use DocAddress;
     use collector::FastFieldTestCollector;
     use collector::TestCollector;
     use query::MultiTermQuery;
