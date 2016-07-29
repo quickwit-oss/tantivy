@@ -1,6 +1,6 @@
 use std::io;
 use super::Collector;
-use DocId;
+use ScoredDoc;
 use SegmentReader;
 use SegmentLocalId;
 
@@ -26,7 +26,7 @@ impl Collector for CountCollector {
         Ok(())
     }
 
-    fn collect(&mut self, _: DocId, _: f32) {
+    fn collect(&mut self, _: ScoredDoc) {
         self.count += 1;
     }
 }

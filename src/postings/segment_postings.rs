@@ -35,7 +35,7 @@ impl<'a> SegmentPostings<'a> {
         if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
             self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
             self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
-            self.doc_offset = self.block_decoder.output()[NUM_DOCS_PER_BLOCK - 1];
+            self.doc_offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
         }
         else {
             self.remaining_data = self.block_decoder.uncompress_vint_sorted(self.remaining_data, self.doc_offset, num_remaining_docs);
@@ -54,6 +54,12 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 
+    #[inline(always)]
+    fn index_within_block(&self,) -> usize {
+        self.cur.0 % NUM_DOCS_PER_BLOCK
+    }
+
+
 }
 
 
@@ -66,14 +72,14 @@ impl<'a> DocSet for SegmentPostings<'a> {
         if self.cur.0 >= self.doc_freq {
             return false;
         }
-        if self.cur.0 % NUM_DOCS_PER_BLOCK == 0 {
+        if self.index_within_block() == 0 {
             self.load_next_block();
         }
         return true;
     }
 
     fn doc(&self,) -> DocId {
-        self.block_decoder.output()[self.cur.0 % NUM_DOCS_PER_BLOCK]
+        self.block_decoder.output(self.index_within_block())
     }
 
     // after skipping position
@@ -101,9 +107,8 @@ impl<'a> DocSet for SegmentPostings<'a> {
     }
 }
 
-
 impl<'a> Postings for SegmentPostings<'a> {
     fn term_freq(&self,) -> u32 {
-        self.freq_handler.output()[self.cur.0]
+        self.freq_handler.output(self.index_within_block())
     }
 }

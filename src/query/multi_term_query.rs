@@ -5,7 +5,7 @@ use common::OpenTimer;
 use std::io;
 use core::searcher::Searcher;
 use collector::Collector;
-use core::searcher::SegmentLocalId;
+use SegmentLocalId;
 use core::SegmentReader;
 use postings::SegmentPostings;
 use postings::UnionPostings;
@@ -13,6 +13,7 @@ use postings::ScoredDocSet;
 use postings::DocSet;
 use query::MultiTermScorer;
 use std::iter;
+use ScoredDoc;
 
 
 pub struct MultiTermQuery {
@@ -40,7 +41,8 @@ impl Query for MultiTermQuery {
                 {
                     let _collection_timer = segment_search_timer.open("collection");
                     while postings.next() {
-                        collector.collect(postings.doc(), postings.score());
+                        let scored_doc = ScoredDoc(postings.score(), postings.doc());
+                        collector.collect(scored_doc);
                     }
                 }
             }

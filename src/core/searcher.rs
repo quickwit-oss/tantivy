@@ -1,25 +1,18 @@
 use core::SegmentReader;
 use core::index::Index;
 use core::index::Segment;
-use DocId;
 use schema::Document;
 use collector::Collector;
 use std::io;
 use common::TimerTree;
 use query::Query;
+use DocAddress;
 use schema::Term;
 
 #[derive(Debug)]
 pub struct Searcher {
     segments: Vec<SegmentReader>,
 }
-
-/// A segment local id identifies a segment.
-/// It only makes sense for a given searcher.
-pub type SegmentLocalId = u32;
-
-#[derive(Debug)]
-pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 impl Searcher {
 

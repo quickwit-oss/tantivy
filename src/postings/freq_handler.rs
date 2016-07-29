@@ -36,13 +36,25 @@ impl FreqHandler {
 
     }
 
-    pub fn output(&self,)-> &[u32] {
+    pub fn output_array(&self,)-> &[u32] {
         match *self {
             FreqHandler::FreqReader(ref block_decoder) => {
-                block_decoder.output()
+                block_decoder.output_array()
             }
             FreqHandler::NoFreq => {
                 &EMPTY
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn output(&self, idx: usize)-> u32 {
+        match *self {
+            FreqHandler::FreqReader(ref block_decoder) => {
+                block_decoder.output(idx)
+            }
+            FreqHandler::NoFreq => {
+                0
             }
         }
     }

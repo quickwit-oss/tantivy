@@ -70,11 +70,11 @@ impl CompositeDecoder {
         let num_blocks = doc_freq / NUM_DOCS_PER_BLOCK;
         for _ in 0..num_blocks {
             compressed_data = self.block_decoder.uncompress_block_sorted(compressed_data, offset);
-            offset = self.block_decoder.output()[NUM_DOCS_PER_BLOCK - 1];
-            self.vals.extend_from_slice(self.block_decoder.output());
+            offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
+            self.vals.extend_from_slice(self.block_decoder.output_array());
         }
         self.block_decoder.uncompress_vint_sorted(compressed_data, offset, doc_freq % NUM_DOCS_PER_BLOCK);
-        self.vals.extend_from_slice(self.block_decoder.output());
+        self.vals.extend_from_slice(self.block_decoder.output_array());
         &self.vals
     }
     
@@ -83,10 +83,10 @@ impl CompositeDecoder {
         let num_blocks = doc_freq / NUM_DOCS_PER_BLOCK;
         for _ in 0..num_blocks {
             compressed_data = self.block_decoder.uncompress_block_unsorted(compressed_data);
-            self.vals.extend_from_slice(self.block_decoder.output());
+            self.vals.extend_from_slice(self.block_decoder.output_array());
         }
         self.block_decoder.uncompress_vint_unsorted(compressed_data, doc_freq % NUM_DOCS_PER_BLOCK);
-        self.vals.extend_from_slice(self.block_decoder.output());
+        self.vals.extend_from_slice(self.block_decoder.output_array());
         &self.vals
     }
 }

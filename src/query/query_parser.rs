@@ -7,6 +7,7 @@ use query::{Query, MultiTermQuery};
 use schema::Schema;
 use schema::{Term, Field};
 
+#[derive(Debug)]
 pub enum ParsingError {
     SyntaxError,
     FieldDoesNotExist(String),

@@ -1,4 +1,4 @@
-//#![feature(test,associated_consts)]
+#![feature(binary_heap_extras)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
@@ -55,7 +55,6 @@ pub use core::index::Index;
 pub use schema::Term;
 pub use schema::Document;
 pub use core::SegmentReader;
-pub use core::searcher::SegmentLocalId;
 pub use self::common::TimerTree;
 
 /// u32 identifying a document within a segment.
@@ -63,7 +62,28 @@ pub use self::common::TimerTree;
 /// as they are added in the segment.
 pub type DocId = u32;
 
+/// f32 the score of a document.
 pub type Score = f32;
+
+/// A segment local id identifies a segment.
+/// It only makes sense for a given searcher.
+pub type SegmentLocalId = u32;
+
+#[derive(Debug, Clone, Copy)]
+pub struct DocAddress(pub SegmentLocalId, pub DocId);
+
+#[derive(Clone, Copy)]
+pub struct ScoredDoc(Score, DocId);
+
+impl ScoredDoc {
+    pub fn score(&self,) -> Score {
+        self.0
+    }
+    pub fn doc(&self,) -> DocId {
+        self.1
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -149,7 +169,7 @@ mod tests {
             let term_c = Term::from_field_text(text_field, "c");
             assert_eq!(searcher.doc_freq(&term_c), 2);
             let term_d = Term::from_field_text(text_field, "d");
-            assert_eq!(searcher.doc_freq(&term_d), 0);            
+            assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
 
@@ -178,7 +198,7 @@ mod tests {
             assert!(!postings.next());
         }
     }
-    
+
     #[test]
     fn test_searcher() {
         let mut schema = schema::Schema::new();
@@ -240,13 +260,13 @@ mod tests {
             }
             {
                 assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"), 
+                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"),
                                      Term::from_field_text(text_field, "a"), )),
                     vec!(0, 1, 2));
             }
         }
     }
-    
+
     #[test]
     fn test_searcher_2() {
         let mut schema = schema::Schema::new();

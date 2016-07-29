@@ -1,6 +1,6 @@
 use std::io;
 use super::Collector;
-use DocId;
+use ScoredDoc;
 use SegmentReader;
 use SegmentLocalId;
 
@@ -25,9 +25,9 @@ impl<'a> Collector for MultiCollector<'a> {
         Ok(())
     }
 
-    fn collect(&mut self, doc_id: DocId, score: f32) {
+    fn collect(&mut self, scored_doc: ScoredDoc) {
         for collector in self.collectors.iter_mut() {
-            collector.collect(doc_id, score);
+            collector.collect(scored_doc);
         }
     }
 }

@@ -167,10 +167,17 @@ impl SIMDBlockDecoder {
         &compressed_data[read_byte..]
     }
     
-    pub fn output(&self,) -> &[u32] {
+    #[inline(always)]
+    pub fn output_array(&self,) -> &[u32] {
         &self.output[..self.output_len]
     }
+
+    #[inline(always)]
+    pub fn output(&self, idx: usize) -> u32 {
+        self.output[idx]
+    }
 }
+
 
 
 #[cfg(test)]
