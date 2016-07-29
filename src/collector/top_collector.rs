@@ -103,3 +103,54 @@ impl Collector for TopCollector {
 
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use ScoredDoc;
+    use DocId;
+    use Score;
+    use collector::Collector;
+
+    #[test]
+    fn test_top_collector_not_at_capacity() {
+        let mut top_collector = TopCollector::with_limit(4);
+        top_collector.collect(ScoredDoc(0.8, 1));
+        top_collector.collect(ScoredDoc(0.2, 3));
+        top_collector.collect(ScoredDoc(0.3, 5));
+        assert!(!top_collector.at_capacity());
+        let score_docs: Vec<(Score, DocId)> = top_collector.score_docs()
+            .into_iter()
+            .map(|(score, doc_address)| (score, doc_address.doc()))
+            .collect();
+        assert_eq!(score_docs, vec!(
+            (0.8, 1), (0.3, 5), (0.2, 3),
+        ));
+    }
+
+    #[test]
+    fn test_top_collector_at_capacity() {
+        let mut top_collector = TopCollector::with_limit(4);
+        top_collector.collect(ScoredDoc(0.8, 1));
+        top_collector.collect(ScoredDoc(0.2, 3));
+        top_collector.collect(ScoredDoc(0.3, 5));
+        top_collector.collect(ScoredDoc(0.9, 7));
+        top_collector.collect(ScoredDoc(-0.2, 9));
+        assert!(top_collector.at_capacity());
+        let score_docs: Vec<(Score, DocId)> = top_collector.score_docs()
+            .into_iter()
+            .map(|(score, doc_address)| (score, doc_address.doc()))
+            .collect();
+        assert_eq!(score_docs, vec!(
+            (0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)
+        ));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_top_0() {
+        TopCollector::with_limit(0);
+    }
+}

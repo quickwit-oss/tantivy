@@ -81,12 +81,12 @@ mod tests {
         let mut top_collector = TopCollector::with_limit(2);
         let mut count_collector = CountCollector::new();
         {
-            let mut chain = collector_chain()
+            let mut collectors = chain()
                 .add(&mut top_collector)
                 .add(&mut count_collector);
-            chained_collector.collect(ScoredDoc(0.2, 1));
-            chained_collector.collect(ScoredDoc(0.1, 2));
-            chained_collector.collect(ScoredDoc(0.5, 3));
+            collectors.collect(ScoredDoc(0.2, 1));
+            collectors.collect(ScoredDoc(0.1, 2));
+            collectors.collect(ScoredDoc(0.5, 3));
         }
         assert_eq!(count_collector.count(), 3);
         assert!(top_collector.at_capacity());

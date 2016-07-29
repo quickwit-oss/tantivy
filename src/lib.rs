@@ -72,6 +72,16 @@ pub type SegmentLocalId = u32;
 #[derive(Debug, Clone, Copy)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
+impl DocAddress {
+    pub fn segment_ord(&self,) -> SegmentLocalId {
+        self.0
+    }
+
+    pub fn doc(&self,) -> DocId {
+        self.1
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ScoredDoc(Score, DocId);
 
