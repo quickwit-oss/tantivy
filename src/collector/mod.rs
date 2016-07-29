@@ -19,6 +19,9 @@ pub use self::multi_collector::MultiCollector;
 mod top_collector;
 pub use self::top_collector::TopCollector;
 
+mod chained_collector;
+pub use self::chained_collector::chain;
+
 pub struct TestCollector {
     offset: DocId,
     segment_max_doc: DocId,

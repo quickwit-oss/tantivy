@@ -4,7 +4,6 @@ use super::NUM_DOCS_PER_BLOCK;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1; 
 
 extern {
-    // complete s4-bp128-dm
     fn compress_sorted_cpp(
         data: *const u32,
         output: *mut u8,
