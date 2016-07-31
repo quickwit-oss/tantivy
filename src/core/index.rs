@@ -82,7 +82,7 @@ impl Index {
     }
 
     pub fn create(directory_path: &Path, schema: Schema) -> io::Result<Index> {
-        let directory = Box::new(try!(MmapDirectory::create(directory_path)));
+        let directory = Box::new(try!(MmapDirectory::open(directory_path)));
         Ok(Index::from_directory(directory, schema))
     }
 
@@ -92,7 +92,7 @@ impl Index {
     }
 
     pub fn open(directory_path: &Path) -> io::Result<Index> {
-        let directory = try!(MmapDirectory::create(directory_path));
+        let directory = try!(MmapDirectory::open(directory_path));
         let directory_ptr = Box::new(directory);
         let mut index = Index::from_directory(directory_ptr, Schema::new());
         try!(index.load_metas()); //< does the directory already exists?

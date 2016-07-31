@@ -44,7 +44,7 @@ impl MmapDirectory {
         Ok(directory)
     }
 
-    pub fn create(filepath: &Path) -> io::Result<MmapDirectory> {
+    pub fn open(filepath: &Path) -> io::Result<MmapDirectory> {
         Ok(MmapDirectory {
             root_path: PathBuf::from(filepath),
             mmap_cache: RwLock::new(HashMap::new()),
