@@ -5,47 +5,17 @@ use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
-use rustc_serialize::{Encoder, Decoder, json, Encodable, Decodable};
+use rustc_serialize::json;
+use core::SegmentId;
 use std::io::ErrorKind as IOErrorKind;
 use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
-use uuid::Uuid;
+use super::SegmentComponent;
+
 use num_cpus;
-use std::vec::IntoIter;
 use core::segment_serializer::SegmentSerializer;
 
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SegmentId(Uuid);
-
-impl SegmentId {
-    pub fn new() -> SegmentId {
-        SegmentId(Uuid::new_v4())
-    }
-
-    pub fn uuid_string(&self,) -> String {
-        self.0.to_simple_string()
-    }
-}
-
-impl Encodable for SegmentId {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        self.0.encode(s)
-    }
-}
-
-impl Decodable for SegmentId {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        Uuid::decode(d).map(SegmentId)
-    }
-}
-
-impl fmt::Debug for SegmentId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SegmentId({:?})", self.uuid_string())
-    }
-}
 
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
@@ -255,31 +225,6 @@ pub struct SegmentInfo {
 }
 
 
-#[derive(Copy, Clone)]
-pub enum SegmentComponent {
-    INFO,
-    POSTINGS,
-    POSITIONS,
-    FASTFIELDS,
-    FIELDNORMS,
-    TERMS,
-    STORE,
-}
-
-impl SegmentComponent {
-    pub fn values() -> IntoIter<SegmentComponent> {
-        vec!(
-            SegmentComponent::INFO,
-            SegmentComponent::POSTINGS,
-            SegmentComponent::POSITIONS,
-            SegmentComponent::FASTFIELDS,
-            SegmentComponent::FIELDNORMS,
-            SegmentComponent::TERMS,
-            SegmentComponent::STORE,
-        ).into_iter()
-    }
-}
-
 
 #[derive(Clone)]
 pub struct Segment {
@@ -302,23 +247,9 @@ impl Segment {
     pub fn id(&self,) -> SegmentId {
         self.segment_id
     }
-
-    fn path_suffix(component: SegmentComponent)-> &'static str {
-        match component {
-            SegmentComponent::POSITIONS => ".pos",
-            SegmentComponent::INFO => ".info",
-            SegmentComponent::POSTINGS => ".idx",
-            SegmentComponent::TERMS => ".term",
-            SegmentComponent::STORE => ".store",
-            SegmentComponent::FASTFIELDS => ".fast",
-            SegmentComponent::FIELDNORMS => ".fieldnorm",
-        }
-    }
-
+    
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let SegmentId(ref segment_uuid) = self.segment_id;
-        let filename = segment_uuid.to_simple_string() + Segment::path_suffix(component);
-        PathBuf::from(filename)
+        self.segment_id.relative_path(component)
     }
 
     pub fn open_read(&self, component: SegmentComponent) -> io::Result<ReadOnlySource> {

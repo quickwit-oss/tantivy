@@ -1,10 +1,11 @@
-use core::index::{Segment, SegmentId};
+use core::index::Segment;
+use core::SegmentId;
+use core::SegmentComponent;
 use schema::Term;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
-use core::index::SegmentComponent;
 use std::io;
 use std::str;
 use postings::TermInfo;

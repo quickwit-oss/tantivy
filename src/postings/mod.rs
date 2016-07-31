@@ -35,7 +35,7 @@ mod tests {
     
     use super::*;
     use schema::{TEXT, Schema, Term};
-    use core::index::SegmentComponent;
+    use core::SegmentComponent;
     use core::index::Index;
     
     #[test]

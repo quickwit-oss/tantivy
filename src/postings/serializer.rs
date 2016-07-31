@@ -10,7 +10,7 @@ use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockEncoder, CompositeEncoder};
 use DocId;
 use core::index::Segment;
 use std::io;
-use core::index::SegmentComponent;
+use core::SegmentComponent;
 use common::BinarySerializable;
 
 

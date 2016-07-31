@@ -3,11 +3,10 @@ use std::io::Write;
 use rustc_serialize::json;
 use core::index::Segment;
 use core::index::SegmentInfo;
-use core::index::SegmentComponent;
+use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use core::convert_to_ioerror;
-
 use postings::PostingsSerializer;
 
 pub struct SegmentSerializer {
