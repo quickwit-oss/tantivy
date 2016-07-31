@@ -5,7 +5,7 @@ use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
-use rustc_serialize::json;
+use rustc_serialize::{Encoder, Decoder, json, Encodable, Decodable};
 use std::io::ErrorKind as IOErrorKind;
 use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
@@ -15,7 +15,7 @@ use num_cpus;
 use core::segment_serializer::SegmentSerializer;
 
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash,RustcDecodable,RustcEncodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentId(Uuid);
 
 impl SegmentId {
@@ -25,6 +25,19 @@ impl SegmentId {
 
     pub fn uuid_string(&self,) -> String {
         self.0.to_simple_string()
+    }
+}
+
+
+impl Encodable for SegmentId {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        self.0.encode(s)
+    }
+}
+
+impl Decodable for SegmentId {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        Uuid::decode(d).map(SegmentId)
     }
 }
 

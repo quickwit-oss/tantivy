@@ -10,7 +10,7 @@ byteorder = "0.4"
 memmap = "0.2"
 lazy_static = "0.1.*"
 regex = "0.1"
-fst = "0.1.29"
+fst = { git = "https://github.com/BurntSushi/fst.git", rev = "e6c7eec6" }
 atomicwrites = "0.0.14"
 tempfile = "2.0.0"
 rustc-serialize = "0.3.16"
@@ -34,6 +34,7 @@ gcc = "0.3.24"
 [[bin]]
 name = "tantivy-merge"
 path = "src/cli/merge.rs"
+
 
 # [profile.release]
 # opt-level = 3
