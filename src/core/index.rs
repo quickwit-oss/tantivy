@@ -12,6 +12,7 @@ use core::writer::IndexWriter;
 use core::searcher::Searcher;
 use uuid::Uuid;
 use num_cpus;
+use std::vec::IntoIter;
 use core::segment_serializer::SegmentSerializer;
 
 
@@ -27,7 +28,6 @@ impl SegmentId {
         self.0.to_simple_string()
     }
 }
-
 
 impl Encodable for SegmentId {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
@@ -111,11 +111,16 @@ impl Index {
         try!(index.load_metas()); //< does the directory already exists?
         Ok(index)
     }
-
+    
+    /// Creates a multithreaded writer.
+    /// Each writer produces an independant segment.
     pub fn writer_with_num_threads(&self, num_threads: usize) -> io::Result<IndexWriter> {
         IndexWriter::open(self, num_threads)
     }
-
+    
+    
+    /// Creates a multithreaded writer
+    /// It just calls `writer_with_num_threads` with the number of core as `num_threads` 
     pub fn writer(&self,) -> io::Result<IndexWriter> {
         self.writer_with_num_threads(num_cpus::get())
     }
@@ -184,9 +189,9 @@ impl Index {
     }
 
     pub fn sync(&mut self, segment: &Segment) -> io::Result<()> {
-        for component in [SegmentComponent::POSTINGS, SegmentComponent::TERMS].iter() {
+        let directory = try!(self.ro_directory());
+        for component in SegmentComponent::values() {
             let path = segment.relative_path(component);
-            let directory = try!(self.ro_directory());
             try!(directory.sync(&path));
         }
         try!(self.ro_directory()).sync_directory()
@@ -250,14 +255,31 @@ pub struct SegmentInfo {
 }
 
 
+#[derive(Copy, Clone)]
 pub enum SegmentComponent {
     INFO,
     POSTINGS,
     POSITIONS,
     FASTFIELDS,
+    FIELDNORMS,
     TERMS,
     STORE,
 }
+
+impl SegmentComponent {
+    pub fn values() -> IntoIter<SegmentComponent> {
+        vec!(
+            SegmentComponent::INFO,
+            SegmentComponent::POSTINGS,
+            SegmentComponent::POSITIONS,
+            SegmentComponent::FASTFIELDS,
+            SegmentComponent::FIELDNORMS,
+            SegmentComponent::TERMS,
+            SegmentComponent::STORE,
+        ).into_iter()
+    }
+}
+
 
 #[derive(Clone)]
 pub struct Segment {
@@ -281,30 +303,31 @@ impl Segment {
         self.segment_id
     }
 
-    fn path_suffix(component: &SegmentComponent)-> &'static str {
-        match *component {
+    fn path_suffix(component: SegmentComponent)-> &'static str {
+        match component {
             SegmentComponent::POSITIONS => ".pos",
             SegmentComponent::INFO => ".info",
             SegmentComponent::POSTINGS => ".idx",
             SegmentComponent::TERMS => ".term",
             SegmentComponent::STORE => ".store",
             SegmentComponent::FASTFIELDS => ".fast",
+            SegmentComponent::FIELDNORMS => ".fieldnorm",
         }
     }
 
-    pub fn relative_path(&self, component: &SegmentComponent) -> PathBuf {
+    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let SegmentId(ref segment_uuid) = self.segment_id;
         let filename = segment_uuid.to_simple_string() + Segment::path_suffix(component);
         PathBuf::from(filename)
     }
 
     pub fn open_read(&self, component: SegmentComponent) -> io::Result<ReadOnlySource> {
-        let path = self.relative_path(&component);
+        let path = self.relative_path(component);
         self.index.directory.read().unwrap().open_read(&path)
     }
 
     pub fn open_write(&self, component: SegmentComponent) -> io::Result<WritePtr> {
-        let path = self.relative_path(&component);
+        let path = self.relative_path(component);
         self.index.directory.write().unwrap().open_write(&path)
     }
 }

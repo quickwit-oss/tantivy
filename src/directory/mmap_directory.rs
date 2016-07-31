@@ -90,7 +90,16 @@ impl Directory for MmapDirectory {
 
     fn sync(&self, path: &Path) -> io::Result<()> {
         let full_path = self.resolve_path(path);
-        File::open(&full_path).and_then(|fd| fd.sync_all())
+        match File::open(&full_path) {
+            Ok(fd) => {
+                fd.sync_all()
+            }
+            Err(_) => {
+                // file does not exists.
+                // this is not considered a failure.
+                Ok(())
+            }
+        }
     }
 
     fn sync_directory(&self,) -> io::Result<()> {

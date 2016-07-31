@@ -32,22 +32,15 @@ struct HeapItem {
     segment_ord: usize,
 }
 
-impl Ord for HeapItem {
-    fn cmp(&self, other: &HeapItem) -> Ordering {
-        match other.term.cmp(&self.term) {
-            Ordering::Equal => {
-                other.segment_ord.cmp(&self.segment_ord)
-            }
-            e @ _ => {
-                e
-            }
-        }
-    }
-}
-
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other: &HeapItem) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl Ord for HeapItem {
+    fn cmp(&self, other: &HeapItem) -> Ordering {
+        return (&other.term, &other.segment_ord).cmp(&(&self.term, &self.segment_ord))
     }
 }
 
@@ -97,10 +90,6 @@ impl<'a> PostingsMerger<'a> {
             
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            // TODO FIX MERGER!!!!!!!!!
-            // let segment_postings = reader.read_postings(&heap_item.term_info);
-            // let offset_postings = OffsetPostings::new(segment_postings, offset);
-            // segment_postings_list.push(offset_postings);
             let segment_postings = reader.read_postings(&heap_item.term).unwrap();
             let offset_postings = OffsetPostings::new(segment_postings, offset);
             segment_postings_list.push(offset_postings);
@@ -157,7 +146,6 @@ impl IndexMerger {
     }
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
-        // TODO implement fast field
         for field in self.schema.fields()
              .iter()
              .enumerate()
