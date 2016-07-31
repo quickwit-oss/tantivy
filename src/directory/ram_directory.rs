@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use directory::WritePtr;
 
 #[derive(Clone)]
-struct SharedVec(Arc<RwLock<Cursor<Vec<u8>>>>);
+pub struct SharedVec(Arc<RwLock<Cursor<Vec<u8>>>>);
 
 
 pub struct RAMDirectory {
@@ -16,8 +16,12 @@ pub struct RAMDirectory {
 }
 
 impl SharedVec {
-    fn new() -> SharedVec {
+    pub fn new() -> SharedVec {
         SharedVec(Arc::new( RwLock::new(Cursor::new(Vec::new())) ))
+    }
+    
+    pub fn copy_vec(&self,) -> Vec<u8> {
+        self.0.read().unwrap().clone().into_inner()
     }
 }
 
@@ -55,8 +59,8 @@ impl Directory for RAMDirectory {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource> {
         match self.fs.get(path) {
             Some(ref data) => {
-                let data_copy = (*data).0.read().unwrap().clone();
-                Ok(ReadOnlySource::Anonymous(data_copy.into_inner()))
+                let data_copy = data.copy_vec();
+                Ok(ReadOnlySource::Anonymous(data_copy))
             },
             None =>
                 Err(io::Error::new(io::ErrorKind::NotFound, format!("File has never been created. {:?}", path)))

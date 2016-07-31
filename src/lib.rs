@@ -217,14 +217,6 @@ mod tests {
             assert_eq!(fieldnorms_reader.get(0), 175);
             assert_eq!(fieldnorms_reader.get(1), 0);
             assert_eq!(fieldnorms_reader.get(2), 202);
-            // let term_a = Term::from_field_text(text_field, "a");
-            // assert_eq!(searcher.doc_freq(&term_a), 3);
-            // let term_b = Term::from_field_text(text_field, "b");
-            // assert_eq!(searcher.doc_freq(&term_b), 1);
-            // let term_c = Term::from_field_text(text_field, "c");
-            // assert_eq!(searcher.doc_freq(&term_c), 2);
-            // let term_d = Term::from_field_text(text_field, "d");
-            // assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
 

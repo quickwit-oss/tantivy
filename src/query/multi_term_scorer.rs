@@ -19,8 +19,8 @@ impl MultiTermScorer {
         }
     }
  
-    pub fn update(&mut self, term_ord: usize, term_freq: u32) {
-        self.score += (term_freq as f32) * self.idf[term_ord];
+    pub fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
+        self.score += ((term_freq * fieldnorm) as f32) * self.idf[term_ord];
         self.num_fields += 1;
     }
 
@@ -54,23 +54,23 @@ mod tests {
     pub fn test_multiterm_scorer() {
         let mut multi_term_scorer = MultiTermScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
         {
-            multi_term_scorer.update(0, 1);
+            multi_term_scorer.update(0, 1, 1);
             assert_eq!(multi_term_scorer.score(), 1f32);    
            multi_term_scorer.clear();
         }
         {
-            multi_term_scorer.update(1, 1);
+            multi_term_scorer.update(1, 1, 1);
             assert_eq!(multi_term_scorer.score(), 4f32);    
            multi_term_scorer.clear();
         }
         {
-            multi_term_scorer.update(0, 2);
+            multi_term_scorer.update(0, 2, 1);
             assert_eq!(multi_term_scorer.score(), 2f32);    
             multi_term_scorer.clear();
         }
         {
-            multi_term_scorer.update(0, 1);
-            multi_term_scorer.update(1, 1);
+            multi_term_scorer.update(0, 1, 1);
+            multi_term_scorer.update(1, 1, 1);
             assert_eq!(multi_term_scorer.score(), 10f32);    
             multi_term_scorer.clear();
         }

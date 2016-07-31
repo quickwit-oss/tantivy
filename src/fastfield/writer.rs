@@ -22,8 +22,8 @@ impl U32FastFieldsWriter {
     pub fn new(fields: Vec<Field>) -> U32FastFieldsWriter {
         U32FastFieldsWriter {
             field_writers: fields
-                .iter()
-                .map(|field| U32FastFieldWriter::new(&field))
+                .into_iter()
+                .map(U32FastFieldWriter::new)
                 .collect(),
         }
     }
@@ -56,7 +56,7 @@ pub struct U32FastFieldWriter {
 }
 
 impl U32FastFieldWriter {
-    pub fn new(field: &Field) -> U32FastFieldWriter {
+    pub fn new(field: Field) -> U32FastFieldWriter {
         U32FastFieldWriter {
             field: field.clone(),
             vals: Vec::new(),

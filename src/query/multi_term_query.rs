@@ -13,6 +13,7 @@ use postings::ScoredDocSet;
 use postings::DocSet;
 use query::MultiTermScorer;
 use std::iter;
+use fastfield::U32FastFieldReader;
 use ScoredDoc;
 
 
@@ -76,13 +77,16 @@ impl MultiTermQuery {
     }
         
     fn search_segment<'a, 'b>(&'b self, reader: &'b SegmentReader, multi_term_scorer: MultiTermScorer, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings> {
-        let mut segment_postings: Vec<SegmentPostings> = Vec::new();
+        let mut segment_postings: Vec<SegmentPostings> = Vec::with_capacity(self.terms.len());
+        let mut fieldnorms_readers: Vec<U32FastFieldReader> = Vec::with_capacity(self.terms.len());
         {
             let mut decode_timer = timer.open("decode_all");
-            for term in self.terms.iter() {
+            for term in &self.terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
                 match reader.read_postings(term) {
                     Some(postings) => {
+                        let field = term.get_field();
+                        fieldnorms_readers.push(reader.get_fieldnorms_reader(field).unwrap());
                         segment_postings.push(postings);
                     }
                     None => {
@@ -91,6 +95,6 @@ impl MultiTermQuery {
                 }
             }
         }
-        UnionPostings::new(segment_postings, multi_term_scorer)
+        UnionPostings::new(fieldnorms_readers, segment_postings, multi_term_scorer)
     }
 }

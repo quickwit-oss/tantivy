@@ -145,6 +145,35 @@ impl IndexMerger {
         })
     }
 
+    
+    fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
+        // TODO make sure that works even if the field is never here.
+        for field in self.schema.fields()
+             .iter()
+             .enumerate()
+             .filter(|&(_, field_entry)| field_entry.is_indexed())
+             .map(|(field_id, _)| Field(field_id as u8)) {
+            let mut u32_readers = Vec::new();
+            let mut min_val = u32::min_value();
+            let mut max_val = 0;
+            for reader in &self.readers {
+                let u32_reader = try!(reader.get_fieldnorms_reader(field));
+                min_val = min(min_val, u32_reader.min_val());
+                max_val = max(max_val, u32_reader.max_val());
+                u32_readers.push((reader.max_doc(), u32_reader));
+            }
+            try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
+            for (max_doc, u32_reader) in u32_readers {
+                for doc_id in 0..max_doc {
+                    let val = u32_reader.get(doc_id);
+                    try!(fast_field_serializer.add_val(val));
+                }
+            }
+            try!(fast_field_serializer.close_field());
+        }
+        Ok(())
+    }
+
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
         for field in self.schema.fields()
              .iter()
@@ -201,6 +230,7 @@ impl IndexMerger {
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
         try!(self.write_postings(serializer.get_postings_serializer()));
+        try!(self.write_fieldnorms(serializer.get_fieldnorms_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
         try!(self.write_storable_fields(serializer.get_store_writer()));
         try!(serializer.write_segment_info(&self.segment_info));

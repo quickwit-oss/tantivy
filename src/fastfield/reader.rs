@@ -96,7 +96,7 @@ impl U32FastFieldsReader {
             source: source,
         })
     }
-
+    
     pub fn get_field(&self, field: Field) -> io::Result<U32FastFieldReader> {
         match self.field_offsets.get(&field) {
             Some(&(start, stop)) => {

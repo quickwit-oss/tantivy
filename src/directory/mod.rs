@@ -9,7 +9,7 @@ use fst::raw::MmapReadOnly;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
-
+pub use self::ram_directory::SharedVec;
 
 ////////////////////////////////////////
 // WritePtr
