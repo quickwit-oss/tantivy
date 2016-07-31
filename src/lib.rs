@@ -23,6 +23,7 @@ extern crate lz4;
 extern crate uuid;
 extern crate num_cpus;
 extern crate combine;
+extern crate itertools;
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
@@ -181,6 +182,49 @@ mod tests {
             assert_eq!(searcher.doc_freq(&term_c), 2);
             let term_d = Term::from_field_text(text_field, "d");
             assert_eq!(searcher.doc_freq(&term_d), 0);
+        }
+    }
+    
+    
+    #[test]
+    fn test_fieldnorm() {
+        let mut schema = schema::Schema::new();
+        let text_field = schema.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "a b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let doc = Document::new();
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.wait().unwrap();
+        }
+        {
+            
+            let searcher = index.searcher().unwrap();
+            let segment_reader: &SegmentReader = searcher.segments().iter().next().unwrap();
+            let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
+            assert_eq!(fieldnorms_reader.get(0), 175);
+            assert_eq!(fieldnorms_reader.get(1), 0);
+            assert_eq!(fieldnorms_reader.get(2), 202);
+            // let term_a = Term::from_field_text(text_field, "a");
+            // assert_eq!(searcher.doc_freq(&term_a), 3);
+            // let term_b = Term::from_field_text(text_field, "b");
+            // assert_eq!(searcher.doc_freq(&term_b), 1);
+            // let term_c = Term::from_field_text(text_field, "c");
+            // assert_eq!(searcher.doc_freq(&term_c), 2);
+            // let term_d = Term::from_field_text(text_field, "d");
+            // assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
 

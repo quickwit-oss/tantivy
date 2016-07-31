@@ -28,6 +28,7 @@ pub struct SegmentReader {
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
+    fieldnorms_reader: U32FastFieldsReader,
     schema: Schema,
 }
 
@@ -54,7 +55,10 @@ impl SegmentReader {
                 self.fast_fields_reader.get_field(field)
             },
         }
-        
+    }
+    
+    pub fn get_fieldnorms_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+        self.fieldnorms_reader.get_field(field) 
     }
 
     pub fn doc_freq(&self, term: &Term) -> u32 {
@@ -79,8 +83,12 @@ impl SegmentReader {
         let term_infos = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
+        
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
         let fast_fields_reader = try!(U32FastFieldsReader::open(fast_field_data));
+        
+        let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
+        let fieldnorms_reader = try!(U32FastFieldsReader::open(fieldnorms_data));
         
         let schema = segment.schema();
         Ok(SegmentReader {
@@ -90,6 +98,7 @@ impl SegmentReader {
             segment_id: segment.id(),
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
+            fieldnorms_reader: fieldnorms_reader,
             schema: schema,
         })
     }
@@ -97,7 +106,7 @@ impl SegmentReader {
     pub fn term_infos(&self) -> &FstMap<TermInfo> {
         &self.term_infos
     }
-
+       
     /// Returns the document (or to be accurate, its stored field)
     /// bearing the given doc id.
     /// This method is slow and should seldom be called from

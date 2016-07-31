@@ -1,5 +1,5 @@
 use super::*;
-    
+use itertools::Itertools;    
 
 ///
 /// Document are really just a list of field values.
@@ -36,6 +36,20 @@ impl Document {
     pub fn get_fields(&self) -> &Vec<FieldValue> {
         &self.field_values
     }
+    
+    pub fn get_sorted_fields(&self) -> Vec<(Field, Vec<&FieldValue>)> {
+         let mut field_values:  Vec<&FieldValue> = self.get_fields().iter().collect();
+         field_values.sort_by_key(|field_value| field_value.field());
+         let sorted_fields: Vec<(Field, Vec<&FieldValue>)> = field_values
+            .into_iter()
+            .group_by(|field_value| field_value.field())
+            .into_iter()
+            .map(|(key, group)| {
+                (key, group.into_iter().collect())
+            })
+            .collect();
+         sorted_fields
+     }
     
     pub fn get_all<'a>(&'a self, field: Field) -> Vec<&'a FieldValue> {
         self.field_values

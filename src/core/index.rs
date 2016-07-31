@@ -78,7 +78,7 @@ impl Index {
         let directory = try!(MmapDirectory::open(directory_path));
         let directory_ptr = Box::new(directory);
         let mut index = Index::from_directory(directory_ptr, Schema::new());
-        try!(index.load_metas()); //< does the directory already exists?
+        try!(index.load_metas()); //< TODO does the directory already exists?
         Ok(index)
     }
     

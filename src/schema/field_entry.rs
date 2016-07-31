@@ -20,14 +20,17 @@ impl FieldEntry {
         }
     }
     
+    pub fn is_indexed(&self,) -> bool {
+        match self {
+            &FieldEntry::Text(_, ref options) => options.get_indexing_options().is_indexed(),
+            _ => false,
+        }
+    }
+    
     pub fn is_u32_fast(&self,) -> bool {
         match self {
-            &FieldEntry::U32(_, ref options) => {
-                options.is_fast()
-            }
-            _ => {
-                false
-            }
+            &FieldEntry::U32(_, ref options) => options.is_fast(),
+            _ => false,
         }
     }
     

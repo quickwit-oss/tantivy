@@ -11,7 +11,7 @@ pub struct TextOptions {
 impl TextOptions {
     
     pub fn get_indexing_options(&self,) -> TextIndexingOptions {
-        self.indexing_options.clone()
+        self.indexing_options
     }
 
     pub fn is_stored(&self,) -> bool {
@@ -46,7 +46,7 @@ impl TextOptions {
     }
 }
 
-#[derive(Clone,Debug,PartialEq,PartialOrd,Eq,Hash, RustcDecodable, RustcEncodable)]
+#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash, RustcDecodable, RustcEncodable)]
 pub enum TextIndexingOptions {
     Unindexed,
     Untokenized,
@@ -70,6 +70,13 @@ impl TextIndexingOptions {
             TextIndexingOptions::TokenizedWithFreq => true,
             TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
+        }
+    }
+    
+    pub fn is_indexed(&self,) -> bool {
+        match *self {
+            TextIndexingOptions::Unindexed => false,
+            _ => true,
         }
     } 
     

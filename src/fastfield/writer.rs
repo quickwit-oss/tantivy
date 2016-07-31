@@ -1,6 +1,7 @@
 use schema::{Schema, FieldValue, Field, Document};
 use fastfield::FastFieldSerializer;
 use std::io;
+use DocId;
 
 pub struct U32FastFieldsWriter {
     field_writers: Vec<U32FastFieldWriter>,
@@ -9,7 +10,6 @@ pub struct U32FastFieldsWriter {
 impl U32FastFieldsWriter {
 
     pub fn from_schema(schema: &Schema) -> U32FastFieldsWriter {
-        // TODO fix
         let u32_fields: Vec<Field> = schema.fields()
             .iter()
             .enumerate()
@@ -27,7 +27,14 @@ impl U32FastFieldsWriter {
                 .collect(),
         }
     }
-
+    
+    pub fn get_field_writer(&mut self, field: Field) -> Option<&mut U32FastFieldWriter> {
+        self.field_writers 
+            .iter_mut()
+            .filter(|field_writer| field_writer.field == field)
+            .next()
+    }
+    
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in self.field_writers.iter_mut() {
             field_writer.add_document(doc);
@@ -45,6 +52,7 @@ impl U32FastFieldsWriter {
 pub struct U32FastFieldWriter {
     field: Field,
     vals: Vec<u32>,
+    cur_doc: DocId,
 }
 
 impl U32FastFieldWriter {
@@ -52,14 +60,22 @@ impl U32FastFieldWriter {
         U32FastFieldWriter {
             field: field.clone(),
             vals: Vec::new(),
+            cur_doc: 0,
         }
     }
 
-    pub fn add_val(&mut self, val: u32) {
-        self.vals.push(val);
+    pub fn set_val(&mut self, doc: DocId, val: u32) {
+        for _ in self.cur_doc .. doc {
+            self.vals.push(0u32);
+        }
+        self.cur_doc = doc;
+        self.add_val(val);
     }
     
-    
+    pub fn add_val(&mut self, val: u32) {
+        self.vals.push(val);
+        self.cur_doc += 1;
+    }
     
     fn extract_val(&self, doc: &Document) -> u32 {
         match doc.get_first(self.field) {

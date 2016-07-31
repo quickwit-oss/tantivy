@@ -104,7 +104,7 @@ impl U32FastFieldsReader {
                 U32FastFieldReader::open(field_source)
             }
             None => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not find field, has it been set as a fast field?"))
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not find field"))
             }
 
         }
