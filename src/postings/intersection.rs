@@ -1,5 +1,4 @@
 use postings::DocSet;
-use postings::SkipResult;
 use std::cmp::Ordering;
 use DocId;
 
@@ -76,26 +75,9 @@ impl<'a> DocSet for IntersectionDocSet<'a> {
     
     fn doc_freq(&self,) -> usize {
         // TODO not a great idea.
-        panic!("intersectiond does not implement doc freq");
+        panic!("intersection does not implement doc freq");
     }
     
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        loop {
-            match self.doc().cmp(&target) {
-                Ordering::Equal => {
-                    return SkipResult::Reached;
-                }
-                Ordering::Greater => {
-                    return SkipResult::OverStep;
-                }
-                Ordering::Less => {}
-            }
-            if !self.next() {
-                return SkipResult::End;
-            }
-        }
-    }
 }
 
 #[inline(never)]

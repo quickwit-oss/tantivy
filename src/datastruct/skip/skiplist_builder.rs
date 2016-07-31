@@ -97,13 +97,13 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         let mut layer_sizes: Vec<u32> = Vec::new();
         size += self.data_layer.buffer.len() as u32;
         layer_sizes.push(size);
-        for layer in self.skip_layers.iter() {
+        for layer in &self.skip_layers {
             size += layer.buffer.len() as u32;
             layer_sizes.push(size);
         }
         try!(layer_sizes.serialize(output));
         try!(self.data_layer.write(output));
-        for layer in self.skip_layers.iter() {
+        for layer in &self.skip_layers {
             try!(layer.write(output));
         }
         Ok(())

@@ -55,7 +55,7 @@ impl<'a> PostingsMerger<'a> {
     fn new(readers: &'a Vec<SegmentReader>) -> PostingsMerger<'a> {
         let mut doc_offsets: Vec<DocId> = Vec::new();
         let mut max_doc = 0;
-        for reader in readers.iter() {
+        for reader in readers {
             doc_offsets.push(max_doc);
             max_doc += reader.max_doc();
         };
@@ -142,7 +142,7 @@ impl IndexMerger {
     pub fn open(schema: Schema, segments: &Vec<Segment>) -> io::Result<IndexMerger> {
         let mut readers = Vec::new();
         let mut max_doc = 0;
-        for segment in segments.iter() {
+        for segment in segments {
             let reader = try!(SegmentReader::open(segment.clone()));
             max_doc += reader.max_doc();
             readers.push(reader);
@@ -166,7 +166,7 @@ impl IndexMerger {
             let mut u32_readers = Vec::new();
             let mut min_val = u32::min_value();
             let mut max_val = 0;
-            for reader in self.readers.iter() {
+            for reader in &self.readers {
                 let u32_reader = try!(reader.get_fast_field_reader(field));
                 min_val = min(min_val, u32_reader.min_val());
                 max_val = max(max_val, u32_reader.max_val());

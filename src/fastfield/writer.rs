@@ -35,7 +35,7 @@ impl U32FastFieldsWriter {
     }
 
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
-        for field_writer in self.field_writers.iter() {
+        for field_writer in &self.field_writers {
             try!(field_writer.serialize(serializer));
         }
         Ok(())
@@ -83,11 +83,11 @@ impl U32FastFieldWriter {
 
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
         let zero = 0;
-        let min = self.vals.iter().min().unwrap_or(&zero).clone();
-        let max = self.vals.iter().max().unwrap_or(&min).clone();
-        try!(serializer.new_u32_fast_field(self.field.clone(), min, max));
-        for val in self.vals.iter() {
-            try!(serializer.add_val(val.clone()));
+        let min = *self.vals.iter().min().unwrap_or(&zero);
+        let max = *self.vals.iter().max().unwrap_or(&min);
+        try!(serializer.new_u32_fast_field(self.field, min, max));
+        for &val in &self.vals {
+            try!(serializer.add_val(val));
         }
         serializer.close_field()
     }

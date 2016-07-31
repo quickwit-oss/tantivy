@@ -35,14 +35,14 @@ impl StoreReader {
         offsets
     }
 
-    fn block_offset(&self, seek: &DocId) -> OffsetIndex {
-        fn search(offsets: &[OffsetIndex], seek: &DocId) -> OffsetIndex {
+    fn block_offset(&self, seek: DocId) -> OffsetIndex {
+        fn search(offsets: &[OffsetIndex], seek: DocId) -> OffsetIndex {
             let m = offsets.len() / 2;
             let pivot_offset = &offsets[m];
             if offsets.len() <= 1 {
                 return pivot_offset.clone()
             }
-            match pivot_offset.0.cmp(seek) {
+            match pivot_offset.0.cmp(&seek) {
                 Ordering::Less => search(&offsets[m..], seek),
                 Ordering::Equal => pivot_offset.clone(),
                 Ordering::Greater => search(&offsets[..m], seek),
@@ -62,12 +62,12 @@ impl StoreReader {
         lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())
     }
 
-    pub fn get(&self, doc_id: &DocId) -> io::Result<Document> {
+    pub fn get(&self, doc_id: DocId) -> io::Result<Document> {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         try!(self.read_block(block_offset as usize));
         let mut current_block_mut = self.current_block.borrow_mut();
         let mut cursor = Cursor::new(&mut current_block_mut[..]);
-        for _ in first_doc_id..*doc_id  {
+        for _ in first_doc_id..doc_id  {
             let block_length = try!(u32::deserialize(&mut cursor));
             try!(cursor.seek(SeekFrom::Current(block_length as i64)));
         }

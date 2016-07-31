@@ -1,6 +1,7 @@
 use DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
+use std::cmp::Ordering;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum SkipResult {
@@ -18,7 +19,19 @@ pub trait DocSet {
     // after skipping position
     // the iterator in such a way that doc() will return a
     // value greater or equal to target.
-    fn skip_next(&mut self, target: DocId) -> SkipResult;
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        loop {
+            match self.doc().cmp(&target) {
+                Ordering::Less => {
+                    if !self.next() {
+                        return SkipResult::End;
+                    }
+                },
+                Ordering::Equal => { return SkipResult::Reached },
+                Ordering::Greater => { return SkipResult::OverStep },
+            }
+        }
+    }
 
     fn doc(&self,) -> DocId;
 

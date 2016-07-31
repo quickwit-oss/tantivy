@@ -141,8 +141,8 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, field, x.clone());
+            for x in &permutation {
+                add_single_field_doc(&mut fast_field_writers, field, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -196,8 +196,8 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, field, x.clone());
+            for x in &permutation {
+                add_single_field_doc(&mut fast_field_writers, field, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -228,8 +228,8 @@ mod tests {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
             let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            for x in permutation.iter() {
-                add_single_field_doc(&mut fast_field_writers, field, x.clone());
+            for x in &permutation {
+                add_single_field_doc(&mut fast_field_writers, field, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();

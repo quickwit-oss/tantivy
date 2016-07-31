@@ -12,10 +12,10 @@ pub struct ChainedPostings<'a> {
 impl<'a> ChainedPostings<'a> {
     
     pub fn new(chained_postings: Vec<OffsetPostings<'a>>) -> ChainedPostings {
-        let mut doc_freq: usize = 0;
-        for segment_postings in chained_postings.iter() {
-            doc_freq += segment_postings.doc_freq();
-        }
+        let doc_freq: usize = chained_postings
+            .iter()
+            .map(|segment_postings| segment_postings.doc_freq())
+            .fold(0, |sum, addition| sum + addition);
         ChainedPostings {
             chained_postings: chained_postings,
             posting_id: 0,

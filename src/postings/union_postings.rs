@@ -1,9 +1,8 @@
 
 use DocId;
 use postings::{Postings, DocSet};
-use std::collections::BinaryHeap;
-use postings::SkipResult;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use query::MultiTermScorer;
 use postings::ScoredDocSet;
 use query::Scorer;
@@ -13,7 +12,7 @@ struct HeapItem(DocId, usize, u32);
 
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other:&Self) -> Option<Ordering> {
-         (self.0, self.1).partial_cmp(&(other.0, other.1)).map(|o| o.reverse())
+         Some(self.cmp(&other))
     }
 }
 
@@ -87,21 +86,9 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
         }
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        // TODO skip the underlying posting object.
-        loop {
-            match self.doc.cmp(&target) {
-                Ordering::Less => {
-                    if !self.next() {
-                        return SkipResult::End;
-                    }
-                },
-                Ordering::Equal => { return SkipResult::Reached },
-                Ordering::Greater => { return SkipResult::OverStep },
-            }
-        }
-    }
-    
+
+    // TODO implement a faster skip_next
+        
     fn doc(&self,) -> DocId {
         self.doc
     }

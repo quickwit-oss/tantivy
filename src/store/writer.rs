@@ -52,7 +52,7 @@ impl StoreWriter {
         match reader.offsets.last() {
             Some(&OffsetIndex(ref num_docs, ref body_size)) => {
                 try!(self.writer.write_all(&reader.data.as_slice()[0..*body_size as usize]));
-                for &OffsetIndex(doc, offset) in reader.offsets.iter() {
+                for &OffsetIndex(doc, offset) in &reader.offsets {
                     self.offsets.push(OffsetIndex(self.doc + doc, self.written + offset));
                 }
                 self.written += *body_size;
@@ -68,7 +68,7 @@ impl StoreWriter {
     pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) -> io::Result<()> {
         self.intermediary_buffer.clear();
         try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
-        for field_value in field_values.iter() {
+        for field_value in field_values {
             try!((*field_value).serialize(&mut self.intermediary_buffer));
         }
         try!((self.intermediary_buffer.len() as u32).serialize(&mut self.current_block));

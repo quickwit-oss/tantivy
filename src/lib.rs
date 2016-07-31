@@ -35,15 +35,16 @@ mod macros {
 }
 
 mod core;
-mod datastruct;
-mod postings;
-mod directory;
+
 mod compression;
 mod fastfield;
 mod store;
 mod common;
-pub mod query;
 
+pub mod postings;
+pub mod query;
+pub mod directory;
+pub mod datastruct;
 pub mod analyzer;
 pub mod collector;
 

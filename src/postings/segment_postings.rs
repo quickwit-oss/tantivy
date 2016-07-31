@@ -1,7 +1,6 @@
 use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
 use DocId;
-use std::cmp::Ordering;
-use postings::{Postings, FreqHandler, SkipResult, DocSet};
+use postings::{Postings, FreqHandler, DocSet};
 use std::num::Wrapping;
 
 
@@ -80,26 +79,6 @@ impl<'a> DocSet for SegmentPostings<'a> {
 
     fn doc(&self,) -> DocId {
         self.block_decoder.output(self.index_within_block())
-    }
-
-    // after skipping position
-    // the iterator in such a way that doc() will return a
-    // value greater or equal to target.
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        loop {
-            match self.doc().cmp(&target) {
-                Ordering::Equal => {
-                    return SkipResult::Reached;
-                }
-                Ordering::Greater => {
-                    return SkipResult::OverStep;
-                }
-                Ordering::Less => {}
-            }
-            if !self.next() {
-                return SkipResult::End;
-            }
-        }
     }
 
     fn doc_freq(&self,) -> usize {

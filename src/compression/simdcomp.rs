@@ -50,9 +50,9 @@ impl SIMDBlockEncoder {
     
     pub fn compress_vint_sorted(&mut self, input: &[u32], mut offset: u32) -> &[u8] {
         let mut byte_written = 0;
-        for v in input.iter() {
-            let mut to_encode: u32 = *v - offset;
-            offset = *v;
+        for &v in input {
+            let mut to_encode: u32 = v - offset;
+            offset = v;
             loop {
                 let next_byte: u8 = (to_encode % 128u32) as u8;
                 to_encode /= 128u32;
@@ -72,8 +72,8 @@ impl SIMDBlockEncoder {
     
     pub fn compress_vint_unsorted(&mut self, input: &[u32]) -> &[u8] {
         let mut byte_written = 0;
-        for &i in input.iter() {
-            let mut to_encode: u32 = i;
+        for &v in input {
+            let mut to_encode: u32 = v;
             loop {
                 let next_byte: u8 = (to_encode % 128u32) as u8;
                 to_encode /= 128u32;
@@ -267,15 +267,13 @@ mod tests {
                 .map(|i| 4 + i * 7 / 2)
                 .into_iter()
                 .collect();
-            for offset in [0u32, 1u32, 2u32].iter() {
+            for offset in &[0u32, 1u32, 2u32] {
                 let encoded_data = encoder.compress_vint_sorted(&input, *offset);
                 assert_eq!(encoded_data.len(), expected_length);
                 let mut decoder = SIMDBlockDecoder::new();
                 let remaining_data = decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
                 assert_eq!(0, remaining_data.len());
-                for (&decoded, &expected) in decoder.output_array().iter().zip(input.iter()) {
-                    assert_eq!(decoded, expected);
-                }
+                assert_eq!(input, decoder.output_array());
             }
         }
         {

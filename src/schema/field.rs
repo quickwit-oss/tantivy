@@ -3,8 +3,6 @@ use std::io::Write;
 use std::io::Read;
 use common::BinarySerializable;
 
-// TODO impl Copy trait
-
 #[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub struct Field(pub u8);
 

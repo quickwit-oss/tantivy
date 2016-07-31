@@ -18,8 +18,8 @@ impl Searcher {
 
     pub fn doc(&self, doc_address: &DocAddress) -> io::Result<Document> {
         // TODO err
-        let DocAddress(ref segment_local_id, ref doc_id) = *doc_address;
-        let segment_reader = &self.segments[*segment_local_id as usize];
+        let DocAddress(segment_local_id, doc_id) = *doc_address;
+        let segment_reader = &self.segments[segment_local_id as usize];
         segment_reader.doc(doc_id)
     }
 

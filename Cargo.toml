@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 build = "build.rs"
 
-
 [dependencies]
 byteorder = "0.4"
 memmap = "0.2"
@@ -34,12 +33,3 @@ gcc = "0.3.24"
 [[bin]]
 name = "tantivy-merge"
 path = "src/cli/merge.rs"
-
-
-# [profile.release]
-# opt-level = 3
-# debug = true
-# rpath = false
-# lto = false
-# debug-assertions = false
-# codegen-units = 1

@@ -101,7 +101,7 @@ impl SegmentReader {
     /// bearing the given doc id.
     /// This method is slow and should seldom be called from
     /// within a collector.
-    pub fn doc(&self, doc_id: &DocId) -> io::Result<Document> {
+    pub fn doc(&self, doc_id: DocId) -> io::Result<Document> {
         self.store_reader.get(doc_id)
     }
 

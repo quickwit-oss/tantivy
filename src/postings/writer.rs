@@ -94,7 +94,7 @@ impl PostingsWriter {
     }
 
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        for (term, postings_id) in self.term_index.iter() {
+        for (term, postings_id) in &self.term_index {
             let term_postings_writer = &self.postings[postings_id.clone()];
             let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(&term, term_docfreq));

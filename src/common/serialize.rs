@@ -31,7 +31,7 @@ impl BinarySerializable for () {
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         let mut total_size = try!(VInt(self.len() as u64).serialize(writer));
-        for it in self.iter() {
+        for it in self {
             total_size += try!(it.serialize(writer));
         }
         Ok(total_size)
