@@ -1,9 +1,17 @@
 use super::*;
 use itertools::Itertools;    
 
-///
-/// Document are really just a list of field values.
-///
+/// Tantivy's Document is the object that can
+/// be indexed and then searched for.  
+/// 
+/// Documents are really fundamentally a collection of unordered couple `(field, value)`.
+/// In this list, one field may appear more than once.
+/// 
+/// 
+
+
+/// Documents are really just a list of couple `(field, value)`.
+/// In this list, one field may appear more than once.
 #[derive(Debug)]
 pub struct Document {
     field_values: Vec<FieldValue>,
@@ -17,14 +25,17 @@ impl Document {
         }
     }
     
+    /// Returns the number of `(field, value)` pairs.
     pub fn len(&self,) -> usize {
         self.field_values.len()
     }
 
+    /// Add a text field.
     pub fn add_text(&mut self, field: Field, text: &str) {
         self.add(FieldValue::Text(field.clone(), String::from(text)));
     }
 
+    /// Add a u32 field
     pub fn add_u32(&mut self, field: Field, value: u32) {
         self.add(FieldValue::U32(field.clone(), value));
     }

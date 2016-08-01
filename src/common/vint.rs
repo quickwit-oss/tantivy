@@ -3,6 +3,9 @@ use std::io;
 use std::io::Write;
 use std::io::Read;
 
+
+
+///   Wrapper over a `u64` that serializes as a variable int. 
 #[derive(Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 

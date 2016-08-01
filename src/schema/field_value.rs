@@ -47,17 +47,6 @@ impl FieldValue {
             }
         }
     }
-    
-    pub fn to_term(&self,) -> Term {
-        match self {
-            &FieldValue::Text(field, ref text) => {
-                Term::from_field_text(field, &text)
-            }
-            &FieldValue::U32(field, val) => {
-                Term::from_field_u32(field, val)
-            }
-        }
-    }
 }
 
 impl BinarySerializable for FieldValue {
