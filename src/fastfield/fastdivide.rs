@@ -47,7 +47,10 @@ fn divide_64_div_32_to_32(n: u64, d: u32) -> (u32, u32) {
 
 impl DividerU32 {
     pub fn divide_by(d: u32) -> DividerU32 {
-        if (d & (d - 1)) == 0 {
+        if d == 0 {
+            DividerU32::divide_by(u32::max_value())
+        } 
+        else if (d & (d - 1)) == 0 {
             DividerU32 {
                 magic: 0,
                 more: count_trailing_zeros(d) | LIBDIVIDE_U32_SHIFT_PATH,
@@ -110,4 +113,12 @@ mod tests {
             }
         }
     }
+    
+    #[test]
+    fn test_libdivide_by0() {
+        let divider = DividerU32::divide_by(0);
+        for i in 0..100_000 {
+            assert_eq!(divider.divide(i), 0);
+        }
+     }
 }

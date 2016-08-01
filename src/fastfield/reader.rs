@@ -42,7 +42,13 @@ impl U32FastFieldReader {
         }
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
-        let num_in_pack = 64u32 / (num_bits as u32);
+        let num_in_pack;
+        if num_bits == 0u8 {
+            num_in_pack = 0u32;
+        }
+        else {
+            num_in_pack = 64u32 / (num_bits as u32);
+        }
         let ptr: *const u8 = &(data.deref()[8 as usize]);
         Ok(U32FastFieldReader {
             _data: data,

@@ -108,9 +108,11 @@ impl SegmentWriter {
 			self.fieldnorms_writer
 				.get_field_writer(field)
 				.map(|field_norms_writer| {
-					field_norms_writer.set_val(doc_id, num_tokens as u32)
+					field_norms_writer.add_val(num_tokens as u32)
 				});
 		}
+		
+		self.fieldnorms_writer.fill_val_up_to(doc_id);
 		
 		self.fast_field_writers.add_document(&doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
