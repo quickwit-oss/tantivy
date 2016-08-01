@@ -55,14 +55,15 @@ impl Query for MultiTermQuery {
 impl MultiTermQuery {
     
     fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
+        let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.terms.iter()
             .map(|term| searcher.doc_freq(term))
             .map(|doc_freq| {
                 if doc_freq == 0 {
-                    return 1.
+                    1.
                 }
                 else {
-                    1.0 / (doc_freq as f32)
+                    1. + ( num_docs / (doc_freq as f32) ).ln()
                 }
             })
             .collect();

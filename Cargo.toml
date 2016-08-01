@@ -9,7 +9,7 @@ byteorder = "0.4"
 memmap = "0.2"
 lazy_static = "0.1.*"
 regex = "0.1"
-fst = { git = "https://github.com/BurntSushi/fst.git", rev = "e6c7eec6" }
+fst = "0.1.31"
 atomicwrites = "0.0.14"
 tempfile = "2.0.0"
 rustc-serialize = "0.3.16"

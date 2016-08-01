@@ -42,6 +42,10 @@ impl SegmentReader {
     pub fn max_doc(&self) -> DocId {
         self.segment_info.max_doc
     }
+    
+    pub fn num_docs(&self) -> DocId {
+        self.segment_info.max_doc
+    }
 
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);

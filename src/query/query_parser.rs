@@ -15,7 +15,7 @@ pub enum ParsingError {
 
 pub struct QueryParser {
     schema: Schema,
-    default_field: Field,
+    default_fields: Vec<Field>,
 }
 
 pub enum StandardQuery {
@@ -35,24 +35,29 @@ impl Query for StandardQuery {
 
 impl QueryParser {
     pub fn new(schema: Schema,
-               default_field: Field) -> QueryParser {
+               default_fields: Vec<Field>) -> QueryParser {
         QueryParser {
             schema: schema,
-            default_field: default_field,
+            default_fields: default_fields,
         }
     }
 
     // TODO check that the term is str.
     // we only support str field for the moment
-    fn transform_literal(&self, literal: Literal) -> Result<Term, ParsingError> {
+    fn transform_literal(&self, literal: Literal) -> Result<Vec<Term>, ParsingError> {
         match literal {
             Literal::DefaultField(val) => {
-                Ok(Term::from_field_text(self.default_field, &val))
+                let terms = self.default_fields
+                    .iter()
+                    .cloned()
+                    .map(|field| Term::from_field_text(field, &val))
+                    .collect();
+                Ok(terms)
             },
             Literal::WithField(field_name, val) => {
                 match self.schema.get_field(&field_name) {
                     Some(field) => {
-                        Ok(Term::from_field_text(field, &val))
+                        Ok(vec!(Term::from_field_text(field, &val)))
                     }
                     None => {
                         Err(ParsingError::FieldDoesNotExist(field_name))
@@ -65,12 +70,16 @@ impl QueryParser {
     pub fn parse_query(&self, query: &str) -> Result<StandardQuery, ParsingError> {
         match parser(query_language).parse(query) {
             Ok(literals) => {
-                let terms_result: Result<Vec<Term>, ParsingError> = literals.0.into_iter()
-                    .map(|literal| self.transform_literal(literal))
-                    .collect();
-                terms_result
-                    .map(MultiTermQuery::new)
-                    .map(StandardQuery::MultiTerm)
+                let mut terms_result: Vec<Term> = Vec::new();
+                for literal in literals.0.into_iter() {
+                    let literal_terms = try!(self.transform_literal(literal));
+                    terms_result.extend_from_slice(&literal_terms);
+                }
+                Ok(
+                    StandardQuery::MultiTerm(
+                        MultiTermQuery::new(terms_result)
+                    )
+                )
             }  
             Err(_) => {
                 Err(ParsingError::SyntaxError)

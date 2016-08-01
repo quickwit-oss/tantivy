@@ -214,9 +214,9 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let segment_reader: &SegmentReader = searcher.segments().iter().next().unwrap();
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
-            assert_eq!(fieldnorms_reader.get(0), 175);
+            assert_eq!(fieldnorms_reader.get(0), 3);
             assert_eq!(fieldnorms_reader.get(1), 0);
-            assert_eq!(fieldnorms_reader.get(2), 202);
+            assert_eq!(fieldnorms_reader.get(2), 2);
         }
     }
 

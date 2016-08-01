@@ -54,7 +54,7 @@ impl IndexWriter {
 
 					let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema_clone).unwrap();
 					segment_writer.add_document(&*doc, &schema_clone).unwrap();
-					for _ in 0..(225_000 - 1) {
+					for _ in 0..100_000 {
 						{
 							let queue = queue_output_clone.lock().unwrap();
 							match queue.recv() {

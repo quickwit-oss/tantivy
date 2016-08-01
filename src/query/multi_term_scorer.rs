@@ -20,8 +20,10 @@ impl MultiTermScorer {
     }
  
     pub fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
-        self.score += ((term_freq * fieldnorm) as f32) * self.idf[term_ord];
-        self.num_fields += 1;
+        if term_freq > 0 {
+            self.score += (term_freq as f32 / fieldnorm as f32).sqrt() * self.idf[term_ord];
+            self.num_fields += 1;
+        }
     }
 
     fn coord(&self,) -> f32 {
@@ -49,23 +51,29 @@ mod tests {
     
     use super::*;
     use query::Scorer;
+    
+      
+    fn abs_diff(left: f32, right: f32) -> f32 {
+        (right - left).abs()
+    }  
 
     #[test]
     pub fn test_multiterm_scorer() {
         let mut multi_term_scorer = MultiTermScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
         {
             multi_term_scorer.update(0, 1, 1);
-            assert_eq!(multi_term_scorer.score(), 1f32);    
-           multi_term_scorer.clear();
+            assert!(abs_diff(multi_term_scorer.score(), 1f32) < 0.001f32);
+            multi_term_scorer.clear();
+            
         }
         {
             multi_term_scorer.update(1, 1, 1);
             assert_eq!(multi_term_scorer.score(), 4f32);    
-           multi_term_scorer.clear();
+            multi_term_scorer.clear();
         }
         {
             multi_term_scorer.update(0, 2, 1);
-            assert_eq!(multi_term_scorer.score(), 2f32);    
+            assert!(abs_diff(multi_term_scorer.score(), 1.4142135) < 0.001f32);          
             multi_term_scorer.clear();
         }
         {

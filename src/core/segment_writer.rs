@@ -35,10 +35,6 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 	U32FastFieldsWriter::new(u32_fields)
 }
 
-fn compute_field_norm(num_tokens: usize) -> u32 {
-	((350f32 / (1f32 + num_tokens as f32).sqrt()) as u32)
-}
-
 impl SegmentWriter {
 	
 
@@ -109,11 +105,10 @@ impl SegmentWriter {
 					}
 				}
 			}
-			let field_norm = compute_field_norm(num_tokens);
 			self.fieldnorms_writer
 				.get_field_writer(field)
 				.map(|field_norms_writer| {
-					field_norms_writer.set_val(doc_id, field_norm)
+					field_norms_writer.set_val(doc_id, num_tokens as u32)
 				});
 		}
 		

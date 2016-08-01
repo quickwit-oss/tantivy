@@ -141,7 +141,11 @@ mod tests {
         serializer.close().unwrap();
         U32FastFieldReader::open(ReadOnlySource::Anonymous(data.copy_vec())).unwrap()
     }
-        
+    
+    fn abs_diff(left: f32, right: f32) -> f32 {
+        (right - left).abs()
+    }   
+       
     #[test]
     pub fn test_union_postings() {
         let left_fieldnorms = create_u32_fastfieldreader(Field(1), vec!(100,200,300));
@@ -156,14 +160,14 @@ mod tests {
         );
         assert!(union.next());
         assert_eq!(union.doc(), 1);
-        assert_eq!(union.score(), 210f32);
+        assert!(abs_diff(union.score(), 2.182179f32) < 0.001);
         assert!(union.next());
         assert_eq!(union.doc(), 2);
-        assert_eq!(union.score(), 20f32);
+        assert!(abs_diff(union.score(), 0.2236068) < 0.001f32);
         assert!(union.next());
         assert_eq!(union.doc(), 3);
         assert!(union.next());
-        assert_eq!(union.score(), 80f32);
+        assert!(abs_diff(union.score(), 0.8944272f32) < 0.001f32);
         assert_eq!(union.doc(), 8);
         assert!(!union.next());
     }

@@ -6,6 +6,7 @@ use collector::Collector;
 use std::io;
 use common::TimerTree;
 use query::Query;
+use DocId;
 use DocAddress;
 use schema::Term;
 
@@ -21,6 +22,13 @@ impl Searcher {
         let DocAddress(segment_local_id, doc_id) = *doc_address;
         let segment_reader = &self.segments[segment_local_id as usize];
         segment_reader.doc(doc_id)
+    }
+    
+    pub fn num_docs(&self,) -> DocId {
+        self.segments
+            .iter()
+            .map(|segment_reader| segment_reader.num_docs())
+            .fold(0u32, |acc, val| acc + val)
     }
 
     pub fn doc_freq(&self, term: &Term) -> u32 {
