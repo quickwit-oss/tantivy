@@ -1,36 +1,35 @@
 language: rust
 rust:
-- nightly
+  - nightly
 git:
   submodules: false
 before_install:
-- sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
-- git submodule update --init --recursive
+  - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+  - git submodule update --init --recursive
 env:
   global:
-  - TRAVIS_CARGO_NIGHTLY_FEATURE=nightly
-  - secure: eC8HjTi1wgRVCsMAeXEXt8Ckr0YBSGOEnQkkW4/Nde/OZ9jJjz2nmP1ELQlDE7+czHub2QvYtDMG0parcHZDx/Kus0yvyn08y3g2rhGIiE7y8OCvQm1Mybu2D/p7enm6shXquQ6Z5KRfRq+18mHy80wy9ABMA/ukEZdvnfQ76/Een8/Lb0eHaDoXDXn3PqLVtByvSfQQ7OhS60dEScu8PWZ6/l1057P5NpdWbMExBE7Ro4zYXNhkJeGZx0nP/Bd4Jjdt1XfPzMEybV6NZ5xsTILUBFTmOOt603IsqKGov089NExqxYu5bD3K+S4MzF1Nd6VhomNPJqLDCfhlymJCUj5n5Ku4yidlhQbM4Ej9nGrBalJnhcjBjPua5tmMF2WCxP9muKn/2tIOu1/+wc0vMf9Yd3wKIkf5+FtUxCgs2O+NslWvmOMAMI/yD25m7hb4t1IwE/4Bk+GVcWJRWXbo0/m6ZUHzRzdjUY2a1qvw7C9udzdhg7gcnXwsKrSWi2NjMiIVw86l+Zim0nLpKIN41sxZHLaFRG63Ki8zQ/481LGn32awJ6i3sizKS0WD+N1DfR2qYMrwYHaMN0uR0OFXYTJkFvTFttAeUY3EKmRKAuMhmO2YRdSr4/j/G5E9HMc1gSGJj6PxgpQU7EpvxRsmoVAEJr0mszmOj9icGHep/FM=
+    - secure: eC8HjTi1wgRVCsMAeXEXt8Ckr0YBSGOEnQkkW4/Nde/OZ9jJjz2nmP1ELQlDE7+czHub2QvYtDMG0parcHZDx/Kus0yvyn08y3g2rhGIiE7y8OCvQm1Mybu2D/p7enm6shXquQ6Z5KRfRq+18mHy80wy9ABMA/ukEZdvnfQ76/Een8/Lb0eHaDoXDXn3PqLVtByvSfQQ7OhS60dEScu8PWZ6/l1057P5NpdWbMExBE7Ro4zYXNhkJeGZx0nP/Bd4Jjdt1XfPzMEybV6NZ5xsTILUBFTmOOt603IsqKGov089NExqxYu5bD3K+S4MzF1Nd6VhomNPJqLDCfhlymJCUj5n5Ku4yidlhQbM4Ej9nGrBalJnhcjBjPua5tmMF2WCxP9muKn/2tIOu1/+wc0vMf9Yd3wKIkf5+FtUxCgs2O+NslWvmOMAMI/yD25m7hb4t1IwE/4Bk+GVcWJRWXbo0/m6ZUHzRzdjUY2a1qvw7C9udzdhg7gcnXwsKrSWi2NjMiIVw86l+Zim0nLpKIN41sxZHLaFRG63Ki8zQ/481LGn32awJ6i3sizKS0WD+N1DfR2qYMrwYHaMN0uR0OFXYTJkFvTFttAeUY3EKmRKAuMhmO2YRdSr4/j/G5E9HMc1gSGJj6PxgpQU7EpvxRsmoVAEJr0mszmOj9icGHep/FM=
 addons:
   apt:
     sources:
-    - ubuntu-toolchain-r-test
+      - ubuntu-toolchain-r-test
     packages:
-    - gcc-4.8
-    - g++-4.8
-    - libcurl4-openssl-dev
-    - libelf-dev
-    - libdw-dev
-    - binutils-dev
+      - gcc-4.8
+      - g++-4.8
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - binutils-dev
 before_script:
-- |
-  pip install 'travis-cargo<0.2' --user &&
-  export PATH=$HOME/.local/bin:$PATH
+  - |
+    pip install 'travis-cargo<0.2' --user &&
+    export PATH=$HOME/.local/bin:$PATH
 script:
-- |
-  travis-cargo build &&
-  travis-cargo test &&
-  travis-cargo bench &&
-  travis-cargo doc
+  - |
+    travis-cargo build &&
+    travis-cargo test &&
+    travis-cargo bench &&
+    travis-cargo doc
 after_success:
-- travis-cargo doc-upload
-- travis-cargo coveralls --no-sudo --verify
+  - travis-cargo doc-upload
+  - travis-cargo coveralls --no-sudo --verify
