@@ -74,8 +74,7 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
         let head = self.queue.pop(); 
         match head {
             Some(HeapItem(doc, ord, tf)) => {
-                // let fieldnorm = self.get_field_norm(ord, doc);
-                let fieldnorm: u32 = 1u32;
+                let fieldnorm = self.get_field_norm(ord, doc);
                 self.scorer.update(ord, tf, fieldnorm);
                 self.enqueue(ord);
                 self.doc = doc;
