@@ -35,4 +35,4 @@ script:
     travis-cargo doc
 after_success:
   - travis-cargo doc-upload
-  - travis-cargo coveralls --no-sudo --verify
+  - travis-cargo coveralls --no-sudo
