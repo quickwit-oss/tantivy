@@ -5,6 +5,10 @@ use std::fmt;
 use std::path::Path;
 use directory::{ReadOnlySource, WritePtr};
 
+
+/// There is currently two implementations of `Directory`
+///     - [RAMDirectory](index.html) 
+/// 
 pub trait Directory: fmt::Debug + Send + Sync {
     fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource>;
     fn open_write(&mut self, path: &Path) -> io::Result<WritePtr>;

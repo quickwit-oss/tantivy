@@ -76,7 +76,6 @@ impl Schema {
             fields_map: HashMap::new(),
         }
     }
-
     
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
         &self.fields[field.0 as usize]

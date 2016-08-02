@@ -54,6 +54,11 @@ impl Query for MultiTermQuery {
 
 impl MultiTermQuery {
     
+    
+    pub fn num_terms(&self,) -> usize {
+        self.terms.len()
+    } 
+    
     fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
         let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.terms.iter()
@@ -84,16 +89,12 @@ impl MultiTermQuery {
             let mut decode_timer = timer.open("decode_all");
             for term in &self.terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
-                match reader.read_postings(term) {
-                    Some(postings) => {
+                reader.read_postings(term)
+                      .map(|postings| {
                         let field = term.get_field();
                         fieldnorms_readers.push(reader.get_fieldnorms_reader(field).unwrap());
                         segment_postings.push(postings);
-                    }
-                    None => {
-                        segment_postings.push(SegmentPostings::empty());
-                    }
-                }
+                      });                    
             }
         }
         UnionPostings::new(fieldnorms_readers, segment_postings, multi_term_scorer)

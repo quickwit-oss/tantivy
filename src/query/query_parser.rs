@@ -6,6 +6,8 @@ use common::TimerTree;
 use query::{Query, MultiTermQuery};
 use schema::Schema;
 use schema::{Term, Field};
+use analyzer::SimpleTokenizer;
+use analyzer::StreamingIterator;
 
 #[derive(Debug)]
 pub enum ParsingError {
@@ -22,6 +24,16 @@ pub enum StandardQuery {
     MultiTerm(MultiTermQuery),
 }
 
+impl StandardQuery {
+    pub fn num_terms(&self,) -> usize {
+        match self {
+            &StandardQuery::MultiTerm(ref q) => {
+                q.num_terms()
+            }
+        }
+    }
+}
+
 impl Query for StandardQuery {
     fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
         match *self {
@@ -30,6 +42,22 @@ impl Query for StandardQuery {
             }
         }
     }
+}
+
+
+fn compute_terms(field: Field, text: &str) -> Vec<Term> {
+    let tokenizer = SimpleTokenizer::new();
+    let mut tokens = Vec::new();
+    let mut token_it = tokenizer.tokenize(text);
+    loop {
+        match token_it.next() {
+            Some(token_str) => {
+                tokens.push(Term::from_field_text(field, token_str));
+            }
+            None => { break; }
+        }
+    }
+    tokens
 }
 
 
@@ -50,18 +78,14 @@ impl QueryParser {
                 let terms = self.default_fields
                     .iter()
                     .cloned()
-                    .map(|field| Term::from_field_text(field, &val))
+                    .flat_map(|field| compute_terms(field, &val))
                     .collect();
                 Ok(terms)
             },
             Literal::WithField(field_name, val) => {
                 match self.schema.get_field(&field_name) {
-                    Some(field) => {
-                        Ok(vec!(Term::from_field_text(field, &val)))
-                    }
-                    None => {
-                        Err(ParsingError::FieldDoesNotExist(field_name))
-                    }
+                    Some(field) => Ok(compute_terms(field, &val)),
+                    None => Err(ParsingError::FieldDoesNotExist(field_name))
                 } 
             }
         }
@@ -109,7 +133,7 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
         let field = many1(letter());
         let term_query = (field, char(':'), term_val())
             .map(|(field,_, value)| Literal::WithField(field, value));
-        let term_default_field = term_val().map(|w| Literal::DefaultField(w));
+        let term_default_field = term_val().map(Literal::DefaultField);
         try(term_query)
             .or(term_default_field) 
     };

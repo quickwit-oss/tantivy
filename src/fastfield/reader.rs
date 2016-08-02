@@ -63,6 +63,9 @@ impl U32FastFieldReader {
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
+        if self.num_in_pack == 0u32 {
+            return self.min_val;
+        }
         let long_addr = self.divider.divide(doc);
         let ord_within_long = doc - long_addr * self.num_in_pack;
         let bit_shift = (self.num_bits as u32) * ord_within_long;

@@ -36,6 +36,7 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
     
     pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
         let num_postings = postings.len();
+        assert_eq!(fieldnorms_reader.len(), num_postings);
         let mut union_postings = UnionPostings {
             fieldnorms_readers: fieldnorms_reader,
             postings: postings,
@@ -44,7 +45,7 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
             scorer: multi_term_scorer
         };
         for ord in 0..num_postings {
-            union_postings.enqueue(ord);    
+            union_postings.enqueue(ord);
         }
         union_postings
     }
@@ -73,7 +74,8 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
         let head = self.queue.pop(); 
         match head {
             Some(HeapItem(doc, ord, tf)) => {
-                let fieldnorm = self.get_field_norm(ord, doc);
+                // let fieldnorm = self.get_field_norm(ord, doc);
+                let fieldnorm: u32 = 1u32;
                 self.scorer.update(ord, tf, fieldnorm);
                 self.enqueue(ord);
                 self.doc = doc;

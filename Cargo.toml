@@ -34,3 +34,7 @@ gcc = "0.3.24"
 [[bin]]
 name = "tantivy-merge"
 path = "src/cli/merge.rs"
+
+[[bin]]
+name = "tantivy-bench"
+path = "src/cli/bench.rs"
