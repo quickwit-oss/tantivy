@@ -34,5 +34,7 @@ script:
     travis-cargo bench &&
     travis-cargo doc
 after_success:
-  - travis-cargo doc-upload
-  - travis-cargo coveralls --no-sudo
+    - travis-cargo doc-upload
+    - travis-cargo coveralls --no-sudo
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then travis-cargo coveralls --no-sudo --verify; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./kcov/build/src/kcov --verify --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/tantivy-6*; fi

@@ -32,9 +32,12 @@ rand = "0.3.13"
 gcc = "0.3.24"
 
 [[bin]]
-name = "tantivy-merge"
+name = "tantivy_merge"
 path = "src/cli/merge.rs"
 
 [[bin]]
-name = "tantivy-bench"
+name = "tantivy_bench"
 path = "src/cli/bench.rs"
+
+[profile.release]
+debug = true

@@ -40,7 +40,8 @@ fn read_query_file(query_path: &String) -> io::Result<Vec<String>> {
 }
 
 fn run(directory: String,
-       query_filepath: String) -> io::Result<()> {
+       query_filepath: String,
+       num_repeat: usize) -> io::Result<()> {
     println!("Directory : {:?}", directory);
     println!("Query : {:?}", directory);
     
@@ -55,7 +56,7 @@ fn run(directory: String,
     let query_parser = QueryParser::new(index.schema(), default_search_fields);
     
     println!("{}\t{}\t{}\t{}", "query", "num_terms", "num hits", "time in microsecs");
-    for _ in 0..10 {
+    for _ in 0..num_repeat {
         for query_txt in &queries {
             let query = query_parser.parse_query(&query_txt).unwrap();
             let num_terms = query.num_terms();
@@ -75,6 +76,7 @@ fn run(directory: String,
 fn main() {
     let mut directory = String::from(".");
     let mut query_file = String::from("query.txt");
+    let mut repeat: usize = 1; 
     {
         let mut ap = ArgumentParser::new();
         ap.set_description("Merge a few segments together");
@@ -86,7 +88,11 @@ fn main() {
           .add_option(&["-q", "--queries"],
                       Store,
                       "Path to the tantivy index directory");
+        ap.refer(&mut repeat)
+          .add_option(&["-n", "--repeat"],
+                      Store,
+                      "Number of iterations");
         ap.parse_args_or_exit();
     }
-    run(directory, query_file).unwrap();       
+    run(directory, query_file, repeat).unwrap();       
 }
