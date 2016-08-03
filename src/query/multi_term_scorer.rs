@@ -20,11 +20,9 @@ impl MultiTermScorer {
     }
  
     pub fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
-        if term_freq > 0 {
-            self.score += (term_freq as f32 / fieldnorm as f32).sqrt() * self.idf[term_ord];
-            // self.score += term_freq as f32; // / fieldnorm as f32).sqrt() * self.idf[term_ord];
-            self.num_fields += 1;
-        }
+        assert!(term_freq != 0u32);
+        self.score += (term_freq as f32 / fieldnorm as f32).sqrt() * self.idf[term_ord];
+        self.num_fields += 1;
     }
 
     fn coord(&self,) -> f32 {
