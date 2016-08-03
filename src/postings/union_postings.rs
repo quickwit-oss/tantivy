@@ -88,10 +88,9 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
        
     fn next(&mut self,) -> bool {
         self.scorer.clear();
-        let cur_doc: DocId;
         match self.queue.peek() {
             Some(&HeapItem(doc, ord)) => {
-                cur_doc = doc;
+                self.doc = doc;
                 let ord: usize = ord as usize;
                 let fieldnorm = self.get_field_norm(ord, doc);
                 let tf = self.term_frequencies[ord];
@@ -106,21 +105,20 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
         loop {
             match self.queue.peek() {
                 Some(&HeapItem(peek_doc, peek_ord))  => {
-                    if peek_doc != cur_doc {
+                    if peek_doc != self.doc {
                         break;
                     }
                     else {
                         let peek_ord: usize = peek_ord as usize;
                         let peek_tf = self.term_frequencies[peek_ord];
-                        let fieldnorm = self.get_field_norm(peek_ord, peek_doc);
-                        self.scorer.update(peek_ord, peek_tf, fieldnorm);
+                        let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                        self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
                     }
                 }
                 None => { break; }   
             }
             self.advance_head();
         }
-        self.doc = cur_doc;
         return true;
     }
 

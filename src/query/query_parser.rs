@@ -93,7 +93,7 @@ impl QueryParser {
     }
 
     pub fn parse_query(&self, query: &str) -> Result<StandardQuery, ParsingError> {
-        match parser(query_language).parse(query) {
+        match parser(query_language).parse(query.trim()) {
             Ok(literals) => {
                 let mut terms_result: Vec<Term> = Vec::new();
                 for literal in literals.0.into_iter() {
@@ -139,7 +139,7 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
             .or(term_default_field) 
     };
     (sep_by(literal(), spaces()), eof())
-    .map(|(first,_)| first)
+    .map(|(first, _)| first)
     .parse_state(input)
 }
 
@@ -153,11 +153,13 @@ mod tests {
     use super::*;
     
 
+
+
     #[test]
     pub fn test_query_grammar() {
         let mut query_parser = parser(query_language);
         assert_eq!(query_parser.parse("abc:toto").unwrap().0,
-            vec!(Literal::WithField(String::from("abc"), String::from("toto"))));
+            vec!(Literal::WithField(String::from("abc"), String::from("toto"))));       
         assert_eq!(query_parser.parse("\"some phrase query\"").unwrap().0,
             vec!(Literal::DefaultField(String::from("some phrase query"))));
         assert_eq!(query_parser.parse("field:\"some phrase query\"").unwrap().0,
@@ -176,9 +178,9 @@ mod tests {
             vec!(Literal::DefaultField(String::from("a9e3")),));  
         assert_eq!(query_parser.parse("field:タンタイビーって早い").unwrap().0,
             vec!(Literal::WithField(String::from("field"), String::from("タンタイビーって早い")),));
-            
     }
     
+        
     #[test]
     pub fn test_invalid_queries() {
         let mut query_parser = parser(query_language);
@@ -188,6 +190,7 @@ mod tests {
         assert!(query_parser.parse(":fval").is_err());
         assert!(query_parser.parse("field:").is_err());
         assert!(query_parser.parse(":field").is_err());
+        assert!(query_parser.parse("f:@e!e").is_err());
         assert!(query_parser.parse("f:@e!e").is_err());
     }
     
@@ -215,6 +218,18 @@ mod tests {
             let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
             assert_eq!(
                 query_parser.parse_query("abctitle").unwrap(), 
+                query
+            );
+        }
+        {
+            let terms = vec!(Term::from_field_text(title_field, "abctitle"));
+            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            assert_eq!(
+                query_parser.parse_query("title:abctitle   ").unwrap(), 
+                query
+            );
+            assert_eq!(
+                query_parser.parse_query("    title:abctitle").unwrap(), 
                 query
             );
         }

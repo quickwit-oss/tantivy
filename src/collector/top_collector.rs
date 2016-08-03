@@ -21,7 +21,10 @@ impl PartialOrd for GlobalScoredDoc {
 impl Ord for GlobalScoredDoc {
     #[inline(always)]
     fn cmp(&self, other: &GlobalScoredDoc) -> Ordering {
-        other.0.partial_cmp(&self.0).unwrap_or(Ordering::Equal)
+        other.0.partial_cmp(&self.0)
+        .unwrap_or(
+            other.1.cmp(&self.1)
+        )
     }
 }
 
