@@ -20,6 +20,7 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum StandardQuery {
     MultiTerm(MultiTermQuery),
 }
@@ -147,10 +148,13 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
 mod tests {
     
     use combine::*;
+    use schema::*;
+    use query::MultiTermQuery;
     use super::*;
+    
 
     #[test]
-    pub fn test_query_parser() {
+    pub fn test_query_grammar() {
         let mut query_parser = parser(query_language);
         assert_eq!(query_parser.parse("abc:toto").unwrap().0,
             vec!(Literal::WithField(String::from("abc"), String::from("toto"))));
@@ -176,7 +180,7 @@ mod tests {
     }
     
     #[test]
-    pub fn test_error() {
+    pub fn test_invalid_queries() {
         let mut query_parser = parser(query_language);
         println!("{:?}", query_parser.parse("ab!c:"));
         assert!(query_parser.parse("ab!c:").is_err());
@@ -185,6 +189,35 @@ mod tests {
         assert!(query_parser.parse("field:").is_err());
         assert!(query_parser.parse(":field").is_err());
         assert!(query_parser.parse("f:@e!e").is_err());
+    }
+    
+    #[test]
+    pub fn test_query_parser() {
+        let mut schema = Schema::new();
+        let text_field = schema.add_text_field("text", STRING);
+        let title_field = schema.add_text_field("title", STRING);
+        let author_field = schema.add_text_field("author", STRING);
+        let query_parser = QueryParser::new(schema, vec!(text_field, author_field));
+        assert!(query_parser.parse_query("a:b").is_err());
+        {
+            let terms = vec!(Term::from_field_text(title_field, "abctitle"));
+            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            assert_eq!(
+                query_parser.parse_query("title:abctitle").unwrap(), 
+                query
+            );
+        }
+        {
+            let terms = vec!(
+                Term::from_field_text(text_field, "abctitle"),
+                Term::from_field_text(author_field, "abctitle"),
+            );
+            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            assert_eq!(
+                query_parser.parse_query("abctitle").unwrap(), 
+                query
+            );
+        }
     }
 
 }

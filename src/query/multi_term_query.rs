@@ -17,6 +17,7 @@ use fastfield::U32FastFieldReader;
 use ScoredDoc;
 
 
+#[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
     terms: Vec<Term>,    
 }
@@ -51,6 +52,7 @@ impl Query for MultiTermQuery {
         Ok(timer_tree)
     }
 }
+
 
 impl MultiTermQuery {
     
