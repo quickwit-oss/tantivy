@@ -9,6 +9,7 @@ use tantivy::schema::{Field, Schema};
 use tantivy::query::QueryParser;
 use tantivy::query::Query;
 use std::path::Path;
+use tantivy::TimerTree;
 use std::io::BufReader;
 use std::io::BufRead;
 use std::io;
@@ -39,22 +40,22 @@ fn read_query_file(query_path: &String) -> io::Result<Vec<String>> {
         .collect())
 }
 
+
 fn run(directory: String,
        query_filepath: String,
        num_repeat: usize) -> io::Result<()> {
+    
     println!("Directory : {:?}", directory);
     println!("Query : {:?}", directory);
+    println!("-------------------------------\n\n\n");
     
     let index = try!(Index::open(Path::new(&directory)));
     let searcher = try!(index.searcher());
     let default_search_fields: Vec<Field> = extract_search_fields(&index.schema());
-    println!("Fields {:?}", default_search_fields);
-    
     let queries = try!(read_query_file(&query_filepath));
-    println!("queries {:?}", queries);
-    
     let query_parser = QueryParser::new(index.schema(), default_search_fields);
     
+    println!("SEARCH\n");
     println!("{}\t{}\t{}\t{}", "query", "num_terms", "num hits", "time in microsecs");
     for _ in 0..num_repeat {
         for query_txt in &queries {
@@ -70,6 +71,28 @@ fn run(directory: String,
             println!("{}\t{}\t{}\t{}", query_txt, num_terms, count_collector.count(), timing.total_time());
         }
     }
+    
+    
+    println!("\n\nFETCH STORE\n");
+    println!("{}\t{}", "query", "time in microsecs");
+    for _ in 0..num_repeat {
+        for query_txt in &queries {
+            let query = query_parser.parse_query(&query_txt).unwrap();
+            let mut top_collector = TopCollector::with_limit(10);
+            try!(query.search(&searcher, &mut top_collector));
+            let mut timer = TimerTree::new();
+            {
+                let h = timer.open("total");
+                for doc_address in top_collector.docs() {
+                    searcher.doc(&doc_address).unwrap();
+                }
+            }
+            println!("{}\t{}", query_txt, timer.total_time());
+        }
+    }
+    
+    
+    
     Ok(()) 
 }
 
