@@ -139,13 +139,26 @@ mod tests {
         top_collector.collect(ScoredDoc(0.9, 7));
         top_collector.collect(ScoredDoc(-0.2, 9));
         assert!(top_collector.at_capacity());
-        let score_docs: Vec<(Score, DocId)> = top_collector.score_docs()
-            .into_iter()
-            .map(|(score, doc_address)| (score, doc_address.doc()))
-            .collect();
-        assert_eq!(score_docs, vec!(
-            (0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)
-        ));
+        {
+            let score_docs: Vec<(Score, DocId)> = top_collector
+                .score_docs()
+                .into_iter()
+                .map(|(score, doc_address)| (score, doc_address.doc()))
+                .collect();
+            assert_eq!(score_docs, vec!(
+                (0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)
+            ));
+        }
+        {
+            let docs: Vec<DocId> = top_collector
+                .docs()
+                .into_iter()
+                .map(|doc_address| doc_address.doc())
+                .collect();
+            assert_eq!(docs, vec!(7, 1, 5, 3));
+        }
+        
+        
     }
 
     #[test]
