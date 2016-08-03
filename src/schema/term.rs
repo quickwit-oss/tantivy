@@ -8,12 +8,12 @@ pub struct Term(Vec<u8>);
 
 impl Term {
 
-    fn type_num(&self,) -> u8 {
+    fn field_id(&self,) -> u8 {
         self.0[0]
     }
 
     pub fn get_field(&self,) -> Field {
-        Field(self.type_num())
+        Field(self.field_id())
     }
 
     pub fn from_field_u32(field: Field, val: u32) -> Term {
@@ -52,5 +52,35 @@ impl AsRef<[u8]> for Term {
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Term({:?})", &self.0[..])
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    
+    use schema::*;
+
+    #[test]
+    pub fn test_term() {
+        let mut schema = Schema::new();
+        let _ = schema.add_text_field("text", STRING);
+        let title_field = schema.add_text_field("title", STRING);
+        let count_field = schema.add_text_field("count", STRING);
+        {
+            let term = Term::from_field_text(title_field, "test");
+            assert_eq!(term.get_field(), title_field);
+            assert_eq!(term.as_slice()[0], 1u8);
+            assert_eq!(&term.as_slice()[1..], "test".as_bytes());
+        }
+        {
+            let term = Term::from_field_u32(count_field, 983u32);
+            assert_eq!(term.get_field(), count_field);
+            assert_eq!(term.as_slice()[0], 2u8);
+            assert_eq!(term.as_slice().len(), 5);
+            assert_eq!(term.as_slice()[1], (983u32 % 256u32) as u8);            
+        }
+                
     }
 }
