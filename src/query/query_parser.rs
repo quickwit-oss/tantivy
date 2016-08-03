@@ -123,8 +123,8 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
 {
     let literal = || {
         let term_val = || {
-            let word = many1(letter());
-            let phrase =  
+            let word = many1(satisfy(|c: char| c.is_alphanumeric()));
+            let phrase =
                 (char('"'), many1(satisfy(|c| c != '"')), char('"'),)
                 .map(|(_, s, _)| s);
             phrase.or(word)
@@ -137,7 +137,8 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
         try(term_query)
             .or(term_default_field) 
     };
-    sep_by(literal(), spaces())
+    (sep_by(literal(), spaces()), eof())
+    .map(|(first,_)| first)
     .parse_state(input)
 }
 
@@ -163,6 +164,27 @@ mod tests {
                 Literal::WithField(String::from("field"), String::from("toto")),
                 Literal::DefaultField(String::from("a")),
             ));
+        assert_eq!(query_parser.parse("field:\"a ! b\"").unwrap().0,
+            vec!(Literal::WithField(String::from("field"), String::from("a ! b")),));
+        assert_eq!(query_parser.parse("field:a9e3").unwrap().0,
+            vec!(Literal::WithField(String::from("field"), String::from("a9e3")),));
+        assert_eq!(query_parser.parse("a9e3").unwrap().0,
+            vec!(Literal::DefaultField(String::from("a9e3")),));  
+        assert_eq!(query_parser.parse("field:タンタイビーって早い").unwrap().0,
+            vec!(Literal::WithField(String::from("field"), String::from("タンタイビーって早い")),));
+            
+    }
+    
+    #[test]
+    pub fn test_error() {
+        let mut query_parser = parser(query_language);
+        println!("{:?}", query_parser.parse("ab!c:"));
+        assert!(query_parser.parse("ab!c:").is_err());
+        assert!(query_parser.parse("").is_ok());
+        assert!(query_parser.parse(":fval").is_err());
+        assert!(query_parser.parse("field:").is_err());
+        assert!(query_parser.parse(":field").is_err());
+        assert!(query_parser.parse("f:@e!e").is_err());
     }
 
 }
