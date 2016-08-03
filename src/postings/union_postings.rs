@@ -11,6 +11,13 @@ use fastfield::U32FastFieldReader;
 #[derive(Eq, PartialEq)]
 struct HeapItem(DocId, usize, u32);
 
+impl HeapItem {
+    pub fn ord(&self,) -> usize{
+        self.1
+    }
+}
+
+
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other:&Self) -> Option<Ordering> {
         Some(self.cmp(&other))
@@ -32,31 +39,45 @@ pub struct UnionPostings<TPostings: Postings> {
 }
 
 impl<TPostings: Postings> UnionPostings<TPostings> {
-    
-    
-    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
+        
+    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, mut postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
         let num_postings = postings.len();
         assert_eq!(fieldnorms_reader.len(), num_postings);
-        let mut union_postings = UnionPostings {
+
+        for posting in &mut postings {
+            assert!(posting.next());
+        }
+        let heap_items: Vec<HeapItem> = postings.iter()
+            .map(|posting| {
+                (posting.doc(), posting.term_freq())
+            })
+            .enumerate()
+            .map(|(ord, (doc, tf))| {
+                HeapItem(doc, ord, tf)
+            })
+            .collect();
+        
+        UnionPostings {
             fieldnorms_readers: fieldnorms_reader,
             postings: postings,
-            queue: BinaryHeap::new(),
+            queue: BinaryHeap::from(heap_items),
             doc: 0,
             scorer: multi_term_scorer
-        };
-        for ord in 0..num_postings {
-            union_postings.enqueue(ord);
         }
-        union_postings
     }
 
-    fn enqueue(&mut self, ord: usize) {
+    fn advance_head(&mut self,) {
+        let ord = self.queue.peek().unwrap().ord();
         let cur_postings = &mut self.postings[ord];
         if cur_postings.next() {
             let doc = cur_postings.doc();
             let tf = cur_postings.term_freq();
-            self.queue.push(HeapItem(doc, ord, tf));
+            self.queue.replace(HeapItem(doc, ord, tf));
         }
+        else {
+            self.queue.pop();
+        }
+        
     }
     
     fn get_field_norm(&self, ord:usize, doc:DocId) -> u32 {
@@ -67,39 +88,40 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
 
 impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
     
-
-    
+       
     fn next(&mut self,) -> bool {
         self.scorer.clear();
-        let head = self.queue.pop(); 
-        match head {
-            Some(HeapItem(doc, ord, tf)) => {
+        let cur_doc: DocId;
+        match self.queue.peek() {
+            Some(&HeapItem(doc, ord, tf)) => {
+                cur_doc = doc;
                 let fieldnorm = self.get_field_norm(ord, doc);
                 self.scorer.update(ord, tf, fieldnorm);
-                self.enqueue(ord);
-                self.doc = doc;
-                loop {
-                    match self.queue.peek() {
-                        Some(&HeapItem(peek_doc, _, _))  => {
-                            if peek_doc != doc {
-                                break;
-                            }
-                        }
-                        None => { break; }   
-                    }
-                    let HeapItem(_, peek_ord, peek_tf) = self.queue.pop().unwrap();
-                    let fieldnorm = self.get_field_norm(peek_ord, doc);
-                    self.scorer.update(peek_ord, peek_tf, fieldnorm);
-                    self.enqueue(peek_ord);
-                }
-                return true;
+                
             }
             None => {
                 return false;
             }
         }
+        self.advance_head();
+        loop {
+            match self.queue.peek() {
+                Some(&HeapItem(peek_doc, peek_ord, peek_tf))  => {
+                    if peek_doc != cur_doc {
+                        break;
+                    }
+                    else {
+                        let fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                        self.scorer.update(peek_ord, peek_tf, fieldnorm);
+                    }
+                }
+                None => { break; }   
+            }
+            self.advance_head();
+        }
+        self.doc = cur_doc;
+        return true;
     }
-
 
     // TODO implement a faster skip_next
         
