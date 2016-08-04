@@ -23,7 +23,7 @@ impl FieldEntry {
     pub fn is_indexed(&self,) -> bool {
         match self {
             &FieldEntry::Text(_, ref options) => options.get_indexing_options().is_indexed(),
-            _ => false,
+            _ => false, // TODO handle u32 indexed
         }
     }
     

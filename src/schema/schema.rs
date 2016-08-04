@@ -76,7 +76,6 @@ impl Schema {
             fields_map: HashMap::new(),
         }
     }
-
     
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
         &self.fields[field.0 as usize]
@@ -130,4 +129,64 @@ impl Schema {
         field
     }
     
+}
+
+
+
+
+
+#[cfg(test)]
+mod tests {
+    
+    use schema::*;
+    use rustc_serialize::json;
+        
+    #[test]
+    pub fn test_query_parser() {
+        let mut schema = Schema::new();
+        schema.add_text_field("text", STRING);
+        schema.add_text_field("title", STRING);
+        schema.add_text_field("author", STRING);
+        
+        let schema_json: String = format!("{}", json::as_pretty_json(&schema));
+        println!("{}", schema_json);
+        let expected = r#"[
+  {
+    "variant": "Text",
+    "fields": [
+      "text",
+      {
+        "indexing_options": "Untokenized",
+        "stored": false,
+        "fast": false
+      }
+    ]
+  },
+  {
+    "variant": "Text",
+    "fields": [
+      "title",
+      {
+        "indexing_options": "Untokenized",
+        "stored": false,
+        "fast": false
+      }
+    ]
+  },
+  {
+    "variant": "Text",
+    "fields": [
+      "author",
+      {
+        "indexing_options": "Untokenized",
+        "stored": false,
+        "fast": false
+      }
+    ]
+  }
+]"#;
+        assert_eq!(schema_json, expected);        
+        
+    }
+
 }

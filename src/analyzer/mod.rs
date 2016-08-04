@@ -55,6 +55,7 @@ impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
             }
         }
     }
+    
 }
 
 pub struct SimpleTokenizer;

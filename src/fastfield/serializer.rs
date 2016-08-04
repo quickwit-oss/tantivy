@@ -46,6 +46,12 @@ impl FastFieldSerializer {
         let amplitude = max_value - min_value;
         self.written_size += try!(amplitude.serialize(write));
         self.num_bits = compute_num_bits(amplitude);
+        if self.num_bits == 0 {
+            // if num_bits == 0 we make sure that we still write one mini buffer
+            // so that the reader code does not overflows and does not
+            // contain a needless if statement.
+            self.mini_buffer_written += 1;
+        }
         Ok(())
     }
 

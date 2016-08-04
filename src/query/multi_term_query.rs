@@ -12,11 +12,11 @@ use postings::UnionPostings;
 use postings::ScoredDocSet;
 use postings::DocSet;
 use query::MultiTermScorer;
-use std::iter;
 use fastfield::U32FastFieldReader;
 use ScoredDoc;
 
 
+#[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
     terms: Vec<Term>,    
 }
@@ -52,7 +52,13 @@ impl Query for MultiTermQuery {
     }
 }
 
+
 impl MultiTermQuery {
+    
+    
+    pub fn num_terms(&self,) -> usize {
+        self.terms.len()
+    } 
     
     fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
         let num_docs = searcher.num_docs() as f32;
@@ -67,10 +73,12 @@ impl MultiTermQuery {
                 }
             })
             .collect();
-        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
-        MultiTermScorer::new(query_coord, idfs)
+        let query_coords = (0..self.terms.len() + 1)
+            .map(|i| i as f32 / self.terms.len() as f32)
+            .collect();
+        MultiTermScorer::new(query_coords, idfs)
     }
-
+    
     pub fn new(terms: Vec<Term>) -> MultiTermQuery {
         MultiTermQuery {
             terms: terms,
@@ -84,16 +92,12 @@ impl MultiTermQuery {
             let mut decode_timer = timer.open("decode_all");
             for term in &self.terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
-                match reader.read_postings(term) {
-                    Some(postings) => {
+                reader.read_postings(term)
+                      .map(|postings| {
                         let field = term.get_field();
                         fieldnorms_readers.push(reader.get_fieldnorms_reader(field).unwrap());
                         segment_postings.push(postings);
-                    }
-                    None => {
-                        segment_postings.push(SegmentPostings::empty());
-                    }
-                }
+                      });
             }
         }
         UnionPostings::new(fieldnorms_readers, segment_postings, multi_term_scorer)

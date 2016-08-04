@@ -9,7 +9,7 @@ use lz4;
 use super::StoreReader;
 use super::OffsetIndex;
 
-const BLOCK_SIZE: usize = 131_072;
+const BLOCK_SIZE: usize = 16_384;
 
 pub struct StoreWriter {
     doc: DocId,

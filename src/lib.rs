@@ -71,7 +71,7 @@ pub type Score = f32;
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 impl DocAddress {
@@ -83,6 +83,7 @@ impl DocAddress {
         self.1
     }
 }
+
 
 #[derive(Clone, Copy)]
 pub struct ScoredDoc(Score, DocId);

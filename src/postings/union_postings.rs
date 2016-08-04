@@ -6,10 +6,10 @@ use query::MultiTermScorer;
 use postings::ScoredDocSet;
 use query::Scorer;
 use fastfield::U32FastFieldReader;
-
+use std::iter;
 
 #[derive(Eq, PartialEq)]
-struct HeapItem(DocId, usize, u32);
+struct HeapItem(DocId, u32);
 
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other:&Self) -> Option<Ordering> {
@@ -19,42 +19,61 @@ impl PartialOrd for HeapItem {
 
 impl Ord for HeapItem {
     fn cmp(&self, other:&Self) -> Ordering {
-         (self.0, self.1).cmp(&(other.0, other.1)).reverse()
+         (other.0).cmp(&self.0)
     }
 }
 
 pub struct UnionPostings<TPostings: Postings> {
     fieldnorms_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
+    term_frequencies: Vec<u32>,
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
     scorer: MultiTermScorer
 }
 
 impl<TPostings: Postings> UnionPostings<TPostings> {
-    
-    
-    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
+        
+    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, mut postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
         let num_postings = postings.len();
-        let mut union_postings = UnionPostings {
+        assert_eq!(fieldnorms_reader.len(), num_postings);
+        
+        for posting in &mut postings {
+            assert!(posting.next());
+        }
+        let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(num_postings).collect();
+        let heap_items: Vec<HeapItem> = postings
+            .iter()
+            .map(|posting| {
+                (posting.doc(), posting.term_freq())
+            })
+            .enumerate()
+            .map(|(ord, (doc, tf))| {
+                term_frequencies[ord] = tf;
+                HeapItem(doc, ord as u32)
+            })
+            .collect();
+        
+        UnionPostings {
             fieldnorms_readers: fieldnorms_reader,
             postings: postings,
-            queue: BinaryHeap::new(),
+            term_frequencies: term_frequencies,
+            queue: BinaryHeap::from(heap_items),
             doc: 0,
             scorer: multi_term_scorer
-        };
-        for ord in 0..num_postings {
-            union_postings.enqueue(ord);    
         }
-        union_postings
     }
 
-    fn enqueue(&mut self, ord: usize) {
+    fn advance_head(&mut self,) {
+        let ord = self.queue.peek().unwrap().1 as usize;
         let cur_postings = &mut self.postings[ord];
         if cur_postings.next() {
             let doc = cur_postings.doc();
-            let tf = cur_postings.term_freq();
-            self.queue.push(HeapItem(doc, ord, tf));
+            self.term_frequencies[ord] = cur_postings.term_freq();  
+            self.queue.replace(HeapItem(doc, ord as u32));
+        }
+        else {
+            self.queue.pop();
         }
     }
     
@@ -66,39 +85,42 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
 
 impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
     
-
-    
+       
     fn next(&mut self,) -> bool {
         self.scorer.clear();
-        let head = self.queue.pop(); 
-        match head {
-            Some(HeapItem(doc, ord, tf)) => {
-                let fieldnorm = self.get_field_norm(ord, doc);
-                self.scorer.update(ord, tf, fieldnorm);
-                self.enqueue(ord);
+        match self.queue.peek() {
+            Some(&HeapItem(doc, ord)) => {
                 self.doc = doc;
-                loop {
-                    match self.queue.peek() {
-                        Some(&HeapItem(peek_doc, _, _))  => {
-                            if peek_doc != doc {
-                                break;
-                            }
-                        }
-                        None => { break; }   
-                    }
-                    let HeapItem(_, peek_ord, peek_tf) = self.queue.pop().unwrap();
-                    let fieldnorm = self.get_field_norm(peek_ord, doc);
-                    self.scorer.update(peek_ord, peek_tf, fieldnorm);
-                    self.enqueue(peek_ord);
-                }
-                return true;
+                let ord: usize = ord as usize;
+                let fieldnorm = self.get_field_norm(ord, doc);
+                let tf = self.term_frequencies[ord];
+                self.scorer.update(ord, tf, fieldnorm);
+                
             }
             None => {
                 return false;
             }
         }
+        self.advance_head();
+        loop {
+            match self.queue.peek() {
+                Some(&HeapItem(peek_doc, peek_ord))  => {
+                    if peek_doc != self.doc {
+                        break;
+                    }
+                    else {
+                        let peek_ord: usize = peek_ord as usize;
+                        let peek_tf = self.term_frequencies[peek_ord];
+                        let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                        self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
+                    }
+                }
+                None => { break; }   
+            }
+            self.advance_head();
+        }
+        return true;
     }
-
 
     // TODO implement a faster skip_next
         

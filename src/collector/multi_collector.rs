@@ -31,3 +31,27 @@ impl<'a> Collector for MultiCollector<'a> {
         }
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use ScoredDoc;
+    use collector::{Collector, CountCollector, TopCollector};
+
+    #[test]
+    fn test_multi_collector() {
+        let mut top_collector = TopCollector::with_limit(2);
+        let mut count_collector = CountCollector::new();
+        {
+            let mut collectors = MultiCollector::from(vec!(&mut top_collector, &mut count_collector));
+            collectors.collect(ScoredDoc(0.2, 1));
+            collectors.collect(ScoredDoc(0.1, 2));
+            collectors.collect(ScoredDoc(0.5, 3));
+        }
+        assert_eq!(count_collector.count(), 3);
+        assert!(top_collector.at_capacity());
+    }
+}

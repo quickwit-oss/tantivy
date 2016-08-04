@@ -46,7 +46,11 @@ impl TimerTree {
             timings: Vec::new(),
         }
     }
-
+    
+    pub fn total_time(&self,) -> i64 {
+        self.timings.last().unwrap().duration
+    }
+    
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
             name: name,

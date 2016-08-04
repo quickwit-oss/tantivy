@@ -47,12 +47,22 @@ impl U32FastFieldsWriter {
         }
         Ok(())
     }
+    
+    /// Ensures all of the fast field writers have
+    /// reached `doc`. (included)
+    /// 
+    /// The missing values will be filled with 0.
+    pub fn fill_val_up_to(&mut self, doc: DocId) {
+        for field_writer in &mut self.field_writers {
+            field_writer.fill_val_up_to(doc);
+        }
+            
+    }
 }
 
 pub struct U32FastFieldWriter {
     field: Field,
     vals: Vec<u32>,
-    cur_doc: DocId,
 }
 
 impl U32FastFieldWriter {
@@ -60,21 +70,23 @@ impl U32FastFieldWriter {
         U32FastFieldWriter {
             field: field.clone(),
             vals: Vec::new(),
-            cur_doc: 0,
         }
     }
-
-    pub fn set_val(&mut self, doc: DocId, val: u32) {
-        for _ in self.cur_doc .. doc {
-            self.vals.push(0u32);
+    
+    /// Ensures all of the fast field writer have
+    /// reached `doc`. (included)
+    /// 
+    /// The missing values will be filled with 0.
+    fn fill_val_up_to(&mut self, doc: DocId) {
+        let target = doc as usize + 1;
+        assert!(self.vals.len() <= target);
+        while self.vals.len() < target {
+            self.add_val(0u32)
         }
-        self.cur_doc = doc;
-        self.add_val(val);
     }
     
     pub fn add_val(&mut self, val: u32) {
         self.vals.push(val);
-        self.cur_doc += 1;
     }
     
     fn extract_val(&self, doc: &Document) -> u32 {

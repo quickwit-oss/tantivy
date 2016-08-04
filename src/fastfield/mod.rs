@@ -120,6 +120,35 @@ mod tests {
             assert_eq!(fast_field_reader.get(8), 215u32);
         }
     }
+    
+     #[test]
+     fn test_intfastfield_null_amplitude() {
+        let path = Path::new("test");
+        let mut directory: RAMDirectory = RAMDirectory::create();
+        let mut schema = Schema::new();
+        let field = schema.add_u32_field("field", FAST_U32);
+        {
+            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
+            for _ in 0..10_000 {
+                add_single_field_doc(&mut fast_field_writers, field, 100_000u32);
+            }
+            fast_field_writers.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
+        }
+        let source = directory.open_read(&path).unwrap();
+        {
+            assert_eq!(source.len(), 26 as usize);
+        }
+        {
+            let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            for doc in 0..10_000 {
+                assert_eq!(fast_field_reader.get(doc), 100_000u32);
+            }
+        }
+    }
 
     fn generate_permutation() -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, 4];
