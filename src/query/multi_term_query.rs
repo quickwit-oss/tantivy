@@ -12,7 +12,6 @@ use postings::UnionPostings;
 use postings::ScoredDocSet;
 use postings::DocSet;
 use query::MultiTermScorer;
-use std::iter;
 use fastfield::U32FastFieldReader;
 use ScoredDoc;
 
@@ -74,10 +73,12 @@ impl MultiTermQuery {
                 }
             })
             .collect();
-        let query_coord = iter::repeat(1f32).take(self.terms.len()).collect();
-        MultiTermScorer::new(query_coord, idfs)
+        let query_coords = (0..self.terms.len() + 1)
+            .map(|i| i as f32 / self.terms.len() as f32)
+            .collect();
+        MultiTermScorer::new(query_coords, idfs)
     }
-
+    
     pub fn new(terms: Vec<Term>) -> MultiTermQuery {
         MultiTermQuery {
             terms: terms,
@@ -96,7 +97,7 @@ impl MultiTermQuery {
                         let field = term.get_field();
                         fieldnorms_readers.push(reader.get_fieldnorms_reader(field).unwrap());
                         segment_postings.push(postings);
-                      });                    
+                      });
             }
         }
         UnionPostings::new(fieldnorms_readers, segment_postings, multi_term_scorer)
