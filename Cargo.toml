@@ -24,6 +24,10 @@ itertools = "0.4.16"
 lz4 = "1.13.131"
 time = "0.1.34"
 uuid = "0.1"
+persistent="*"
+
+iron = "0.4"
+staticfile = "0.3.0"
 
 [dev-dependencies]
 rand = "0.3.13"
@@ -39,5 +43,17 @@ path = "src/cli/merge.rs"
 name = "tantivy_bench"
 path = "src/cli/bench.rs"
 
+[[bin]]
+name = "tantivy_serve"
+path = "src/cli/serve.rs"
+
 [profile.release]
 debug = true
+
+[dependencies.urlencoded]
+version = "0.4"
+
+[dependencies.mount]
+git = "https://github.com/iron/mount.git"
+
+
