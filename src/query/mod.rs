@@ -13,3 +13,4 @@ pub use self::multi_term_scorer::MultiTermExplainScorer;
 pub use self::scorer::Scorer;
 pub use self::query_parser::QueryParser;
 pub use self::explanation::Explanation;
+pub use self::multi_term_scorer::MultiTermAccumulator;

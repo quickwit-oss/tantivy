@@ -41,6 +41,7 @@ mod compression;
 mod fastfield;
 mod store;
 mod common;
+mod error;
 
 pub mod postings;
 pub mod query;
@@ -48,8 +49,8 @@ pub mod directory;
 pub mod datastruct;
 pub mod analyzer;
 pub mod collector;
-
 pub mod schema;
+
 
 pub use directory::Directory;
 pub use core::searcher::Searcher;

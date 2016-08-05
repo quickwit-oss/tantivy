@@ -42,7 +42,7 @@ struct Serp {
 struct Hit {
     title: String,
     body: String,
-    explain: Option<String>,
+    explain: String,
     score: Score,
 }
 
@@ -75,12 +75,12 @@ impl IndexServer {
         }
     }
 
-    fn create_hit(&self, doc: &Document, score: Score, explain: Explanation) -> Hit {
+    fn create_hit(&self, doc: &Document, explain: Explanation) -> Hit {
         Hit {
             title: String::from(doc.get_first(self.title_field).unwrap().text()),
             body: String::from(doc.get_first(self.body_field).unwrap().text().clone()),
-            explain: explain.to_string(),
-            score: score,
+            explain: format!("{:?}", explain),
+            score: explain.val(),
         }
     }
     
@@ -100,8 +100,8 @@ impl IndexServer {
                 .iter()
                 .map(|doc_address| {
                     let doc: Document = searcher.doc(doc_address).unwrap();
-                    let (score, explanation): (Score, Explanation) = query.explain(&searcher, doc_address).unwrap().unwrap();
-                    self.create_hit(&doc, score, explanation)
+                    let explanation = query.explain(&searcher, doc_address).unwrap();
+                    self.create_hit(&doc, explanation)
                 })
                 .collect();
         Ok(Serp {

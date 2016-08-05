@@ -1,10 +1,12 @@
 use query::Scorer;
-use query::Explanation; 
+use query::Explanation;
 
-
-pub trait MultiTermScorer: Scorer {
+pub trait MultiTermAccumulator {
     fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32);
     fn clear(&mut self,);
+}
+
+pub trait MultiTermScorer: Scorer + MultiTermAccumulator {
     fn explain(&self, vals: &Vec<(usize, u32, u32)>) -> Explanation;
 }
 
@@ -14,6 +16,7 @@ pub struct TfIdfScorer {
     idf: Vec<f32>,
     score: f32,
     num_fields: usize,
+    term_names: Option<Vec<String>>, //< only here for explain
 }
 
 pub struct MultiTermExplainScorer<TScorer: MultiTermScorer + Sized> {
@@ -36,14 +39,7 @@ impl<TScorer: MultiTermScorer + Sized> From<TScorer> for MultiTermExplainScorer<
     }
 }
 
-impl<TScorer: MultiTermScorer + Sized> Scorer for MultiTermExplainScorer<TScorer> {
-    fn score(&self,) -> f32 {
-        self.scorer.score()
-    }
-}
-
-
-impl<TScorer: MultiTermScorer + Sized> MultiTermScorer for MultiTermExplainScorer<TScorer> {
+impl<TScorer: MultiTermScorer + Sized> MultiTermAccumulator for MultiTermExplainScorer<TScorer> {
     fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
         self.vals.push((term_ord, term_freq, fieldnorm));
         self.scorer.update(term_ord, term_freq, fieldnorm);
@@ -52,23 +48,37 @@ impl<TScorer: MultiTermScorer + Sized> MultiTermScorer for MultiTermExplainScore
         self.vals.clear();
         self.scorer.clear();
     }
-    fn explain(&self, vals: &Vec<(usize, u32, u32)>) -> Explanation {
-        self.scorer.explain(vals)
-    }
 }
 
 impl TfIdfScorer {
-    pub fn new(mut coords: Vec<f32>, idf: Vec<f32>) -> TfIdfScorer {
+    pub fn new(coords: Vec<f32>, idf: Vec<f32>) -> TfIdfScorer {
         TfIdfScorer {
             coords: coords,
             idf: idf,
             score: 0f32,
             num_fields: 0,
+            term_names: None,
         }
     }
 
     fn coord(&self,) -> f32 {
         self.coords[self.num_fields]
+    }
+
+    pub fn set_term_names(&mut self, term_names: Vec<String>) {
+        self.term_names = Some(term_names);
+    }
+
+    fn term_name(&self, ord: usize) -> String {
+        match &self.term_names {
+            &Some(ref term_names_vec) => term_names_vec[ord].clone(),
+            &None => format!("Field({})", ord)
+        } 
+        
+    }
+
+    fn term_score(&self, term_ord: usize, term_freq: u32, field_norm: u32) -> f32 {
+        (term_freq as f32 / field_norm as f32).sqrt() * self.idf[term_ord]
     }
 }
 
@@ -81,19 +91,28 @@ impl Scorer for TfIdfScorer {
 impl MultiTermScorer for TfIdfScorer {
 
     fn explain(&self, vals: &Vec<(usize, u32, u32)>) -> Explanation {
-        let mut explain = String::new();
+        let score = self.score();
+        let mut explanation = Explanation::with_val(score);
+        let formula_components: Vec<String> = vals.iter()
+            .map(|&(ord, _, _)| ord)
+            .map(|ord| format!("<score for ({}>", self.term_name(ord)))
+            .collect();
+        let formula = format!("<coord> * ({})", formula_components.join(" + "));
+        explanation.set_formula(&formula);
         for &(ord, term_freq, field_norm) in vals.iter() {
-            explain += &format!("{} {} {}.\n", ord, term_freq, field_norm);    
+            let term_score = self.term_score(ord, term_freq, field_norm);
+            let term_explanation = explanation.add_child(&self.term_name(ord), term_score);
+            term_explanation.set_formula(" sqrt(<term_freq> / <field_norm>) * <idf>");    
         }
-        let count = vals.len();
-        explain += &format!("coord({}) := {}", count, self.coords[count]); 
-        Explanation::Explanation(explain)
-
+        explanation
     }
+}
 
+impl MultiTermAccumulator for TfIdfScorer {
+    
     fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
         assert!(term_freq != 0u32);
-        self.score += (term_freq as f32 / fieldnorm as f32).sqrt() * self.idf[term_ord];
+        self.score += self.term_score(term_ord, term_freq, fieldnorm);
         self.num_fields += 1;
     }
 
@@ -101,7 +120,6 @@ impl MultiTermScorer for TfIdfScorer {
         self.score = 0f32;
         self.num_fields = 0;
     }
-
 }
 
 
@@ -118,7 +136,7 @@ mod tests {
 
     #[test]
     pub fn test_multiterm_scorer() {
-        let mut tfidf_scorer = TfIdfScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
+        let mut tfidf_scorer = TfIdfScorer::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
         {
             tfidf_scorer.update(0, 1, 1);
             assert!(abs_diff(tfidf_scorer.score(), 1f32) < 0.001f32);

@@ -1,4 +1,4 @@
-
+query explain, complete, proper term names
 pass over offset from previous block
 error management
 add merge policy
@@ -15,7 +15,6 @@ intersection
 masks for union
 lenient mode for query parser
 WAND
-query explain
 rethink query iteration mechanics / API (should we setScorer, should
 collector take different objects?)
 Dig issue monoids idea

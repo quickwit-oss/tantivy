@@ -9,7 +9,6 @@ use schema::{Term, Field};
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
 use DocAddress;
-use Score;
 use query::Explanation;
 
 #[derive(Debug)]
@@ -50,12 +49,13 @@ impl Query for StandardQuery {
     fn explain(
         &self,
         searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Option<(Score, Explanation)>, io::Error> {
+        doc_address: &DocAddress) -> Result<Explanation, String> {
         match self {
             &StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
         }
     }
 }
+
 
 fn compute_terms(field: Field, text: &str) -> Vec<Term> {
     let tokenizer = SimpleTokenizer::new();

@@ -4,7 +4,6 @@ use core::searcher::Searcher;
 use common::TimerTree;
 use DocAddress;
 use query::Explanation;
-use Score;
 
 pub trait Query {
     
@@ -16,7 +15,7 @@ pub trait Query {
     fn explain(
         &self,
         searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Option<(Score, Explanation)>, io::Error> {
+        doc_address: &DocAddress) -> Result<Explanation, String> {
             // TODO check that the document is there or return an error.
             panic!("Not implemented");
     }
