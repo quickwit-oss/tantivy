@@ -11,6 +11,7 @@ use tantivy::schema::Field;
 use tantivy::collector::CountCollector;
 use tantivy::Index;
 use tantivy::collector;
+use tantivy::Score;
 use urlencoded::UrlEncodedQuery;
 use iron::status;
 use rustc_serialize::json::as_pretty_json;
@@ -20,6 +21,7 @@ use iron::mime::Mime;
 use mount::Mount;
 use tantivy::query::Query;
 use tantivy::query::QueryParser;
+use tantivy::query::Explanation;
 use tantivy::Document;
 use tantivy::collector::TopCollector;
 use persistent::Read;
@@ -40,6 +42,8 @@ struct Serp {
 struct Hit {
     title: String,
     body: String,
+    explain: Option<String>,
+    score: Score,
 }
 
 #[derive(RustcDecodable, RustcEncodable)]
@@ -71,11 +75,12 @@ impl IndexServer {
         }
     }
 
-    fn create_hit(&self, doc: &Document) -> Hit {
+    fn create_hit(&self, doc: &Document, score: Score, explain: Explanation) -> Hit {
         Hit {
             title: String::from(doc.get_first(self.title_field).unwrap().text()),
             body: String::from(doc.get_first(self.body_field).unwrap().text().clone()),
-
+            explain: explain.to_string(),
+            score: score,
         }
     }
     
@@ -91,13 +96,14 @@ impl IndexServer {
                     .add(&mut count_collector);
             try!(query.search(&searcher, &mut chained_collector));
         }
-        let hits: Vec<Hit> = try!(
-            top_collector.docs()
+        let hits: Vec<Hit> = top_collector.docs()
                 .iter()
-                .map(|doc_address| searcher.doc(doc_address))
-                .map(|doc_result| doc_result.map(|doc| self.create_hit(&doc) ))
-                .collect()
-            );
+                .map(|doc_address| {
+                    let doc: Document = searcher.doc(doc_address).unwrap();
+                    let (score, explanation): (Score, Explanation) = query.explain(&searcher, doc_address).unwrap().unwrap();
+                    self.create_hit(&doc, score, explanation)
+                })
+                .collect();
         Ok(Serp {
             q: q,
             hits: hits,
@@ -141,7 +147,7 @@ fn search(req: &mut Request) -> IronResult<Response> {
 
 fn main() {
     let mut mount = Mount::new();
-    let server = IndexServer::load(&Path::new("/data/wiki-index/"));
+    let server = IndexServer::load(&Path::new("/Users/pmasurel/wiki-index/"));
     
     mount.mount("/api", search);
     mount.mount("/", Static::new(Path::new("static/")));

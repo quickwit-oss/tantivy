@@ -10,8 +10,8 @@ pub struct VecPostings {
     cursor: Wrapping<usize>,
 }
 
-impl VecPostings {
-    pub fn new(doc_ids: Vec<DocId>) -> VecPostings {
+impl From<Vec<DocId>> for VecPostings {
+    fn from(doc_ids: Vec<DocId>) -> VecPostings {
         VecPostings {
             doc_ids: doc_ids,
             cursor: Wrapping(usize::max_value()),
@@ -107,7 +107,7 @@ pub mod tests {
     #[test]
     pub fn test_vec_postings() {
         let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e*3).collect();
-        let mut postings = VecPostings::new(doc_ids);
+        let mut postings = VecPostings::from(doc_ids);
         assert!(postings.next());
         assert_eq!(postings.doc(), 0u32);
         assert!(postings.next());

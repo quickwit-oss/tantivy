@@ -1,19 +1,26 @@
+
 pass over offset from previous block
 error management
-split directory
-add doc values
-implement serial for segment reader
-merge segments
+add merge policy
+find solution to "I have a docaddress but the segment does not exist anymore problem"
+doc values for other types
 documentation
-split postings into blocks
-add term frequency
 use skip list for each blocks
 find a clear way to put the tokenized/untokenized thing upstream
 index frequent bigrams
-clean up compression
 reconsider the first byte == field in the [u8] repr of a term.
-
-
-
-
-add field norms
+good cli
+good cli based demo
+intersection
+masks for union
+lenient mode for query parser
+WAND
+query explain
+rethink query iteration mechanics / API (should we setScorer, should
+collector take different objects?)
+Dig issue monoids idea
+phrase queries
+sort by fast field
+date
+geo search
+deletes

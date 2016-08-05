@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use query::MultiTermScorer;
 use postings::ScoredDocSet;
-use query::Scorer;
 use fastfield::U32FastFieldReader;
 use std::iter;
 
@@ -23,21 +22,20 @@ impl Ord for HeapItem {
     }
 }
 
-pub struct UnionPostings<TPostings: Postings> {
+pub struct UnionPostings<TPostings: Postings, TScorer: MultiTermScorer> {
     fieldnorms_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
     term_frequencies: Vec<u32>,
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
-    scorer: MultiTermScorer
+    scorer: TScorer
 }
 
-impl<TPostings: Postings> UnionPostings<TPostings> {
+impl<TPostings: Postings, TScorer: MultiTermScorer> UnionPostings<TPostings, TScorer> {
         
-    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, mut postings: Vec<TPostings>, multi_term_scorer: MultiTermScorer) -> UnionPostings<TPostings> {
+    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, mut postings: Vec<TPostings>, scorer: TScorer) -> UnionPostings<TPostings, TScorer> {
         let num_postings = postings.len();
         assert_eq!(fieldnorms_reader.len(), num_postings);
-        
         for posting in &mut postings {
             assert!(posting.next());
         }
@@ -60,8 +58,13 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
             term_frequencies: term_frequencies,
             queue: BinaryHeap::from(heap_items),
             doc: 0,
-            scorer: multi_term_scorer
+            scorer: scorer
         }
+    }
+
+
+    pub fn scorer(&self,) -> &TScorer {
+        &self.scorer
     }
 
     fn advance_head(&mut self,) {
@@ -83,9 +86,8 @@ impl<TPostings: Postings> UnionPostings<TPostings> {
 
 }
 
-impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
+impl<TPostings: Postings, TScorer: MultiTermScorer> DocSet for UnionPostings<TPostings, TScorer> {
     
-       
     fn next(&mut self,) -> bool {
         self.scorer.clear();
         match self.queue.peek() {
@@ -94,8 +96,7 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
                 let ord: usize = ord as usize;
                 let fieldnorm = self.get_field_norm(ord, doc);
                 let tf = self.term_frequencies[ord];
-                self.scorer.update(ord, tf, fieldnorm);
-                
+                self.scorer.update(ord, tf, fieldnorm);   
             }
             None => {
                 return false;
@@ -133,7 +134,7 @@ impl<TPostings: Postings> DocSet for UnionPostings<TPostings> {
     }
 }
 
-impl<TPostings: Postings> ScoredDocSet for UnionPostings<TPostings> {
+impl<TPostings: Postings, TScorer: MultiTermScorer>  ScoredDocSet for UnionPostings<TPostings, TScorer> {
     fn score(&self,) -> f32 {
         self.scorer.score()
     }
@@ -145,6 +146,7 @@ mod tests {
     use super::*;
     use postings::{DocSet, VecPostings, ScoredDocSet};
     use query::MultiTermScorer;
+    use query::TfIdfScorer;
     use directory::ReadOnlySource;
     use directory::SharedVec;
     use schema::Field;
@@ -172,9 +174,9 @@ mod tests {
     pub fn test_union_postings() {
         let left_fieldnorms = create_u32_fastfieldreader(Field(1), vec!(100,200,300));
         let right_fieldnorms = create_u32_fastfieldreader(Field(2), vec!(15,25,35));   
-        let left = VecPostings::new(vec!(1, 2, 3));
-        let right = VecPostings::new(vec!(1, 3, 8));
-        let multi_term_scorer = MultiTermScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
+        let left = VecPostings::from(vec!(1, 2, 3));
+        let right = VecPostings::from(vec!(1, 3, 8));
+        let multi_term_scorer = TfIdfScorer::new(vec!(1f32, 2f32), vec!(1f32, 4f32));
         let mut union = UnionPostings::new(
             vec!(left_fieldnorms, right_fieldnorms),
             vec!(left, right),

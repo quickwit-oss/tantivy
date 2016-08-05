@@ -59,8 +59,8 @@ mod tests {
     #[test]
     fn test_intersection() {
         {
-            let left = Box::new(VecPostings::new(vec!(1, 3, 9)));
-            let right = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
+            let left = Box::new(VecPostings::from(vec!(1, 3, 9)));
+            let right = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
             let mut intersection = IntersectionDocSet::new(vec!(left, right));
             assert!(intersection.next());
             assert_eq!(intersection.doc(), 3);
@@ -69,9 +69,9 @@ mod tests {
             assert!(!intersection.next());
         }
         {
-            let a = Box::new(VecPostings::new(vec!(1, 3, 9)));
-            let b = Box::new(VecPostings::new(vec!(3, 4, 9, 18)));
-            let c = Box::new(VecPostings::new(vec!(1, 5, 9, 111)));
+            let a = Box::new(VecPostings::from(vec!(1, 3, 9)));
+            let b = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
+            let c = Box::new(VecPostings::from(vec!(1, 5, 9, 111)));
             let mut intersection = IntersectionDocSet::new(vec!(a, b, c));
             assert!(intersection.next());
             assert_eq!(intersection.doc(), 9);

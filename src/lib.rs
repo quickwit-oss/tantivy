@@ -71,6 +71,7 @@ pub type Score = f32;
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 

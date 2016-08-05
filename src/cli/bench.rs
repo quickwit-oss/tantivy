@@ -1,5 +1,3 @@
-
-
 extern crate argparse;
 extern crate tantivy;
 

@@ -3,7 +3,6 @@ use common::BinarySerializable;
 use std::io::Read;
 use std::io::Write;
 use schema::Field;
-use schema::Term;
 
 const TEXT_CODE: u8 = 0;
 const U32_CODE: u8 = 1;

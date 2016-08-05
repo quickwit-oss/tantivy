@@ -25,7 +25,6 @@ lz4 = "1.13.131"
 time = "0.1.34"
 uuid = "0.1"
 persistent="*"
-
 iron = "0.4"
 staticfile = "0.3.0"
 
@@ -46,6 +45,10 @@ path = "src/cli/bench.rs"
 [[bin]]
 name = "tantivy_serve"
 path = "src/cli/serve.rs"
+
+[[bin]]
+name = "tantivy_index"
+path = "src/cli/index.rs"
 
 [profile.release]
 debug = true

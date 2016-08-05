@@ -1,5 +1,6 @@
 use schema::Term;
 use query::Query;
+use query::Scorer;
 use common::TimerTree;
 use common::OpenTimer;
 use std::io;
@@ -7,14 +8,19 @@ use core::searcher::Searcher;
 use collector::Collector;
 use SegmentLocalId;
 use core::SegmentReader;
+use query::MultiTermExplainScorer;
 use postings::SegmentPostings;
 use postings::UnionPostings;
 use postings::ScoredDocSet;
 use postings::DocSet;
-use query::MultiTermScorer;
+use query::TfIdfScorer;
+use postings::SkipResult;
 use fastfield::U32FastFieldReader;
 use ScoredDoc;
-
+use query::MultiTermScorer;
+use DocAddress;
+use Score;
+use query::Explanation;
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
@@ -23,7 +29,32 @@ pub struct MultiTermQuery {
 
 impl Query for MultiTermQuery {
 
-    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
+    fn explain(
+        &self,
+        searcher: &Searcher,
+        doc_address: &DocAddress) -> Result<Option<(Score, Explanation)>, io::Error> {
+            let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
+            let multi_term_scorer = MultiTermExplainScorer::from(self.scorer(searcher));
+            let mut timer_tree = TimerTree::new();
+            let mut postings = self.search_segment(
+                    segment_reader,
+                    multi_term_scorer,
+                    timer_tree.open("explain"));
+            match postings.skip_next(doc_address.doc()) {
+                SkipResult::Reached => {
+                    let scorer = postings.scorer();
+                    let explanation = scorer.explain_score(); 
+                    let result = (scorer.score(), explanation);
+                    Ok(Some(result))
+                }
+                _ => Ok(None)
+            }
+    }
+
+    fn search<C: Collector>(
+        &self,
+        searcher: &Searcher,
+        collector: &mut C) -> io::Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
         
         let multi_term_scorer = self.scorer(searcher);
@@ -60,7 +91,7 @@ impl MultiTermQuery {
         self.terms.len()
     } 
     
-    fn scorer(&self, searcher: &Searcher) -> MultiTermScorer {
+    fn scorer(&self, searcher: &Searcher) -> TfIdfScorer {
         let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.terms.iter()
             .map(|term| searcher.doc_freq(term))
@@ -74,9 +105,9 @@ impl MultiTermQuery {
             })
             .collect();
         let query_coords = (0..self.terms.len() + 1)
-            .map(|i| i as f32 / self.terms.len() as f32)
+            .map(|i| (i as f32) / (self.terms.len() as f32))
             .collect();
-        MultiTermScorer::new(query_coords, idfs)
+        TfIdfScorer::new(query_coords, idfs)
     }
     
     pub fn new(terms: Vec<Term>) -> MultiTermQuery {
@@ -85,7 +116,7 @@ impl MultiTermQuery {
         }
     }
         
-    fn search_segment<'a, 'b>(&'b self, reader: &'b SegmentReader, multi_term_scorer: MultiTermScorer, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings> {
+    fn search_segment<'a, 'b, TScorer: MultiTermScorer>(&'b self, reader: &'b SegmentReader, multi_term_scorer: TScorer, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings, TScorer> {
         let mut segment_postings: Vec<SegmentPostings> = Vec::with_capacity(self.terms.len());
         let mut fieldnorms_readers: Vec<U32FastFieldReader> = Vec::with_capacity(self.terms.len());
         {
