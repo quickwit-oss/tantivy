@@ -66,6 +66,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
 
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
+    #[inline(always)]
     fn advance(&mut self,) -> bool {
         self.cur += Wrapping(1);
         if self.cur.0 >= self.len {
@@ -77,6 +78,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
         return true;
     }
 
+    #[inline(always)]
     fn doc(&self,) -> DocId {
         self.block_decoder.output(self.index_within_block())
     }

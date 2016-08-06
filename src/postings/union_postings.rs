@@ -22,7 +22,7 @@ impl Ord for HeapItem {
 }
 
 pub struct UnionPostings<TPostings: Postings, TAccumulator: MultiTermAccumulator> {
-    fieldnorms_readers: Vec<U32FastFieldReader>,
+    fieldnorm_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
     term_frequencies: Vec<u32>,
     queue: BinaryHeap<HeapItem>,
@@ -31,14 +31,9 @@ pub struct UnionPostings<TPostings: Postings, TAccumulator: MultiTermAccumulator
 }
 
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPostings, TAccumulator> {
-        
-    pub fn new(fieldnorms_reader: Vec<U32FastFieldReader>, mut postings: Vec<TPostings>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {
-        let num_postings = postings.len();
-        assert_eq!(fieldnorms_reader.len(), num_postings);
-        for posting in &mut postings {
-            assert!(posting.advance());
-        }
-        let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(num_postings).collect();
+    
+    fn new_non_empty(fieldnorm_readers: Vec<U32FastFieldReader>, postings: Vec<TPostings>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {
+        let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(postings.len()).collect();
         let heap_items: Vec<HeapItem> = postings
             .iter()
             .map(|posting| {
@@ -50,15 +45,26 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
                 HeapItem(doc, ord as u32)
             })
             .collect();
-        
         UnionPostings {
-            fieldnorms_readers: fieldnorms_reader,
+            fieldnorm_readers: fieldnorm_readers,
             postings: postings,
             term_frequencies: term_frequencies,
             queue: BinaryHeap::from(heap_items),
             doc: 0,
             scorer: scorer
         }
+    }
+    
+    pub fn new(postings_and_fieldnorms: Vec<(TPostings, U32FastFieldReader)>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {      
+        let mut postings = Vec::new();
+        let mut fieldnorm_readers = Vec::new();
+        for (mut posting, fieldnorm_reader) in postings_and_fieldnorms {
+            if posting.advance() {
+                postings.push(posting);
+                fieldnorm_readers.push(fieldnorm_reader);
+            }
+        }
+        UnionPostings::new_non_empty(fieldnorm_readers, postings, scorer)
     }
 
 
@@ -80,7 +86,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
     }
     
     fn get_field_norm(&self, ord:usize, doc:DocId) -> u32 {
-        self.fieldnorms_readers[ord].get(doc)
+        self.fieldnorm_readers[ord].get(doc)
     }
 
 }
@@ -166,8 +172,10 @@ mod tests {
         let right = VecPostings::from(vec!(1, 3, 8));
         let multi_term_scorer = TfIdfScorer::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
         let mut union = UnionPostings::new(
-            vec!(left_fieldnorms, right_fieldnorms),
-            vec!(left, right),
+            vec!(
+                (left, left_fieldnorms),
+                (right, right_fieldnorms),
+            ),
             multi_term_scorer
         );
         assert_eq!(union.next(), Some(1u32));

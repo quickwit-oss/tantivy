@@ -1,5 +1,4 @@
 use Result;
-use Error;
 use std::path::{PathBuf, Path};
 use schema::Schema;
 use DocId;
@@ -250,16 +249,10 @@ impl Segment {
 
     pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource> {
         let path = self.relative_path(component);
-        let directory_lock = self.index.directory.read();
-        match directory_lock {
-            Ok(directory) => {
-                directory.open_read(&path)
-                         .map_err(From::from)
-            }
-            Err(_) => {
-                Err(Error::Poisoned)
-            }
-        } 
+        let directory = try!(self.index.directory.read());
+        let source = try!(directory.open_read(&path));
+        Ok(source)
+
     }
 
     pub fn open_write(&self, component: SegmentComponent) -> Result<WritePtr> {

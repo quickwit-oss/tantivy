@@ -5,8 +5,6 @@ use std::error;
 use std::sync::PoisonError;
 use directory::OpenError;
 
-
-
 #[derive(Debug)]
 pub enum Error {
     OpenError(OpenError),
@@ -20,8 +18,6 @@ impl Error {
     pub fn make_other<E: error::Error + 'static>(e: E) -> Error {
         Error::Other(Box::new(e))
     }
-        
-    
 }
 
 impl From<io::Error> for Error {
@@ -31,7 +27,7 @@ impl From<io::Error> for Error {
 }
 
 impl<Guard> From<PoisonError<Guard>> for Error {
-    fn from(poison_error: PoisonError<Guard>) -> Error {
+    fn from(_: PoisonError<Guard>) -> Error {
         Error::Poisoned
     }
 }

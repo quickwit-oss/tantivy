@@ -15,8 +15,5 @@ pub trait Query {
     fn explain(
         &self,
         searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Explanation> {
-            // TODO check that the document is there or return an error.
-            panic!("Not implemented");
-    }
+        doc_address: &DocAddress) -> Result<Explanation>;
 }

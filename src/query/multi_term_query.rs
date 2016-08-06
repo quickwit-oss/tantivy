@@ -7,13 +7,12 @@ use core::searcher::Searcher;
 use collector::Collector;
 use SegmentLocalId;
 use core::SegmentReader;
-use query::MultiTermExplainScorer;
+use query::MultiTermExplainer;
 use postings::SegmentPostings;
 use postings::UnionPostings;
 use postings::DocSet;
 use query::TfIdfScorer;
 use postings::SkipResult;
-use fastfield::U32FastFieldReader;
 use ScoredDoc;
 use query::Scorer;
 use query::MultiTermAccumulator;
@@ -33,12 +32,14 @@ impl Query for MultiTermQuery {
         searcher: &Searcher,
         doc_address: &DocAddress) -> Result<Explanation> {
             let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
-            let multi_term_scorer = MultiTermExplainScorer::from(self.scorer(searcher));
+            let multi_term_scorer = MultiTermExplainer::from(self.scorer(searcher));
             let mut timer_tree = TimerTree::new();
-            let mut postings = self.search_segment(
+            let mut postings = try!(
+                self.search_segment(
                     segment_reader,
                     multi_term_scorer,
-                    timer_tree.open("explain"));
+                    timer_tree.open("explain"))
+            );
             match postings.skip_next(doc_address.doc()) {
                 SkipResult::Reached => {
                     let scorer = postings.scorer();
@@ -67,10 +68,12 @@ impl Query for MultiTermQuery {
                     let _ = segment_search_timer.open("set_segment");
                     try!(collector.set_segment(segment_ord as SegmentLocalId, &segment_reader));
                 }
-                let mut postings = self.search_segment(
+                let mut postings = try!(
+                    self.search_segment(
                         segment_reader,
                         multi_term_scorer.clone(),
-                        segment_search_timer.open("get_postings"));
+                        segment_search_timer.open("get_postings"))
+                );
                 {
                     let _collection_timer = segment_search_timer.open("collection");
                     while postings.advance() {
@@ -123,21 +126,26 @@ impl MultiTermQuery {
         }
     }
         
-    fn search_segment<'a, 'b, TScorer: MultiTermAccumulator>(&'b self, reader: &'b SegmentReader, multi_term_scorer: TScorer, mut timer: OpenTimer<'a>) -> UnionPostings<SegmentPostings, TScorer> {
-        let mut segment_postings: Vec<SegmentPostings> = Vec::with_capacity(self.terms.len());
-        let mut fieldnorms_readers: Vec<U32FastFieldReader> = Vec::with_capacity(self.terms.len());
+    fn search_segment<'a, 'b, TScorer: MultiTermAccumulator>(
+            &'b self,
+            reader: &'b SegmentReader,
+            multi_term_scorer: TScorer,
+            mut timer: OpenTimer<'a>) -> Result<UnionPostings<SegmentPostings, TScorer>> {
+        let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
         {
             let mut decode_timer = timer.open("decode_all");
             for term in &self.terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
-                reader.read_postings(term)
-                      .map(|postings| {
+                match reader.read_postings(term) {
+                    Some(postings) => {
                         let field = term.get_field();
-                        fieldnorms_readers.push(reader.get_fieldnorms_reader(field).unwrap());
-                        segment_postings.push(postings);
-                      });
+                        let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
+                        postings_and_fieldnorms.push((postings, fieldnorm_reader));
+                    }
+                    None => {}
+                }
             }
         }
-        UnionPostings::new(fieldnorms_readers, segment_postings, multi_term_scorer)
+        Ok(UnionPostings::new(postings_and_fieldnorms, multi_term_scorer))
     }
 }
