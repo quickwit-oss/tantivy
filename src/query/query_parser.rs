@@ -1,6 +1,6 @@
+use Result as tantivy_Error;
 use combine::*;
 use collector::Collector;
-use std::io;
 use core::searcher::Searcher;
 use common::TimerTree;
 use query::{Query, MultiTermQuery};
@@ -38,7 +38,7 @@ impl StandardQuery {
 }
 
 impl Query for StandardQuery {
-    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
+    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> tantivy_Error<TimerTree> {
         match *self {
             StandardQuery::MultiTerm(ref q) => {
                 q.search(searcher, collector)
@@ -49,7 +49,7 @@ impl Query for StandardQuery {
     fn explain(
         &self,
         searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Explanation, String> {
+        doc_address: &DocAddress) -> tantivy_Error<Explanation> {
         match self {
             &StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
         }

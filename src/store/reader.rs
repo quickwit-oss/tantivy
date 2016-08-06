@@ -1,3 +1,5 @@
+use Result;
+
 use directory::ReadOnlySource;
 use std::cell::RefCell;
 use DocId;
@@ -58,11 +60,11 @@ impl StoreReader {
         let mut cursor = Cursor::new(&total_buffer[block_offset..]);
         let block_length = u32::deserialize(&mut cursor).unwrap();
         let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
-        let mut lz4_decoder = lz4::Decoder::new(Cursor::new(block_array)).unwrap();
+        let mut lz4_decoder = try!(lz4::Decoder::new(Cursor::new(block_array)));
         lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())
     }
 
-    pub fn get(&self, doc_id: DocId) -> io::Result<Document> {
+    pub fn get(&self, doc_id: DocId) -> Result<Document> {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         try!(self.read_block(block_offset as usize));
         let mut current_block_mut = self.current_block.borrow_mut();

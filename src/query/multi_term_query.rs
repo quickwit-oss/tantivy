@@ -1,8 +1,8 @@
+use Result;
 use schema::Term;
 use query::Query;
 use common::TimerTree;
 use common::OpenTimer;
-use std::io;
 use core::searcher::Searcher;
 use collector::Collector;
 use SegmentLocalId;
@@ -20,6 +20,7 @@ use query::MultiTermAccumulator;
 use DocAddress;
 use query::Explanation;
 
+
 #[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
     terms: Vec<Term>,    
@@ -30,7 +31,7 @@ impl Query for MultiTermQuery {
     fn explain(
         &self,
         searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Explanation, String> {
+        doc_address: &DocAddress) -> Result<Explanation> {
             let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
             let multi_term_scorer = MultiTermExplainScorer::from(self.scorer(searcher));
             let mut timer_tree = TimerTree::new();
@@ -54,7 +55,7 @@ impl Query for MultiTermQuery {
     fn search<C: Collector>(
         &self,
         searcher: &Searcher,
-        collector: &mut C) -> io::Result<TimerTree> {
+        collector: &mut C) -> Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
         
         let multi_term_scorer = self.scorer(searcher);

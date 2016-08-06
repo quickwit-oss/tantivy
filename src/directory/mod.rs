@@ -4,20 +4,29 @@ mod directory;
 
 use std::ops::Deref;
 use std::io::{Seek, Write, Cursor};
+use std::io;
 use fst::raw::MmapReadOnly;
+use std::path::PathBuf;
 
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
 pub use self::ram_directory::SharedVec;
 
+
 ////////////////////////////////////////
 // WritePtr
-
 
 pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
 pub type WritePtr = Box<SeekableWrite>;
+
+#[derive(Debug)]
+pub enum OpenError {
+    FileDoesNotExist(PathBuf),
+    IOError(io::Error),
+}
+
 
 
 ////////////////////////////////////////

@@ -1,5 +1,6 @@
+use Result;
+use Error;
 use std::path::{PathBuf, Path};
-use std::io;
 use schema::Schema;
 use DocId;
 use std::io::Write;
@@ -7,16 +8,14 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
-use std::io::ErrorKind as IOErrorKind;
 use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
 use core::writer::IndexWriter;
 use core::searcher::Searcher;
+use std::convert::From;
 use super::SegmentComponent;
 
 use num_cpus;
 use core::segment_serializer::SegmentSerializer;
-
-
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
@@ -64,17 +63,17 @@ impl Index {
         Index::from_directory(directory, schema)
     }
 
-    pub fn create(directory_path: &Path, schema: Schema) -> io::Result<Index> {
+    pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
         let directory = Box::new(try!(MmapDirectory::open(directory_path)));
         Ok(Index::from_directory(directory, schema))
     }
 
-    pub fn create_from_tempdir(schema: Schema) -> io::Result<Index> {
+    pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let directory = Box::new(try!(MmapDirectory::create_from_tempdir()));
         Ok(Index::from_directory(directory, schema))
     }
 
-    pub fn open(directory_path: &Path) -> io::Result<Index> {
+    pub fn open(directory_path: &Path) -> Result<Index> {
         let directory = try!(MmapDirectory::open(directory_path));
         let directory_ptr = Box::new(directory);
         let mut index = Index::from_directory(directory_ptr, Schema::new());
@@ -84,18 +83,18 @@ impl Index {
     
     /// Creates a multithreaded writer.
     /// Each writer produces an independant segment.
-    pub fn writer_with_num_threads(&self, num_threads: usize) -> io::Result<IndexWriter> {
+    pub fn writer_with_num_threads(&self, num_threads: usize) -> Result<IndexWriter> {
         IndexWriter::open(self, num_threads)
     }
     
     
     /// Creates a multithreaded writer
     /// It just calls `writer_with_num_threads` with the number of core as `num_threads` 
-    pub fn writer(&self,) -> io::Result<IndexWriter> {
+    pub fn writer(&self,) -> Result<IndexWriter> {
         self.writer_with_num_threads(num_cpus::get())
     }
 
-    pub fn searcher(&self,) -> io::Result<Searcher> {
+    pub fn searcher(&self,) -> Result<Searcher> {
         Searcher::for_index(self.clone())
     }
 
@@ -110,27 +109,23 @@ impl Index {
         self.metas.read().unwrap().schema.clone()
     }
 
-    fn rw_directory(&mut self) -> io::Result<RwLockWriteGuard<DirectoryPtr>> {
+    fn rw_directory(&mut self) -> Result<RwLockWriteGuard<DirectoryPtr>> {
         self.directory
             .write()
-            .map_err(|e| io::Error::new(IOErrorKind::Other,
-                format!("Failed acquiring lock on directory.\n
-                It can happen if another thread panicked! Error was: {:?}", e) ))
+            .map_err(From::from)
     }
 
-    fn ro_directory(&self) -> io::Result<RwLockReadGuard<DirectoryPtr>> {
+    fn ro_directory(&self) -> Result<RwLockReadGuard<DirectoryPtr>> {
         self.directory
             .read()
-            .map_err(|e| io::Error::new(IOErrorKind::Other,
-                format!("Failed acquiring lock on directory.\n
-                It can happen if another thread panicked! Error was: {:?}", e) ))
+            .map_err(From::from)
     }
 
 
     /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segment(&mut self, segment: &Segment) -> io::Result<()> {
+    pub fn publish_segment(&mut self, segment: &Segment) -> Result<()> {
         {
             let mut meta_write = self.metas.write().unwrap();
             meta_write.segments.push(segment.segment_id.clone());
@@ -138,7 +133,7 @@ impl Index {
         self.save_metas()
     }
 
-    pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> io::Result<()> {
+    pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> Result<()> {
         {
             let mut meta_write = self.metas.write().unwrap();
             for segment in segments {
@@ -158,7 +153,7 @@ impl Index {
         self.save_metas()
     }
 
-    pub fn sync(&mut self, segment: &Segment) -> io::Result<()> {
+    pub fn sync(&mut self, segment: &Segment) -> Result<()> {
         let directory = try!(self.ro_directory());
         for component in SegmentComponent::values() {
             let path = segment.relative_path(component);
@@ -195,15 +190,16 @@ impl Index {
         self.segment(SegmentId::new())
     }
 
-    pub fn load_metas(&mut self,) -> io::Result<()> {
-        let meta_file = try!(self.ro_directory().and_then(|d| d.open_read(&META_FILEPATH)));
+    pub fn load_metas(&mut self,) -> Result<()> {
+        let ro_dir = try!(self.ro_directory());
+        let meta_file = try!(ro_dir.open_read(&META_FILEPATH));
         let meta_content = String::from_utf8_lossy(meta_file.as_slice());
         let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
         self.metas.write().unwrap().clone_from(&loaded_meta);
         Ok(())
     }
 
-    pub fn save_metas(&mut self,) -> io::Result<()> {
+    pub fn save_metas(&mut self,) -> Result<()> {
         let mut w = Vec::new();
         {
             let metas_lock = self.metas.read().unwrap() ;
@@ -252,17 +248,26 @@ impl Segment {
         self.segment_id.relative_path(component)
     }
 
-    pub fn open_read(&self, component: SegmentComponent) -> io::Result<ReadOnlySource> {
+    pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource> {
         let path = self.relative_path(component);
-        self.index.directory.read().unwrap().open_read(&path)
+        let directory_lock = self.index.directory.read();
+        match directory_lock {
+            Ok(directory) => {
+                directory.open_read(&path)
+                         .map_err(From::from)
+            }
+            Err(_) => {
+                Err(Error::Poisoned)
+            }
+        } 
     }
 
-    pub fn open_write(&self, component: SegmentComponent) -> io::Result<WritePtr> {
+    pub fn open_write(&self, component: SegmentComponent) -> Result<WritePtr> {
         let path = self.relative_path(component);
         self.index.directory.write().unwrap().open_write(&path)
     }
 }
 
 pub trait SerializableSegment {
-    fn write(&self, serializer: SegmentSerializer) -> io::Result<()>;
+    fn write(&self, serializer: SegmentSerializer) -> Result<()>;
 }

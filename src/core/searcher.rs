@@ -1,14 +1,15 @@
+use Result;
 use core::SegmentReader;
 use core::index::Index;
 use core::index::Segment;
 use schema::Document;
 use collector::Collector;
-use std::io;
 use common::TimerTree;
 use query::Query;
 use DocId;
 use DocAddress;
 use schema::Term;
+
 
 #[derive(Debug)]
 pub struct Searcher {
@@ -17,7 +18,7 @@ pub struct Searcher {
 
 impl Searcher {
 
-    pub fn doc(&self, doc_address: &DocAddress) -> io::Result<Document> {
+    pub fn doc(&self, doc_address: &DocAddress) -> Result<Document> {
         // TODO err
         let DocAddress(segment_local_id, doc_id) = *doc_address;
         let segment_reader = &self.segments[segment_local_id as usize];
@@ -38,7 +39,7 @@ impl Searcher {
             .fold(0u32, |acc, val| acc + val)
     }
 
-    fn add_segment(&mut self, segment: Segment) -> io::Result<()> {
+    fn add_segment(&mut self, segment: Segment) -> Result<()> {
         let segment_reader = try!(SegmentReader::open(segment.clone()));
         self.segments.push(segment_reader);
         Ok(())
@@ -54,15 +55,15 @@ impl Searcher {
         &self.segments
     }
 
-    pub fn for_index(index: Index) -> io::Result<Searcher> {
+    pub fn for_index(index: Index) -> Result<Searcher> {
         let mut searcher = Searcher::new();
-        for segment in index.segments().into_iter() {
+        for segment in index.segments() {
             try!(searcher.add_segment(segment));
         }
         Ok(searcher)
     }
     
-    pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> io::Result<TimerTree> {
+    pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> Result<TimerTree> {
         query.search(self, collector)
     }
 }

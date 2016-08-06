@@ -7,6 +7,7 @@ extern crate iron;
 extern crate staticfile;
 extern crate mount;
 
+use tantivy::Result;
 use tantivy::schema::Field;
 use tantivy::collector::CountCollector;
 use tantivy::Index;
@@ -27,7 +28,6 @@ use tantivy::collector::TopCollector;
 use persistent::Read;
 use iron::typemap::Key;
 use iron::prelude::*;
-use std::io;
 
 
 #[derive(RustcDecodable, RustcEncodable)]
@@ -84,7 +84,7 @@ impl IndexServer {
         }
     }
     
-    fn search(&self, q: String) -> io::Result<Serp> {
+    fn search(&self, q: String) -> Result<Serp> {
         let query = self.query_parser.parse_query(&q).unwrap();
         let searcher = self.index.searcher().unwrap();
         let mut count_collector = CountCollector::new();

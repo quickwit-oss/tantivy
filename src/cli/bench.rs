@@ -1,6 +1,7 @@
 extern crate argparse;
 extern crate tantivy;
 
+use tantivy::Result;
 use argparse::{ArgumentParser, Store};
 use tantivy::Index;
 use tantivy::schema::{Field, Schema};
@@ -41,7 +42,7 @@ fn read_query_file(query_path: &String) -> io::Result<Vec<String>> {
 
 fn run(directory: String,
        query_filepath: String,
-       num_repeat: usize) -> io::Result<()> {
+       num_repeat: usize) -> Result<()> {
     
     println!("Directory : {:?}", directory);
     println!("Query : {:?}", directory);

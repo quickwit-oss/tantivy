@@ -1,4 +1,6 @@
-use std::io;
+use Result;
+use Error;
+
 use std::io::Write;
 use rustc_serialize::json;
 use core::index::Segment;
@@ -6,7 +8,6 @@ use core::index::SegmentInfo;
 use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
-use core::convert_to_ioerror;
 use postings::PostingsSerializer;
 
 pub struct SegmentSerializer {
@@ -19,7 +20,7 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
 
-    pub fn for_segment(segment: &Segment) -> io::Result<SegmentSerializer>  {
+    pub fn for_segment(segment: &Segment) -> Result<SegmentSerializer>  {
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
 
         let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));
@@ -54,15 +55,18 @@ impl SegmentSerializer {
         &mut self.store_writer
     }
 
-    pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> io::Result<()> {
+    pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
-        let json_data = try!(json::encode(segment_info).map_err(convert_to_ioerror));
+        let json_data = try!(
+            json::encode(segment_info)
+            .map_err(|err| Error::Other(Box::new(err)))
+        );
         try!(write.write_all(json_data.as_bytes()));
         try!(write.flush());
         Ok(())
     }
 
-    pub fn close(mut self,) -> io::Result<()> {
+    pub fn close(mut self,) -> Result<()> {
         try!(self.fast_field_serializer.close());
         try!(self.postings_serializer.close());
         try!(self.store_writer.close());

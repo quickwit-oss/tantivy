@@ -16,6 +16,7 @@ use std::thread::JoinHandle;
 use std::sync::Arc;
 use core::merger::IndexMerger;
 use core::segment_writer::SegmentWriter;
+use error::Result;
 
 pub struct IndexWriter {
 	threads: Vec<JoinHandle<()>>,
@@ -28,7 +29,7 @@ type ArcDoc = Arc<Document>;
 
 impl IndexWriter {
 
-	pub fn open(index: &Index, num_threads: usize) -> io::Result<IndexWriter> {
+	pub fn open(index: &Index, num_threads: usize) -> Result<IndexWriter> {
 		let schema = index.schema();
 		let (queue_input, queue_output): (SyncSender<ArcDoc>, Receiver<ArcDoc>) = mpsc::sync_channel(10_000);
 		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
@@ -75,6 +76,7 @@ impl IndexWriter {
 				}
 			})
 		}).collect();
+		// TODO err in thread?
 		Ok(IndexWriter {
 			threads: threads,
 			index: index.clone(),
@@ -83,14 +85,15 @@ impl IndexWriter {
 		})
 	}
 
-	pub fn merge(&mut self, segments: &Vec<Segment>) -> io::Result<()> {
+	pub fn merge(&mut self, segments: &Vec<Segment>) -> Result<()> {
 		let schema = self.schema.clone();
 		let merger = try!(IndexMerger::open(schema, segments));
 		let merged_segment = self.index.new_segment();
 		let segment_serializer = try!(SegmentSerializer::for_segment(&merged_segment));
 		try!(merger.write(segment_serializer));
-		self.index.sync(&merged_segment).unwrap();
-		self.index.publish_merge_segment(segments, &merged_segment)
+		try!(self.index.sync(&merged_segment));
+		try!(self.index.publish_merge_segment(segments, &merged_segment));
+		Ok(())
 	}
 
 	pub fn wait(self,) -> thread::Result<()> {

@@ -1,4 +1,4 @@
-use std::io;
+use Result;
 use core::SegmentReader;
 use core::index::Segment;
 use DocId;
@@ -129,7 +129,7 @@ pub struct IndexMerger {
 }
 
 impl IndexMerger {
-    pub fn open(schema: Schema, segments: &Vec<Segment>) -> io::Result<IndexMerger> {
+    pub fn open(schema: Schema, segments: &Vec<Segment>) -> Result<IndexMerger> {
         let mut readers = Vec::new();
         let mut max_doc = 0;
         for segment in segments {
@@ -147,7 +147,7 @@ impl IndexMerger {
     }
 
     
-    fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
+    fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         // TODO make sure that works even if the field is never here.
         for field in self.schema.fields()
              .iter()
@@ -175,7 +175,7 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> io::Result<()> {
+    fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         for field in self.schema.fields()
              .iter()
              .enumerate()
@@ -202,7 +202,7 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> io::Result<()> {
+    fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
         let mut postings_merger = PostingsMerger::new(&self.readers);
         loop {
             match postings_merger.next() {
@@ -219,7 +219,7 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> io::Result<()> {
+    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
         for reader in self.readers.iter() {
             let store_reader = reader.get_store_reader();
             try!(store_writer.stack_reader(store_reader));
@@ -229,7 +229,7 @@ impl IndexMerger {
 }
 
 impl SerializableSegment for IndexMerger {
-    fn write(&self, mut serializer: SegmentSerializer) -> io::Result<()> {
+    fn write(&self, mut serializer: SegmentSerializer) -> Result<()> {
         try!(self.write_postings(serializer.get_postings_serializer()));
         try!(self.write_fieldnorms(serializer.get_fieldnorms_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));

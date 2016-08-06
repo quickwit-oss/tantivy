@@ -1,3 +1,4 @@
+use Result;
 use std::path::{Path, PathBuf};
 use tempdir::TempDir;
 use std::collections::HashMap;
@@ -13,6 +14,8 @@ use directory::Directory;
 use directory::ReadOnlySource;
 use directory::WritePtr;
 use std::io::BufWriter;
+use directory::OpenError;
+use std::result;
 
 ////////////////////////////////////////////////////////////////
 // MmapDirectory
@@ -60,49 +63,71 @@ impl MmapDirectory {
 }
 
 impl Directory for MmapDirectory {
-    fn open_read(&self, path: &Path) -> io::Result<ReadOnlySource> {
+    
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenError> {
         let full_path = self.resolve_path(path);
         let mut mmap_cache = self.mmap_cache.write().unwrap();
         let mmap = match mmap_cache.entry(full_path.clone()) {
-            HashMapEntry::Occupied(e) => e.get().clone(),
+            HashMapEntry::Occupied(e) => {
+                e.get().clone()
+            }
             HashMapEntry::Vacant(vacant_entry) => {
-                let new_mmap =  try!(MmapReadOnly::open_path(full_path.clone()));
+                let new_mmap =  try!(
+                    MmapReadOnly::open_path(full_path.clone())
+                    .map_err(|err| {
+                        if err.kind() == io::ErrorKind::AlreadyExists {
+                            OpenError::FileDoesNotExist(PathBuf::from(&full_path))
+                        }
+                        else {
+                            OpenError::IOError(err)
+                        }
+                    })
+                );
                 vacant_entry.insert(new_mmap.clone());
                 new_mmap
             }
         };
         Ok(ReadOnlySource::Mmap(mmap))
     }
-    fn open_write(&mut self, path: &Path) -> io::Result<WritePtr> {
+    
+    
+    fn open_write(&mut self, path: &Path) -> Result<WritePtr> {
         let full_path = self.resolve_path(path);
         let file = try!(File::create(full_path));
         let buf_writer = BufWriter::new(file);
         Ok(Box::new(buf_writer))
     }
 
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> Result<()> {
         let full_path = self.resolve_path(path);
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
-        meta_file.write(|f| {
+        try!(meta_file.write(|f| {
             f.write_all(data)
-        })
+        }));
+        Ok(())
     }
 
-    fn sync(&self, path: &Path) -> io::Result<()> {
+    fn sync(&self, path: &Path) -> Result<()> {
         let full_path = self.resolve_path(path);
         match File::open(&full_path) {
             Ok(fd) => {
-                fd.sync_all()
+                try!(fd.sync_all());
+                Ok(())
             }
             Err(_) => {
                 // file does not exists.
-                // this is not considered a failure.
+                // this is not considered a failure as some of the file (postings) only exists if 
+                // a functionality is used
+                //
+                // TODO be fine-grained about this.
                 Ok(())
             }
         }
     }
 
-    fn sync_directory(&self,) -> io::Result<()> {
-        File::open(&self.root_path).and_then(|fd| fd.sync_all())
+    fn sync_directory(&self,) -> Result<()> {
+        let fd = try!(File::open(&self.root_path));
+        try!(fd.sync_all());
+        Ok(())
     }
 }

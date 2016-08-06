@@ -43,6 +43,9 @@ mod store;
 mod common;
 mod error;
 
+pub use error::{Result, Error};
+
+
 pub mod postings;
 pub mod query;
 pub mod directory;

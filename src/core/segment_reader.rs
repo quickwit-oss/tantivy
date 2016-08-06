@@ -1,3 +1,4 @@
+use Result;
 use core::index::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
@@ -14,12 +15,12 @@ use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
 use schema::Field;
-use core::convert_to_ioerror;
 use postings::SegmentPostings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use schema::FieldEntry;
 use schema::Schema;
 use postings::FreqHandler;
+use error::Error;
 
 pub struct SegmentReader {
     segment_info: SegmentInfo,
@@ -77,12 +78,19 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: Segment) -> io::Result<SegmentReader> {
+    pub fn open(segment: Segment) -> Result<SegmentReader> {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
-        let segment_info_data = try!(str::from_utf8(&*segment_info_reader)
-                                         .map_err(convert_to_ioerror));
-        let segment_info: SegmentInfo = try!(json::decode(&segment_info_data)
-                                                 .map_err(convert_to_ioerror));
+        let segment_info_data = try!(
+            str::from_utf8(&*segment_info_reader)
+                .map_err(Error::make_other)
+         );
+        let segment_info: SegmentInfo = try!(
+            json::decode(&segment_info_data)
+            .map_err(|err| {
+                let file_path = segment.relative_path(SegmentComponent::INFO);
+                Error::CorruptedFile(file_path, Box::new(err))
+            })
+        );
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_infos = try!(FstMap::from_source(source));
         let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
@@ -115,7 +123,7 @@ impl SegmentReader {
     /// bearing the given doc id.
     /// This method is slow and should seldom be called from
     /// within a collector.
-    pub fn doc(&self, doc_id: DocId) -> io::Result<Document> {
+    pub fn doc(&self, doc_id: DocId) -> Result<Document> {
         self.store_reader.get(doc_id)
     }
 

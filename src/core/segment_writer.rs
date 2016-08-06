@@ -1,3 +1,4 @@
+use Result;
 use DocId;
 use schema::Schema;
 use schema::Document;
@@ -12,7 +13,6 @@ use analyzer::StreamingIterator;
 use postings::PostingsWriter;
 use fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
-use std::io;
 use schema::Field;
 use schema::FieldValue;
 
@@ -37,9 +37,7 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 
 impl SegmentWriter {
 	
-
-	
-	pub fn for_segment(segment: Segment, schema: &Schema) -> io::Result<SegmentWriter> {
+	pub fn for_segment(segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
 		Ok(SegmentWriter {
 			max_doc: 0,
@@ -58,7 +56,7 @@ impl SegmentWriter {
 	// - the segment info
 	// The segment writer cannot be used after this, which is
 	// enforced by the fact that "self" is moved.
-	pub fn finalize(mut self,) -> io::Result<()> {
+	pub fn finalize(mut self,) -> Result<()> {
 		let segment_info = self.segment_info();
 		self.postings_writer.close();
 		write(&self.postings_writer,
@@ -68,7 +66,7 @@ impl SegmentWriter {
 			  self.segment_serializer)
 	}
 
-    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
+    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {
 			let mut num_tokens: usize = 0;
@@ -137,7 +135,7 @@ fn write(postings_writer: &PostingsWriter,
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,
-	  	mut serializer: SegmentSerializer) -> io::Result<()> {
+	  	mut serializer: SegmentSerializer) -> Result<()> {
 		try!(postings_writer.serialize(serializer.get_postings_serializer()));
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
@@ -147,7 +145,7 @@ fn write(postings_writer: &PostingsWriter,
 }
 
 impl SerializableSegment for SegmentWriter {
-	fn write(&self, serializer: SegmentSerializer) -> io::Result<()> {
+	fn write(&self, serializer: SegmentSerializer) -> Result<()> {
 		write(&self.postings_writer,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,
