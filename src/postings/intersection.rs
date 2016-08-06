@@ -35,16 +35,16 @@ impl<'a> IntersectionDocSet<'a> {
 
 impl<'a> DocSet for IntersectionDocSet<'a> {
     
-    fn next(&mut self,) -> bool {
+    fn advance(&mut self,) -> bool {
         if self.finished {
             return false;
         }
         
-        if !self.left.next() {
+        if !self.left.advance() {
             self.finished = true;
             return false;
         }
-        if !self.right.next() {
+        if !self.right.advance() {
             self.finished = true;
             return false;
         }
@@ -54,13 +54,13 @@ impl<'a> DocSet for IntersectionDocSet<'a> {
                     return true;
                 }
                 Ordering::Less => {
-                    if !self.left.next() {
+                    if !self.left.advance() {
                         self.finished = true;
                         return false;
                     }
                 }
                 Ordering::Greater => {
-                    if !self.right.next() {
+                    if !self.right.advance() {
                         self.finished = true;
                         return false;
                     }
@@ -72,12 +72,6 @@ impl<'a> DocSet for IntersectionDocSet<'a> {
     fn doc(&self,) -> DocId {
         self.left.doc()
     }
-    
-    fn doc_freq(&self,) -> usize {
-        // TODO not a great idea.
-        panic!("intersection does not implement doc freq");
-    }
-    
 }
 
 #[inline(never)]

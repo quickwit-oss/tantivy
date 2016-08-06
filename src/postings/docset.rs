@@ -14,7 +14,7 @@ pub enum SkipResult {
 pub trait DocSet {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
-    fn next(&mut self,) -> bool;
+    fn advance(&mut self,) -> bool;
     
     // after skipping position
     // the iterator in such a way that doc() will return a
@@ -23,7 +23,7 @@ pub trait DocSet {
         loop {
             match self.doc().cmp(&target) {
                 Ordering::Less => {
-                    if !self.next() {
+                    if !self.advance() {
                         return SkipResult::End;
                     }
                 },
@@ -34,16 +34,14 @@ pub trait DocSet {
     }
 
     fn doc(&self,) -> DocId;
-
-    fn doc_freq(&self,) -> usize;
 }
 
 
 impl<TDocSet: DocSet> DocSet for Box<TDocSet> {
 
-    fn next(&mut self,) -> bool {
+    fn advance(&mut self,) -> bool {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.next()
+        unboxed.advance()
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
@@ -53,20 +51,15 @@ impl<TDocSet: DocSet> DocSet for Box<TDocSet> {
 
     fn doc(&self,) -> DocId {
         let unboxed: &TDocSet = self.borrow();
-        unboxed.borrow().doc()
-    }
-
-    fn doc_freq(&self,) -> usize {
-        let unboxed: &TDocSet = self.borrow();
-        unboxed.doc_freq()
+        unboxed.doc()
     }
 }
 
 impl<'a, TDocSet: DocSet> DocSet for &'a mut TDocSet {
    
-    fn next(&mut self,) -> bool {
+    fn advance(&mut self,) -> bool {
         let unref: &mut TDocSet = *self;
-        unref.next()
+        unref.advance()
     }
         
     fn skip_next(&mut self, target: DocId) -> SkipResult {
@@ -78,10 +71,6 @@ impl<'a, TDocSet: DocSet> DocSet for &'a mut TDocSet {
         let unref: &TDocSet = *self;
         unref.doc()
     }
+}
 
     
-    fn doc_freq(&self,) -> usize {
-        let unref: &TDocSet = *self;
-        unref.doc_freq()
-    }
-}

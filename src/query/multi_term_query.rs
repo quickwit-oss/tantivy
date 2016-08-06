@@ -72,7 +72,7 @@ impl Query for MultiTermQuery {
                         segment_search_timer.open("get_postings"));
                 {
                     let _collection_timer = segment_search_timer.open("collection");
-                    while postings.next() {
+                    while postings.advance() {
                         let scored_doc = ScoredDoc(postings.scorer().score(), postings.doc());
                         collector.collect(scored_doc);
                     }

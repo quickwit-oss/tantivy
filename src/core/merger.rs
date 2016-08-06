@@ -15,6 +15,7 @@ use schema::{Term, Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use postings::ChainedPostings;
+use postings::HasLen;
 use postings::OffsetPostings;
 use core::index::SegmentInfo;
 use std::cmp::{min, max, Ordering};
@@ -206,8 +207,8 @@ impl IndexMerger {
         loop {
             match postings_merger.next() {
                 Some((term, mut merged_doc_ids)) => {
-                    try!(postings_serializer.new_term(&term, merged_doc_ids.doc_freq() as DocId));
-                    while merged_doc_ids.next() {
+                    try!(postings_serializer.new_term(&term, merged_doc_ids.len() as DocId));
+                    while merged_doc_ids.advance() {
                         try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), &EMPTY_ARRAY));
                     }
                     try!(postings_serializer.close_term());

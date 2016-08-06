@@ -28,6 +28,7 @@ pub use self::intersection::intersection;
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
 pub use self::scored_docset::ScoredDocSet;
+pub use self::postings::HasLen;
 
 
 #[cfg(test)]
@@ -62,20 +63,20 @@ mod tests {
             let left = Box::new(VecPostings::from(vec!(1, 3, 9)));
             let right = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
             let mut intersection = IntersectionDocSet::new(vec!(left, right));
-            assert!(intersection.next());
+            assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
-            assert!(intersection.next());
+            assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.next());
+            assert!(!intersection.advance());
         }
         {
             let a = Box::new(VecPostings::from(vec!(1, 3, 9)));
             let b = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
             let c = Box::new(VecPostings::from(vec!(1, 5, 9, 111)));
             let mut intersection = IntersectionDocSet::new(vec!(a, b, c));
-            assert!(intersection.next());
+            assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.next());
+            assert!(!intersection.advance());
         }
     }
      

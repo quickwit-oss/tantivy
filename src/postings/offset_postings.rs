@@ -2,6 +2,7 @@ use postings::Postings;
 use postings::SegmentPostings;
 use postings::SkipResult;
 use postings::DocSet;
+use postings::HasLen;
 use DocId;
 
 
@@ -20,8 +21,8 @@ impl<'a> OffsetPostings<'a> {
 }
 
 impl<'a> DocSet for OffsetPostings<'a> {
-    fn next(&mut self,) -> bool {
-        self.underlying.next()
+    fn advance(&mut self,) -> bool {
+        self.underlying.advance()
     }
     
     fn doc(&self,) -> DocId {
@@ -37,8 +38,12 @@ impl<'a> DocSet for OffsetPostings<'a> {
         }
     }
     
-    fn doc_freq(&self,) -> usize {
-        self.underlying.doc_freq()
+ 
+}
+
+impl<'a> HasLen for OffsetPostings<'a> {
+    fn len(&self,) -> usize {
+        self.underlying.len()
     }
 }
 

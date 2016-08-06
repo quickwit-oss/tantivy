@@ -36,7 +36,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
         let num_postings = postings.len();
         assert_eq!(fieldnorms_reader.len(), num_postings);
         for posting in &mut postings {
-            assert!(posting.next());
+            assert!(posting.advance());
         }
         let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(num_postings).collect();
         let heap_items: Vec<HeapItem> = postings
@@ -69,7 +69,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
     fn advance_head(&mut self,) {
         let ord = self.queue.peek().unwrap().1 as usize;
         let cur_postings = &mut self.postings[ord];
-        if cur_postings.next() {
+        if cur_postings.advance() {
             let doc = cur_postings.doc();
             self.term_frequencies[ord] = cur_postings.term_freq();  
             self.queue.replace(HeapItem(doc, ord as u32));
@@ -87,7 +87,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
 
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPostings<TPostings, TAccumulator> {
     
-    fn next(&mut self,) -> bool {
+    fn advance(&mut self,) -> bool {
         self.scorer.clear();
         match self.queue.peek() {
             Some(&HeapItem(doc, ord)) => {
@@ -122,14 +122,9 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPo
         return true;
     }
 
-    // TODO implement a faster skip_next
-        
+    // TODO implement a faster skip_next   
     fn doc(&self,) -> DocId {
         self.doc
-    }
-        
-    fn doc_freq(&self,) -> usize {
-        panic!("Doc freq");
     }
 }
 
@@ -175,18 +170,18 @@ mod tests {
             vec!(left, right),
             multi_term_scorer
         );
-        assert!(union.next());
+        assert!(union.advance());
         assert_eq!(union.doc(), 1);
         assert!(abs_diff(union.scorer().score(), 2.182179f32) < 0.001);
-        assert!(union.next());
+        assert!(union.advance());
         assert_eq!(union.doc(), 2);
         assert!(abs_diff(union.scorer().score(), 0.2236068) < 0.001f32);
-        assert!(union.next());
+        assert!(union.advance());
         assert_eq!(union.doc(), 3);
-        assert!(union.next());
+        assert!(union.advance());
         assert!(abs_diff(union.scorer().score(), 0.8944272f32) < 0.001f32);
         assert_eq!(union.doc(), 8);
-        assert!(!union.next());
+        assert!(!union.advance());
     }
 
 }

@@ -242,10 +242,10 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let reader = &searcher.segments()[0];
             let mut postings = reader.read_postings(&Term::from_field_text(text_field, "af")).unwrap();
-            assert!(postings.next());
+            assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
-            assert!(!postings.next());
+            assert!(!postings.advance());
         }
     }
 
