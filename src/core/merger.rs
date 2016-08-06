@@ -20,6 +20,7 @@ use postings::OffsetPostings;
 use core::index::SegmentInfo;
 use std::cmp::{min, max, Ordering};
 
+
 struct PostingsMerger<'a> {
     doc_offsets: Vec<DocId>,
     heap: BinaryHeap<HeapItem>,
@@ -312,7 +313,7 @@ mod tests {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
-                let query = MultiTermQuery::new(terms);
+                let query = MultiTermQuery::from(terms);
                 assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()
             };
@@ -356,7 +357,7 @@ mod tests {
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {
-                    let query = MultiTermQuery::new(terms);
+                    let query = MultiTermQuery::from(terms);
                     let mut collector = FastFieldTestCollector::for_field(score_field);
                     assert!(searcher.search(&query, &mut collector).is_ok());
                     collector.vals().clone()

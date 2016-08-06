@@ -9,6 +9,7 @@ use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
 use DocAddress;
 use query::Explanation;
+use query::Occur;
 
 #[derive(Debug)]
 pub enum ParsingError {
@@ -99,9 +100,7 @@ impl QueryParser {
                 vec!(Term::from_field_u32(field, u32_parsed))
             }
         })
-             
-    } 
-    
+    }    
     
     fn transform_literal(&self, literal: Literal) -> Result<Vec<Term>, ParsingError> {
         match literal {
@@ -128,14 +127,17 @@ impl QueryParser {
     pub fn parse_query(&self, query: &str) -> Result<StandardQuery, ParsingError> {
         match parser(query_language).parse(query.trim()) {
             Ok(literals) => {
-                let mut terms_result: Vec<Term> = Vec::new();
-                for literal in literals.0 {
+                let mut terms_result: Vec<(Occur, Term)> = Vec::new();
+                for (occur, literal) in literals.0 {
                     let literal_terms = try!(self.transform_literal(literal));
-                    terms_result.extend_from_slice(&literal_terms);
+                    terms_result
+                        .extend(literal_terms
+                        .into_iter()
+                        .map(|term| (occur, term) ));
                 }
                 Ok(
                     StandardQuery::MultiTerm(
-                        MultiTermQuery::new(terms_result)
+                        MultiTermQuery::from(terms_result)
                     )
                 )
             }  
@@ -153,7 +155,10 @@ pub enum Literal {
     DefaultField(String),
 }
 
-pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
+// TODO handle as a specific case, having a single MUST_NOT term 
+
+
+pub fn query_language(input: State<&str>) -> ParseResult<Vec<(Occur, Literal)>, &str>
 {
     let literal = || {
         let term_val = || {
@@ -163,14 +168,23 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<Literal>, &str>
                 .map(|(_, s, _)| s);
             phrase.or(word)
         };
-
+        
         let field = many1(letter());
         let term_query = (field, char(':'), term_val())
             .map(|(field,_, value)| Literal::WithField(field, value));
         let term_default_field = term_val().map(Literal::DefaultField);
-        try(term_query)
-            .or(term_default_field) 
+        
+        let occur = optional(char('-').or(char('+')))
+            .map(|opt_c| {
+                match opt_c {
+                    Some('-') => Occur::MustNot,
+                    Some('+') => Occur::Must,
+                    _ => Occur::Should, 
+                }
+            });        
+        (occur, try(term_query).or(term_default_field)) 
     };
+     
     (sep_by(literal(), spaces()), eof())
     .map(|(first, _)| first)
     .parse_state(input)
@@ -183,6 +197,7 @@ mod tests {
     use combine::*;
     use schema::*;
     use query::MultiTermQuery;
+    use query::Occur;
     use super::*;
     
 
@@ -192,28 +207,61 @@ mod tests {
     pub fn test_query_grammar() {
         let mut query_parser = parser(query_language);
         assert_eq!(query_parser.parse("abc:toto").unwrap().0,
-            vec!(Literal::WithField(String::from("abc"), String::from("toto"))));       
-        assert_eq!(query_parser.parse("\"some phrase query\"").unwrap().0,
-            vec!(Literal::DefaultField(String::from("some phrase query"))));
-        assert_eq!(query_parser.parse("field:\"some phrase query\"").unwrap().0,
-            vec!(Literal::WithField(String::from("field"), String::from("some phrase query"))));
+            vec!(
+                (Occur::Should, Literal::WithField(String::from("abc"), String::from("toto")))
+            )
+        );       
+        assert_eq!(
+            query_parser.parse("\"some phrase query\"").unwrap().0,
+            vec!(
+                (Occur::Should, Literal::DefaultField(String::from("some phrase query"))),
+            )
+        );
+        assert_eq!(
+            query_parser.parse("field:\"some phrase query\"").unwrap().0,
+            vec!(
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("some phrase query")))
+        ));
         assert_eq!(query_parser.parse("field:\"some phrase query\" field:toto a").unwrap().0,
             vec!(
-                Literal::WithField(String::from("field"), String::from("some phrase query")),
-                Literal::WithField(String::from("field"), String::from("toto")),
-                Literal::DefaultField(String::from("a")),
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("some phrase query"))),
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("toto"))),
+                (Occur::Should, Literal::DefaultField(String::from("a"))),
             ));
         assert_eq!(query_parser.parse("field:\"a ! b\"").unwrap().0,
-            vec!(Literal::WithField(String::from("field"), String::from("a ! b")),));
+            vec!(
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("a ! b"))),
+            ));
         assert_eq!(query_parser.parse("field:a9e3").unwrap().0,
-            vec!(Literal::WithField(String::from("field"), String::from("a9e3")),));
+            vec!(
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("a9e3")),)
+            ));
         assert_eq!(query_parser.parse("a9e3").unwrap().0,
-            vec!(Literal::DefaultField(String::from("a9e3")),));  
+            vec!(
+                (Occur::Should, Literal::DefaultField(String::from("a9e3"))),
+            ));  
         assert_eq!(query_parser.parse("field:タンタイビーって早い").unwrap().0,
-            vec!(Literal::WithField(String::from("field"), String::from("タンタイビーって早い")),));
+            vec!(
+                (Occur::Should, Literal::WithField(String::from("field"), String::from("タンタイビーって早い"))),
+            ));
     }
     
-        
+    #[test]
+    pub fn test_query_grammar_with_occur() {
+        let mut query_parser = parser(query_language);
+        assert_eq!(query_parser.parse("+abc:toto").unwrap().0,
+            vec!(
+                (Occur::Must, Literal::WithField(String::from("abc"), String::from("toto")))
+            )
+        );
+        assert_eq!(query_parser.parse("+field:\"some phrase query\" -field:toto a").unwrap().0,
+            vec!(
+                (Occur::Must, Literal::WithField(String::from("field"), String::from("some phrase query"))),
+                (Occur::MustNot, Literal::WithField(String::from("field"), String::from("toto"))),
+                (Occur::Should, Literal::DefaultField(String::from("a"))),
+            ));
+    }
+            
     #[test]
     pub fn test_invalid_queries() {
         let mut query_parser = parser(query_language);
@@ -237,7 +285,7 @@ mod tests {
         assert!(query_parser.parse_query("a:b").is_err());
         {
             let terms = vec!(Term::from_field_text(title_field, "abctitle"));
-            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
             assert_eq!(
                 query_parser.parse_query("title:abctitle").unwrap(), 
                 query
@@ -248,7 +296,7 @@ mod tests {
                 Term::from_field_text(text_field, "abctitle"),
                 Term::from_field_text(author_field, "abctitle"),
             );
-            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
             assert_eq!(
                 query_parser.parse_query("abctitle").unwrap(), 
                 query
@@ -256,7 +304,7 @@ mod tests {
         }
         {
             let terms = vec!(Term::from_field_text(title_field, "abctitle"));
-            let query = StandardQuery::MultiTerm(MultiTermQuery::new(terms)); 
+            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
             assert_eq!(
                 query_parser.parse_query("title:abctitle   ").unwrap(), 
                 query

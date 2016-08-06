@@ -281,7 +281,7 @@ mod tests {
         {
             let searcher = index.searcher().unwrap();
             let get_doc_ids = |terms: Vec<Term>| {
-                let query = MultiTermQuery::new(terms);
+                let query = MultiTermQuery::from(terms);
                 let mut collector = TestCollector::new();
                 assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()

@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use query::MultiTermAccumulator; 
 use fastfield::U32FastFieldReader;
+use query::Occur;
 use std::iter;
 
 #[derive(Eq, PartialEq)]
@@ -21,18 +22,60 @@ impl Ord for HeapItem {
     }
 }
 
+struct Filter {
+    and_mask: u64,
+    result: u64,    
+}
+
+impl Filter {
+    fn accept(&self, ord_set: u64) -> bool {
+        (self.and_mask & ord_set) == self.result
+    }
+    
+    fn new(occurs: &Vec<Occur>) -> Filter {
+        let mut and_mask = 0u64;
+        let mut result = 0u64;
+        for (i, occur) in occurs.iter().enumerate() {
+            let shift = (1 << i);
+            match *occur {
+                Occur::Must => {
+                    and_mask |= shift;
+                    result |= shift;
+                },
+                Occur::MustNot => {
+                    and_mask |= shift;
+                },
+                Occur::Should => {},
+            }
+        }
+        Filter {
+            and_mask: and_mask,
+            result: result
+        }
+    }
+}
+
 pub struct UnionPostings<TPostings: Postings, TAccumulator: MultiTermAccumulator> {
     fieldnorm_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
     term_frequencies: Vec<u32>,
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
-    scorer: TAccumulator
+    scorer: TAccumulator,
+    filter: Filter,
 }
+
+
 
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPostings, TAccumulator> {
     
-    fn new_non_empty(fieldnorm_readers: Vec<U32FastFieldReader>, postings: Vec<TPostings>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {
+    fn new_non_empty(
+        
+        fieldnorm_readers: Vec<U32FastFieldReader>,
+        postings: Vec<TPostings>,
+        scorer: TAccumulator,
+        filter: Filter
+    ) -> UnionPostings<TPostings, TAccumulator> {
         let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(postings.len()).collect();
         let heap_items: Vec<HeapItem> = postings
             .iter()
@@ -51,20 +94,24 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
             term_frequencies: term_frequencies,
             queue: BinaryHeap::from(heap_items),
             doc: 0,
-            scorer: scorer
+            scorer: scorer,
+            filter: filter
         }
     }
     
-    pub fn new(postings_and_fieldnorms: Vec<(TPostings, U32FastFieldReader)>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {      
+    pub fn new(postings_and_fieldnorms: Vec<(Occur, TPostings, U32FastFieldReader)>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {      
         let mut postings = Vec::new();
         let mut fieldnorm_readers = Vec::new();
-        for (mut posting, fieldnorm_reader) in postings_and_fieldnorms {
+        let mut occurs = Vec::new();
+        for (occur, mut posting, fieldnorm_reader) in postings_and_fieldnorms {
             if posting.advance() {
                 postings.push(posting);
                 fieldnorm_readers.push(fieldnorm_reader);
+                occurs.push(occur);
             }
         }
-        UnionPostings::new_non_empty(fieldnorm_readers, postings, scorer)
+        let filter = Filter::new(&occurs);
+        UnionPostings::new_non_empty(fieldnorm_readers, postings, scorer, filter)
     }
 
 
@@ -94,38 +141,45 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPostings<TPostings, TAccumulator> {
     
     fn advance(&mut self,) -> bool {
-        self.scorer.clear();
-        match self.queue.peek() {
-            Some(&HeapItem(doc, ord)) => {
-                self.doc = doc;
-                let ord: usize = ord as usize;
-                let fieldnorm = self.get_field_norm(ord, doc);
-                let tf = self.term_frequencies[ord];
-                self.scorer.update(ord, tf, fieldnorm);   
-            }
-            None => {
-                return false;
-            }
-        }
-        self.advance_head();
         loop {
+            self.scorer.clear();
+            let mut ord_bitset = 0u64;
             match self.queue.peek() {
-                Some(&HeapItem(peek_doc, peek_ord))  => {
-                    if peek_doc != self.doc {
-                        break;
-                    }
-                    else {
-                        let peek_ord: usize = peek_ord as usize;
-                        let peek_tf = self.term_frequencies[peek_ord];
-                        let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
-                        self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
-                    }
+                Some(&HeapItem(doc, ord)) => {
+                    self.doc = doc;
+                    let ord: usize = ord as usize;
+                    let fieldnorm = self.get_field_norm(ord, doc);
+                    let tf = self.term_frequencies[ord];
+                    self.scorer.update(ord, tf, fieldnorm);
+                    ord_bitset |= (1 << ord);  
                 }
-                None => { break; }   
+                None => {
+                    return false;
+                }
             }
             self.advance_head();
+            loop {
+                match self.queue.peek() {
+                    Some(&HeapItem(peek_doc, peek_ord))  => {
+                        if peek_doc != self.doc {
+                            break;
+                        }
+                        else {
+                            let peek_ord: usize = peek_ord as usize;
+                            let peek_tf = self.term_frequencies[peek_ord];
+                            let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                            self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
+                            ord_bitset |= (1 << peek_ord);
+                        }
+                    }
+                    None => { break; }   
+                }
+                self.advance_head();
+            }
+            if self.filter.accept(ord_bitset) {
+                return true;
+            }
         }
-        return true;
     }
 
     // TODO implement a faster skip_next   
@@ -144,6 +198,7 @@ mod tests {
     use directory::ReadOnlySource;
     use directory::SharedVec;
     use schema::Field;
+    use query::Occur;
     use fastfield::{U32FastFieldReader, U32FastFieldWriter, FastFieldSerializer};
 
     
@@ -173,8 +228,8 @@ mod tests {
         let multi_term_scorer = TfIdfScorer::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
         let mut union = UnionPostings::new(
             vec!(
-                (left, left_fieldnorms),
-                (right, right_fieldnorms),
+                (Occur::Should, left, left_fieldnorms),
+                (Occur::Should, right, right_fieldnorms),
             ),
             multi_term_scorer
         );

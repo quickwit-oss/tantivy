@@ -1,4 +1,5 @@
 use Result;
+use Error;
 use schema::Term;
 use query::Query;
 use common::TimerTree;
@@ -18,11 +19,97 @@ use query::Scorer;
 use query::MultiTermAccumulator;
 use DocAddress;
 use query::Explanation;
+use query::occur::Occur;
 
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
-    terms: Vec<Term>,    
+    occur_terms: Vec<(Occur, Term)>,    
+}
+
+
+impl MultiTermQuery {
+
+    
+    pub fn num_terms(&self,) -> usize {
+        self.occur_terms.len()
+    } 
+    
+    fn scorer(&self, searcher: &Searcher) -> TfIdfScorer {
+        let num_terms = self.num_terms();
+        let num_docs = searcher.num_docs() as f32;
+        let idfs: Vec<f32> = self.occur_terms
+            .iter()
+            .map(|&(_, ref term)| searcher.doc_freq(&term))
+            .map(|doc_freq| {
+                if doc_freq == 0 {
+                    1.
+                }
+                else {
+                    1. + ( num_docs / (doc_freq as f32) ).ln()
+                }
+            })
+            .collect();
+        let query_coords = (0..num_terms + 1)
+            .map(|i| (i as f32) / (num_terms as f32))
+            .collect();
+        // TODO have the actual terms in these names
+        let term_names = self.occur_terms
+            .iter()
+            .map(|&(_, ref term)| format!("{:?}", &term))
+            .collect();
+        let mut tfidf_scorer = TfIdfScorer::new(query_coords, idfs);
+        tfidf_scorer.set_term_names(term_names);
+        tfidf_scorer
+    }
+      
+    fn search_segment<'a, 'b, TScorer: MultiTermAccumulator>(
+            &'b self,
+            reader: &'b SegmentReader,
+            multi_term_scorer: TScorer,
+            mut timer: OpenTimer<'a>) -> Result<UnionPostings<SegmentPostings, TScorer>> {
+        let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
+        {
+            let mut decode_timer = timer.open("decode_all");
+            for &(occur, ref term) in &self.occur_terms {
+                let _decode_one_timer = decode_timer.open("decode_one");
+                match reader.read_postings(&term) {
+                    Some(postings) => {
+                        let field = term.get_field();
+                        let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
+                        postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
+                    }
+                    None => {}
+                }
+            }
+        }
+        if postings_and_fieldnorms.len() > 64 {
+            // TODO putting the SHOULD at the end of the list should push the limit.
+            return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
+        }
+        Ok(UnionPostings::new(postings_and_fieldnorms, multi_term_scorer))
+    }
+}
+
+
+impl From<Vec<(Occur, Term)>> for MultiTermQuery {
+    fn from(occur_terms: Vec<(Occur, Term)>) -> MultiTermQuery {
+        MultiTermQuery {
+            occur_terms: occur_terms,
+        }
+    }
+}
+
+impl From<Vec<Term>> for MultiTermQuery {
+    fn from(terms: Vec<Term>) -> MultiTermQuery {
+        let should_terms = terms
+            .into_iter()
+            .map(|term| (Occur::Should, term))
+            .collect();
+        MultiTermQuery {
+            occur_terms: should_terms,
+        }
+    }
 }
 
 impl Query for MultiTermQuery {
@@ -40,17 +127,17 @@ impl Query for MultiTermQuery {
                     multi_term_scorer,
                     timer_tree.open("explain"))
             );
-            match postings.skip_next(doc_address.doc()) {
+            Ok(match postings.skip_next(doc_address.doc()) {
                 SkipResult::Reached => {
                     let scorer = postings.scorer();
-                    let explanation = scorer.explain_score(); 
-                    Ok(explanation)
+                    scorer.explain_score()
                 }
                 _ => {
-                    // TODO return some kind of Error
-                    panic!("could not compute explain");
+                    let mut explanation = Explanation::with_val(0f32);
+                    explanation.description(&format!("Failed to run explain: the document {:?} does not match", doc_address));
+                    explanation
                 }
-            }   
+            }) 
     }
 
     fn search<C: Collector>(
@@ -58,7 +145,6 @@ impl Query for MultiTermQuery {
         searcher: &Searcher,
         collector: &mut C) -> Result<TimerTree> {
         let mut timer_tree = TimerTree::new();
-        
         let multi_term_scorer = self.scorer(searcher);
         {
             let mut search_timer = timer_tree.open("search");
@@ -87,65 +173,3 @@ impl Query for MultiTermQuery {
     }
 }
 
-
-impl MultiTermQuery {
-    
-    pub fn num_terms(&self,) -> usize {
-        self.terms.len()
-    } 
-    
-    fn scorer(&self, searcher: &Searcher) -> TfIdfScorer {
-        let num_docs = searcher.num_docs() as f32;
-        let idfs: Vec<f32> = self.terms.iter()
-            .map(|term| searcher.doc_freq(term))
-            .map(|doc_freq| {
-                if doc_freq == 0 {
-                    1.
-                }
-                else {
-                    1. + ( num_docs / (doc_freq as f32) ).ln()
-                }
-            })
-            .collect();
-        let query_coords = (0..self.terms.len() + 1)
-            .map(|i| (i as f32) / (self.terms.len() as f32))
-            .collect();
-        // TODO have the actual terms in these names
-        let term_names = self.terms
-            .iter()
-            .map(|term| format!("{:?}", term))
-            .collect();
-        let mut tfidf_scorer = TfIdfScorer::new(query_coords, idfs);
-        tfidf_scorer.set_term_names(term_names);
-        tfidf_scorer
-    }
-    
-    pub fn new(terms: Vec<Term>) -> MultiTermQuery {
-        MultiTermQuery {
-            terms: terms,
-        }
-    }
-        
-    fn search_segment<'a, 'b, TScorer: MultiTermAccumulator>(
-            &'b self,
-            reader: &'b SegmentReader,
-            multi_term_scorer: TScorer,
-            mut timer: OpenTimer<'a>) -> Result<UnionPostings<SegmentPostings, TScorer>> {
-        let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
-        {
-            let mut decode_timer = timer.open("decode_all");
-            for term in &self.terms {
-                let _decode_one_timer = decode_timer.open("decode_one");
-                match reader.read_postings(term) {
-                    Some(postings) => {
-                        let field = term.get_field();
-                        let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
-                        postings_and_fieldnorms.push((postings, fieldnorm_reader));
-                    }
-                    None => {}
-                }
-            }
-        }
-        Ok(UnionPostings::new(postings_and_fieldnorms, multi_term_scorer))
-    }
-}

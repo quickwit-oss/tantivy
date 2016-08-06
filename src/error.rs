@@ -11,6 +11,7 @@ pub enum Error {
     IOError(io::Error),
     Poisoned,
     CorruptedFile(PathBuf, Box<error::Error>),
+    InvalidArgument(String),
     Other(Box<error::Error>), // + Send + Sync + 'static
 }
 
