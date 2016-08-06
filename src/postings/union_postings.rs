@@ -170,17 +170,13 @@ mod tests {
             vec!(left, right),
             multi_term_scorer
         );
-        assert!(union.advance());
-        assert_eq!(union.doc(), 1);
+        assert_eq!(union.next(), Some(1u32));
         assert!(abs_diff(union.scorer().score(), 2.182179f32) < 0.001);
-        assert!(union.advance());
-        assert_eq!(union.doc(), 2);
+        assert_eq!(union.next(), Some(2u32));
         assert!(abs_diff(union.scorer().score(), 0.2236068) < 0.001f32);
-        assert!(union.advance());
-        assert_eq!(union.doc(), 3);
-        assert!(union.advance());
+        assert_eq!(union.next(), Some(3u32));
+        assert_eq!(union.next(), Some(8u32));
         assert!(abs_diff(union.scorer().score(), 0.8944272f32) < 0.001f32);
-        assert_eq!(union.doc(), 8);
         assert!(!union.advance());
     }
 

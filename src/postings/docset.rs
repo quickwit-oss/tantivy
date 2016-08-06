@@ -2,6 +2,7 @@ use DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
+use std::iter::Iterator;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum SkipResult {
@@ -34,6 +35,15 @@ pub trait DocSet {
     }
 
     fn doc(&self,) -> DocId;
+    
+    fn next(&mut self) -> Option<DocId> {
+        if self.advance() {
+            Some(self.doc())
+        }
+        else {
+            None
+        }
+    }
 }
 
 
