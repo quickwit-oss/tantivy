@@ -4,8 +4,7 @@ use collector::Collector;
 use core::searcher::Searcher;
 use common::TimerTree;
 use query::{Query, MultiTermQuery};
-use schema::Schema;
-use schema::{Term, Field};
+use schema::{Schema, Term, Field, FieldEntry};
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
 use DocAddress;
@@ -15,6 +14,7 @@ use query::Explanation;
 pub enum ParsingError {
     SyntaxError,
     FieldDoesNotExist(String),
+    ExpectedU32(String, String),
 }
 
 pub struct QueryParser {
@@ -80,23 +80,45 @@ impl QueryParser {
             schema: schema,
             default_fields: default_fields,
         }
-    }
-
-    // TODO check that the term is str.
-    // we only support str field for the moment
+    }   
+    
+    
+    fn transform_field_and_value(&self, field: Field, val: &str) -> Result<Vec<Term>, ParsingError> {
+        let field_entry = self.schema.get_field_entry(field);
+        Ok(match field_entry {
+            &FieldEntry::Text(_, _) => {
+                compute_terms(field, val)
+            },
+            &FieldEntry::U32(ref field_name, _) => {
+                let u32_parsed: u32 = try!(val
+                    .parse::<u32>()
+                    .map_err(|_| {
+                        ParsingError::ExpectedU32(field_name.clone(), String::from(val))
+                    })
+                );
+                vec!(Term::from_field_u32(field, u32_parsed))
+            }
+        })
+             
+    } 
+    
+    
     fn transform_literal(&self, literal: Literal) -> Result<Vec<Term>, ParsingError> {
         match literal {
             Literal::DefaultField(val) => {
-                let terms = self.default_fields
-                    .iter()
-                    .cloned()
-                    .flat_map(|field| compute_terms(field, &val))
-                    .collect();
+                let mut terms = Vec::new();
+                for &field in &self.default_fields {
+                    let extra_terms = try!(self.transform_field_and_value(field, &val));
+                    terms.extend_from_slice(&extra_terms);
+                }
                 Ok(terms)
             },
             Literal::WithField(field_name, val) => {
                 match self.schema.get_field(&field_name) {
-                    Some(field) => Ok(compute_terms(field, &val)),
+                    Some(field) => {
+                        let terms = try!(self.transform_field_and_value(field, &val));
+                        Ok(terms)
+                    },
                     None => Err(ParsingError::FieldDoesNotExist(field_name))
                 } 
             }
@@ -107,7 +129,7 @@ impl QueryParser {
         match parser(query_language).parse(query.trim()) {
             Ok(literals) => {
                 let mut terms_result: Vec<Term> = Vec::new();
-                for literal in literals.0.into_iter() {
+                for literal in literals.0 {
                     let literal_terms = try!(self.transform_literal(literal));
                     terms_result.extend_from_slice(&literal_terms);
                 }
