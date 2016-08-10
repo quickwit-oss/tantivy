@@ -16,7 +16,8 @@ use std::thread::JoinHandle;
 use std::sync::Arc;
 use core::merger::IndexMerger;
 use core::segment_writer::SegmentWriter;
-use error::Result;
+use Result;
+use Error;
 
 pub struct IndexWriter {
 	threads: Vec<JoinHandle<()>>,
@@ -96,10 +97,12 @@ impl IndexWriter {
 		Ok(())
 	}
 
-	pub fn wait(self,) -> thread::Result<()> {
+	pub fn wait(self,) -> Result<()> {
 		drop(self.queue_input);
 		for thread in self.threads {
-			try!(thread.join());
+			try!(thread.join()
+					   .map_err(|e| Error::ErrorInThread(format!("{:?}", e)))
+			);
 		}
 		Ok(())
 	}

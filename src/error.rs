@@ -12,6 +12,7 @@ pub enum Error {
     Poisoned,
     CorruptedFile(PathBuf, Box<error::Error>),
     InvalidArgument(String),
+    ErrorInThread(String), // TODO investigate better solution
     Other(Box<error::Error>), // + Send + Sync + 'static
 }
 

@@ -4,6 +4,8 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
+use rustc_serialize::json;
+use rustc_serialize::json::Json;
 use super::*;
 
 
@@ -129,9 +131,84 @@ impl Schema {
         field
     }
     
+    /// Build a document object from a json-object. 
+    pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocMappingError> {
+        let json_node = try!(Json::from_str(doc_json));
+        let some_json_obj = json_node.as_object();
+        if !some_json_obj.is_some() {
+            let doc_json_sample: String;
+            if doc_json.len() < 20 {
+                doc_json_sample = String::from(doc_json);
+            }
+            else {
+                doc_json_sample = format!("{:?}...", &doc_json[0..20]);
+            }
+            return Err(DocMappingError::NotJSONObject(doc_json_sample))
+        }
+        let json_obj = some_json_obj.unwrap();
+        let mut doc = Document::new();
+        for (field_name, field_value) in json_obj.iter() {
+            match self.get_field(field_name) {
+                Some(field) => {
+                    let field_entry = self.get_field_entry(field);
+                    match field_value {
+                        &Json::String(ref field_text) => {
+                            match field_entry {
+                                &FieldEntry::Text(_, _) => {
+                                    doc.add_text(field, field_text);
+                                }
+                                _ => {
+                                    return Err(DocMappingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
+                                }
+                            }
+                        }
+                        &Json::U64(ref field_val_u64) => {
+                            match field_entry {
+                                &FieldEntry::U32(_, _) => {
+                                    if *field_val_u64 > (u32::max_value() as u64) {
+                                        return Err(DocMappingError::OverflowError(field_name.clone()));
+                                    }
+                                    doc.add_u32(field, *field_val_u64 as u32);
+                                }
+                                _ => {
+                                    return Err(DocMappingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
+                                }
+                            }
+                        },
+                        _ => {
+                            return Err(DocMappingError::MappingError(field_name.clone(), String::from("Value is neither u32, nor text.")));
+                        }
+                    }
+                }
+                None => {
+                    return Err(DocMappingError::NoSuchFieldInSchema(field_name.clone()))
+                }
+            }
+        }
+        Ok(doc)    
+    }
+
 }
 
 
+
+
+
+
+#[derive(Debug)]
+pub enum DocMappingError {
+    NotJSON(json::ParserError),
+    NotJSONObject(String),
+    MappingError(String, String),
+    OverflowError(String),
+    NoSuchFieldInSchema(String),
+}
+
+impl From<json::ParserError> for DocMappingError {
+    fn from(err: json::ParserError) -> DocMappingError {
+        DocMappingError::NotJSON(err)
+    }
+}
 
 
 

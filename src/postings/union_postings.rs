@@ -36,7 +36,7 @@ impl Filter {
         let mut and_mask = 0u64;
         let mut result = 0u64;
         for (i, occur) in occurs.iter().enumerate() {
-            let shift = (1 << i);
+            let shift = 1 << i;
             match *occur {
                 Occur::Must => {
                     and_mask |= shift;
@@ -151,7 +151,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPo
                     let fieldnorm = self.get_field_norm(ord, doc);
                     let tf = self.term_frequencies[ord];
                     self.scorer.update(ord, tf, fieldnorm);
-                    ord_bitset |= (1 << ord);  
+                    ord_bitset |= 1 << ord;  
                 }
                 None => {
                     return false;
@@ -169,7 +169,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPo
                             let peek_tf = self.term_frequencies[peek_ord];
                             let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
                             self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
-                            ord_bitset |= (1 << peek_ord);
+                            ord_bitset |= 1 << peek_ord;
                         }
                     }
                     None => { break; }   
