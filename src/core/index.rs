@@ -197,7 +197,7 @@ impl Index {
         self.metas.write().unwrap().clone_from(&loaded_meta);
         Ok(())
     }
-
+    
     pub fn save_metas(&mut self,) -> Result<()> {
         let mut w = Vec::new();
         {

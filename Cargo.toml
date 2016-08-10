@@ -28,8 +28,8 @@ uuid = "0.1"
 iron = "0.4"
 staticfile = "0.3.0"
 persistent="*"
+ansi_term = "*"
 clap = "2"
-
 
 [dev-dependencies]
 rand = "0.3.13"

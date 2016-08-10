@@ -5,7 +5,6 @@ use std::ops::BitOr;
 pub struct TextOptions {
     indexing_options: TextIndexingOptions,
     stored: bool,
-    fast: bool,
 }
 
 impl TextOptions {
@@ -18,17 +17,8 @@ impl TextOptions {
         self.stored
     }
 
-    pub fn is_fast(&self,) -> bool {
-        self.fast
-    }
-
     pub fn set_stored(mut self,) -> TextOptions {
         self.stored = true;
-        self
-    }
-
-    pub fn set_fast(mut self,) -> TextOptions {
-        self.fast = true;
         self
     }
 
@@ -39,7 +29,6 @@ impl TextOptions {
 
     pub fn new() -> TextOptions {
         TextOptions {
-            fast: false,
             indexing_options: TextIndexingOptions::Unindexed,
             stored: false,
         }
@@ -115,7 +104,6 @@ impl BitOr for TextIndexingOptions {
 pub const STRING: TextOptions = TextOptions {
     indexing_options: TextIndexingOptions::Untokenized,
     stored: false,
-    fast: false,
 };
 
 
@@ -123,7 +111,6 @@ pub const STRING: TextOptions = TextOptions {
 pub const TEXT: TextOptions = TextOptions {
     indexing_options: TextIndexingOptions::TokenizedWithFreqAndPosition,
     stored: false,
-    fast: false,
 };
 
 /// A stored fields of a document can be retrieved given its DocId.
@@ -133,15 +120,6 @@ pub const TEXT: TextOptions = TextOptions {
 pub const STORED: TextOptions = TextOptions {
     indexing_options: TextIndexingOptions::Unindexed,
     stored: true,
-    fast: false,
-};
-
-/// Fast field are used for field you need to access many times during
-/// collection. (e.g: for sort, aggregates).
-pub const FAST: TextOptions = TextOptions {
-    indexing_options: TextIndexingOptions::Unindexed,
-    stored: false,
-    fast: true
 };
 
 
@@ -153,7 +131,6 @@ impl BitOr for TextOptions {
         let mut res = TextOptions::new();
         res.indexing_options = self.indexing_options | other.indexing_options;
         res.stored = self.stored || other.stored;
-        res.fast = self.fast || other.fast;
         res
     }
 }
@@ -169,15 +146,8 @@ mod tests {
     #[test]
     fn test_field_options() {
         {
-            let field_options = STORED | FAST;
-            assert!(field_options.is_stored());
-            assert!(field_options.is_fast());
-            assert!(!field_options.get_indexing_options().is_tokenized());
-        }
-        {
             let field_options = STORED | TEXT;
             assert!(field_options.is_stored());
-            assert!(!field_options.is_fast());
             assert!(field_options.get_indexing_options().is_tokenized());
         }
         {

@@ -15,4 +15,4 @@ impl BinarySerializable for Field {
         u8::deserialize(reader).map(Field)
     }
 }
-    
+

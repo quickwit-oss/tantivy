@@ -1,6 +1,7 @@
 use schema::TextOptions;
 use schema::U32Options;
 
+
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum FieldEntry {
     Text(String, TextOptions),

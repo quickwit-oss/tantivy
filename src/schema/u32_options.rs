@@ -22,16 +22,21 @@ impl U32Options {
     pub fn is_indexed(&self,) -> bool {
         self.indexed
     }
+    
+    pub fn is_fast(&self,) -> bool {
+        self.fast
+    }
+    
+    pub fn set_stored(mut self,) -> U32Options {
+        self.stored = true;
+        self
+    }
 
     pub fn set_indexed(mut self,) -> U32Options {
         self.indexed = true;
         self
     }
-
-    pub fn is_fast(&self,) -> bool {
-        self.fast
-    }
-
+    
     pub fn set_fast(mut self,) -> U32Options {
         self.fast = true;
         self
@@ -42,7 +47,7 @@ impl U32Options {
 
 
 /// The field will be tokenized and indexed
-pub const FAST_U32: U32Options = U32Options {
+pub const FAST: U32Options = U32Options {
     indexed: false,
     stored: false,
     fast: true,
