@@ -1,8 +1,10 @@
+position not stored
 lenient mode for query parser
 phrase queries
 masks for union
 documentation
 query explain with proper term names
+better schema JSON 
 
 Arc for the schema
 error management

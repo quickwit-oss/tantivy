@@ -73,7 +73,7 @@ fn run_bench(index_path: &Path,
             let timing;
             {
                 let mut collector = chain().add(&mut top_collector).add(&mut count_collector);
-                timing = try!(query.search(&searcher, &mut collector).map_err(|e| format!("Failed while searching query {:?}", query_txt)));
+                timing = try!(query.search(&searcher, &mut collector).map_err(|e| format!("Failed while searching query {:?}.\n\n{:?}", query_txt, e)));
             }
             println!("{}\t{}\t{}\t{}", query_txt, num_terms, count_collector.count(), timing.total_time());
         }
@@ -89,7 +89,7 @@ fn run_bench(index_path: &Path,
             try!(query.search(&searcher, &mut top_collector).map_err(|e| format!("Failed while retrieving document for query {:?}.\n{:?}", query, e)));
             let mut timer = TimerTree::new();
             {
-                let h = timer.open("total");
+                let _scoped_timer_ = timer.open("total");
                 for doc_address in top_collector.docs() {
                     searcher.doc(&doc_address).unwrap();
                 }
