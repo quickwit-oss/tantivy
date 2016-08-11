@@ -35,6 +35,7 @@ impl IndexWriter {
 		let (queue_input, queue_output): (SyncSender<ArcDoc>, Receiver<ArcDoc>) = mpsc::sync_channel(10_000);
 		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
 		let threads = (0..num_threads).map(|_|  {
+			
 			let queue_output_clone = queue_output_sendable.clone();
 			let mut index_clone = index.clone();
 			let schema_clone = schema.clone();

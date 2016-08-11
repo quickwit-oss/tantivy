@@ -4,6 +4,8 @@ use ScoredDoc;
 use SegmentReader;
 use SegmentLocalId;
 
+// `CountCollector` collector only counts how many
+// document are matching the query.  
 pub struct CountCollector {
     count: usize,
 }
@@ -15,6 +17,9 @@ impl CountCollector {
         }
     }
 
+
+    // Returns the count of document that where
+    // collected.
     pub fn count(&self,) -> usize {
         self.count
     }

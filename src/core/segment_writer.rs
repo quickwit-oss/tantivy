@@ -15,11 +15,14 @@ use fastfield::U32FastFieldsWriter;
 use std::clone::Clone;
 use schema::Field;
 use schema::FieldValue;
+use schema::TextIndexingOptions;
+use postings::SpecializedPostingsWriter;
+use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 
 pub struct SegmentWriter {
     max_doc: DocId,
 	tokenizer: SimpleTokenizer,
-	postings_writer: PostingsWriter,
+	per_field_postings_writers: Vec<Box<PostingsWriter>>,
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
@@ -35,13 +38,41 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 	U32FastFieldsWriter::new(u32_fields)
 }
 
+fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
+	match field_entry {
+		&FieldEntry::Text(_, ref text_options) => {
+			match text_options.get_indexing_options() {
+				TextIndexingOptions::TokenizedWithFreq => {
+					SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
+				}
+				TextIndexingOptions::TokenizedWithFreqAndPosition => {
+					SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
+				}
+				_ => {
+					SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
+				}
+			}
+		} 
+		&FieldEntry::U32(_, _) => {
+			SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
+		}
+	}
+}
+
+
 impl SegmentWriter {
-	
 	pub fn for_segment(segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
+		let per_field_postings_writers = schema.fields()
+			  .iter()
+			  .map(|field_entry| {
+				  posting_from_field_entry(field_entry)
+			  })
+			  .collect();
+
 		Ok(SegmentWriter {
 			max_doc: 0,
-			postings_writer: PostingsWriter::new(),
+			per_field_postings_writers: per_field_postings_writers,
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
 			tokenizer: SimpleTokenizer::new(),
@@ -58,8 +89,10 @@ impl SegmentWriter {
 	// enforced by the fact that "self" is moved.
 	pub fn finalize(mut self,) -> Result<()> {
 		let segment_info = self.segment_info();
-		self.postings_writer.close();
-		write(&self.postings_writer,
+		for per_field_postings_writer in self.per_field_postings_writers.iter_mut() {
+			per_field_postings_writer.close();
+		}
+		write(&self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  segment_info,
@@ -70,6 +103,7 @@ impl SegmentWriter {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {
 			let mut num_tokens: usize = 0;
+			let field_posting_writers: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			for field_value in field_values {
 				let field_options = schema.get_field_entry(field);
 				match *field_options {
@@ -85,7 +119,7 @@ impl SegmentWriter {
 								match tokens.next() {
 									Some(token) => {
 										let term = Term::from_field_text(field, token);
-										self.postings_writer.suscribe(doc_id, pos, term);
+										field_posting_writers.suscribe(doc_id, pos, term);
 										pos += 1;
 										num_tokens += 1;
 									},
@@ -98,7 +132,7 @@ impl SegmentWriter {
 					FieldEntry::U32(_, ref u32_options) => {
 						if u32_options.is_indexed() {
 							let term = Term::from_field_u32(field_value.field(), field_value.u32_value());
-							self.postings_writer.suscribe(doc_id, 0.clone(), term);
+							field_posting_writers.suscribe(doc_id, 0.clone(), term);
 						}
 					}
 				}
@@ -131,12 +165,14 @@ impl SegmentWriter {
 	}
 }
 
-fn write(postings_writer: &PostingsWriter,
+fn write(per_field_postings_writers: &Vec<Box<PostingsWriter>>,
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,
 	  	mut serializer: SegmentSerializer) -> Result<()> {
-		try!(postings_writer.serialize(serializer.get_postings_serializer()));
+		for per_field_postings_writer in per_field_postings_writers.iter() {
+			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer()));
+		}
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
 		try!(serializer.write_segment_info(&segment_info));
@@ -146,7 +182,7 @@ fn write(postings_writer: &PostingsWriter,
 
 impl SerializableSegment for SegmentWriter {
 	fn write(&self, serializer: SegmentSerializer) -> Result<()> {
-		write(&self.postings_writer,
+		write(&self.per_field_postings_writers,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  self.segment_info(),

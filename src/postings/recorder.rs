@@ -8,7 +8,6 @@ pub trait Recorder {
     fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]);
 }
 
-
 const EMPTY_ARRAY: [u32; 0] = [];
 
 pub struct NothingRecorder;
@@ -86,6 +85,7 @@ impl Recorder for TFAndPositionRecorder {
     
     fn close_doc(&mut self,) {
         self.cumulated_tfs.push(self.cumulated_tf);
+        self.current_pos = 0;
     }
     
     fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]) {

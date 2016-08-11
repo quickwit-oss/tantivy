@@ -4,16 +4,14 @@ use schema::Term;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
-use postings::TermFrequencyRecorder;
 
 
-
-struct TermPostingsWriter<Rec: Recorder> {
+struct TermPostingsWriter<Rec: Recorder + 'static> {
     doc_ids: Vec<DocId>,
     recorder: Rec,
 }
 
-impl<Rec: Recorder> TermPostingsWriter<Rec> {
+impl<Rec: Recorder + 'static> TermPostingsWriter<Rec> {
     pub fn new() -> TermPostingsWriter<Rec> {
         TermPostingsWriter {
             doc_ids: Vec::new(),
@@ -53,34 +51,34 @@ impl<Rec: Recorder> TermPostingsWriter<Rec> {
     }       
 }
 
-// TODO use something faster than the TermFrequencyRecorder when possible.
+pub trait PostingsWriter {
+    
+    fn close(&mut self,);
 
-pub struct PostingsWriter {
-    postings: Vec<TermPostingsWriter<TermFrequencyRecorder>>,
-    term_index: BTreeMap<Term, usize>,
+    fn suscribe(&mut self, doc: DocId, pos: u32, term: Term);
+
+    fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()>;
 }
 
-impl PostingsWriter {
+pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
+    postings: Vec<TermPostingsWriter<Rec>>,
+    term_index: BTreeMap<Term, usize>, // remove btree map
+}
 
-    pub fn new() -> PostingsWriter {
-        PostingsWriter {
+impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
+
+    pub fn new() -> SpecializedPostingsWriter<Rec> {
+        SpecializedPostingsWriter {
             postings: Vec::new(),
             term_index: BTreeMap::new(),
         }
     }
-    
-    pub fn close(&mut self,) {
-        for term_postings_writer in self.postings.iter_mut() {
-            term_postings_writer.close_doc();
-        }
+
+    pub fn new_boxed() -> Box<PostingsWriter> {
+        Box::new(Self::new())
     }
 
-    pub fn suscribe(&mut self, doc: DocId, pos: u32, term: Term) {
-        let doc_ids: &mut TermPostingsWriter<TermFrequencyRecorder> = self.get_term_postings(term);
-        doc_ids.suscribe(doc, pos);
-    }
-
-    fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<TermFrequencyRecorder> {
+    fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<Rec> {
         match self.term_index.get(&term) {
             Some(unord_id) => {
                 return &mut self.postings[*unord_id];
@@ -93,7 +91,22 @@ impl PostingsWriter {
         &mut self.postings[unord_id]
     }
 
-    pub fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
+}
+
+impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
+    
+    fn close(&mut self,) {
+        for term_postings_writer in self.postings.iter_mut() {
+            term_postings_writer.close_doc();
+        }
+    }
+
+    fn suscribe(&mut self, doc: DocId, pos: u32, term: Term) {
+        let doc_ids: &mut TermPostingsWriter<Rec> = self.get_term_postings(term);
+        doc_ids.suscribe(doc, pos);
+    }
+
+    fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
         for (term, postings_id) in &self.term_index {
             let term_postings_writer = &self.postings[postings_id.clone()];
             let term_docfreq = term_postings_writer.doc_freq();

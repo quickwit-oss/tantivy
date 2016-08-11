@@ -27,7 +27,7 @@ impl FieldEntry {
             _ => false, // TODO handle u32 indexed
         }
     }
-    
+
     pub fn is_u32_fast(&self,) -> bool {
         match self {
             &FieldEntry::U32(_, ref options) => options.is_fast(),

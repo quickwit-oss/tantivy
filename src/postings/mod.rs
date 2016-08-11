@@ -19,6 +19,7 @@ pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
 pub use self::writer::PostingsWriter;
+pub use self::writer::SpecializedPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 pub use self::vec_postings::VecPostings;
