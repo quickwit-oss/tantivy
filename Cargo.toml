@@ -17,7 +17,7 @@ keywords = ["search", "information", "retrieval"]
 [dependencies]
 byteorder = "0.4"
 memmap = "0.2"
-lazy_static = "0.1.16"
+lazy_static = "0.1.15"
 regex = "0.1"
 fst = "0.1.31"
 atomicwrites = "0.0.14"
@@ -47,7 +47,7 @@ rand = "0.3.13"
 gcc = "0.3.24"
 
 [[bin]]
-name = "tantivy"
+name = "tantivy-cli"
 path = "src/cli/main.rs"
 doc = false
 
