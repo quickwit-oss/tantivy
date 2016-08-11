@@ -37,7 +37,6 @@ mod macros {
 }
 
 mod core;
-
 mod compression;
 mod fastfield;
 mod store;
@@ -46,12 +45,13 @@ mod error;
 
 pub use error::{Result, Error};
 
+mod analyzer;
+mod datastruct;
 
 pub mod postings;
 pub mod query;
 pub mod directory;
-pub mod datastruct;
-pub mod analyzer;
+
 pub mod collector;
 pub mod schema;
 

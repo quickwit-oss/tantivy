@@ -3,4 +3,5 @@ target/debug
 .vscode
 target/release
 Cargo.lock
+benchmark
 .DS_Store
