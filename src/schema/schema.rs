@@ -36,6 +36,7 @@ use super::*;
 /// }
 ///
 /// let schema = create_schema();
+/// ```
 #[derive(Clone, Debug)]
 pub struct Schema {
     fields: Vec<FieldEntry>,
@@ -219,7 +220,7 @@ mod tests {
     use rustc_serialize::json;
         
     #[test]
-    pub fn test_query_parser() {
+    pub fn test_schema_serialization() {
         let mut schema = Schema::new();
         schema.add_text_field("text", STRING);
         schema.add_text_field("title", STRING);
@@ -234,8 +235,7 @@ mod tests {
       "text",
       {
         "indexing_options": "Untokenized",
-        "stored": false,
-        "fast": false
+        "stored": false
       }
     ]
   },
@@ -245,8 +245,7 @@ mod tests {
       "title",
       {
         "indexing_options": "Untokenized",
-        "stored": false,
-        "fast": false
+        "stored": false
       }
     ]
   },
@@ -256,8 +255,7 @@ mod tests {
       "author",
       {
         "indexing_options": "Untokenized",
-        "stored": false,
-        "fast": false
+        "stored": false
       }
     ]
   }

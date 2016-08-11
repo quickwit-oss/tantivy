@@ -27,7 +27,7 @@ mod tests {
     use directory::{Directory, WritePtr, RAMDirectory};
     use schema::Document;
     use schema::Schema;
-    use schema::FAST_U32;
+    use schema::FAST;
     use test::Bencher;
     use test;
     use rand::Rng;
@@ -56,7 +56,7 @@ mod tests {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -85,7 +85,7 @@ mod tests {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -126,7 +126,7 @@ mod tests {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -165,7 +165,7 @@ mod tests {
         let n = permutation.len();
         let mut directory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -220,7 +220,7 @@ mod tests {
         let permutation = generate_permutation();
         let mut directory: RAMDirectory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -252,7 +252,7 @@ mod tests {
         let permutation = generate_permutation();
         let mut directory: RAMDirectory = RAMDirectory::create();
         let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST_U32);
+        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();

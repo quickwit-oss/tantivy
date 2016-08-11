@@ -1,5 +1,6 @@
 target
 target/debug
+.vscode
 target/release
 Cargo.lock
 .DS_Store

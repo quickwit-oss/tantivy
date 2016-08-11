@@ -40,9 +40,10 @@ gcc = "0.3.24"
 [[bin]]
 name = "tantivy"
 path = "src/cli/main.rs"
+doc = false
 
-[profile.release]
-debug = true
+# [profile.release]
+# debug = true
 
 [dependencies.urlencoded]
 version = "0.4"

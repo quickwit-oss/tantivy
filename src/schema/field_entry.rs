@@ -60,7 +60,15 @@ mod tests {
     #[test]
     fn test_json_serialization() {
         let field_value = FieldEntry::Text(String::from("title"), TEXT);
-        assert_eq!(format!("{}", json::as_json(&field_value)),
-             "{\"variant\":\"Text\",\"fields\":[\"title\",{\"indexing_options\":\"TokenizedWithFreqAndPosition\",\"stored\":false,\"fast\":false}]}"    );
+        assert_eq!(format!("{}", json::as_pretty_json(&field_value)), r#"{
+  "variant": "Text",
+  "fields": [
+    "title",
+    {
+      "indexing_options": "TokenizedWithFreqAndPosition",
+      "stored": false
+    }
+  ]
+}"#);
     }
 }
