@@ -127,12 +127,15 @@ impl SegmentWriter {
 								}
 							}
 						}
-						// TODO untokenized yet indexed
+						else {
+							let term = Term::from_field_text(field, field_value.text());
+							field_posting_writers.suscribe(doc_id, 0, term);
+						}
 					}
 					FieldEntry::U32(_, ref u32_options) => {
 						if u32_options.is_indexed() {
 							let term = Term::from_field_u32(field_value.field(), field_value.u32_value());
-							field_posting_writers.suscribe(doc_id, 0.clone(), term);
+							field_posting_writers.suscribe(doc_id, 0, term);
 						}
 					}
 				}
