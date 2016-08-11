@@ -1,0 +1,37 @@
+body {
+    max-width: 1000px;
+    padding-left: 300px;
+}
+
+nav {
+    width: 300px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    padding: 30px;
+    border-bottom: none !important;
+}
+
+nav > ul {
+    padding-left: 0px;
+}
+
+nav ul, nav li {
+    list-style: none;
+}
+
+h1.title {
+    font-size: 2em;
+}
+
+nav a, h1, h2.section-header {
+    color: #6d6c6c;
+}
+
+nav a {
+    color: #187ec1;
+}
+
+h1.title {
+    color: #df3600;
+}

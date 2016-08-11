@@ -1,20 +1,19 @@
-# Indexing Wikipedia with Tantivy CLI interface
+% Tutorial: Indexing Wikipedia with Tantivy CLI
 
-## Introduction
+# Introduction
 
 In this tutorial, we will create a brand new index
 with the articles of English wikipedia in it.
 
- 
- 
-## Step 1 - Get tantivy CLI interface
+
+# Install
 
 There are two ways to get `tantivy`.
 If you are a rust programmer, you can run `cargo install tantivy`.
 Alternatively, if you are on `Linux 64bits`, you can download a
 static binary:  [binaries/linux_x86_64/](http://fulmicoton.com/tantivy/binaries/linux_x86_64/tantivy) 
 
-## Step 2 - creating the index
+# Creating the index
 
 Create a directory in which your index will be stored.
 
@@ -40,7 +39,7 @@ the definition of the schema of our new index.
 
 When asked answer to the question as follows:
 
-```
+```none
     Creating new index 
     Let's define it's schema! 
 
@@ -114,7 +113,7 @@ If you want to know more about the meaning of these options, you can check out t
 The json displayed at the end has been written in `wikipedia-index/meta.json`.
 
 
-# Step 3 - Get the documents to index
+# Get the documents to index
 
 Tantivy's index command offers a way to index a json file.
 More accurately, the file must contain one document per line, in a json format.
@@ -134,7 +133,7 @@ Make sure to uncompress the file
     bunzip2 wiki-articles.json.bz2
 ``` 
 
-# Step 4 -  Index the documents.
+# Index the documents.
 
 The `index` command will index your document.
 By default it will use as many threads as there are core on your machine.
@@ -145,7 +144,8 @@ On my computer (8 core Xeon(R) CPU X3450  @ 2.67GHz), it only takes 7 minutes.
     cat /data/wiki-articles | tantivy index -i wikipedia-index
 ```
 
-# Step 5 - Have a look at the index directory
+While it is indexing, you can peek at the index directory
+to check what is happening.
 
 ```bash
     ls wikipedia-index
@@ -159,7 +159,7 @@ It is named by a uuid.
 Each different files is storing a different datastructure for the index.
 
 
-# Step 6 - Serve a search index
+# Serve the search index
 
 ```
     tantivy serve -i wikipedia-index

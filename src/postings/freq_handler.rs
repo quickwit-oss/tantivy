@@ -54,9 +54,8 @@ impl FreqHandler {
                 block_decoder.output(idx)
             }
             FreqHandler::NoFreq => {
-                0
+                1u32
             }
         }
     }
-
 }
