@@ -12,7 +12,6 @@ use core::index::SerializableSegment;
 use analyzer::StreamingIterator;
 use postings::PostingsWriter;
 use fastfield::U32FastFieldsWriter;
-use std::clone::Clone;
 use schema::Field;
 use schema::FieldValue;
 use schema::TextIndexingOptions;
@@ -102,18 +101,18 @@ impl SegmentWriter {
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {
-			let mut num_tokens: usize = 0;
+			// TODO pos collision if the field is redundant				
 			let field_posting_writers: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
-			for field_value in field_values {
-				let field_options = schema.get_field_entry(field);
-				match *field_options {
-					FieldEntry::Text(_, ref text_options) => {
+			let field_options = schema.get_field_entry(field);
+			match *field_options {
+				FieldEntry::Text(_, ref text_options) => {
+					let mut pos = 0u32;
+					let mut num_tokens: usize = 0;
+					for field_value in field_values {
 						if text_options.get_indexing_options().is_tokenized() {
 							let mut tokens = self.tokenizer.tokenize(field_value.text());
 							// right now num_tokens and pos are redundant, but it should
 							// change when we get proper analyzers
-							
-							let mut pos = 0u32;
 							let field = field_value.field();
 							loop {
 								match tokens.next() {
@@ -131,20 +130,26 @@ impl SegmentWriter {
 							let term = Term::from_field_text(field, field_value.text());
 							field_posting_writers.suscribe(doc_id, 0, term);
 						}
+						pos += 1;
+						// THIS is to avoid phrase query accross field repetition.
+						// span queries might still match though :|
 					}
-					FieldEntry::U32(_, ref u32_options) => {
-						if u32_options.is_indexed() {
+					self.fieldnorms_writer
+						.get_field_writer(field)
+						.map(|field_norms_writer| {
+							field_norms_writer.add_val(num_tokens as u32)
+						});
+				}
+				FieldEntry::U32(_, ref u32_options) => {
+					if u32_options.is_indexed() {
+						for field_value in field_values {
 							let term = Term::from_field_u32(field_value.field(), field_value.u32_value());
 							field_posting_writers.suscribe(doc_id, 0, term);
 						}
 					}
 				}
 			}
-			self.fieldnorms_writer
-				.get_field_writer(field)
-				.map(|field_norms_writer| {
-					field_norms_writer.add_val(num_tokens as u32)
-				});
+
 		}
 		
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
@@ -161,11 +166,13 @@ impl SegmentWriter {
 		Ok(())
     }
 
+
 	fn segment_info(&self,) -> SegmentInfo {
 		SegmentInfo {
 			max_doc: self.max_doc
 		}
 	}
+
 }
 
 fn write(per_field_postings_writers: &Vec<Box<PostingsWriter>>,
