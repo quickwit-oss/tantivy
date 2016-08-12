@@ -79,15 +79,17 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     }
 
     fn get_term_postings(&mut self, term: Term) -> &mut TermPostingsWriter<Rec> {
-        match self.term_index.get(&term) {
-            Some(unord_id) => {
-                return &mut self.postings[*unord_id];
-            },
-            None => {}
-        }
-        let unord_id = self.term_index.len();
-        self.postings.push(TermPostingsWriter::new());
-        self.term_index.insert(term, unord_id.clone());
+        let unord_id: usize = {
+            let num_terms = self.term_index.len();
+            let postings = &mut self.postings; 
+            self.term_index
+                .entry(term)
+                .or_insert_with(|| {
+                    let unord_id = num_terms;
+                    postings.push(TermPostingsWriter::new());
+                    unord_id
+                }).clone()
+        };
         &mut self.postings[unord_id]
     }
 
@@ -107,15 +109,15 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     }
 
     fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        let mut term_offsets: Vec<(Term, usize)>  = self.term_index
+        let mut term_offsets: Vec<(&Term, usize)>  = self.term_index
             .iter()
-            .map(|(k,v)| (k.clone(), *v)) // Get rid of the clone
+            .map(|(k,v)| (k, *v))
             .collect();
         term_offsets.sort();
         for (term, postings_id) in term_offsets {
             let term_postings_writer = &self.postings[postings_id];
             let term_docfreq = term_postings_writer.doc_freq();
-            try!(serializer.new_term(&term, term_docfreq));
+            try!(serializer.new_term(term, term_docfreq));
             try!(term_postings_writer.serialize(serializer));
         }
         Ok(())

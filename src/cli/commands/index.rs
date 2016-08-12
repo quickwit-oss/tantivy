@@ -11,7 +11,7 @@ use time::PreciseTime;
 use clap::ArgMatches;
 
 
-pub fn run_index_cli(argmatch: &ArgMatches) -> tantivy::Result<()> {
+pub fn run_index_cli(argmatch: &ArgMatches) -> Result<(), String> {
     let index_directory = PathBuf::from(argmatch.value_of("index").unwrap());
     let document_source = {
         match argmatch.value_of("file") {
@@ -21,29 +21,35 @@ pub fn run_index_cli(argmatch: &ArgMatches) -> tantivy::Result<()> {
             None => DocumentSource::FromPipe,
         }
     };
-    run_index(index_directory, document_source)    
+    let num_threads = try!(value_t!(argmatch, "num_threads", usize).map_err(|_|format!("Failed to read num_threads argument as an integer.")));
+    run_index(index_directory, document_source, num_threads).map_err(|e| format!("Indexing failed : {:?}", e))    
 }
-
-
 
 enum DocumentSource {
     FromPipe,
     FromFile(PathBuf),
 }
 
-
-
-fn run_index(directory: PathBuf, document_source: DocumentSource) -> tantivy::Result<()> {
+fn run_index(directory: PathBuf, document_source: DocumentSource, num_threads: usize) -> tantivy::Result<()> {
     
     let index = try!(Index::open(&directory));
+    
     let schema = index.schema();
-    let mut index_writer = index.writer_with_num_threads(8).unwrap();
+    
+    let mut index_writer = try!( 
+        if num_threads > 0 {
+            index.writer_with_num_threads(num_threads)
+        }
+        else {
+            index.writer()
+        }
+    );
     
     let articles = try!(document_source.read());
     
     let mut num_docs = 0;
     let mut cur = PreciseTime::now();
-    let group_count = 10000;
+    let group_count = 100000;
     
     for article_line_res in articles.lines() {
         let article_line = article_line_res.unwrap(); // TODO
@@ -55,12 +61,11 @@ fn run_index(directory: PathBuf, document_source: DocumentSource) -> tantivy::Re
                 println!("Failed to add document doc {:?}", err);
             }
         }
-
         if num_docs > 0 && (num_docs % group_count == 0) {
             println!("{} Docs", num_docs);
             let new = PreciseTime::now();
             let elapsed = cur.to(new);
-            println!("{:?} docs / hour", group_count * 3600 * 1e6 as u64 / (elapsed.num_microseconds().unwrap() as u64));
+            println!("{:?} docs / hour", group_count * 3600 * 1_000_000 as u64 / (elapsed.num_microseconds().unwrap() as u64));
             cur = new;
         }
 

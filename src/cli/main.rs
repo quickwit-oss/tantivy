@@ -61,6 +61,12 @@ fn main() {
                     .long("file")
                     .value_name("file")
                     .help("File containing the documents to index."))
+                .arg(Arg::with_name("num_threads")
+                    .short("t")
+                    .long("num_threads")
+                    .value_name("num_threads")
+                    .help("Number of indexing thread. By default num cores - 1 will be used")
+                    .default_value("0"))
         )
         .subcommand(
             SubCommand::with_name("bench")

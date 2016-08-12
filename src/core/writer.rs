@@ -23,16 +23,15 @@ pub struct IndexWriter {
 	threads: Vec<JoinHandle<()>>,
 	index: Index,
 	schema: Schema,
-	queue_input: SyncSender<ArcDoc>,
+	queue_input: SyncSender<Document>,
 }
 
-type ArcDoc = Arc<Document>;
 
 impl IndexWriter {
 
 	pub fn open(index: &Index, num_threads: usize) -> Result<IndexWriter> {
 		let schema = index.schema();
-		let (queue_input, queue_output): (SyncSender<ArcDoc>, Receiver<ArcDoc>) = mpsc::sync_channel(10_000);
+		let (queue_input, queue_output): (SyncSender<Document>, Receiver<Document>) = mpsc::sync_channel(10_000);
 		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
 		let threads = (0..num_threads).map(|_|  {
 			
@@ -46,23 +45,31 @@ impl IndexWriter {
 
 				let mut docs_remaining = true;
 				while docs_remaining {
-					let segment = index_clone.new_segment();
-					let mut doc;
+					
+					// the first document is handled separately in order to
+					// avoid creating a new segment if there are no documents. 
+					
+					let mut doc: Document;
 					{
-						match queue_output_clone.lock().unwrap().recv() {
-							Ok(doc_) => { doc = doc_ }
+						let queue = queue_output_clone.lock().unwrap();
+						match queue.recv() {
+							Ok(doc_) => { 
+								doc = doc_;
+							}
 							Err(_) => { return; }
 						}
 					}
-
+					
+					let segment = index_clone.new_segment();
 					let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema_clone).unwrap();
-					segment_writer.add_document(&*doc, &schema_clone).unwrap();
+					segment_writer.add_document(&doc, &schema_clone).unwrap();
+					
 					for _ in 0..100_000 {
 						{
 							let queue = queue_output_clone.lock().unwrap();
 							match queue.recv() {
 								Ok(doc_) => {
-									doc = doc_;
+									doc = doc_
 								}
 								Err(_) => {
 									docs_remaining = false;
@@ -70,7 +77,7 @@ impl IndexWriter {
 								}
 							}
 						}
-						segment_writer.add_document(&*doc, &schema_clone).unwrap();
+						segment_writer.add_document(&doc, &schema_clone).unwrap();
 					}
 					segment_writer.finalize().unwrap();
 					index_clone.sync(&segment).unwrap();
@@ -107,16 +114,16 @@ impl IndexWriter {
 		}
 		Ok(())
 	}
- 
+  
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
-        let arc_doc = ArcDoc::new(doc);
-		try!(
-			self.queue_input.send(arc_doc)
+        try!(
+			self.queue_input
+				.send(doc)
 				.map_err(|e| io::Error::new(ErrorKind::Other, e))
 		);
 		Ok(())
-    }
-
+	}
+	
 
 }
 
