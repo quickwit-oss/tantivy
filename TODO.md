@@ -13,9 +13,10 @@ find solution to "I have a docaddress but the segment does not exist anymore pro
 
 pass over offset from previous block
 
+test untokenized
 
 
-
+test field with more than one value
 doc values for other types
 use skip list for each blocks
 find a clear way to put the tokenized/untokenized thing upstream

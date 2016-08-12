@@ -1,5 +1,5 @@
 use DocId;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use schema::Term;
 use postings::PostingsSerializer;
 use std::io;
@@ -62,7 +62,7 @@ pub trait PostingsWriter {
 
 pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
     postings: Vec<TermPostingsWriter<Rec>>,
-    term_index: BTreeMap<Term, usize>, // remove btree map
+    term_index: HashMap<Term, usize>,
 }
 
 impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
@@ -70,7 +70,7 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     pub fn new() -> SpecializedPostingsWriter<Rec> {
         SpecializedPostingsWriter {
             postings: Vec::new(),
-            term_index: BTreeMap::new(),
+            term_index: HashMap::new(),
         }
     }
 
@@ -107,8 +107,13 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     }
 
     fn serialize(&self, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        for (term, postings_id) in &self.term_index {
-            let term_postings_writer = &self.postings[postings_id.clone()];
+        let mut term_offsets: Vec<(Term, usize)>  = self.term_index
+            .iter()
+            .map(|(k,v)| (k.clone(), *v)) // Get rid of the clone
+            .collect();
+        term_offsets.sort();
+        for (term, postings_id) in term_offsets {
+            let term_postings_writer = &self.postings[postings_id];
             let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(&term, term_docfreq));
             try!(term_postings_writer.serialize(serializer));
