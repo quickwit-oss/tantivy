@@ -15,6 +15,7 @@ use std::fmt;
 use rustc_serialize::json;
 use core::index::SegmentInfo;
 use schema::Field;
+use postings::SegmentPostingsOption;
 use postings::SegmentPostings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use schema::FieldEntry;
@@ -104,7 +105,9 @@ impl SegmentReader {
         let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
         let fieldnorms_reader = try!(U32FastFieldsReader::open(fieldnorms_data));
         
-        let positions_data = try!(segment.open_read(SegmentComponent::POSITIONS));
+        let positions_data = segment
+                .open_read(SegmentComponent::POSITIONS)
+                .unwrap_or(ReadOnlySource::Anonymous(Vec::new()));
         
         let schema = segment.schema();
         Ok(SegmentReader {
@@ -132,7 +135,11 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-    pub fn read_postings(&self, term: &Term) -> Option<SegmentPostings> {
+
+    // TODO None is quite ambiguous here.
+    // is it because the term is not here, or because the 
+    // field does not handle this functionality.
+    pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
         let field = term.get_field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(&term));
@@ -141,26 +148,51 @@ impl SegmentReader {
         let freq_handler = match field_entry {
             &FieldEntry::Text(_, ref options) => {
                 let indexing_options = options.get_indexing_options();
-                match indexing_options {
-                    TextIndexingOptions::TokenizedWithFreq => {
-                        FreqHandler::new_with_freq()
-                    }
-                    TextIndexingOptions::TokenizedWithFreqAndPosition => {
-                        let offseted_position_data = &self.positions_data[term_info.positions_offset as usize ..];
-                        FreqHandler::new_with_freq_and_position(offseted_position_data)
-                    }
-                    _ => {
+                match option {
+                    SegmentPostingsOption::NoFreq => {
                         FreqHandler::new()
+                    }
+                    SegmentPostingsOption::Freq => {
+                        if indexing_options.is_termfreq_enabled() {
+                            FreqHandler::new_with_freq()
+                        }
+                        else {
+                            FreqHandler::new()
+                        }
+                    }
+                    SegmentPostingsOption::FreqAndPositions => {
+                        if indexing_options == TextIndexingOptions::TokenizedWithFreqAndPosition {
+                            let offseted_position_data = &self.positions_data[term_info.positions_offset as usize ..];
+                            FreqHandler::new_with_freq_and_position(offseted_position_data)
+                        }
+                        else {
+                            FreqHandler::new_with_freq()
+                        }
                     }
                 }
             }
             _ => {
-                panic!("Expected text field, got {:?}", field_entry);
+                FreqHandler::new()
             }
         };
         Some(SegmentPostings::from_data(term_info.doc_freq, &postings_data, freq_handler))
     }
-    
+
+    pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
+        let field_entry = self.schema.get_field_entry(term.get_field());
+        let segment_posting_option = match field_entry {
+            &FieldEntry::Text(_, ref text_options) => {
+                match text_options.get_indexing_options() {
+                    TextIndexingOptions::TokenizedWithFreq => SegmentPostingsOption::Freq,
+                    TextIndexingOptions::TokenizedWithFreqAndPosition => SegmentPostingsOption::FreqAndPositions,
+                    _ => SegmentPostingsOption::NoFreq,
+                }
+            }
+            &FieldEntry::U32(_, _) => SegmentPostingsOption::NoFreq
+        };
+        self.read_postings(term, segment_posting_option)
+    }
+
     pub fn get_term_info<'a>(&'a self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }

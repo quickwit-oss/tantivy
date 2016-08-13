@@ -12,6 +12,7 @@ mod freq_handler;
 mod union_postings;
 mod docset;
 mod scored_docset;
+mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
 pub use self::union_postings::UnionPostings;
@@ -30,7 +31,7 @@ pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
 pub use self::scored_docset::ScoredDocSet;
 pub use self::postings::HasLen;
-
+pub use self::segment_postings_option::SegmentPostingsOption;
 
 #[cfg(test)]
 mod tests {

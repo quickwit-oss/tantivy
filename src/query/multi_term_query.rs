@@ -20,6 +20,7 @@ use query::MultiTermAccumulator;
 use DocAddress;
 use query::Explanation;
 use query::occur::Occur;
+use postings::SegmentPostingsOption;
 
 
 #[derive(Eq, PartialEq, Debug)]
@@ -73,7 +74,7 @@ impl MultiTermQuery {
             let mut decode_timer = timer.open("decode_all");
             for &(occur, ref term) in &self.occur_terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
-                match reader.read_postings(&term) {
+                match reader.read_postings(&term, SegmentPostingsOption::Freq) {
                     Some(postings) => {
                         let field = term.get_field();
                         let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));

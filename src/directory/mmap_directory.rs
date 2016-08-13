@@ -75,7 +75,7 @@ impl Directory for MmapDirectory {
                 let new_mmap =  try!(
                     MmapReadOnly::open_path(full_path.clone())
                     .map_err(|err| {
-                        if err.kind() == io::ErrorKind::AlreadyExists {
+                        if err.kind() == io::ErrorKind::NotFound {
                             OpenError::FileDoesNotExist(PathBuf::from(&full_path))
                         }
                         else {

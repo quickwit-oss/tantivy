@@ -3,19 +3,13 @@ use std::io::Cursor;
 use common::VInt;
 use common::BinarySerializable;
 use compression::CompositeDecoder;
+use postings::SegmentPostingsOption;
 use compression::NUM_DOCS_PER_BLOCK;
-
-
-enum Option {
-    NoFreq,
-    Freq,
-    FreqAndPositions,
-}
 
 pub struct FreqHandler {
     freq_decoder: SIMDBlockDecoder,
     positions: Vec<u32>,
-    option: Option,
+    option: SegmentPostingsOption,
     positions_offsets: [usize; NUM_DOCS_PER_BLOCK + 1],
 }
 
@@ -38,7 +32,7 @@ impl FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::with_val(1u32),
             positions: Vec::new(), 
-            option: Option::NoFreq,
+            option: SegmentPostingsOption::NoFreq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
@@ -47,7 +41,7 @@ impl FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::new(),
             positions: Vec::new(),
-            option: Option::Freq,
+            option: SegmentPostingsOption::Freq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
@@ -57,7 +51,7 @@ impl FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::new(),
             positions: positions, 
-            option: Option::FreqAndPositions,
+            option: SegmentPostingsOption::FreqAndPositions,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
@@ -88,13 +82,13 @@ impl FreqHandler {
     
     pub fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
         match self.option {
-            Option::NoFreq => {
+            SegmentPostingsOption::NoFreq => {
                 data
             }
-            Option::Freq => {
+            SegmentPostingsOption::Freq => {
                 self.freq_decoder.uncompress_block_unsorted(data)
             }
-            Option::FreqAndPositions => {
+            SegmentPostingsOption::FreqAndPositions => {
                 let remaining: &'a [u8] = self.freq_decoder.uncompress_block_unsorted(data);
                 self.fill_positions_offset();
                 remaining
@@ -104,11 +98,11 @@ impl FreqHandler {
 
     pub fn read_freq_vint(&mut self, data: &[u8], num_els: usize) {
         match self.option {
-            Option::NoFreq => {}
-            Option::Freq => {
+            SegmentPostingsOption::NoFreq => {}
+            SegmentPostingsOption::Freq => {
                 self.freq_decoder.uncompress_vint_unsorted(data, num_els);
             }
-            Option::FreqAndPositions => {
+            SegmentPostingsOption::FreqAndPositions => {
                 self.freq_decoder.uncompress_vint_unsorted(data, num_els);
                 self.fill_positions_offset();
             }
