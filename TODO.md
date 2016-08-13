@@ -4,7 +4,11 @@ phrase queries
 masks for union
 documentation
 query explain with proper term names
-better schema JSON 
+better schema JSON
+better error for opening index
+error handling in the writer
+
+ 
 
 Arc for the schema
 error management
@@ -15,7 +19,7 @@ pass over offset from previous block
 
 test untokenized
 
-
+but empty field value for last segment
 test field with more than one value
 doc values for other types
 use skip list for each blocks
@@ -33,3 +37,9 @@ sort by fast field
 date
 geo search
 deletes
+last fieldnorm
+avoid copy from hashmap
+settable number of docs before committing
+cascade committing segments
+
+parametrable number of docs before committing

@@ -4,6 +4,8 @@ use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
 
 
+
+
 // No Term Frequency, no postings.
 pub struct SegmentPostings<'a> {
     len: usize,
@@ -23,12 +25,12 @@ impl<'a> SegmentPostings<'a> {
             len: 0,
             doc_offset: 0,
             block_decoder: SIMDBlockDecoder::new(),
-            freq_handler: FreqHandler::NoFreq,
+            freq_handler: FreqHandler::new(),
             remaining_data: &EMPTY_ARRAY,
             cur: Wrapping(usize::max_value()),
         }
     }
-
+    
     pub fn load_next_block(&mut self,) {
         let num_remaining_docs = self.len - self.cur.0;
         if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
@@ -58,7 +60,9 @@ impl<'a> SegmentPostings<'a> {
         self.cur.0 % NUM_DOCS_PER_BLOCK
     }
 
-
+    pub fn positions(&self) -> &[u32] {
+        self.freq_handler.positions(self.index_within_block())
+    }
 }
 
 
@@ -93,6 +97,9 @@ impl<'a> HasLen for SegmentPostings<'a> {
 
 impl<'a> Postings for SegmentPostings<'a> {
     fn term_freq(&self,) -> u32 {
-        self.freq_handler.output(self.index_within_block())
+        self.freq_handler.freq(self.index_within_block())
     }
+    
+
 }
+

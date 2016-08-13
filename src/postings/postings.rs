@@ -11,6 +11,7 @@ impl<TPostings: Postings> Postings for Box<TPostings> {
         let unboxed: &TPostings = self.borrow();
         unboxed.term_freq()
     }
+
 }
 
 impl<'a, TPostings: Postings> Postings for &'a mut TPostings {

@@ -36,10 +36,13 @@ pub use self::postings::HasLen;
 mod tests {
     
     use super::*;
-    use schema::{TEXT, Schema, Term};
+    use schema::{Document, TEXT, Schema, Term};
     use core::SegmentComponent;
+    use core::SegmentWriter;
+    use core::SegmentReader;
     use core::index::Index;
     
+        
     #[test]
     pub fn test_position_write() {
         let mut schema = Schema::new();
@@ -55,9 +58,53 @@ mod tests {
         }
         posting_serializer.close_term().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
-        assert_eq!(read.len(), 12);
+        assert_eq!(read.len(), 13);
     }
-
+    
+    #[test]
+    pub fn test_position_and_fieldnorm_write_fullstack() {
+        let mut schema = Schema::new();
+        let text_field = schema.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema.clone());
+        let segment = index.new_segment();
+        {
+            let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "a b a c a d a a.");
+                doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
+                segment_writer.add_document(&doc, &schema).unwrap();
+            }
+            {
+                let mut doc = Document::new();
+                doc.add_text(text_field, "b a");
+                segment_writer.add_document(&doc, &schema).unwrap();
+            }
+            segment_writer.finalize().unwrap();
+        }
+        {
+            let segment_reader = SegmentReader::open(segment).unwrap();
+            {
+                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
+                assert_eq!(fieldnorm_reader.get(0), 8 + 5);
+                assert_eq!(fieldnorm_reader.get(1), 2);
+            }
+            {
+                let term = Term::from_field_text(text_field, "a");
+                let mut postings = segment_reader.read_postings(&term).unwrap();
+                assert_eq!(postings.len(), 2);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 0);
+                assert_eq!(postings.term_freq(), 6);
+                assert_eq!(postings.positions(), [0, 2, 4, 6, 7, 13]);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 1);
+                assert_eq!(postings.term_freq(), 1);
+                assert!(!postings.advance());
+            }
+        }
+    }
+    
     #[test]
     fn test_intersection() {
         {

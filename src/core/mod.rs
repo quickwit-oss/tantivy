@@ -12,3 +12,4 @@ mod segment_component;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
 pub use self::segment_reader::SegmentReader;
+pub use self::segment_writer::SegmentWriter;

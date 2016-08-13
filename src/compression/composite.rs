@@ -60,34 +60,40 @@ impl CompositeDecoder {
         }    
     }
     
-    pub fn uncompress_sorted(&mut self, mut compressed_data: &[u8], doc_freq: usize) -> &[u32] {
-        if doc_freq > self.vals.capacity() {
-            let extra_capacity = doc_freq - self.vals.capacity();
+    pub fn uncompress_sorted(&mut self, mut compressed_data: &[u8], uncompressed_len: usize) -> &[u32] {
+        if uncompressed_len > self.vals.capacity() {
+            let extra_capacity = uncompressed_len - self.vals.capacity();
             self.vals.reserve(extra_capacity);
         }
         let mut offset = 0u32;
         self.vals.clear();
-        let num_blocks = doc_freq / NUM_DOCS_PER_BLOCK;
+        let num_blocks = uncompressed_len / NUM_DOCS_PER_BLOCK;
         for _ in 0..num_blocks {
             compressed_data = self.block_decoder.uncompress_block_sorted(compressed_data, offset);
             offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
             self.vals.extend_from_slice(self.block_decoder.output_array());
         }
-        self.block_decoder.uncompress_vint_sorted(compressed_data, offset, doc_freq % NUM_DOCS_PER_BLOCK);
+        self.block_decoder.uncompress_vint_sorted(compressed_data, offset, uncompressed_len % NUM_DOCS_PER_BLOCK);
         self.vals.extend_from_slice(self.block_decoder.output_array());
         &self.vals
     }
     
-    pub fn uncompress_unsorted(&mut self, mut compressed_data: &[u8], doc_freq: usize) -> &[u32] {
+    pub fn uncompress_unsorted(&mut self, mut compressed_data: &[u8], uncompressed_len: usize) -> &[u32] {
         self.vals.clear();
-        let num_blocks = doc_freq / NUM_DOCS_PER_BLOCK;
+        let num_blocks = uncompressed_len / NUM_DOCS_PER_BLOCK;
         for _ in 0..num_blocks {
             compressed_data = self.block_decoder.uncompress_block_unsorted(compressed_data);
             self.vals.extend_from_slice(self.block_decoder.output_array());
         }
-        self.block_decoder.uncompress_vint_unsorted(compressed_data, doc_freq % NUM_DOCS_PER_BLOCK);
+        self.block_decoder.uncompress_vint_unsorted(compressed_data, uncompressed_len % NUM_DOCS_PER_BLOCK);
         self.vals.extend_from_slice(self.block_decoder.output_array());
         &self.vals
+    }
+}
+
+impl Into<Vec<u32>> for CompositeDecoder {
+    fn into(self) -> Vec<u32> {
+        self.vals
     }
 }
 

@@ -12,6 +12,7 @@ use DocId;
 use core::index::Segment;
 use std::io;
 use core::SegmentComponent;
+use common::VInt;
 use common::BinarySerializable;
 
 
@@ -78,6 +79,7 @@ impl PostingsSerializer {
         let term_info = TermInfo {
             doc_freq: doc_freq,
             postings_offset: self.written_bytes_postings as u32,
+            positions_offset: self.written_bytes_positions as u32,
         };
         self.terms_fst_builder
             .insert(term.as_slice(), &term_info)
@@ -99,6 +101,7 @@ impl PostingsSerializer {
                     self.term_freqs.clear();
                 }
                 if self.text_indexing_options.is_position_enabled() {
+                    self.written_bytes_positions += try!(VInt(self.position_deltas.len() as u64).serialize(&mut self.positions_write));
                     let positions_encoded: &[u8] = self.positions_encoder.compress_unsorted(&self.position_deltas[..]);
                     try!(self.positions_write.write_all(positions_encoded));
                     self.written_bytes_positions += positions_encoded.len();
@@ -120,7 +123,7 @@ impl PostingsSerializer {
         }
         if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
             {
-                // encode the positions
+                // encode the doc ids
                 let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 try!(self.postings_write.write_all(block_encoded));

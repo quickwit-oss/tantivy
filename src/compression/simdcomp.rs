@@ -101,10 +101,14 @@ pub struct SIMDBlockDecoder {
 
 impl SIMDBlockDecoder {
     pub fn new() -> SIMDBlockDecoder {
+        SIMDBlockDecoder::with_val(0u32)
+    }
+    
+    pub fn with_val(val: u32) -> SIMDBlockDecoder {
         SIMDBlockDecoder {
-            output: [0u32; COMPRESSED_BLOCK_MAX_SIZE],
+            output: [val; COMPRESSED_BLOCK_MAX_SIZE],
             output_len: 0,
-        }    
+        }
     }
     
     pub fn uncompress_block_sorted<'a>(&mut self, compressed_data: &'a [u8], offset: u32) -> &'a[u8] {
@@ -170,7 +174,7 @@ impl SIMDBlockDecoder {
     pub fn output_array(&self,) -> &[u32] {
         &self.output[..self.output_len]
     }
-
+    
     #[inline(always)]
     pub fn output(&self, idx: usize) -> u32 {
         self.output[idx]

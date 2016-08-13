@@ -5,6 +5,7 @@ pub use self::simdcomp::{SIMDBlockEncoder, SIMDBlockDecoder};
 
 mod composite;
 pub use self::composite::CompositeEncoder;
+pub use self::composite::CompositeDecoder;
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128; //< should be a power of 2 to let the compiler optimize.
 

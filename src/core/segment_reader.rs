@@ -20,6 +20,7 @@ use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use schema::FieldEntry;
 use schema::Schema;
 use postings::FreqHandler;
+use schema::TextIndexingOptions;
 use error::Error;
 
 pub struct SegmentReader {
@@ -30,6 +31,7 @@ pub struct SegmentReader {
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
     fieldnorms_reader: U32FastFieldsReader,
+    positions_data: ReadOnlySource,
     schema: Schema,
 }
 
@@ -102,6 +104,8 @@ impl SegmentReader {
         let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
         let fieldnorms_reader = try!(U32FastFieldsReader::open(fieldnorms_data));
         
+        let positions_data = try!(segment.open_read(SegmentComponent::POSITIONS));
+        
         let schema = segment.schema();
         Ok(SegmentReader {
             segment_info: segment_info,
@@ -111,6 +115,7 @@ impl SegmentReader {
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
             fieldnorms_reader: fieldnorms_reader,
+            positions_data: positions_data,
             schema: schema,
         })
     }
@@ -135,11 +140,18 @@ impl SegmentReader {
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match field_entry {
             &FieldEntry::Text(_, ref options) => {
-                if options.get_indexing_options().is_termfreq_enabled() {
-                    FreqHandler::new_freq_reader()
-                }
-                else {
-                    FreqHandler::NoFreq
+                let indexing_options = options.get_indexing_options();
+                match indexing_options {
+                    TextIndexingOptions::TokenizedWithFreq => {
+                        FreqHandler::new_with_freq()
+                    }
+                    TextIndexingOptions::TokenizedWithFreqAndPosition => {
+                        let offseted_position_data = &self.positions_data[term_info.positions_offset as usize ..];
+                        FreqHandler::new_with_freq_and_position(offseted_position_data)
+                    }
+                    _ => {
+                        FreqHandler::new()
+                    }
                 }
             }
             _ => {
