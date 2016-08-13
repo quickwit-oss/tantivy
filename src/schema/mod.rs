@@ -105,6 +105,7 @@ mod field;
 
 
 pub use self::schema::Schema;
+pub use self::schema::DocParsingError;
 pub use self::document::Document;
 pub use self::field::Field;
 pub use self::term::Term;

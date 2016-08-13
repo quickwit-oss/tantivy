@@ -133,7 +133,7 @@ impl Schema {
     }
     
     /// Build a document object from a json-object. 
-    pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocMappingError> {
+    pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
         let json_node = try!(Json::from_str(doc_json));
         let some_json_obj = json_node.as_object();
         if !some_json_obj.is_some() {
@@ -144,7 +144,7 @@ impl Schema {
             else {
                 doc_json_sample = format!("{:?}...", &doc_json[0..20]);
             }
-            return Err(DocMappingError::NotJSONObject(doc_json_sample))
+            return Err(DocParsingError::NotJSONObject(doc_json_sample))
         }
         let json_obj = some_json_obj.unwrap();
         let mut doc = Document::new();
@@ -158,8 +158,8 @@ impl Schema {
                                 &FieldType::Text(_) => {
                                     doc.add_text(field, field_text);
                                 }
-                                _ => {
-                                    return Err(DocMappingError::MappingError(field_entry.name().clone(), format!("Expected a string, got {:?}", field_value)));
+                                &FieldType::U32(_) => {
+                                    return Err(DocParsingError::MappingError(field_entry.name().clone(), format!("Expected a u32 int, got {:?}", field_value)));
                                 }
                             }
                         }
@@ -167,22 +167,22 @@ impl Schema {
                             match field_entry.field_type() {
                                 &FieldType::U32(_) => {
                                     if *field_val_u64 > (u32::max_value() as u64) {
-                                        return Err(DocMappingError::OverflowError(field_name.clone()));
+                                        return Err(DocParsingError::OverflowError(field_name.clone()));
                                     }
                                     doc.add_u32(field, *field_val_u64 as u32);
                                 }
                                 _ => {
-                                    return Err(DocMappingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
+                                    return Err(DocParsingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
                                 }
                             }
                         },
                         _ => {
-                            return Err(DocMappingError::MappingError(field_name.clone(), String::from("Value is neither u32, nor text.")));
+                            return Err(DocParsingError::MappingError(field_name.clone(), String::from("Value is neither u32, nor text.")));
                         }
                     }
                 }
                 None => {
-                    return Err(DocMappingError::NoSuchFieldInSchema(field_name.clone()))
+                    return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone()))
                 }
             }
         }
@@ -197,7 +197,7 @@ impl Schema {
 
 
 #[derive(Debug)]
-pub enum DocMappingError {
+pub enum DocParsingError {
     NotJSON(json::ParserError),
     NotJSONObject(String),
     MappingError(String, String),
@@ -205,9 +205,9 @@ pub enum DocMappingError {
     NoSuchFieldInSchema(String),
 }
 
-impl From<json::ParserError> for DocMappingError {
-    fn from(err: json::ParserError) -> DocMappingError {
-        DocMappingError::NotJSON(err)
+impl From<json::ParserError> for DocParsingError {
+    fn from(err: json::ParserError) -> DocParsingError {
+        DocParsingError::NotJSON(err)
     }
 }
 
@@ -258,5 +258,108 @@ mod tests {
         assert_eq!(schema_json, expected);        
         
     }
-
+    
+    
+    
+    #[test]
+    pub fn test_parse_document() {
+        let mut schema = Schema::new();
+        let count_options = U32Options::new().set_stored().set_fast(); 
+        let title_field = schema.add_text_field("title", TEXT);
+        let author_field = schema.add_text_field("author", STRING);
+        let count_field = schema.add_u32_field("count", count_options);
+        {
+            let doc = schema.parse_document("{}").unwrap();
+            assert!(doc.get_fields().is_empty());
+        }
+        {
+            let doc = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 4
+            }"#).unwrap();
+            assert_eq!(doc.get_first(title_field).unwrap().text(), "my title");
+            assert_eq!(doc.get_first(author_field).unwrap().text(), "fulmicoton");
+            assert_eq!(doc.get_first(count_field).unwrap().u32_value(), 4);
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton"
+                "count": 4
+            }"#);
+            match json_err {
+                Err(DocParsingError::NotJSON(__)) => {
+                    assert!(true);
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 4,
+                "jambon": "bayonne" 
+            }"#);
+            match json_err {
+                Err(DocParsingError::NoSuchFieldInSchema(field_name)) => {
+                    assert_eq!(field_name, "jambon");
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": "5",
+                "jambon": "bayonne" 
+            }"#);
+            match json_err {
+                Err(DocParsingError::MappingError(_, _)) => {
+                    assert!(true);
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": -5
+            }"#);
+            println!("{:?}", json_err);
+            match json_err {
+                Err(DocParsingError::MappingError(_, _)) => {
+                    assert!(true);
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 5000000000
+            }"#);
+            println!("{:?}", json_err);
+            match json_err {
+                Err(DocParsingError::OverflowError(_)) => {
+                    assert!(true);
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
+    }
 }
