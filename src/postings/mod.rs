@@ -42,6 +42,7 @@ mod tests {
     use core::SegmentWriter;
     use core::SegmentReader;
     use core::index::Index;
+    use std::iter;
     
         
     #[test]
@@ -81,6 +82,13 @@ mod tests {
                 doc.add_text(text_field, "b a");
                 segment_writer.add_document(&doc, &schema).unwrap();
             }
+            for i in 2..1000 {
+                let mut doc = Document::new();
+                let mut text = iter::repeat("e ").take(i).collect::<String>();
+                text.push_str(" a");
+                doc.add_text(text_field, &text);
+                segment_writer.add_document(&doc, &schema).unwrap();
+            }
             segment_writer.finalize().unwrap();
         }
         {
@@ -89,19 +97,44 @@ mod tests {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.get(1), 2);
+                for i in 2 .. 1000 {
+                    assert_eq!(fieldnorm_reader.get(i), i + 1);
+                }
             }
             {
-                let term = Term::from_field_text(text_field, "a");
-                let mut postings = segment_reader.read_postings_all_info(&term).unwrap();
-                assert_eq!(postings.len(), 2);
-                assert!(postings.advance());
-                assert_eq!(postings.doc(), 0);
-                assert_eq!(postings.term_freq(), 6);
-                assert_eq!(postings.positions(), [0, 2, 4, 6, 7, 13]);
-                assert!(postings.advance());
-                assert_eq!(postings.doc(), 1);
-                assert_eq!(postings.term_freq(), 1);
-                assert!(!postings.advance());
+                let term_a = Term::from_field_text(text_field, "a");
+                let mut postings_a = segment_reader.read_postings_all_info(&term_a).unwrap();
+                assert_eq!(postings_a.len(), 1000);
+                assert!(postings_a.advance());
+                assert_eq!(postings_a.doc(), 0);
+                assert_eq!(postings_a.term_freq(), 6);
+                assert_eq!(postings_a.positions(), [0, 2, 4, 6, 7, 13]);
+                assert!(postings_a.advance());
+                assert_eq!(postings_a.doc(), 1u32);
+                assert_eq!(postings_a.term_freq(), 1);
+                for i in 2u32 .. 1000u32 {
+                    assert!(postings_a.advance());
+                    assert_eq!(postings_a.term_freq(), 1);
+                    assert_eq!(postings_a.positions(), [i]);
+                    assert_eq!(postings_a.doc(), i);
+                }
+                assert!(!postings_a.advance());
+            }
+            {
+                let term_e = Term::from_field_text(text_field, "e");
+                let mut postings_e = segment_reader.read_postings_all_info(&term_e).unwrap();
+                assert_eq!(postings_e.len(), 1000 - 2);
+                for i in 2u32 .. 1000u32 {
+                    assert!(postings_e.advance());
+                    assert_eq!(postings_e.term_freq(), i);
+                    let positions = postings_e.positions();
+                    assert_eq!(positions.len(), i as usize);
+                    for j in 0..positions.len() {
+                        assert_eq!(positions[j], (j as u32));
+                    }
+                    assert_eq!(postings_e.doc(), i);
+                }
+                assert!(!postings_e.advance());
             }
         }
     }

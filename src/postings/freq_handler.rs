@@ -60,14 +60,15 @@ impl FreqHandler {
         let mut cur_position: usize = self.positions_offsets[NUM_DOCS_PER_BLOCK];
         let mut i: usize  = 0;
         self.positions_offsets[i] = cur_position;
-        let mut last_cur_position = 0;
+        let mut last_cur_position = cur_position;
         for &doc_freq in self.freq_decoder.output_array() {
             i += 1;
             let mut cumulated_pos = 0u32;
+            // this next loop decodes delta positions into normal positions.
             for j in last_cur_position..(last_cur_position + (doc_freq as usize)) {
                 cumulated_pos += self.positions[j];
                 self.positions[j] = cumulated_pos;
-            } 
+            }
             cur_position += doc_freq as usize;
             self.positions_offsets[i] = cur_position;
             last_cur_position = cur_position;
