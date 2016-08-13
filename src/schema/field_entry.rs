@@ -142,7 +142,7 @@ mod tests {
   "name": "title",
   "type": "text",
   "options": {
-    "indexing_options": "TokenizedWithFreqAndPosition",
+    "indexing": "position",
     "stored": false
   }
 }"#);

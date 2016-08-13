@@ -1,16 +1,19 @@
 use std::ops::BitOr;
-
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::Encodable;
+use rustc_serialize::Encoder;
 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {
-    indexing_options: TextIndexingOptions,
+    indexing: TextIndexingOptions,
     stored: bool,
 }
 
 impl TextOptions {
     
     pub fn get_indexing_options(&self,) -> TextIndexingOptions {
-        self.indexing_options
+        self.indexing
     }
 
     pub fn is_stored(&self,) -> bool {
@@ -22,26 +25,66 @@ impl TextOptions {
         self
     }
 
-    pub fn set_indexing_options(mut self, indexing_options: TextIndexingOptions) -> TextOptions {
-        self.indexing_options = indexing_options;
+    pub fn set_indexing_options(mut self, indexing: TextIndexingOptions) -> TextOptions {
+        self.indexing = indexing;
         self
     }
 
     pub fn new() -> TextOptions {
         TextOptions {
-            indexing_options: TextIndexingOptions::Unindexed,
+            indexing: TextIndexingOptions::Unindexed,
             stored: false,
         }
     }
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash, RustcDecodable, RustcEncodable)]
+#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub enum TextIndexingOptions {
     Unindexed,
     Untokenized,
     TokenizedNoFreq,
     TokenizedWithFreq,
     TokenizedWithFreqAndPosition,
+}
+
+impl Encodable for TextIndexingOptions {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        let name = match *self {
+          TextIndexingOptions::Unindexed => {
+              "unindexed"
+          }
+          TextIndexingOptions::Untokenized => {
+              "untokenized"
+          }
+          TextIndexingOptions::TokenizedNoFreq => {
+              "tokenize"
+          }
+          TextIndexingOptions::TokenizedWithFreq => {
+              "freq"
+          }
+          TextIndexingOptions::TokenizedWithFreqAndPosition => {
+              "position"
+          }
+        };
+        s.emit_str(name)
+    }
+}
+
+impl Decodable for TextIndexingOptions {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        use self::TextIndexingOptions::*;
+        let option_name: String = try!(d.read_str());
+        Ok(match option_name.as_ref() {
+            "unindexed" => Unindexed,
+            "untokenized" => Untokenized,
+            "tokenize" => TokenizedNoFreq,
+            "freq" => TokenizedWithFreq,
+            "position" => TokenizedWithFreqAndPosition,
+            _ => {
+                return Err(d.error(&format!("Encoding option {:?} unknown", option_name)));
+            }
+        })
+    }
 }
 
 impl TextIndexingOptions {
@@ -102,14 +145,14 @@ impl BitOr for TextIndexingOptions {
 
 /// The field will be untokenized and indexed
 pub const STRING: TextOptions = TextOptions {
-    indexing_options: TextIndexingOptions::Untokenized,
+    indexing: TextIndexingOptions::Untokenized,
     stored: false,
 };
 
 
 /// The field will be tokenized and indexed
 pub const TEXT: TextOptions = TextOptions {
-    indexing_options: TextIndexingOptions::TokenizedWithFreqAndPosition,
+    indexing: TextIndexingOptions::TokenizedWithFreqAndPosition,
     stored: false,
 };
 
@@ -118,7 +161,7 @@ pub const TEXT: TextOptions = TextOptions {
 /// Reading the stored fields of a document is relatively slow.
 /// (100 microsecs)
 pub const STORED: TextOptions = TextOptions {
-    indexing_options: TextIndexingOptions::Unindexed,
+    indexing: TextIndexingOptions::Unindexed,
     stored: true,
 };
 
@@ -129,7 +172,7 @@ impl BitOr for TextOptions {
 
     fn bitor(self, other: TextOptions) -> TextOptions {
         let mut res = TextOptions::new();
-        res.indexing_options = self.indexing_options | other.indexing_options;
+        res.indexing = self.indexing | other.indexing;
         res.stored = self.stored || other.stored;
         res
     }

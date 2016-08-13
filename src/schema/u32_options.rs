@@ -43,9 +43,6 @@ impl U32Options {
     }
 }
 
-
-
-
 /// The field will be tokenized and indexed
 pub const FAST: U32Options = U32Options {
     indexed: false,

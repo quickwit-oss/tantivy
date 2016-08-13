@@ -222,26 +222,18 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema = Schema::new();
-        schema.add_text_field("text", STRING);
-        schema.add_text_field("title", STRING);
+        let count_options = U32Options::new().set_stored().set_fast(); 
+        schema.add_text_field("title", TEXT);
         schema.add_text_field("author", STRING);
-        
+        schema.add_u32_field("count", count_options);
         let schema_json: String = format!("{}", json::as_pretty_json(&schema));
         println!("{}", schema_json);
         let expected = r#"[
   {
-    "name": "text",
-    "type": "text",
-    "options": {
-      "indexing_options": "Untokenized",
-      "stored": false
-    }
-  },
-  {
     "name": "title",
     "type": "text",
     "options": {
-      "indexing_options": "Untokenized",
+      "indexing": "position",
       "stored": false
     }
   },
@@ -249,8 +241,17 @@ mod tests {
     "name": "author",
     "type": "text",
     "options": {
-      "indexing_options": "Untokenized",
+      "indexing": "untokenized",
       "stored": false
+    }
+  },
+  {
+    "name": "count",
+    "type": "u32",
+    "options": {
+      "indexed": false,
+      "fast": true,
+      "stored": true
     }
   }
 ]"#;
