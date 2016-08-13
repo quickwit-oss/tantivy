@@ -5,6 +5,8 @@ use postings::{Postings, DocSet, SkipResult, HasLen};
 use std::num::Wrapping;
 use std::cmp::Ordering;
 
+const EMPTY_ARRAY: [u32; 0] = []; 
+
 pub struct VecPostings {
     doc_ids: Vec<DocId>,
     cursor: Wrapping<usize>,
@@ -96,6 +98,10 @@ impl Postings for VecPostings {
     fn term_freq(&self,) -> u32 {
         1u32
     }
+    
+    fn positions(&self) -> &[u32] {
+        &EMPTY_ARRAY
+    } 
 }
 
 #[cfg(test)]

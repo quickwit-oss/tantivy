@@ -48,7 +48,13 @@ impl<'a> HasLen for OffsetPostings<'a> {
 }
 
 impl<'a> Postings for OffsetPostings<'a> {
+    
     fn term_freq(&self,) -> u32 {
         self.underlying.term_freq()
     }
+    
+    fn positions(&self) -> &[u32] {
+        self.underlying.positions()
+    }
+    
 }

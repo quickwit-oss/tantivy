@@ -60,9 +60,6 @@ impl<'a> SegmentPostings<'a> {
         self.cur.0 % NUM_DOCS_PER_BLOCK
     }
 
-    pub fn positions(&self) -> &[u32] {
-        self.freq_handler.positions(self.index_within_block())
-    }
 }
 
 
@@ -100,6 +97,8 @@ impl<'a> Postings for SegmentPostings<'a> {
         self.freq_handler.freq(self.index_within_block())
     }
     
-
+    fn positions(&self) -> &[u32] {
+        self.freq_handler.positions(self.index_within_block())
+    }
 }
 

@@ -57,4 +57,8 @@ impl<'a> Postings for ChainedPostings<'a> {
         self.chained_postings[self.posting_id].term_freq()
     }
     
+    fn positions(&self) -> &[u32] {
+        self.chained_postings[self.posting_id].positions()
+    } 
+    
 }

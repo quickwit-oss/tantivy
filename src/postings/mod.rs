@@ -92,7 +92,7 @@ mod tests {
             }
             {
                 let term = Term::from_field_text(text_field, "a");
-                let mut postings = segment_reader.read_postings(&term).unwrap();
+                let mut postings = segment_reader.read_postings_all_info(&term).unwrap();
                 assert_eq!(postings.len(), 2);
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 0);
