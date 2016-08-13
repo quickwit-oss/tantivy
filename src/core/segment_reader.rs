@@ -165,8 +165,12 @@ impl SegmentReader {
                             let offseted_position_data = &self.positions_data[term_info.positions_offset as usize ..];
                             FreqHandler::new_with_freq_and_position(offseted_position_data)
                         }
-                        else {
+                        else if indexing_options.is_termfreq_enabled() 
+                        {
                             FreqHandler::new_with_freq()
+                        }
+                        else {
+                            FreqHandler::new()
                         }
                     }
                 }

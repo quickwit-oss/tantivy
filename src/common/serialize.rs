@@ -123,8 +123,14 @@ mod test {
 
     fn serialize_test<T: BinarySerializable + Eq>(v: T, num_bytes: usize) {
         let mut buffer: Vec<u8> = Vec::new();
-        assert_eq!(v.serialize(&mut buffer).unwrap(), num_bytes);
-        assert_eq!(buffer.len(), num_bytes);
+        
+        if num_bytes != 0 {
+            assert_eq!(v.serialize(&mut buffer).unwrap(), num_bytes);
+            assert_eq!(buffer.len(), num_bytes);
+        }
+        else {
+            v.serialize(&mut buffer).unwrap();
+        }
         let mut cursor = Cursor::new(&buffer[..]);
         let deser = T::deserialize(&mut cursor).unwrap();
         assert_eq!(deser, v);
@@ -159,9 +165,13 @@ mod test {
 
     #[test]
     fn test_serialize_vint() {
+        for i in 0..10_000 {
+            serialize_test(VInt(i as u64), 0);
+        }
         serialize_test(VInt(7u64), 1);
         serialize_test(VInt(127u64), 1);
         serialize_test(VInt(128u64), 2);
+        serialize_test(VInt(129u64), 2);
         serialize_test(VInt(1234u64), 2);
         serialize_test(VInt(16_383), 2);
         serialize_test(VInt(16_384), 3);

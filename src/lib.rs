@@ -55,7 +55,6 @@ pub mod directory;
 pub mod collector;
 pub mod schema;
 
-
 pub use directory::Directory;
 pub use core::searcher::Searcher;
 pub use core::index::Index;
@@ -63,6 +62,11 @@ pub use schema::Term;
 pub use schema::Document;
 pub use core::SegmentReader;
 pub use self::common::TimerTree;
+
+pub use postings::DocSet;
+pub use postings::Postings;
+pub use postings::SegmentPostingsOption;
+
 
 /// u32 identifying a document within a segment.
 /// Document gets their doc id assigned incrementally,
@@ -110,8 +114,6 @@ mod tests {
     use super::*;
     use collector::TestCollector;
     use query::MultiTermQuery;
-    use postings::Postings;
-    use postings::DocSet;
 
     #[test]
     fn test_indexing() {

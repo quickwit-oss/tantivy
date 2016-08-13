@@ -85,6 +85,11 @@ fn main() {
                     .help("Number of time to repeat the benchmark.")
                     .default_value("1"))
         )
+        .subcommand(
+            SubCommand::with_name("merge")
+                .about("Merge all the segments of an index")
+                .arg(index_arg.clone())
+        )
         .get_matches();
     
     let (subcommand, some_options) = cli_options.subcommand();
@@ -95,6 +100,7 @@ fn main() {
         "new" => run_new_cli(options).unwrap(),
         "index" => run_index_cli(options).unwrap(),
         "serve" => run_serve_cli(options).unwrap(),
+        "merge" => run_merge_cli(options).unwrap(),
         "bench" => {
             let res = run_bench_cli(options);
             match res {

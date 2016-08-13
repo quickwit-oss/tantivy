@@ -18,8 +18,8 @@ use postings::ChainedPostings;
 use postings::HasLen;
 use postings::OffsetPostings;
 use core::index::SegmentInfo;
-use compression::NUM_DOCS_PER_BLOCK;
 use std::cmp::{min, max, Ordering};
+use std::iter;
 
 
 struct PostingsMerger<'a> {
@@ -130,17 +130,20 @@ pub struct IndexMerger {
 
 
 struct DeltaPositionComputer {
-    buffer: [u32; NUM_DOCS_PER_BLOCK]
+    buffer: Vec<u32>
 }
 
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
         DeltaPositionComputer {
-            buffer: [0u32; NUM_DOCS_PER_BLOCK]
+            buffer: iter::repeat(0u32).take(512).collect::<Vec<u32>>(),
         }
     }
     
     fn compute_delta_positions(&mut self, positions: &[u32],) -> &[u32] {
+        if positions.len() > self.buffer.len() {
+            self.buffer.resize(positions.len(), 0u32);
+        }
         let mut last_pos = 0u32;
         let num_positions = positions.len();
         for i in 0..num_positions {
