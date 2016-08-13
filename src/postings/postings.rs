@@ -4,7 +4,14 @@ use postings::docset::DocSet;
 
 
 
-// Postings trait includes all the infomration 
+// Postings trait defines all of the information
+// associated with a term.
+// 
+// List of docids, term freqs and positions.
+//
+// It's main implementation is SegmentPostings,
+// but some other implementation mocking SegmentPostings exists,
+// in order to help merging segment or for testing.  
 pub trait Postings: DocSet {
     fn term_freq(&self,) -> u32;
     fn positions(&self) -> &[u32];

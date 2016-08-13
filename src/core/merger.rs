@@ -18,6 +18,7 @@ use postings::ChainedPostings;
 use postings::HasLen;
 use postings::OffsetPostings;
 use core::index::SegmentInfo;
+use compression::NUM_DOCS_PER_BLOCK;
 use std::cmp::{min, max, Ordering};
 
 
@@ -121,13 +122,37 @@ impl<'a> PostingsMerger<'a> {
     }
 }
 
-const EMPTY_ARRAY: [u32; 0] = [];
-
 pub struct IndexMerger {
     schema: Schema,
     readers: Vec<SegmentReader>,
     segment_info: SegmentInfo,
 }
+
+
+struct DeltaPositionComputer {
+    buffer: [u32; NUM_DOCS_PER_BLOCK]
+}
+
+impl DeltaPositionComputer {
+    fn new() -> DeltaPositionComputer {
+        DeltaPositionComputer {
+            buffer: [0u32; NUM_DOCS_PER_BLOCK]
+        }
+    }
+    
+    fn compute_delta_positions(&mut self, positions: &[u32],) -> &[u32] {
+        let mut last_pos = 0u32;
+        let num_positions = positions.len();
+        for i in 0..num_positions {
+            let position = positions[i];
+            self.buffer[i] = position - last_pos;
+            last_pos = position;
+        }
+        &self.buffer[..num_positions]
+    }
+}
+
+
 
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &Vec<Segment>) -> Result<IndexMerger> {
@@ -205,12 +230,14 @@ impl IndexMerger {
 
     fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
         let mut postings_merger = PostingsMerger::new(&self.readers);
+        let mut delta_position_computer = DeltaPositionComputer::new();
         loop {
             match postings_merger.next() {
                 Some((term, mut merged_doc_ids)) => {
                     try!(postings_serializer.new_term(&term, merged_doc_ids.len() as DocId));
                     while merged_doc_ids.advance() {
-                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), &EMPTY_ARRAY));
+                        let delta_positions: &[u32] = delta_position_computer.compute_delta_positions(merged_doc_ids.positions());
+                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), delta_positions));
                     }
                     try!(postings_serializer.close_term());
                 }
