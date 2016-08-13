@@ -140,7 +140,7 @@ impl BitOr for TextOptions {
 mod tests {
     use schema::Schema;
     use schema::Field;
-    use schema::FieldEntry;
+    use schema::FieldType;
     use super::*;
     
     #[test]
@@ -155,8 +155,8 @@ mod tests {
             let _body_field: Field = schema.add_text_field("body", TEXT);
             let field = schema.get_field("body").unwrap();
             let field_entry = schema.get_field_entry(field);
-            match field_entry {
-                &FieldEntry::Text(_, ref text_options) => {
+            match field_entry.field_type() {
+                &FieldType::Text(ref text_options) => {
                     assert!(text_options.get_indexing_options().is_tokenized());
                 }
                 _ => {

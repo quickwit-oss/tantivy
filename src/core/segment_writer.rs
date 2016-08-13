@@ -3,7 +3,7 @@ use DocId;
 use schema::Schema;
 use schema::Document;
 use schema::Term;
-use schema::FieldEntry;
+
 use core::segment_serializer::SegmentSerializer;
 use core::index::SegmentInfo;
 use core::index::Segment;
@@ -13,7 +13,9 @@ use analyzer::StreamingIterator;
 use postings::PostingsWriter;
 use fastfield::U32FastFieldsWriter;
 use schema::Field;
+use schema::FieldEntry;
 use schema::FieldValue;
+use schema::FieldType;
 use schema::TextIndexingOptions;
 use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
@@ -38,8 +40,8 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 }
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
-	match field_entry {
-		&FieldEntry::Text(_, ref text_options) => {
+	match field_entry.field_type() {
+		&FieldType::Text(ref text_options) => {
 			match text_options.get_indexing_options() {
 				TextIndexingOptions::TokenizedWithFreq => {
 					SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
@@ -52,7 +54,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 				}
 			}
 		} 
-		&FieldEntry::U32(_, _) => {
+		&FieldType::U32(_) => {
 			SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
 		}
 	}
@@ -104,8 +106,8 @@ impl SegmentWriter {
 			// TODO pos collision if the field is redundant				
 			let field_posting_writers: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
-			match *field_options {
-				FieldEntry::Text(_, ref text_options) => {
+			match *field_options.field_type() {
+				FieldType::Text(ref text_options) => {
 					let mut pos = 0u32;
 					let mut num_tokens: usize = 0;
 					for field_value in field_values {
@@ -140,7 +142,7 @@ impl SegmentWriter {
 							field_norms_writer.add_val(num_tokens as u32)
 						});
 				}
-				FieldEntry::U32(_, ref u32_options) => {
+				FieldType::U32(ref u32_options) => {
 					if u32_options.is_indexed() {
 						for field_value in field_values {
 							let term = Term::from_field_u32(field_value.field(), field_value.u32_value());

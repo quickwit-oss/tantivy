@@ -18,8 +18,8 @@ use schema::Field;
 use postings::SegmentPostingsOption;
 use postings::SegmentPostings;
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
-use schema::FieldEntry;
 use schema::Schema;
+use schema::FieldType;
 use postings::FreqHandler;
 use schema::TextIndexingOptions;
 use error::Error;
@@ -53,11 +53,11 @@ impl SegmentReader {
 
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match *field_entry {
-            FieldEntry::Text(_, _) => {
+        match field_entry.field_type() {
+            &FieldType::Text(_) => {
                 Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
             },
-            FieldEntry::U32(_, _) => {
+            &FieldType::U32(_) => {
                 // TODO check that the schema allows that
                 //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
                 self.fast_fields_reader.get_field(field)
@@ -145,8 +145,8 @@ impl SegmentReader {
         let term_info = get!(self.get_term_info(&term));
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
-        let freq_handler = match field_entry {
-            &FieldEntry::Text(_, ref options) => {
+        let freq_handler = match field_entry.field_type() {
+            &FieldType::Text(ref options) => {
                 let indexing_options = options.get_indexing_options();
                 match option {
                     SegmentPostingsOption::NoFreq => {
@@ -184,15 +184,15 @@ impl SegmentReader {
 
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.get_field());
-        let segment_posting_option = match field_entry {
-            &FieldEntry::Text(_, ref text_options) => {
+        let segment_posting_option = match field_entry.field_type() {
+            &FieldType::Text(ref text_options) => {
                 match text_options.get_indexing_options() {
                     TextIndexingOptions::TokenizedWithFreq => SegmentPostingsOption::Freq,
                     TextIndexingOptions::TokenizedWithFreqAndPosition => SegmentPostingsOption::FreqAndPositions,
                     _ => SegmentPostingsOption::NoFreq,
                 }
             }
-            &FieldEntry::U32(_, _) => SegmentPostingsOption::NoFreq
+            &FieldType::U32(_) => SegmentPostingsOption::NoFreq
         };
         self.read_postings(term, segment_posting_option)
     }

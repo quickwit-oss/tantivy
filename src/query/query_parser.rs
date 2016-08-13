@@ -4,7 +4,7 @@ use collector::Collector;
 use core::searcher::Searcher;
 use common::TimerTree;
 use query::{Query, MultiTermQuery};
-use schema::{Schema, Term, Field, FieldEntry};
+use schema::{Schema, FieldType, Term, Field};
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
 use DocAddress;
@@ -86,15 +86,15 @@ impl QueryParser {
     
     fn transform_field_and_value(&self, field: Field, val: &str) -> Result<Vec<Term>, ParsingError> {
         let field_entry = self.schema.get_field_entry(field);
-        Ok(match field_entry {
-            &FieldEntry::Text(_, _) => {
+        Ok(match field_entry.field_type() {
+            &FieldType::Text(_) => {
                 compute_terms(field, val)
             },
-            &FieldEntry::U32(ref field_name, _) => {
+            &FieldType::U32(_) => {
                 let u32_parsed: u32 = try!(val
                     .parse::<u32>()
                     .map_err(|_| {
-                        ParsingError::ExpectedU32(field_name.clone(), String::from(val))
+                        ParsingError::ExpectedU32(field_entry.name().clone(), String::from(val))
                     })
                 );
                 vec!(Term::from_field_u32(field, u32_parsed))

@@ -109,7 +109,7 @@ impl Schema {
             field_options: U32Options) -> Field {
         // TODO case if field already exists
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::U32(field_name, field_options);
+        let field_entry = FieldEntry::new_u32(field_name, field_options);
         self.add_field(field_entry)
     }
     
@@ -119,14 +119,14 @@ impl Schema {
             field_options: TextOptions) -> Field {
         // TODO case if field already exists
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::Text(field_name, field_options);
+        let field_entry = FieldEntry::new_text(field_name, field_options);
         self.add_field(field_entry)
     }
 
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {       
         let field = Field(self.fields.len() as u8);
         // TODO case if field already exists
-        let field_name = String::from(field_entry.get_field_name());
+        let field_name = field_entry.name().clone();
         self.fields.push(field_entry);
         self.fields_map.insert(field_name, field.clone());
         field
@@ -154,18 +154,18 @@ impl Schema {
                     let field_entry = self.get_field_entry(field);
                     match field_value {
                         &Json::String(ref field_text) => {
-                            match field_entry {
-                                &FieldEntry::Text(_, _) => {
+                            match field_entry.field_type() {
+                                &FieldType::Text(_) => {
                                     doc.add_text(field, field_text);
                                 }
                                 _ => {
-                                    return Err(DocMappingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
+                                    return Err(DocMappingError::MappingError(field_entry.name().clone(), format!("Expected a string, got {:?}", field_value)));
                                 }
                             }
                         }
                         &Json::U64(ref field_val_u64) => {
-                            match field_entry {
-                                &FieldEntry::U32(_, _) => {
+                            match field_entry.field_type() {
+                                &FieldType::U32(_) => {
                                     if *field_val_u64 > (u32::max_value() as u64) {
                                         return Err(DocMappingError::OverflowError(field_name.clone()));
                                     }
@@ -230,34 +230,28 @@ mod tests {
         println!("{}", schema_json);
         let expected = r#"[
   {
-    "variant": "Text",
-    "fields": [
-      "text",
-      {
-        "indexing_options": "Untokenized",
-        "stored": false
-      }
-    ]
+    "name": "text",
+    "type": "text",
+    "options": {
+      "indexing_options": "Untokenized",
+      "stored": false
+    }
   },
   {
-    "variant": "Text",
-    "fields": [
-      "title",
-      {
-        "indexing_options": "Untokenized",
-        "stored": false
-      }
-    ]
+    "name": "title",
+    "type": "text",
+    "options": {
+      "indexing_options": "Untokenized",
+      "stored": false
+    }
   },
   {
-    "variant": "Text",
-    "fields": [
-      "author",
-      {
-        "indexing_options": "Untokenized",
-        "stored": false
-      }
-    ]
+    "name": "author",
+    "type": "text",
+    "options": {
+      "indexing_options": "Untokenized",
+      "stored": false
+    }
   }
 ]"#;
         assert_eq!(schema_json, expected);        

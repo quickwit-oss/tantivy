@@ -106,12 +106,12 @@ mod field;
 
 pub use self::schema::Schema;
 pub use self::document::Document;
-// TODO change to FieldId
 pub use self::field::Field;
 pub use self::term::Term;
 
 pub use self::field_entry::FieldEntry;
 pub use self::field_value::FieldValue;
+pub use self::field_entry::FieldType;
 
 pub use self::text_options::TextOptions;
 pub use self::text_options::TEXT;

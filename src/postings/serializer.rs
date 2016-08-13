@@ -4,6 +4,7 @@ use super::TermInfo;
 use schema::Term;
 use schema::Field;
 use schema::FieldEntry;
+use schema::FieldType;
 use schema::Schema;
 use schema::TextIndexingOptions;
 use directory::WritePtr;
@@ -59,12 +60,17 @@ impl PostingsSerializer {
 
     pub fn load_indexing_options(&mut self, field: Field) {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
-        self.text_indexing_options = match field_entry {
-            &FieldEntry::Text(_, ref text_options) => {
+        self.text_indexing_options = match field_entry.field_type() {
+            &FieldType::Text(ref text_options) => {
                 text_options.get_indexing_options()
             }
-            _ => {
-                TextIndexingOptions::Unindexed               
+            &FieldType::U32(ref u32_options) => {
+                if u32_options.is_indexed() {
+                    TextIndexingOptions::Unindexed
+                }
+                else {
+                    TextIndexingOptions::Untokenized    
+                }
             }
         };
     }
