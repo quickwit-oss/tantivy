@@ -28,14 +28,14 @@ impl<'a> Drop for OpenTimer<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable)]
 pub struct Timing {
     name: &'static str,
     duration: i64,
     depth: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable)]
 pub struct TimerTree {
     timings: Vec<Timing>,
 }
