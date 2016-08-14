@@ -1,7 +1,7 @@
 use std::fmt;
 use std::iter;
 
-#[derive(RustcDecodable)]
+#[derive(RustcEncodable)]
 pub struct Explanation {
     val: f32,
     description: String,

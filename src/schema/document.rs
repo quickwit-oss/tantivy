@@ -97,8 +97,6 @@ impl From<Vec<FieldValue>> for Document {
 #[cfg(test)]
 mod tests {
 
-
-    
     use super::*;
     use schema::Schema;
     use schema::TEXT;
