@@ -8,11 +8,10 @@ use core::searcher::Searcher;
 use collector::Collector;
 use SegmentLocalId;
 use core::SegmentReader;
-use query::MultiTermExplainer;
+use query::SimilarityExplainer;
 use postings::SegmentPostings;
-use postings::UnionPostings;
 use postings::DocSet;
-use query::TfIdfScorer;
+use query::TfIdf;
 use postings::SkipResult;
 use ScoredDoc;
 use query::Scorer;
@@ -21,6 +20,7 @@ use DocAddress;
 use query::Explanation;
 use query::occur::Occur;
 use postings::SegmentPostingsOption;
+use query::DAATMultiTermScorer;
 
 
 #[derive(Eq, PartialEq, Debug)]
@@ -30,13 +30,12 @@ pub struct MultiTermQuery {
 
 
 impl MultiTermQuery {
-
     
     pub fn num_terms(&self,) -> usize {
         self.occur_terms.len()
     } 
     
-    fn scorer(&self, searcher: &Searcher) -> TfIdfScorer {
+    fn scorer(&self, searcher: &Searcher) -> TfIdf {
         let num_terms = self.num_terms();
         let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.occur_terms
@@ -59,7 +58,7 @@ impl MultiTermQuery {
             .iter()
             .map(|&(_, ref term)| format!("{:?}", &term))
             .collect();
-        let mut tfidf_scorer = TfIdfScorer::new(query_coords, idfs);
+        let mut tfidf_scorer = TfIdf::new(query_coords, idfs);
         tfidf_scorer.set_term_names(term_names);
         tfidf_scorer
     }
@@ -68,7 +67,7 @@ impl MultiTermQuery {
             &'b self,
             reader: &'b SegmentReader,
             multi_term_scorer: TScorer,
-            mut timer: OpenTimer<'a>) -> Result<UnionPostings<SegmentPostings, TScorer>> {
+            mut timer: OpenTimer<'a>) -> Result<DAATMultiTermScorer<SegmentPostings, TScorer>> {
         let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
         {
             let mut decode_timer = timer.open("decode_all");
@@ -88,7 +87,7 @@ impl MultiTermQuery {
             // TODO putting the SHOULD at the end of the list should push the limit.
             return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
         }
-        Ok(UnionPostings::new(postings_and_fieldnorms, multi_term_scorer))
+        Ok(DAATMultiTermScorer::new(postings_and_fieldnorms, multi_term_scorer))
     }
 }
 
@@ -120,7 +119,7 @@ impl Query for MultiTermQuery {
         searcher: &Searcher,
         doc_address: &DocAddress) -> Result<Explanation> {
             let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
-            let multi_term_scorer = MultiTermExplainer::from(self.scorer(searcher));
+            let multi_term_scorer = SimilarityExplainer::from(self.scorer(searcher));
             let mut timer_tree = TimerTree::new();
             let mut postings = try!(
                 self.search_segment(
@@ -164,7 +163,7 @@ impl Query for MultiTermQuery {
                 {
                     let _collection_timer = segment_search_timer.open("collection");
                     while postings.advance() {
-                        let scored_doc = ScoredDoc(postings.scorer().score(), postings.doc());
+                        let scored_doc = ScoredDoc(postings.score(), postings.doc());
                         collector.collect(scored_doc);
                     }
                 }

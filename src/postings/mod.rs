@@ -9,13 +9,11 @@ mod segment_postings;
 mod intersection;
 mod offset_postings;
 mod freq_handler;
-mod union_postings;
 mod docset;
 mod scored_docset;
 mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
-pub use self::union_postings::UnionPostings;
 pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;

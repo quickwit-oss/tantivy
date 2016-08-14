@@ -22,20 +22,11 @@ use super::*;
 /// ```
 /// use tantivy::schema::*;
 ///
-/// fn create_schema() -> Schema {
 ///   let mut schema = Schema::new();
-///   let str_fieldtype = TextOptions::new();
 ///   let id_field = schema.add_text_field("id", STRING);
-///   let url_field = schema.add_text_field("url", STRING);
-///   let body_field = schema.add_text_field("body", TEXT);
-///   let id_field = schema.add_text_field("id", STRING);
-///   let url_field = schema.add_text_field("url", STRING);
 ///   let title_field = schema.add_text_field("title", TEXT);
 ///   let body_field = schema.add_text_field("body", TEXT);
-///   schema
-/// }
 ///
-/// let schema = create_schema();
 /// ```
 #[derive(Clone, Debug)]
 pub struct Schema {

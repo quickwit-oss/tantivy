@@ -1,10 +1,10 @@
+use Score;
 use super::MultiTermAccumulator;
-use super::Scorer;
-use super::MultiTermScorer;
 use super::Explanation;
+use super::Similarity;
 
 #[derive(Clone)]
-pub struct TfIdfScorer {
+pub struct TfIdf {
     coords: Vec<f32>,
     idf: Vec<f32>,
     score: f32,
@@ -12,7 +12,7 @@ pub struct TfIdfScorer {
     term_names: Option<Vec<String>>, //< only here for explain
 }
 
-impl MultiTermAccumulator for TfIdfScorer {
+impl MultiTermAccumulator for TfIdf {
     
     #[inline(always)]
     fn update(&mut self, term_ord: usize, term_freq: u32, fieldnorm: u32) {
@@ -28,9 +28,9 @@ impl MultiTermAccumulator for TfIdfScorer {
     }
 }
 
-impl TfIdfScorer {
-    pub fn new(coords: Vec<f32>, idf: Vec<f32>) -> TfIdfScorer {
-        TfIdfScorer {
+impl TfIdf {
+    pub fn new(coords: Vec<f32>, idf: Vec<f32>) -> TfIdf {
+        TfIdf {
             coords: coords,
             idf: idf,
             score: 0f32,
@@ -61,14 +61,12 @@ impl TfIdfScorer {
     }
 }
 
-impl Scorer for TfIdfScorer {
+impl Similarity for TfIdf {
     #[inline(always)]
-    fn score(&self, ) -> f32 {
+    fn score(&self, ) -> Score {
         self.score * self.coord()
     }
-}
-
-impl MultiTermScorer for TfIdfScorer {
+    
     fn explain(&self, vals: &Vec<(usize, u32, u32)>) -> Explanation {
         let score = self.score();
         let mut explanation = Explanation::with_val(score);
@@ -89,41 +87,41 @@ impl MultiTermScorer for TfIdfScorer {
 
 
 
+
 #[cfg(test)]
 mod tests {
     
     use super::*;
-    use query::Scorer;
     use query::MultiTermAccumulator;
-            
+    use query::Similarity;
+    
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
     }  
 
     #[test]
-    pub fn test_multiterm_scorer() {
-        let mut tfidf_scorer = TfIdfScorer::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
+    pub fn test_tfidf() {
+        let mut tfidf = TfIdf::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
         {
-            tfidf_scorer.update(0, 1, 1);
-            assert!(abs_diff(tfidf_scorer.score(), 1f32) < 0.001f32);
-            tfidf_scorer.clear();
-            
+            tfidf.update(0, 1, 1);
+            assert!(abs_diff(tfidf.score(), 1f32) < 0.001f32);
+            tfidf.clear();
         }
         {
-            tfidf_scorer.update(1, 1, 1);
-            assert_eq!(tfidf_scorer.score(), 4f32);    
-            tfidf_scorer.clear();
+            tfidf.update(1, 1, 1);
+            assert_eq!(tfidf.score(), 4f32);    
+            tfidf.clear();
         }
         {
-            tfidf_scorer.update(0, 2, 1);
-            assert!(abs_diff(tfidf_scorer.score(), 1.4142135) < 0.001f32);          
-            tfidf_scorer.clear();
+            tfidf.update(0, 2, 1);
+            assert!(abs_diff(tfidf.score(), 1.4142135) < 0.001f32);          
+            tfidf.clear();
         }
         {
-            tfidf_scorer.update(0, 1, 1);
-            tfidf_scorer.update(1, 1, 1);
-            assert_eq!(tfidf_scorer.score(), 10f32);    
-            tfidf_scorer.clear();
+            tfidf.update(0, 1, 1);
+            tfidf.update(1, 1, 1);
+            assert_eq!(tfidf.score(), 10f32);    
+            tfidf.clear();
         }
 
 

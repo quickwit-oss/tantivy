@@ -2,10 +2,13 @@ use DocId;
 use postings::{Postings, DocSet};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use query::MultiTermAccumulator; 
+use query::MultiTermAccumulator;
+use query::Similarity; 
 use fastfield::U32FastFieldReader;
 use query::Occur;
 use std::iter;
+use super::Scorer;
+use Score;
 
 #[derive(Eq, PartialEq)]
 struct HeapItem(DocId, u32);
@@ -55,27 +58,27 @@ impl Filter {
     }
 }
 
-pub struct UnionPostings<TPostings: Postings, TAccumulator: MultiTermAccumulator> {
+pub struct DAATMultiTermScorer<TPostings: Postings, TAccumulator: MultiTermAccumulator> {
     fieldnorm_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
     term_frequencies: Vec<u32>,
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
-    scorer: TAccumulator,
+    similarity: TAccumulator,
     filter: Filter,
 }
 
 
 
-impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPostings, TAccumulator> {
+impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScorer<TPostings, TAccumulator> {
     
     fn new_non_empty(
         
         fieldnorm_readers: Vec<U32FastFieldReader>,
         postings: Vec<TPostings>,
-        scorer: TAccumulator,
+        similarity: TAccumulator,
         filter: Filter
-    ) -> UnionPostings<TPostings, TAccumulator> {
+    ) -> DAATMultiTermScorer<TPostings, TAccumulator> {
         let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(postings.len()).collect();
         let heap_items: Vec<HeapItem> = postings
             .iter()
@@ -88,18 +91,18 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
                 HeapItem(doc, ord as u32)
             })
             .collect();
-        UnionPostings {
+        DAATMultiTermScorer {
             fieldnorm_readers: fieldnorm_readers,
             postings: postings,
             term_frequencies: term_frequencies,
             queue: BinaryHeap::from(heap_items),
             doc: 0,
-            scorer: scorer,
+            similarity: similarity,
             filter: filter
         }
     }
     
-    pub fn new(postings_and_fieldnorms: Vec<(Occur, TPostings, U32FastFieldReader)>, scorer: TAccumulator) -> UnionPostings<TPostings, TAccumulator> {      
+    pub fn new(postings_and_fieldnorms: Vec<(Occur, TPostings, U32FastFieldReader)>, similarity: TAccumulator) -> DAATMultiTermScorer<TPostings, TAccumulator> {      
         let mut postings = Vec::new();
         let mut fieldnorm_readers = Vec::new();
         let mut occurs = Vec::new();
@@ -111,12 +114,12 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
             }
         }
         let filter = Filter::new(&occurs);
-        UnionPostings::new_non_empty(fieldnorm_readers, postings, scorer, filter)
+        DAATMultiTermScorer::new_non_empty(fieldnorm_readers, postings, similarity, filter)
     }
 
 
     pub fn scorer(&self,) -> &TAccumulator {
-        &self.scorer
+        &self.similarity
     }
 
     fn advance_head(&mut self,) {
@@ -138,11 +141,17 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> UnionPostings<TPos
 
 }
 
-impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPostings<TPostings, TAccumulator> {
+impl<TPostings: Postings, TSimilarity: Similarity> Scorer for DAATMultiTermScorer<TPostings, TSimilarity> {
+    fn score(&self,) -> Score {
+        self.similarity.score()
+    }
+} 
+
+impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMultiTermScorer<TPostings, TAccumulator> {
     
     fn advance(&mut self,) -> bool {
         loop {
-            self.scorer.clear();
+            self.similarity.clear();
             let mut ord_bitset = 0u64;
             match self.queue.peek() {
                 Some(&HeapItem(doc, ord)) => {
@@ -150,7 +159,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPo
                     let ord: usize = ord as usize;
                     let fieldnorm = self.get_field_norm(ord, doc);
                     let tf = self.term_frequencies[ord];
-                    self.scorer.update(ord, tf, fieldnorm);
+                    self.similarity.update(ord, tf, fieldnorm);
                     ord_bitset |= 1 << ord;  
                 }
                 None => {
@@ -168,7 +177,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for UnionPo
                             let peek_ord: usize = peek_ord as usize;
                             let peek_tf = self.term_frequencies[peek_ord];
                             let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
-                            self.scorer.update(peek_ord, peek_tf, peek_fieldnorm);
+                            self.similarity.update(peek_ord, peek_tf, peek_fieldnorm);
                             ord_bitset |= 1 << peek_ord;
                         }
                     }
@@ -193,7 +202,7 @@ mod tests {
     
     use super::*;
     use postings::{DocSet, VecPostings};
-    use query::TfIdfScorer;
+    use query::TfIdf;
     use query::Scorer;
     use directory::ReadOnlySource;
     use directory::SharedVec;
@@ -225,21 +234,21 @@ mod tests {
         let right_fieldnorms = create_u32_fastfieldreader(Field(2), vec!(15,25,35));   
         let left = VecPostings::from(vec!(1, 2, 3));
         let right = VecPostings::from(vec!(1, 3, 8));
-        let multi_term_scorer = TfIdfScorer::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
-        let mut union = UnionPostings::new(
+        let tfidf = TfIdf::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
+        let mut union = DAATMultiTermScorer::new(
             vec!(
                 (Occur::Should, left, left_fieldnorms),
                 (Occur::Should, right, right_fieldnorms),
             ),
-            multi_term_scorer
+            tfidf
         );
         assert_eq!(union.next(), Some(1u32));
-        assert!(abs_diff(union.scorer().score(), 2.182179f32) < 0.001);
+        assert!(abs_diff(union.score(), 2.182179f32) < 0.001);
         assert_eq!(union.next(), Some(2u32));
-        assert!(abs_diff(union.scorer().score(), 0.2236068) < 0.001f32);
+        assert!(abs_diff(union.score(), 0.2236068) < 0.001f32);
         assert_eq!(union.next(), Some(3u32));
         assert_eq!(union.next(), Some(8u32));
-        assert!(abs_diff(union.scorer().score(), 0.8944272f32) < 0.001f32);
+        assert!(abs_diff(union.score(), 0.8944272f32) < 0.001f32);
         assert!(!union.advance());
     }
 
