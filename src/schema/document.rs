@@ -32,18 +32,24 @@ impl Document {
 
     /// Add a text field.
     pub fn add_text(&mut self, field: Field, text: &str) {
-        self.add(FieldValue::Text(field.clone(), String::from(text)));
+        self.add(FieldValue {
+            field: field,
+            value: Value::Str(String::from(text)),
+        });
     }
 
     /// Add a u32 field
     pub fn add_u32(&mut self, field: Field, value: u32) {
-        self.add(FieldValue::U32(field.clone(), value));
+        self.add(FieldValue {
+            field: field,
+            value: Value::U32(value),
+        });
     }
 
     pub fn add(&mut self, field_value: FieldValue) {
         self.field_values.push(field_value);
     }
-           
+
     pub fn get_fields(&self) -> &Vec<FieldValue> {
         &self.field_values
     }
@@ -62,17 +68,19 @@ impl Document {
          sorted_fields
      }
     
-    pub fn get_all<'a>(&'a self, field: Field) -> Vec<&'a FieldValue> {
+    pub fn get_all<'a>(&'a self, field: Field) -> Vec<&'a Value> {
         self.field_values
             .iter()
             .filter(|field_value| field_value.field() == field)
+            .map(|field_value| field_value.value())
             .collect()
     }
 
-    pub fn get_first<'a>(&'a self, field: Field) -> Option<&'a FieldValue> {
+    pub fn get_first<'a>(&'a self, field: Field) -> Option<&'a Value> {
         self.field_values
             .iter()
             .filter(|field_value| field_value.field() == field)
+            .map(|field_value| field_value.value())
             .next()
     }
 }

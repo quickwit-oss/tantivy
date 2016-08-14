@@ -1,6 +1,7 @@
-use schema::{Schema, FieldValue, Field, Document};
+use schema::{Schema, Field, Document};
 use fastfield::FastFieldSerializer;
 use std::io;
+use schema::Value;
 use DocId;
 
 pub struct U32FastFieldsWriter {
@@ -91,10 +92,10 @@ impl U32FastFieldWriter {
     
     fn extract_val(&self, doc: &Document) -> u32 {
         match doc.get_first(self.field) {
-            Some(field_value) => {
-                match field_value {
-                    &FieldValue::U32(_, val) => { return val; }
-                    _ => { panic!("Expected a u32field, got {:?} ", field_value) }
+            Some(v) => {
+                match *v {
+                    Value::U32(ref val) => { return *val; }
+                    _ => { panic!("Expected a u32field, got {:?} ", v) }
                 }
             },
             None => {

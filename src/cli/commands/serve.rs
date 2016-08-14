@@ -6,6 +6,7 @@ use iron::typemap::Key;
 use mount::Mount;
 use persistent::Read;
 use rustc_serialize::json::as_pretty_json;
+use rustc_serialize::json::Json;
 use staticfile::Static;
 use std::convert::From;
 use std::path::Path;
@@ -20,8 +21,9 @@ use tantivy::query::Explanation;
 use tantivy::query::Query;
 use tantivy::query::QueryParser;
 use tantivy::Result;
-use tantivy::schema::Field;
+use tantivy::schema::{Field, Schema};
 use tantivy::Score;
+use tantivy::schema::NamedFieldDocument;
 use urlencoded::UrlEncodedQuery;
 
 
@@ -34,7 +36,7 @@ pub fn run_serve_cli(matches: &ArgMatches) -> tantivy::Result<()> {
 }
 
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(RustcEncodable)]
 struct Serp {
     q: String,
     num_hits: usize,
@@ -42,15 +44,14 @@ struct Serp {
     timings: Vec<Timing>,
 }
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(RustcEncodable)]
 struct Hit {
-    title: String,
-    body: String,
+    doc: NamedFieldDocument,
     explain: String,
     score: Score,
 }
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(RustcEncodable)]
 struct Timing {
     name: String,
     duration: i64,
@@ -59,8 +60,7 @@ struct Timing {
 struct IndexServer {
     index: Index,
     query_parser: QueryParser,
-    body_field: Field,
-    title_field: Field,
+    schema: Schema,
 }
 
 impl IndexServer {
@@ -70,19 +70,17 @@ impl IndexServer {
         let schema = index.schema();
         let body_field = schema.get_field("body").unwrap();
         let title_field = schema.get_field("title").unwrap();
-        let query_parser = QueryParser::new(schema, vec!(body_field, title_field));
+        let query_parser = QueryParser::new(schema.clone(), vec!(body_field, title_field));
         IndexServer {
             index: index,
             query_parser: query_parser,
-            title_field: title_field,
-            body_field: body_field,
+            schema: schema,
         }
     }
 
     fn create_hit(&self, doc: &Document, explain: Explanation) -> Hit {
         Hit {
-            title: String::from(doc.get_first(self.title_field).unwrap().text()),
-            body: String::from(doc.get_first(self.body_field).unwrap().text().clone()),
+            doc: self.index.schema().to_named_doc(&doc),
             explain: format!("{:?}", explain),
             score: explain.val(),
         }

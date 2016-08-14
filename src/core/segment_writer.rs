@@ -112,7 +112,7 @@ impl SegmentWriter {
 					let mut num_tokens: usize = 0;
 					for field_value in field_values {
 						if text_options.get_indexing_options().is_tokenized() {
-							let mut tokens = self.tokenizer.tokenize(field_value.text());
+							let mut tokens = self.tokenizer.tokenize(field_value.value().text());
 							// right now num_tokens and pos are redundant, but it should
 							// change when we get proper analyzers
 							let field = field_value.field();
@@ -129,7 +129,7 @@ impl SegmentWriter {
 							}
 						}
 						else {
-							let term = Term::from_field_text(field, field_value.text());
+							let term = Term::from_field_text(field, field_value.value().text());
 							field_posting_writers.suscribe(doc_id, 0, term);
 						}
 						pos += 1;
@@ -145,7 +145,7 @@ impl SegmentWriter {
 				FieldType::U32(ref u32_options) => {
 					if u32_options.is_indexed() {
 						for field_value in field_values {
-							let term = Term::from_field_u32(field_value.field(), field_value.u32_value());
+							let term = Term::from_field_u32(field_value.field(), field_value.value().u32_value());
 							field_posting_writers.suscribe(doc_id, 0, term);
 						}
 					}

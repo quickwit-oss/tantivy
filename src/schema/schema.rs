@@ -6,6 +6,7 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encoder;
 use rustc_serialize::json;
 use rustc_serialize::json::Json;
+use std::collections::BTreeMap;
 use super::*;
 
 
@@ -33,6 +34,7 @@ pub struct Schema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>,  // transient
 }
+
 
 impl Decodable for Schema {
     fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
@@ -75,6 +77,10 @@ impl Schema {
         &self.fields[field.0 as usize]
     }
     
+    pub fn get_field_name(&self, field: Field) -> &String {
+        self.get_field_entry(field).name()
+    }
+
     pub fn fields(&self,) -> &Vec<FieldEntry> {
         &self.fields
     }
@@ -123,6 +129,20 @@ impl Schema {
         field
     }
     
+
+    pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
+        let mut field_map = BTreeMap::new();
+        for (field, field_values) in doc.get_sorted_fields() {
+            let field_name = self.get_field_name(field);
+            let values: Vec<Value> = field_values
+                .into_iter()
+                .map(|field_val| field_val.value() )
+                .cloned()
+                .collect();
+            field_map.insert(field_name.clone(), values);
+        }
+        NamedFieldDocument(field_map)
+    }
     /// Build a document object from a json-object. 
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
         let json_node = try!(Json::from_str(doc_json));

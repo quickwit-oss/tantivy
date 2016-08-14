@@ -19,6 +19,58 @@ pub struct FieldEntry {
     field_type: FieldType,
 }
 
+impl FieldEntry {
+    
+    pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::Text(field_type),
+        }
+    }
+    
+    pub fn new_u32(field_name: String, field_type: U32Options) -> FieldEntry {
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::U32(field_type),
+        }
+    }
+    
+    pub fn name(&self,) -> &String {
+        &self.name
+    }
+    
+    pub fn field_type(&self,) -> &FieldType {
+        &self.field_type
+    }
+    
+    pub fn is_indexed(&self,) -> bool {
+        match self.field_type {
+            FieldType::Text(ref options) => options.get_indexing_options().is_indexed(),
+            _ => false, // TODO handle u32 indexed
+        }
+    }
+    
+    pub fn is_u32_fast(&self,) -> bool {
+        match self.field_type {
+            FieldType::U32(ref options) => options.is_fast(),
+            _ => false,
+        }
+    }
+    
+    pub fn is_stored(&self,) -> bool {
+        match self.field_type {
+            FieldType::U32(ref options) => {
+                options.is_stored()
+            }
+            FieldType::Text(ref options) => {
+                options.is_stored()
+            }
+        }
+    }
+}
+
+
+
 impl Encodable for FieldEntry {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
         s.emit_struct("field_entry", 3, |s| {
@@ -77,57 +129,6 @@ impl Decodable for FieldEntry {
     }
 }
 
-impl FieldEntry {
-    
-    pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::Text(field_type),
-        }
-    }
-    
-    pub fn new_u32(field_name: String, field_type: U32Options) -> FieldEntry {
-        FieldEntry {
-            name: field_name,
-            field_type: FieldType::U32(field_type),
-        }
-    }
-    
-    pub fn name(&self,) -> &String {
-        &self.name
-    }
-    
-    pub fn field_type(&self,) -> &FieldType {
-        &self.field_type
-    }
-    
-    pub fn is_indexed(&self,) -> bool {
-        match self.field_type {
-            FieldType::Text(ref options) => options.get_indexing_options().is_indexed(),
-            _ => false, // TODO handle u32 indexed
-        }
-    }
-    
-    pub fn is_u32_fast(&self,) -> bool {
-        match self.field_type {
-            FieldType::U32(ref options) => options.is_fast(),
-            _ => false,
-        }
-    }
-    
-    pub fn is_stored(&self,) -> bool {
-        match self.field_type {
-            FieldType::U32(ref options) => {
-                options.is_stored()
-            }
-            FieldType::Text(ref options) => {
-                options.is_stored()
-            }
-        }
-    }
-}
-
-// TODO implement a nicer JSON format 
 
 #[cfg(test)]
 mod tests {

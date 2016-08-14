@@ -29,12 +29,18 @@ mod tests {
             for i in 0..1000 {
                 let mut fields: Vec<FieldValue> = Vec::new();
                 {
-                    let field_value = FieldValue::Text(field_body.clone(), lorem.clone());
+                    let field_value = FieldValue {
+                        field: field_body,
+                        value: From::from(lorem.clone())
+                    };
                     fields.push(field_value);
                 }
                 {
                     let title_text = format!("Doc {}", i);
-                    let field_value = FieldValue::Text(field_title.clone(), title_text);
+                    let field_value = FieldValue {
+                        field: field_title,
+                        value: From::from(title_text)
+                    };
                     fields.push(field_value);
                 }
                 let fields_refs: Vec<&FieldValue> = fields.iter().collect();

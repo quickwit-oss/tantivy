@@ -102,10 +102,16 @@ mod field_value;
 mod text_options;
 mod u32_options;
 mod field;
+mod value;
+mod named_field_document;
 
 
+
+pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::Schema;
+pub use self::value::Value;
 pub use self::schema::DocParsingError;
+
 pub use self::document::Document;
 pub use self::field::Field;
 pub use self::term::Term;
