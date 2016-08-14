@@ -55,24 +55,25 @@ impl Decodable for FieldEntry {
             let name = try!(d.read_struct_field("name", 0, |d| {
                 d.read_str()
             }));
-            let field_type: String = try!(d.read_struct_field("type", 0, |d| {
+            let field_type: String = try!(d.read_struct_field("type", 1, |d| {
                 d.read_str()
             }));
-            match field_type.as_ref() {
-                "u32" => {
-                    let u32_options = try!(U32Options::decode(d));
-                    Ok(FieldEntry::new_u32(name, u32_options))
+            d.read_struct_field("options", 2, |d| {
+                match field_type.as_ref() {
+                    "u32" => {
+                        let u32_options = try!(U32Options::decode(d));
+                        Ok(FieldEntry::new_u32(name, u32_options))
+                    }
+                    "text" => {
+                        let text_options = try!(TextOptions::decode(d));
+                        Ok(FieldEntry::new_text(name, text_options))
+                    }
+                    _ => {
+                        Err(d.error(&format!("Field type {:?} unknown", field_type)))
+                    }
                 }
-                "text" => {
-                    let text_options = try!(TextOptions::decode(d));
-                    Ok(FieldEntry::new_text(name, text_options))
-                }
-                _ => {
-                    Err(d.error(&format!("Field type {:?} unknown", field_type)))
-                }
-            }
+            })
         })
-        
     }
 }
 

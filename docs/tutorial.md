@@ -40,6 +40,7 @@ the definition of the schema of our new index.
 When asked answer to the question as follows:
 
 ```none
+
     Creating new index 
     Let's define it's schema! 
 
@@ -56,7 +57,7 @@ When asked answer to the question as follows:
 
 
 
-    New field name  ? body 
+    New field name  ? body
     Text or unsigned 32-bit Integer (T/I) ? T
     Should the field be stored (Y/N) ? Y
     Should the field be indexed (Y/N) ? Y
@@ -75,36 +76,31 @@ When asked answer to the question as follows:
 
     [
     {
-        "variant": "Text",
-        "fields": [
-        "title",
-        {
-            "indexing_options": "TokenizedWithFreqAndPosition",
-            "stored": true
+        "name": "title",
+        "type": "text",
+        "options": {
+        "indexing": "position",
+        "stored": true
         }
-        ]
     },
     {
-        "variant": "Text",
-        "fields": [
-        "body",
-        {
-            "indexing_options": "TokenizedWithFreqAndPosition",
-            "stored": true
+        "name": "body",
+        "type": "text",
+        "options": {
+        "indexing": "position",
+        "stored": true
         }
-        ]
     },
     {
-        "variant": "Text",
-        "fields": [
-        "url",
-        {
-            "indexing_options": "Unindexed",
-            "stored": true
+        "name": "url",
+        "type": "text",
+        "options": {
+        "indexing": "unindexed",
+        "stored": true
         }
-        ]
     }
     ]
+
 
 ```
 

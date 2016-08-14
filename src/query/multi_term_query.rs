@@ -35,7 +35,7 @@ impl MultiTermQuery {
         self.occur_terms.len()
     } 
     
-    fn scorer(&self, searcher: &Searcher) -> TfIdf {
+    fn similitude(&self, searcher: &Searcher) -> TfIdf {
         let num_terms = self.num_terms();
         let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.occur_terms
@@ -58,16 +58,16 @@ impl MultiTermQuery {
             .iter()
             .map(|&(_, ref term)| format!("{:?}", &term))
             .collect();
-        let mut tfidf_scorer = TfIdf::new(query_coords, idfs);
-        tfidf_scorer.set_term_names(term_names);
-        tfidf_scorer
+        let mut tfidf = TfIdf::new(query_coords, idfs);
+        tfidf.set_term_names(term_names);
+        tfidf
     }
       
-    fn search_segment<'a, 'b, TScorer: MultiTermAccumulator>(
+    fn search_segment<'a, 'b, TAccumulator: MultiTermAccumulator>(
             &'b self,
             reader: &'b SegmentReader,
-            multi_term_scorer: TScorer,
-            mut timer: OpenTimer<'a>) -> Result<DAATMultiTermScorer<SegmentPostings, TScorer>> {
+            accumulator: TAccumulator,
+            mut timer: OpenTimer<'a>) -> Result<DAATMultiTermScorer<SegmentPostings, TAccumulator>> {
         let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
         {
             let mut decode_timer = timer.open("decode_all");
@@ -87,7 +87,7 @@ impl MultiTermQuery {
             // TODO putting the SHOULD at the end of the list should push the limit.
             return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
         }
-        Ok(DAATMultiTermScorer::new(postings_and_fieldnorms, multi_term_scorer))
+        Ok(DAATMultiTermScorer::new(postings_and_fieldnorms, accumulator))
     }
 }
 
@@ -119,12 +119,12 @@ impl Query for MultiTermQuery {
         searcher: &Searcher,
         doc_address: &DocAddress) -> Result<Explanation> {
             let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
-            let multi_term_scorer = SimilarityExplainer::from(self.scorer(searcher));
+            let similitude = SimilarityExplainer::from(self.similitude(searcher));
             let mut timer_tree = TimerTree::new();
             let mut postings = try!(
                 self.search_segment(
                     segment_reader,
-                    multi_term_scorer,
+                    similitude,
                     timer_tree.open("explain"))
             );
             Ok(match postings.skip_next(doc_address.doc()) {
@@ -144,8 +144,7 @@ impl Query for MultiTermQuery {
         &self,
         searcher: &Searcher,
         collector: &mut C) -> Result<TimerTree> {
-        let mut timer_tree = TimerTree::new();
-        let multi_term_scorer = self.scorer(searcher);
+        let mut timer_tree = TimerTree::new();        
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segments().iter().enumerate() {
@@ -157,7 +156,7 @@ impl Query for MultiTermQuery {
                 let mut postings = try!(
                     self.search_segment(
                         segment_reader,
-                        multi_term_scorer.clone(),
+                        self.similitude(searcher),
                         segment_search_timer.open("get_postings"))
                 );
                 {

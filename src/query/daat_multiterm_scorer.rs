@@ -229,27 +229,27 @@ mod tests {
     }   
        
     #[test]
-    pub fn test_union_postings() {
+    pub fn test_daat_scorer() {
         let left_fieldnorms = create_u32_fastfieldreader(Field(1), vec!(100,200,300));
         let right_fieldnorms = create_u32_fastfieldreader(Field(2), vec!(15,25,35));   
         let left = VecPostings::from(vec!(1, 2, 3));
         let right = VecPostings::from(vec!(1, 3, 8));
         let tfidf = TfIdf::new(vec!(0f32, 1f32, 2f32), vec!(1f32, 4f32));
-        let mut union = DAATMultiTermScorer::new(
+        let mut daat_scorer = DAATMultiTermScorer::new(
             vec!(
                 (Occur::Should, left, left_fieldnorms),
                 (Occur::Should, right, right_fieldnorms),
             ),
             tfidf
         );
-        assert_eq!(union.next(), Some(1u32));
-        assert!(abs_diff(union.score(), 2.182179f32) < 0.001);
-        assert_eq!(union.next(), Some(2u32));
-        assert!(abs_diff(union.score(), 0.2236068) < 0.001f32);
-        assert_eq!(union.next(), Some(3u32));
-        assert_eq!(union.next(), Some(8u32));
-        assert!(abs_diff(union.score(), 0.8944272f32) < 0.001f32);
-        assert!(!union.advance());
+        assert_eq!(daat_scorer.next(), Some(1u32));
+        assert!(abs_diff(daat_scorer.score(), 2.182179f32) < 0.001);
+        assert_eq!(daat_scorer.next(), Some(2u32));
+        assert!(abs_diff(daat_scorer.score(), 0.2236068) < 0.001f32);
+        assert_eq!(daat_scorer.next(), Some(3u32));
+        assert_eq!(daat_scorer.next(), Some(8u32));
+        assert!(abs_diff(daat_scorer.score(), 0.8944272f32) < 0.001f32);
+        assert!(!daat_scorer.advance());
     }
 
 }
