@@ -9,7 +9,7 @@ use rustc_serialize::Encoder;
 
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum FieldType {
-    Text(TextOptions),
+    Str(TextOptions),
     U32(U32Options),
 }
 
@@ -24,7 +24,7 @@ impl FieldEntry {
     pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
-            field_type: FieldType::Text(field_type),
+            field_type: FieldType::Str(field_type),
         }
     }
     
@@ -45,7 +45,7 @@ impl FieldEntry {
     
     pub fn is_indexed(&self,) -> bool {
         match self.field_type {
-            FieldType::Text(ref options) => options.get_indexing_options().is_indexed(),
+            FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
             _ => false, // TODO handle u32 indexed
         }
     }
@@ -62,7 +62,7 @@ impl FieldEntry {
             FieldType::U32(ref options) => {
                 options.is_stored()
             }
-            FieldType::Text(ref options) => {
+            FieldType::Str(ref options) => {
                 options.is_stored()
             }
         }
@@ -78,7 +78,7 @@ impl Encodable for FieldEntry {
                 self.name.encode(s)
             }));
             match self.field_type {
-                FieldType::Text(ref options) => {
+                FieldType::Str(ref options) => {
                     try!(s.emit_struct_field("type", 1, |s| {
                         s.emit_str("text")
                     }));

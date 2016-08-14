@@ -166,7 +166,7 @@ impl Schema {
                     match field_value {
                         &Json::String(ref field_text) => {
                             match field_entry.field_type() {
-                                &FieldType::Text(_) => {
+                                &FieldType::Str(_) => {
                                     doc.add_text(field, field_text);
                                 }
                                 &FieldType::U32(_) => {

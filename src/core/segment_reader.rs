@@ -54,7 +54,7 @@ impl SegmentReader {
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         match field_entry.field_type() {
-            &FieldType::Text(_) => {
+            &FieldType::Str(_) => {
                 Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
             },
             &FieldType::U32(_) => {
@@ -146,7 +146,7 @@ impl SegmentReader {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match field_entry.field_type() {
-            &FieldType::Text(ref options) => {
+            &FieldType::Str(ref options) => {
                 let indexing_options = options.get_indexing_options();
                 match option {
                     SegmentPostingsOption::NoFreq => {
@@ -185,7 +185,7 @@ impl SegmentReader {
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.get_field());
         let segment_posting_option = match field_entry.field_type() {
-            &FieldType::Text(ref text_options) => {
+            &FieldType::Str(ref text_options) => {
                 match text_options.get_indexing_options() {
                     TextIndexingOptions::TokenizedWithFreq => SegmentPostingsOption::Freq,
                     TextIndexingOptions::TokenizedWithFreqAndPosition => SegmentPostingsOption::FreqAndPositions,

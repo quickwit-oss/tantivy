@@ -199,7 +199,7 @@ mod tests {
             let field = schema.get_field("body").unwrap();
             let field_entry = schema.get_field_entry(field);
             match field_entry.field_type() {
-                &FieldType::Text(ref text_options) => {
+                &FieldType::Str(ref text_options) => {
                     assert!(text_options.get_indexing_options().is_tokenized());
                 }
                 _ => {

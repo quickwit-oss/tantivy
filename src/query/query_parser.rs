@@ -87,7 +87,7 @@ impl QueryParser {
     fn transform_field_and_value(&self, field: Field, val: &str) -> Result<Vec<Term>, ParsingError> {
         let field_entry = self.schema.get_field_entry(field);
         Ok(match field_entry.field_type() {
-            &FieldType::Text(_) => {
+            &FieldType::Str(_) => {
                 compute_terms(field, val)
             },
             &FieldType::U32(_) => {

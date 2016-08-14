@@ -41,7 +41,7 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 	match field_entry.field_type() {
-		&FieldType::Text(ref text_options) => {
+		&FieldType::Str(ref text_options) => {
 			match text_options.get_indexing_options() {
 				TextIndexingOptions::TokenizedWithFreq => {
 					SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
@@ -107,7 +107,7 @@ impl SegmentWriter {
 			let field_posting_writers: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
 			match *field_options.field_type() {
-				FieldType::Text(ref text_options) => {
+				FieldType::Str(ref text_options) => {
 					let mut pos = 0u32;
 					let mut num_tokens: usize = 0;
 					for field_value in field_values {
