@@ -28,7 +28,7 @@ in `O(1)` memory and `O(n)` time.
 
 ## Term dictionary
 
-Tantivy term dicionary (`.term` files) are stored in
+Tantivy term dictionary (`.term` files) are stored in
 a finite state transducer (courtesy of the excellent
 [`fst`](https://github.com/BurntSushi/fst) crate).
 
@@ -54,7 +54,7 @@ for each document.
 # Segments
 
 Tantivy's index are divided into segments.
-All segments are as many independant structure.
+All segments are as many independent structure.
 
 This has many benefits. For instance, assuming you are
 trying to one billion documents, you could split
