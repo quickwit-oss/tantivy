@@ -1,3 +1,114 @@
+/*!
+
+# Creating a new index, adding documents and searching.
+
+```
+# extern crate rustc_serialize;
+# extern crate tantivy;
+# use std::fs;
+use tantivy::{Document, Index};
+use tantivy::schema::{Schema, TEXT, STORED};
+use tantivy::collector::TopCollector;
+use tantivy::query::QueryParser;
+use tantivy::query::Query;
+use std::path::PathBuf; 
+
+# fn main() {
+# fn wrapper_err() -> tantivy::Result<()> {
+// We need to declare a schema
+// to create a new index.
+let mut schema = Schema::new();
+
+// TEXT | STORED is some syntactic sugar to describe
+// how tantivy should index this field.
+// It means the field should be tokenized and indexed,
+// along with its term frequency and term positions.  
+let title = schema.add_text_field("title", TEXT | STORED);
+let body = schema.add_text_field("body", TEXT);
+// the path in which our index will be created.
+# fs::create_dir("./tantivy-index").unwrap();
+let index_path = PathBuf::from("./tantivy-index");
+// this will actually just create a meta.json 
+// file in the directory.
+let index = try!(Index::create(&index_path, schema));
+
+// There can be only one writer at one time.
+// The writer will use more than one thread
+// to use your CPU.
+let mut index_writer = try!(index.writer());
+
+
+// Let's now create one document and index it.
+let mut doc = Document::new();
+doc.add_text(title, "The Old Man and the Sea");
+doc.add_text(body, "He was an old man who fished alone in a skiff in the Gulf Stream and he had gone eighty-four
+days now without taking a fish.");
+
+// We can now add our document
+try!(index_writer.add_document(doc));
+
+// ... in the real world, we would add way more documents
+// here.
+
+// At this point the document is not indexed.
+// It has been pushed to a queue where
+// it will be eventually processed.
+//
+// There is even no guarantee that 
+// the document will be indexed if there
+// is a power outage for instance.
+// 
+// We can call .wait() to force the index_writer to 
+// commit to disk. 
+try!(index_writer.wait());
+
+// At this point we are guaranteed that
+// all documents that were added are index, and
+// ready for search.
+//
+
+// Let's search our index. This starts
+// by creating a searcher. There can be more
+// than one search at a time.
+let searcher = try!(index.searcher());
+
+// The query parser can interpret human queries.
+// Here, if the user does not specify which
+// field he wants to search, tantivy will search in both title and body.
+let query_parser = QueryParser::new(index.schema(), vec!(title, body));
+let query = query_parser.parse_query("sea whale").unwrap();
+
+// A query defines a set of documents, as
+// well as the way they should be scored. 
+// By default the query_parser is scoring according
+// to a metric called TfIdf, and will consider
+// any document matching at least one of our terms.
+
+// We are not interested in all of the document but 
+// only in the top 10.
+let mut top_collector = TopCollector::with_limit(10);
+
+try!(query.search(&searcher, &mut top_collector));
+
+// Our top collector now contains are 10 
+// most relevant doc ids...
+let doc_ids = top_collector.docs();
+
+// The actual documents still need to be 
+// retrieved from Tantivy's store.
+// Since body was not configured as stored,
+// the document returned will only contain
+// a title.
+let retrieved_doc = searcher.doc(&doc_ids[0]);
+# Ok(())
+# }
+# wrapper_err().unwrap();
+# fs::remove_dir_all("./tantivy-index").unwrap();
+# }
+ 
+```
+*/
+
 #![feature(binary_heap_extras)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
@@ -62,6 +173,7 @@ pub use schema::Term;
 pub use schema::Document;
 pub use core::SegmentReader;
 pub use self::common::TimerTree;
+
 
 pub use postings::DocSet;
 pub use postings::Postings;

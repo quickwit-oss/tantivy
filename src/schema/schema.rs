@@ -143,6 +143,12 @@ impl Schema {
         }
         NamedFieldDocument(field_map)
     }
+
+    pub fn to_json(&self, doc: &Document) -> String {
+        // encoding a document cannot fail.
+        json::encode(&self.to_named_doc(doc)).unwrap()
+    }
+
     /// Build a document object from a json-object. 
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
         let json_node = try!(Json::from_str(doc_json));

@@ -205,42 +205,42 @@ mod tests {
 
     #[test]
     pub fn test_query_grammar() {
-        let mut query_parser = parser(query_language);
-        assert_eq!(query_parser.parse("abc:toto").unwrap().0,
+        let mut grammar_parser = parser(query_language);
+        assert_eq!(grammar_parser.parse("abc:toto").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("abc"), String::from("toto")))
             )
         );       
         assert_eq!(
-            query_parser.parse("\"some phrase query\"").unwrap().0,
+            grammar_parser.parse("\"some phrase query\"").unwrap().0,
             vec!(
                 (Occur::Should, Literal::DefaultField(String::from("some phrase query"))),
             )
         );
         assert_eq!(
-            query_parser.parse("field:\"some phrase query\"").unwrap().0,
+            grammar_parser.parse("field:\"some phrase query\"").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("some phrase query")))
         ));
-        assert_eq!(query_parser.parse("field:\"some phrase query\" field:toto a").unwrap().0,
+        assert_eq!(grammar_parser.parse("field:\"some phrase query\" field:toto a").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("some phrase query"))),
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("toto"))),
                 (Occur::Should, Literal::DefaultField(String::from("a"))),
             ));
-        assert_eq!(query_parser.parse("field:\"a ! b\"").unwrap().0,
+        assert_eq!(grammar_parser.parse("field:\"a ! b\"").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("a ! b"))),
             ));
-        assert_eq!(query_parser.parse("field:a9e3").unwrap().0,
+        assert_eq!(grammar_parser.parse("field:a9e3").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("a9e3")),)
             ));
-        assert_eq!(query_parser.parse("a9e3").unwrap().0,
+        assert_eq!(grammar_parser.parse("a9e3").unwrap().0,
             vec!(
                 (Occur::Should, Literal::DefaultField(String::from("a9e3"))),
             ));  
-        assert_eq!(query_parser.parse("field:タンタイビーって早い").unwrap().0,
+        assert_eq!(grammar_parser.parse("field:タンタイビーって早い").unwrap().0,
             vec!(
                 (Occur::Should, Literal::WithField(String::from("field"), String::from("タンタイビーって早い"))),
             ));
