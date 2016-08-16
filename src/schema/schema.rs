@@ -104,7 +104,6 @@ impl Schema {
             &mut self,
             field_name_str: &str, 
             field_options: U32Options) -> Field {
-        // TODO case if field already exists
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_u32(field_name, field_options);
         self.add_field(field_entry)

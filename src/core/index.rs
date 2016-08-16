@@ -96,8 +96,8 @@ impl Index {
     pub fn searcher(&self,) -> Result<Searcher> {
         Searcher::for_index(self.clone())
     }
-
-    fn from_directory(directory: DirectoryPtr, schema: Schema) -> Index {
+    
+    pub fn from_directory(directory: DirectoryPtr, schema: Schema) -> Index {
         Index {
             metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema))),
             directory: Arc::new(RwLock::new(directory)),
