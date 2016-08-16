@@ -5,7 +5,8 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
-
+use rustc_serialize::json::Json;
+use schema::Value;
 
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum FieldType {
@@ -13,10 +14,51 @@ pub enum FieldType {
     U32(U32Options),
 }
 
+impl FieldType {
+     pub fn value_from_json(&self, json: &Json) -> Result<Value, ValueParsingError> {
+        match json {
+            &Json::String(ref field_text) => {
+                match self {
+                    &FieldType::Str(_) => {
+                        Ok(Value::Str(field_text.clone()))
+                    }
+                    &FieldType::U32(_) => {
+                        Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
+                    }
+                }
+            }
+            &Json::U64(ref field_val_u64) => {
+                match self {
+                    &FieldType::U32(_) => {
+                        if *field_val_u64 > (u32::max_value() as u64) {
+                            Err(ValueParsingError::OverflowError(format!("Expected u32, but value {:?} overflows.", field_val_u64)))
+                        }
+                        else {
+                            Ok(Value::U32(*field_val_u64 as u32))
+                        }
+                    }
+                    _ => {
+                        Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
+                    }
+                }
+            },
+            _ => {
+                Err(ValueParsingError::TypeError(format!("Expected a string or a u32, got {:?}", json)))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FieldEntry {
     name: String,
     field_type: FieldType,
+}
+
+#[derive(Debug)]
+pub enum ValueParsingError {
+    OverflowError(String),
+    TypeError(String),
 }
 
 impl FieldEntry {
@@ -34,7 +76,7 @@ impl FieldEntry {
             field_type: FieldType::U32(field_type),
         }
     }
-    
+
     pub fn name(&self,) -> &String {
         &self.name
     }

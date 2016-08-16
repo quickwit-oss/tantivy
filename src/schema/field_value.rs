@@ -6,7 +6,7 @@ use schema::Field;
 use schema::Value;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd)]
 pub struct FieldValue {
     pub field: Field,
     pub value: Value,

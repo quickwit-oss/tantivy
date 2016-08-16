@@ -17,6 +17,19 @@ pub struct Document {
     field_values: Vec<FieldValue>,
 }
 
+impl PartialEq for Document {
+    fn eq(&self, other: &Document) -> bool {
+        // super slow, but only here for tests
+        let mut self_field_values = self.field_values.clone();
+        let mut other_field_values = other.field_values.clone();
+        self_field_values.sort();
+        other_field_values.sort();
+        self_field_values.eq(&other_field_values)
+    }
+}
+
+impl Eq for Document {}
+
 impl Document {
 
     pub fn new() -> Document {

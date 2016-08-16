@@ -7,6 +7,7 @@ use rustc_serialize::Encoder;
 use rustc_serialize::json;
 use rustc_serialize::json::Json;
 use std::collections::BTreeMap;
+use schema::field_entry::ValueParsingError;
 use super::*;
 
 
@@ -164,37 +165,37 @@ impl Schema {
         }
         let json_obj = some_json_obj.unwrap();
         let mut doc = Document::new();
-        for (field_name, field_value) in json_obj.iter() {
+        for (field_name, json_value) in json_obj.iter() {
             match self.get_field(field_name) {
                 Some(field) => {
                     let field_entry = self.get_field_entry(field);
-                    match field_value {
-                        &Json::String(ref field_text) => {
-                            match field_entry.field_type() {
-                                &FieldType::Str(_) => {
-                                    doc.add_text(field, field_text);
-                                }
-                                &FieldType::U32(_) => {
-                                    return Err(DocParsingError::MappingError(field_entry.name().clone(), format!("Expected a u32 int, got {:?}", field_value)));
-                                }
+                    let field_type = field_entry.field_type();
+                    match json_value {
+                        &Json::Array(ref json_items) => {
+                            for json_item in json_items {
+                                let value = try!(
+                                    field_type
+                                     .value_from_json(&json_item)
+                                     .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
+                                );
+                                doc.add(FieldValue {
+                                    field: field,
+                                    value: value
+                                });
                             }
                         }
-                        &Json::U64(ref field_val_u64) => {
-                            match field_entry.field_type() {
-                                &FieldType::U32(_) => {
-                                    if *field_val_u64 > (u32::max_value() as u64) {
-                                        return Err(DocParsingError::OverflowError(field_name.clone()));
-                                    }
-                                    doc.add_u32(field, *field_val_u64 as u32);
-                                }
-                                _ => {
-                                    return Err(DocParsingError::MappingError(field_name.clone(), format!("Expected a string, got {:?}", field_value)));
-                                }
-                            }
-                        },
                         _ => {
-                            return Err(DocParsingError::MappingError(field_name.clone(), String::from("Value is neither u32, nor text.")));
+                            let value = try!(
+                                field_type
+                                 .value_from_json(&json_value)
+                                 .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
+                            );
+                            doc.add(FieldValue {
+                                field: field,
+                                value: value
+                            });
                         }
+                        
                     }
                 }
                 None => {
@@ -216,8 +217,7 @@ impl Schema {
 pub enum DocParsingError {
     NotJSON(json::ParserError),
     NotJSONObject(String),
-    MappingError(String, String),
-    OverflowError(String),
+    ValueError(String, ValueParsingError),
     NoSuchFieldInSchema(String),
 }
 
@@ -234,6 +234,7 @@ mod tests {
     
     use schema::*;
     use rustc_serialize::json;
+    use schema::field_entry::ValueParsingError;
         
     #[test]
     pub fn test_schema_serialization() {
@@ -274,8 +275,25 @@ mod tests {
         assert_eq!(schema_json, expected);        
         
     }
+
+
     
-    
+    #[test]
+    pub fn test_document_to_json() {
+        let mut schema = Schema::new();
+        let count_options = U32Options::new().set_stored().set_fast(); 
+        schema.add_text_field("title", TEXT);
+        schema.add_text_field("author", STRING);
+        schema.add_u32_field("count", count_options);
+        let doc_json = r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 4
+        }"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
+        assert_eq!(doc, doc_serdeser);
+    }
     
     #[test]
     pub fn test_parse_document() {
@@ -337,7 +355,7 @@ mod tests {
                 "jambon": "bayonne" 
             }"#);
             match json_err {
-                Err(DocParsingError::MappingError(_, _)) => {
+                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
                     assert!(true);
                 }
                 _ => {
@@ -353,7 +371,7 @@ mod tests {
             }"#);
             println!("{:?}", json_err);
             match json_err {
-                Err(DocParsingError::MappingError(_, _)) => {
+                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
                     assert!(true);
                 }
                 _ => {
@@ -369,7 +387,7 @@ mod tests {
             }"#);
             println!("{:?}", json_err);
             match json_err {
-                Err(DocParsingError::OverflowError(_)) => {
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
                 }
                 _ => {
