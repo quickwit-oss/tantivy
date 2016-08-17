@@ -204,9 +204,10 @@ mod tests {
     use postings::{DocSet, VecPostings};
     use query::TfIdf;
     use query::Scorer;
-    use directory::ReadOnlySource;
-    use directory::SharedVec;
+    use directory::Directory;
+    use directory::RAMDirectory;
     use schema::Field;
+    use std::path::Path;
     use query::Occur;
     use fastfield::{U32FastFieldReader, U32FastFieldWriter, FastFieldSerializer};
 
@@ -216,12 +217,16 @@ mod tests {
         for val in vals {
             u32_field_writer.add_val(val);
         }
-        let data = SharedVec::new();
-        let write: Box<SharedVec> = Box::new(data.clone());
-        let mut serializer = FastFieldSerializer::new(write).unwrap();
-        u32_field_writer.serialize(&mut serializer).unwrap();
-        serializer.close().unwrap();
-        U32FastFieldReader::open(ReadOnlySource::Anonymous(data.copy_vec())).unwrap()
+        let path = Path::new("some_path");
+        let mut directory = RAMDirectory::create();
+        {
+            let write = directory.open_write(&path).unwrap();
+            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            u32_field_writer.serialize(&mut serializer).unwrap();
+            serializer.close().unwrap();
+        }
+        let read = directory.open_read(&path).unwrap();
+        U32FastFieldReader::open(read).unwrap()
     }
     
     fn abs_diff(left: f32, right: f32) -> f32 {

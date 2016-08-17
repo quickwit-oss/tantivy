@@ -119,6 +119,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
             let term_docfreq = term_postings_writer.doc_freq();
             try!(serializer.new_term(term, term_docfreq));
             try!(term_postings_writer.serialize(serializer));
+            try!(serializer.close_term());
         }
         Ok(())
     }

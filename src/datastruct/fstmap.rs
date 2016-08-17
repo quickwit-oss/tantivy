@@ -61,7 +61,7 @@ pub struct FstMap<V: BinarySerializable> {
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     Ok(fst::Map::from(match source {
-        ReadOnlySource::Anonymous(data) => try!(Fst::from_bytes(data).map_err(convert_fst_error)),
+        ReadOnlySource::Anonymous(data) => try!(Fst::from_shared_bytes(data.data, data.start, data.len).map_err(convert_fst_error)),
         ReadOnlySource::Mmap(mmap_readonly) => try!(Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)),
     }))
 }
@@ -141,6 +141,7 @@ mod tests {
         assert_eq!(keys.next().unwrap(), "abc".as_bytes());
         assert_eq!(keys.next().unwrap(), "abcd".as_bytes());
         assert_eq!(keys.next(), None);
+ 
     }
 
 }

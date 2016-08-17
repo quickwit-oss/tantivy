@@ -31,6 +31,7 @@ pub struct PostingsSerializer {
     position_deltas: Vec<u32>,
     schema: Schema,
     text_indexing_options: TextIndexingOptions,
+    term_open: bool,
 }
 
 impl PostingsSerializer {
@@ -55,6 +56,7 @@ impl PostingsSerializer {
             position_deltas: Vec::new(),
             schema: schema,
             text_indexing_options: TextIndexingOptions::Unindexed,
+            term_open: false,
         })
     }
 
@@ -76,7 +78,10 @@ impl PostingsSerializer {
     }
 
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
-        try!(self.close_term());
+        if self.term_open {
+            panic!("Called new_term, while the previous term was not closed.");
+        }
+        self.term_open = true;
         self.load_indexing_options(term.get_field());
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
@@ -92,14 +97,22 @@ impl PostingsSerializer {
     }
 
     pub fn close_term(&mut self,) -> io::Result<()> {
-        if !self.doc_ids.is_empty() {
-            {
-                let block_encoded = self.block_encoder.compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
-                self.written_bytes_postings += block_encoded.len();
-                try!(self.postings_write.write_all(block_encoded));
-            }
-            if self.text_indexing_options.is_termfreq_enabled() {
+        if self.term_open {
+            if !self.doc_ids.is_empty() {
+                // we have doc ids waiting to be written
+                // this happens when the number of doc ids is 
+                // not a perfect multiple of our block size.
+                //
+                // In that case, the remaining part is encoded
+                // using variable int encoding.
                 {
+                    let block_encoded = self.block_encoder.compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                    self.written_bytes_postings += block_encoded.len();
+                    try!(self.postings_write.write_all(block_encoded));
+                    self.doc_ids.clear();
+                }
+                // ... Idem for term frequencies 
+                if self.text_indexing_options.is_termfreq_enabled() {
                     let block_encoded = self.block_encoder.compress_vint_unsorted(&self.term_freqs[..]);
                     for num in block_encoded {
                         self.written_bytes_postings += try!(num.serialize(&mut self.postings_write));
@@ -107,14 +120,16 @@ impl PostingsSerializer {
                     self.term_freqs.clear();
                 }
             }
-            self.doc_ids.clear();
-        }
-        if self.text_indexing_options.is_position_enabled() {
-            self.written_bytes_positions += try!(VInt(self.position_deltas.len() as u64).serialize(&mut self.positions_write));
-            let positions_encoded: &[u8] = self.positions_encoder.compress_unsorted(&self.position_deltas[..]);
-            try!(self.positions_write.write_all(positions_encoded));
-            self.written_bytes_positions += positions_encoded.len();
-            self.position_deltas.clear();
+            // On the other hand, positions are entirely buffered until the
+            // end of the term, at which point they are compressed and written.
+            if self.text_indexing_options.is_position_enabled() {
+                self.written_bytes_positions += try!(VInt(self.position_deltas.len() as u64).serialize(&mut self.positions_write));
+                let positions_encoded: &[u8] = self.positions_encoder.compress_unsorted(&self.position_deltas[..]);
+                try!(self.positions_write.write_all(positions_encoded));
+                self.written_bytes_positions += positions_encoded.len();
+                self.position_deltas.clear();
+            }
+            self.term_open = false;
         }
         Ok(())
     }

@@ -43,7 +43,7 @@ impl fmt::Debug for Index {
    }
 }
 
-type DirectoryPtr = Box<Directory>;
+pub type DirectoryPtr = Box<Directory>;
 
 #[derive(Clone)]
 pub struct Index {
@@ -127,7 +127,7 @@ impl Index {
     pub fn publish_segment(&mut self, segment: &Segment) -> Result<()> {
         {
             let mut meta_write = self.metas.write().unwrap();
-            meta_write.segments.push(segment.segment_id.clone());
+            meta_write.segments.push(segment.segment_id);
         }
         self.save_metas()
     }
@@ -148,7 +148,6 @@ impl Index {
             }
             meta_write.segments.push(merged_segment.id());
         }
-        // TODO use logs
         self.save_metas()
     }
 
@@ -201,10 +200,11 @@ impl Index {
     pub fn save_metas(&mut self,) -> Result<()> {
         let mut w = Vec::new();
         {
-            let metas_lock = self.metas.read().unwrap() ;
+            let metas_lock = self.metas.read().unwrap();
             try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
         };
-        try!(self.rw_directory())
+        try!(self
+            .rw_directory())
             .atomic_write(&META_FILEPATH, &w[..])
     }
 }

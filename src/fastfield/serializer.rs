@@ -88,6 +88,7 @@ impl FastFieldSerializer {
         self.written_size += try!(self.fields.serialize(&mut self.write));
         try!(self.write.seek(SeekFrom::Start(0)));
         try!((header_offset as u32).serialize(&mut self.write));
+        try!(self.write.flush());
         Ok(self.written_size)
     }
 }

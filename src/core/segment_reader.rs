@@ -107,7 +107,7 @@ impl SegmentReader {
         
         let positions_data = segment
                 .open_read(SegmentComponent::POSITIONS)
-                .unwrap_or(ReadOnlySource::Anonymous(Vec::new()));
+                .unwrap_or(ReadOnlySource::empty());
         
         let schema = segment.schema();
         Ok(SegmentReader {

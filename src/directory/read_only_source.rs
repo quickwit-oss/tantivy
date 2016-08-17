@@ -1,6 +1,7 @@
 use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 use std::io::Cursor;
+use super::SharedVecSlice;
 
 ////////////////////////////////////////
 // Read only source.
@@ -8,7 +9,7 @@ use std::io::Cursor;
 
 pub enum ReadOnlySource {
     Mmap(MmapReadOnly),
-    Anonymous(Vec<u8>),
+    Anonymous(SharedVecSlice),
 }
 
 impl Deref for ReadOnlySource {
@@ -25,12 +26,18 @@ impl ReadOnlySource {
         self.as_slice().len()
     }
 
+    pub fn empty() -> ReadOnlySource {
+        ReadOnlySource::Anonymous(SharedVecSlice::empty())
+    }
+
     pub fn as_slice(&self,) -> &[u8] {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { 
                 mmap_read_only.as_slice()
             },
-            ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
+            ReadOnlySource::Anonymous(ref shared_vec) => {
+                shared_vec.as_slice()
+            },
         }
     }
 
@@ -45,8 +52,7 @@ impl ReadOnlySource {
                 ReadOnlySource::Mmap(sliced_mmap)
             }
             ReadOnlySource::Anonymous(ref shared_vec) => {
-                let sliced_data: Vec<u8> = Vec::from(&shared_vec[from_offset..to_offset]);
-                ReadOnlySource::Anonymous(sliced_data)
+                ReadOnlySource::Anonymous(shared_vec.slice(from_offset, to_offset))
             },
         }
     }

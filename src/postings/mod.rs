@@ -52,11 +52,12 @@ mod tests {
         let mut posting_serializer = PostingsSerializer::open(&segment).unwrap();
         let term = Term::from_field_text(text_field, "abc");
         posting_serializer.new_term(&term, 3).unwrap();
-        for _ in 0..3 {
-            let a = vec!(1,2,3,2);
-            posting_serializer.write_doc(0, 2, &a).unwrap();
+        for doc_id in 0u32..3u32 {
+            let positions = vec!(1,2,3,2);
+            posting_serializer.write_doc(doc_id, 2, &positions).unwrap();
         }
         posting_serializer.close_term().unwrap();
+        posting_serializer.close().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert_eq!(read.len(), 13);
     }
