@@ -80,7 +80,6 @@ impl IndexWriter {
 						segment_writer.add_document(&doc, &schema_clone).unwrap();
 					}
 					segment_writer.finalize().unwrap();
-					index_clone.sync(&segment).unwrap();
 					index_clone.publish_segment(&segment).unwrap();
 				}
 			})
@@ -100,7 +99,6 @@ impl IndexWriter {
 		let merged_segment = self.index.new_segment();
 		let segment_serializer = try!(SegmentSerializer::for_segment(&merged_segment));
 		try!(merger.write(segment_serializer));
-		try!(self.index.sync(&merged_segment));
 		try!(self.index.publish_merge_segment(segments, &merged_segment));
 		Ok(())
 	}

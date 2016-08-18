@@ -150,16 +150,7 @@ impl Index {
         }
         self.save_metas()
     }
-
-    pub fn sync(&mut self, segment: &Segment) -> Result<()> {
-        let directory = try!(self.ro_directory());
-        for component in SegmentComponent::values() {
-            let path = segment.relative_path(component);
-            try!(directory.sync(&path));
-        }
-        try!(self.ro_directory()).sync_directory()
-    }
-
+    
     pub fn segments(&self,) -> Vec<Segment> {
         self.segment_ids()
             .into_iter()

@@ -10,6 +10,7 @@ use std::sync::RwLock;
 use std::fmt;
 use std::io::Write;
 use std::io;
+use std::io::{Seek, SeekFrom};
 use directory::Directory;
 use directory::ReadOnlySource;
 use directory::WritePtr;
@@ -59,8 +60,46 @@ impl MmapDirectory {
         self.root_path.join(relative_path)
     }
 
+    fn sync_directory(&self,) -> Result<()> {
+        let fd = try!(File::open(&self.root_path));
+        try!(fd.sync_all());
+        Ok(())
+    }
+}
+
+/// This Write wraps a File, but has the specificity of 
+/// call sync_all on flush.  
+struct SafeFileWriter {
+    writer: BufWriter<File>,
+}
+
+impl SafeFileWriter {
+    fn new(file: File) -> SafeFileWriter {
+        SafeFileWriter {
+            writer: BufWriter::new(file),
+        }
+    }
 
 }
+
+impl Write for SafeFileWriter {
+
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.writer.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        try!(self.writer.flush());
+        self.writer.get_ref().sync_all()
+    }
+}
+
+impl Seek for SafeFileWriter {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.writer.seek(pos)
+    }
+}
+
 
 impl Directory for MmapDirectory {
     
@@ -90,12 +129,17 @@ impl Directory for MmapDirectory {
         Ok(ReadOnlySource::Mmap(mmap))
     }
     
-    
     fn open_write(&mut self, path: &Path) -> Result<WritePtr> {
         let full_path = self.resolve_path(path);
-        let file = try!(File::create(full_path));
-        let buf_writer = BufWriter::new(file);
-        Ok(Box::new(buf_writer))
+        let mut file = try!(File::create(full_path));
+        // making sure the file is created.
+        try!(file.flush());
+        // Apparetntly, on some filesystem syncing the parent
+        // directory is required.
+        try!(self.sync_directory());
+        
+        let writer = SafeFileWriter::new(file);
+        Ok(Box::new(writer))
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> Result<()> {
@@ -107,27 +151,4 @@ impl Directory for MmapDirectory {
         Ok(())
     }
 
-    fn sync(&self, path: &Path) -> Result<()> {
-        let full_path = self.resolve_path(path);
-        match File::open(&full_path) {
-            Ok(fd) => {
-                try!(fd.sync_all());
-                Ok(())
-            }
-            Err(_) => {
-                // file does not exists.
-                // this is not considered a failure as some of the file (postings) only exists if 
-                // a functionality is used
-                //
-                // TODO be fine-grained about this.
-                Ok(())
-            }
-        }
-    }
-
-    fn sync_directory(&self,) -> Result<()> {
-        let fd = try!(File::open(&self.root_path));
-        try!(fd.sync_all());
-        Ok(())
-    }
 }

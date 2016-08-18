@@ -11,14 +11,22 @@ use std::result;
 use super::SharedVecSlice;
 use Result;
 
-
+/// Writer associated to the `RAMDirectory`
+/// 
+/// The Writer just writes a buffer.
+///
+/// # Panics
+///
+/// On drop, if the writer was left in a *dirty* state.
+/// That is, if flush was not called after the last call
+/// to write. 
+/// 
 struct VecWriter {
     path: PathBuf,
     shared_directory: InnerDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
 }
-
 
 impl Drop for VecWriter {
     fn drop(&mut self) {
@@ -99,7 +107,11 @@ impl RAMDirectory {
     }
 }
 
-
+/// Directory storing everything in anonymous memory.
+///
+/// It's main purpose is unit test.
+/// Writes are only made visible upon flushing.
+/// 
 pub struct RAMDirectory {
     fs: InnerDirectory,
 }
@@ -128,11 +140,4 @@ impl Directory for RAMDirectory {
         Ok(())
     }
 
-    fn sync(&self, _: &Path) -> Result<()> {
-        Ok(())
-    }
-
-    fn sync_directory(&self,) -> Result<()> {
-        Ok(())
-    }
 }
