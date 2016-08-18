@@ -5,11 +5,11 @@ use std::fmt;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use directory::OpenError;
+use directory::{OpenWriteError, OpenReadError};
 use directory::WritePtr;
 use std::result;
 use super::SharedVecSlice;
-use Result;
+
 
 /// Writer associated to the `RAMDirectory`
 /// 
@@ -26,6 +26,17 @@ struct VecWriter {
     shared_directory: InnerDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
+}
+
+impl VecWriter {
+    fn new(path_buf: PathBuf, shared_directory: InnerDirectory) -> VecWriter {
+        VecWriter {
+            path: path_buf,
+            data: Cursor::new(Vec::new()),
+            shared_directory: shared_directory,
+            is_flushed: false,
+        }
+    }
 }
 
 impl Drop for VecWriter {
@@ -51,40 +62,57 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        self.shared_directory.write(self.path.clone(), self.data.get_ref())
+        try!(self.shared_directory.write(self.path.clone(), self.data.get_ref()));
+        Ok(())
     }
 }
 
 #[derive(Clone)]
 struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
 
+fn make_io_err(msg: String) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, msg)
+}
+
 impl InnerDirectory {
 
     fn new() -> InnerDirectory {
         InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
-    }
+    }   
 
-    fn write(&self, path: PathBuf, data: &Vec<u8>) -> io::Result<()> {
+    // /// Opens a file for write
+    // /// Returns true iff the file had to be created,
+    // /// false else.
+    // fn truncate(&self, path: &Path, ) -> bool {
+    //     let mut map = try!(
+    //         self.0
+    //             .write()
+    //             .map_err(|_| make_io_err(format!("Failed to lock the directory, when trying to write {:?}", path)))
+    //     );
+    //     map.insert(path, Arc::new(data.clone()))
+    // }
+
+    fn write(&self, path: PathBuf, data: &Vec<u8>) -> io::Result<bool> {
         let mut map = try!(
             self.0
                 .write()
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, format!("Failed to lock the directory, when trying to write {:?}", path)))
+                .map_err(|_| make_io_err(format!("Failed to lock the directory, when trying to write {:?}", path)))
         );
-        map.insert(path, Arc::new(data.clone()));
-        Ok(())
+        let prev_value = map.insert(path, Arc::new(data.clone()));
+        Ok(prev_value.is_some())
     }
 
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenError> { 
+    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> { 
         self.0
             .read()
             .map_err(|_| {
-                    let io_err = io::Error::new(io::ErrorKind::Other, format!("Failed to read lock for the directory, when trying to read {:?}", path));
-                    OpenError::IOError(io_err)
+                let io_err = io::Error::new(io::ErrorKind::Other, format!("Failed to read lock for the directory, when trying to read {:?}", path));
+                OpenReadError::IOError(io_err)
             })
             .and_then(|readable_map| {
                 readable_map
                 .get(path)
-                .ok_or_else(|| OpenError::FileDoesNotExist(PathBuf::from(path)))
+                .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
                 .map(|data| {
                     ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
                 })
@@ -117,26 +145,28 @@ pub struct RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         self.fs.open_read(path)
     }
     
-    fn open_write(&mut self, path: &Path) -> Result<WritePtr> {
-        let mut vec_writer = VecWriter {
-            path: PathBuf::from(path),
-            data: Cursor::new(Vec::new()),
-            shared_directory: self.fs.clone(),
-            is_flushed: false,
-        };
+    fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        let path_buf = PathBuf::from(path);
+        let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
         // force the creation of the file to mimick the MMap directory.
-        try!(vec_writer.flush());
-        Ok(Box::new(vec_writer))
+        if try!(self.fs.write(path_buf.clone(), &Vec::new())) {
+            Err(OpenWriteError::FileAlreadyExists(path_buf))
+        }
+        else {
+            Ok(Box::new(vec_writer))
+        }
     }
 
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> Result<()> {
-        let mut write = try!(self.open_write(path));
-        try!(write.write_all(data));
-        try!(write.flush());
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        let path_buf = PathBuf::from(path);
+        let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
+        try!(self.fs.write(path_buf, &Vec::new()));
+        try!(vec_writer.write_all(data));
+        try!(vec_writer.flush());
         Ok(())
     }
 

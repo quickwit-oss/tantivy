@@ -129,7 +129,8 @@ impl Index {
             let mut meta_write = self.metas.write().unwrap();
             meta_write.segments.push(segment.segment_id);
         }
-        self.save_metas()
+        try!(self.save_metas());
+        Ok(())
     }
 
     pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> Result<()> {
@@ -148,9 +149,10 @@ impl Index {
             }
             meta_write.segments.push(merged_segment.id());
         }
-        self.save_metas()
+        try!(self.save_metas());
+        Ok(())
     }
-    
+
     pub fn segments(&self,) -> Vec<Segment> {
         self.segment_ids()
             .into_iter()
@@ -194,9 +196,9 @@ impl Index {
             let metas_lock = self.metas.read().unwrap();
             try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
         };
-        try!(self
-            .rw_directory())
+        try!(self.rw_directory())
             .atomic_write(&META_FILEPATH, &w[..])
+            .map_err(From::from)
     }
 }
 
@@ -248,7 +250,8 @@ impl Segment {
 
     pub fn open_write(&self, component: SegmentComponent) -> Result<WritePtr> {
         let path = self.relative_path(component);
-        self.index.directory.write().unwrap().open_write(&path)
+        let write = try!(self.index.directory.write().unwrap().open_write(&path));
+        Ok(write)
     }
 }
 

@@ -2,11 +2,12 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::fmt;
 use std::path::Path;
-use directory::{ReadOnlySource, WritePtr, OpenError};
+use directory::{OpenReadError, OpenWriteError};
+use directory::{ReadOnlySource, WritePtr};
 use std::result;
-use Result;
+use std::io;
 
-/// Abstraction for where tantivy's index should be stored. 
+/// Write-once read many (WORM) abstraction for where tantivy's index should be stored. 
 ///
 /// There is currently two implementations of `Directory`
 /// 
@@ -24,7 +25,7 @@ pub trait Directory: fmt::Debug + Send + Sync {
     ///
     /// Specifically, subsequent write or flush should
     /// have no effect the returned `ReadOnlySource` object. 
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenError>;
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
     
     /// Opens a writer for the *virtual file* associated with 
     /// a Path.
@@ -44,12 +45,14 @@ pub trait Directory: fmt::Debug + Send + Sync {
     /// Note that `RAMDirectory` will panic! if `flush`
     /// was not called.
     ///
-    ///
-    fn open_write(&mut self, path: &Path) -> Result<WritePtr>;
+    /// The file may not previously exists.
+    fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
     
     /// Atomically replace the content of a file by data.
     /// 
     /// This calls ensure that reads can never *observe*
     /// a partially written file.
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> Result<()>;
+    /// 
+    /// The file may or may not previously exists.
+    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
 }

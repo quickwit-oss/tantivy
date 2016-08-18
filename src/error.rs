@@ -3,11 +3,12 @@ use std::result;
 use std::path::PathBuf;
 use std::error;
 use std::sync::PoisonError;
-use directory::OpenError;
+use directory::{OpenReadError, OpenWriteError};
 
 #[derive(Debug)]
 pub enum Error {
-    OpenError(OpenError),
+    OpenReadError(OpenReadError),
+    OpenWriteError(OpenWriteError),
     IOError(io::Error),
     Poisoned,
     CorruptedFile(PathBuf, Box<error::Error>),
@@ -34,12 +35,17 @@ impl<Guard> From<PoisonError<Guard>> for Error {
     }
 }
 
-impl From<OpenError> for Error {
-    fn from(error: OpenError) -> Error {
-        Error::OpenError(error)
+impl From<OpenReadError> for Error {
+    fn from(error: OpenReadError) -> Error {
+        Error::OpenReadError(error)
     }
 }
 
+impl From<OpenWriteError> for Error {
+    fn from(error: OpenWriteError) -> Error {
+        Error::OpenWriteError(error)
+    }
+}
 
 // impl<E: 'static + error::Error + Send + Sync> From<E> for Error {
 //     fn from(error: E) -> Error {

@@ -15,6 +15,29 @@ pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
 
+#[derive(Debug)]
+pub enum OpenWriteError {
+    FileAlreadyExists(PathBuf),
+    IOError(io::Error),
+}
+
+impl From<io::Error> for OpenWriteError {
+    fn from(err: io::Error) -> OpenWriteError {
+        OpenWriteError::IOError(err)
+    }
+}
+
+#[derive(Debug)]
+pub enum OpenReadError {
+    FileDoesNotExist(PathBuf),
+    IOError(io::Error),
+}
+
+impl From<io::Error> for OpenReadError {
+    fn from(err: io::Error) -> OpenReadError {
+        OpenReadError::IOError(err)
+    }
+}
 
 ////////////////////////////////////////
 // WritePtr
@@ -22,14 +45,6 @@ pub use self::mmap_directory::MmapDirectory;
 pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
 pub type WritePtr = Box<SeekableWrite>;
-
-#[derive(Debug)]
-pub enum OpenError {
-    FileDoesNotExist(PathBuf),
-    IOError(io::Error),
-}
-
-
 
 
 #[cfg(test)]
