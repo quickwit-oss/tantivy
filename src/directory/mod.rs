@@ -3,47 +3,14 @@ mod ram_directory;
 mod directory;
 mod read_only_source;
 mod shared_vec_slice;
+pub mod error;
 
 use std::io::{Seek, Write};
-use std::io;
-
-use std::path::PathBuf;
 
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
-
-#[derive(Debug)]
-pub enum OpenWriteError {
-    FileAlreadyExists(PathBuf),
-    IOError(io::Error),
-}
-
-impl From<io::Error> for OpenWriteError {
-    fn from(err: io::Error) -> OpenWriteError {
-        OpenWriteError::IOError(err)
-    }
-}
-
-#[derive(Debug)]
-pub enum FileError {
-    FileDoesNotExist(PathBuf),
-    IOError(io::Error),
-}
-
-impl From<io::Error> for FileError {
-    fn from(err: io::Error) -> FileError {
-        FileError::IOError(err)
-    }
-}
-
-#[derive(Debug)]
-pub enum OpenDirectoryError {
-    DoesNotExist,
-    NotADirectory,
-}
-
 
 pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
@@ -53,7 +20,6 @@ impl<T: Seek + Write> SeekableWrite for T {}
 /// WritePtr are required to implement both Write
 /// and Seek.
 pub type WritePtr = Box<SeekableWrite>;
-
 
 #[cfg(test)]
 mod tests {

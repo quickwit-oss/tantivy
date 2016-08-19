@@ -2,7 +2,7 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::fmt;
 use std::path::Path;
-use directory::{FileError, OpenWriteError};
+use directory::error::{FileError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;

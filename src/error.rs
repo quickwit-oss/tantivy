@@ -3,7 +3,7 @@ use std::result;
 use std::path::PathBuf;
 use std::error;
 use std::sync::PoisonError;
-use directory::{FileError, OpenWriteError, OpenDirectoryError};
+use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
 
 #[derive(Debug)]
 pub enum Error {

@@ -15,7 +15,7 @@ use directory::ReadOnlySource;
 use directory::WritePtr;
 use std::io::BufWriter;
 use std::fs::OpenOptions;
-use directory::{OpenWriteError, FileError, OpenDirectoryError};
+use directory::error::{OpenWriteError, FileError, OpenDirectoryError};
 use std::result;
 use common::make_io_err;
 

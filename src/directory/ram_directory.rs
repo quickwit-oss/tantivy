@@ -1,14 +1,14 @@
-use directory::{Directory, ReadOnlySource};
-use std::io::{Cursor, Write, Seek, SeekFrom};
-use std::io;
-use std::fmt;
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::fmt;
+use std::io;
+use std::io::{Cursor, Write, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use directory::{OpenWriteError, FileError};
-use directory::WritePtr;
 use std::result;
+use std::sync::{Arc, RwLock};
 use common::make_io_err;
+use directory::{Directory, ReadOnlySource};
+use directory::error::{OpenWriteError, FileError};
+use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
 /// Writer associated to the `RAMDirectory`
@@ -108,7 +108,7 @@ impl InnerDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
         self.0
             .write()
-            .map_err(|err| {
+            .map_err(|_| {
                 let io_err = make_io_err(format!("Failed to acquire write lock for the directory, when trying to delete {:?}", path));
                 FileError::IOError(io_err)
             })
