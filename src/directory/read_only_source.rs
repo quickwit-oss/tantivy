@@ -1,18 +1,24 @@
 use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 use std::io::Cursor;
-use super::SharedVecSlice;
-
-////////////////////////////////////////
-// Read only source.
+use super::shared_vec_slice::SharedVecSlice;
 
 
+/// Read object that represents files in tantivy.
+/// 
+/// These read objects are only in charge to deliver
+/// the data in the form of a constant read-only `&[u8]`.
+/// Whatever happens to the directory file, the data
+/// hold by this object should never be altered or destroyed.
 pub enum ReadOnlySource {
+    /// Mmap source of data
     Mmap(MmapReadOnly),
+    /// Wrapping a `Vec<u8>` 
     Anonymous(SharedVecSlice),
 }
 
 impl Deref for ReadOnlySource {
+    
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
@@ -22,14 +28,17 @@ impl Deref for ReadOnlySource {
 
 impl ReadOnlySource {
 
+    /// Returns the len of the read-only source
     pub fn len(&self,) -> usize {
         self.as_slice().len()
     }
 
+    /// Creates an empty ReadOnlySource
     pub fn empty() -> ReadOnlySource {
         ReadOnlySource::Anonymous(SharedVecSlice::empty())
     }
 
+    /// Returns the data underlying the ReadOnlySource object.
     pub fn as_slice(&self,) -> &[u8] {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { 
@@ -41,10 +50,22 @@ impl ReadOnlySource {
         }
     }
 
+
+    /// Creates a cursor over the data.
     pub fn cursor<'a>(&'a self) -> Cursor<&'a [u8]> {
-        Cursor::new(&self.deref())
+        Cursor::new(&*self)
     }
 
+    /// Creates a ReadOnlySource that is just a 
+    /// view over a slice of the data.
+    /// 
+    /// Keep in mind that any living slice extends
+    /// the lifetime of the original ReadOnlySource,
+    /// 
+    /// For instance, if `ReadOnlySource` wraps 500MB
+    /// worth of data in anonymous memory, and only a
+    /// 1KB slice is remaining, the whole `500MBs` 
+    /// are retained in memory.
     pub fn slice(&self, from_offset:usize, to_offset:usize) -> ReadOnlySource {
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => {

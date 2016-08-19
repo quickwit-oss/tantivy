@@ -5,11 +5,11 @@ use std::fmt;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use directory::{OpenWriteError, OpenReadError};
+use directory::{OpenWriteError, FileError};
 use directory::WritePtr;
 use std::result;
-use super::SharedVecSlice;
-
+use common::make_io_err;
+use super::shared_vec_slice::SharedVecSlice;
 
 /// Writer associated to the `RAMDirectory`
 /// 
@@ -70,27 +70,13 @@ impl Write for VecWriter {
 #[derive(Clone)]
 struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
 
-fn make_io_err(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
-}
+
 
 impl InnerDirectory {
 
     fn new() -> InnerDirectory {
         InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
-    }   
-
-    // /// Opens a file for write
-    // /// Returns true iff the file had to be created,
-    // /// false else.
-    // fn truncate(&self, path: &Path, ) -> bool {
-    //     let mut map = try!(
-    //         self.0
-    //             .write()
-    //             .map_err(|_| make_io_err(format!("Failed to lock the directory, when trying to write {:?}", path)))
-    //     );
-    //     map.insert(path, Arc::new(data.clone()))
-    // }
+    }
 
     fn write(&self, path: PathBuf, data: &Vec<u8>) -> io::Result<bool> {
         let mut map = try!(
@@ -102,20 +88,39 @@ impl InnerDirectory {
         Ok(prev_value.is_some())
     }
 
-    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> { 
+    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, FileError> { 
         self.0
             .read()
             .map_err(|_| {
-                let io_err = io::Error::new(io::ErrorKind::Other, format!("Failed to read lock for the directory, when trying to read {:?}", path));
-                OpenReadError::IOError(io_err)
+                let io_err = make_io_err(format!("Failed to acquire read lock for the directory, when trying to read {:?}", path));
+                FileError::IOError(io_err)
             })
             .and_then(|readable_map| {
                 readable_map
                 .get(path)
-                .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
+                .ok_or_else(|| FileError::FileDoesNotExist(PathBuf::from(path)))
                 .map(|data| {
                     ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
                 })
+            })
+    }
+
+    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+        self.0
+            .write()
+            .map_err(|err| {
+                let io_err = make_io_err(format!("Failed to acquire write lock for the directory, when trying to delete {:?}", path));
+                FileError::IOError(io_err)
+            })
+            .and_then(|mut writable_map| {
+                match writable_map.remove(path) {
+                    Some(_) => {
+                        Ok(())
+                    },
+                    None => {
+                        Err(FileError::FileDoesNotExist(PathBuf::from(path)))
+                    }
+                }
             })
     }
 
@@ -145,7 +150,7 @@ pub struct RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
         self.fs.open_read(path)
     }
     
@@ -159,6 +164,10 @@ impl Directory for RAMDirectory {
         else {
             Ok(Box::new(vec_writer))
         }
+    }
+
+    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+        self.fs.delete(path)
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

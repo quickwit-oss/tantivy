@@ -2,7 +2,7 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::fmt;
 use std::path::Path;
-use directory::{OpenReadError, OpenWriteError};
+use directory::{FileError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
@@ -25,8 +25,17 @@ pub trait Directory: fmt::Debug + Send + Sync {
     ///
     /// Specifically, subsequent write or flush should
     /// have no effect the returned `ReadOnlySource` object. 
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError>;
     
+    /// Removes a file
+    ///
+    /// Removing a file will not affect eventual
+    /// existing ReadOnlySource pointing to it.
+    /// 
+    /// Removing a non existing files, yields a
+    /// `FileError::DoesNotExist`.
+    fn delete(&self, path: &Path) -> result::Result<(), FileError>;
+
     /// Opens a writer for the *virtual file* associated with 
     /// a Path.
     ///

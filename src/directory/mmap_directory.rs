@@ -15,12 +15,14 @@ use directory::ReadOnlySource;
 use directory::WritePtr;
 use std::io::BufWriter;
 use std::fs::OpenOptions;
-use directory::{OpenWriteError, OpenReadError};
+use directory::{OpenWriteError, FileError, OpenDirectoryError};
 use std::result;
+use common::make_io_err;
 
-////////////////////////////////////////////////////////////////
-// MmapDirectory
-
+/// Directory storing data in files, read via MMap.
+///
+/// The Mmap object are cached to limit the 
+/// system calls. 
 pub struct MmapDirectory {
     root_path: PathBuf,
     mmap_cache: RwLock<HashMap<PathBuf, MmapReadOnly>>,
@@ -34,10 +36,14 @@ impl fmt::Debug for MmapDirectory {
 }
 
 
+
 impl MmapDirectory {
 
+    /// Creates a new MmapDirectory in a temporary directory.
+    ///
+    /// This is mostly useful to test the MmapDirectory itself.
+    /// For your unit test, prefer the RAMDirectory. 
     pub fn create_from_tempdir() -> io::Result<MmapDirectory> {
-        // TODO error management
         let tempdir = try!(TempDir::new("index"));
         let tempdir_path = PathBuf::from(tempdir.path());
         let directory = MmapDirectory {
@@ -48,18 +54,36 @@ impl MmapDirectory {
         Ok(directory)
     }
 
-    pub fn open(filepath: &Path) -> io::Result<MmapDirectory> {
-        Ok(MmapDirectory {
-            root_path: PathBuf::from(filepath),
-            mmap_cache: RwLock::new(HashMap::new()),
-            _temp_directory: None
-        })
+
+    /// Opens a MmapDirectory in a directory.
+    ///
+    /// Returns an error if the `directory_path` does not
+    /// exist or if it is not a directory.
+    pub fn open(directory_path: &Path) -> Result<MmapDirectory, OpenDirectoryError> {
+        if !directory_path.exists() {
+            Err(OpenDirectoryError::DoesNotExist)
+        }
+        else if !directory_path.is_dir() {
+            Err(OpenDirectoryError::NotADirectory)
+        }
+        else {
+            Ok(MmapDirectory {
+                root_path: PathBuf::from(directory_path),
+                mmap_cache: RwLock::new(HashMap::new()),
+                _temp_directory: None
+            })
+        }
     }
 
+    /// Joins a relative_path to the directory `root_path`
+    /// to create proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.root_path.join(relative_path)
     }
 
+    /// Sync the root directory.
+    /// In certain FS, this is required to persistently create
+    /// a file.
     fn sync_directory(&self,) -> Result<(), io::Error> {
         let fd = try!(File::open(&self.root_path));
         try!(fd.sync_all());
@@ -103,9 +127,15 @@ impl Seek for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
         let full_path = self.resolve_path(path);
-        let mut mmap_cache = self.mmap_cache.write().unwrap();
+        let mut mmap_cache = try!(
+            self.mmap_cache
+                .write()
+                .map_err(|_| {
+                    make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
+                })
+        );
         let mmap = match mmap_cache.entry(full_path.clone()) {
             HashMapEntry::Occupied(e) => {
                 e.get().clone()
@@ -115,10 +145,10 @@ impl Directory for MmapDirectory {
                     MmapReadOnly::open_path(full_path.clone())
                     .map_err(|err| {
                         if err.kind() == io::ErrorKind::NotFound {
-                            OpenReadError::FileDoesNotExist(PathBuf::from(&full_path))
+                            FileError::FileDoesNotExist(full_path.clone())
                         }
                         else {
-                            OpenReadError::IOError(err)
+                            FileError::IOError(err)
                         }
                     })
                 );
@@ -157,6 +187,26 @@ impl Directory for MmapDirectory {
         
         let writer = SafeFileWriter::new(file);
         Ok(Box::new(writer))
+    }
+
+    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+        let full_path = self.resolve_path(path);
+        let mut mmap_cache = try!(self.mmap_cache
+            .write()
+            .map_err(|_| {
+                make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))
+            })
+        );
+        match mmap_cache.remove(&full_path) {
+            Some(_) => {
+                // it will be munmapped on drop, 
+                // when the last reference is gone.
+                Ok(())
+            }
+            None => {
+                Err(FileError::FileDoesNotExist(PathBuf::from(path)))
+            }
+        }
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

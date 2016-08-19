@@ -8,7 +8,6 @@ use std::io::{Seek, Write};
 use std::io;
 
 use std::path::PathBuf;
-pub use self::shared_vec_slice::SharedVecSlice;
 
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
@@ -28,22 +27,31 @@ impl From<io::Error> for OpenWriteError {
 }
 
 #[derive(Debug)]
-pub enum OpenReadError {
+pub enum FileError {
     FileDoesNotExist(PathBuf),
     IOError(io::Error),
 }
 
-impl From<io::Error> for OpenReadError {
-    fn from(err: io::Error) -> OpenReadError {
-        OpenReadError::IOError(err)
+impl From<io::Error> for FileError {
+    fn from(err: io::Error) -> FileError {
+        FileError::IOError(err)
     }
 }
 
-////////////////////////////////////////
-// WritePtr
+#[derive(Debug)]
+pub enum OpenDirectoryError {
+    DoesNotExist,
+    NotADirectory,
+}
+
 
 pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
+
+/// Write object for Directory.
+///
+/// WritePtr are required to implement both Write
+/// and Seek.
 pub type WritePtr = Box<SeekableWrite>;
 
 
