@@ -34,7 +34,7 @@ impl VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
             shared_directory: shared_directory,
-            is_flushed: false,
+            is_flushed: true,
         }
     }
 }

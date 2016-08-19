@@ -18,6 +18,9 @@ use std::fs::OpenOptions;
 use directory::error::{OpenWriteError, FileError, OpenDirectoryError};
 use std::result;
 use common::make_io_err;
+use std::fs;
+use directory::shared_vec_slice::SharedVecSlice;
+
 
 /// Directory storing data in files, read via MMap.
 ///
@@ -127,8 +130,11 @@ impl Seek for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     
+    
+
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
         let full_path = self.resolve_path(path);
+        
         let mut mmap_cache = try!(
             self.mmap_cache
                 .write()
@@ -136,14 +142,14 @@ impl Directory for MmapDirectory {
                     make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
                 })
         );
+
         let mmap = match mmap_cache.entry(full_path.clone()) {
             HashMapEntry::Occupied(e) => {
                 e.get().clone()
             }
             HashMapEntry::Vacant(vacant_entry) => {
-                let new_mmap =  try!(
-                    MmapReadOnly::open_path(full_path.clone())
-                    .map_err(|err| {
+                let file = try!(
+                    File::open(&full_path).map_err(|err| {
                         if err.kind() == io::ErrorKind::NotFound {
                             FileError::FileDoesNotExist(full_path.clone())
                         }
@@ -152,10 +158,17 @@ impl Directory for MmapDirectory {
                         }
                     })
                 );
+                if try!(file.metadata()).len() == 0 {
+                    // if the file size is 0, it will not be possible 
+                    // to mmap the file, so we return an anonymous mmap_cache
+                    // instead.
+                    return Ok(ReadOnlySource::Anonymous(SharedVecSlice::empty()))
+                }
+                let new_mmap = try!(MmapReadOnly::open(&file));
                 vacant_entry.insert(new_mmap.clone());
                 new_mmap
             }
-        };
+        };        
         Ok(ReadOnlySource::Mmap(mmap))
     }
     
@@ -166,7 +179,7 @@ impl Directory for MmapDirectory {
             .write(true)
             .create_new(true)
             .open(full_path);
-
+        
         let mut file = try!(
             open_res.map_err(|err| {
                 if err.kind() == io::ErrorKind::AlreadyExists {
@@ -177,7 +190,7 @@ impl Directory for MmapDirectory {
                 }
             })
         );
-
+        
         // making sure the file is created.
         try!(file.flush());
         
@@ -197,16 +210,13 @@ impl Directory for MmapDirectory {
                 make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))
             })
         );
-        match mmap_cache.remove(&full_path) {
-            Some(_) => {
-                // it will be munmapped on drop, 
-                // when the last reference is gone.
-                Ok(())
-            }
-            None => {
-                Err(FileError::FileDoesNotExist(PathBuf::from(path)))
-            }
-        }
+        // Removing the entry in the MMap cache.
+        // The munmap will appear on Drop,
+        // when the last reference is gone.
+        mmap_cache.remove(&full_path);
+        try!(fs::remove_file(&full_path));
+        try!(self.sync_directory());
+        Ok(())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

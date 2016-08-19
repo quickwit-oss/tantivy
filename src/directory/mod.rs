@@ -28,6 +28,10 @@ mod tests {
     use std::path::Path;
     use std::io::SeekFrom;
 
+    lazy_static! {
+        static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
+    }
+
     #[test]
     fn test_ram_directory() {
         let mut ram_directory = RAMDirectory::create();
@@ -40,48 +44,85 @@ mod tests {
         test_directory(&mut mmap_directory);
     }
 
-    fn test_directory_simple(directory: &mut Directory) {
+    #[test]
+    #[should_panic]
+    fn ram_directory_panics_if_flush_forgotten() {
+        let mut ram_directory = RAMDirectory::create();
+        let mut write_file = ram_directory.open_write(*TEST_PATH).unwrap();
+        assert!(write_file.write_all(&[4]).is_ok());
+    }
+
+    fn test_simple(directory: &mut Directory) {
         {
-            let mut write_file = directory.open_write(Path::new("toto")).unwrap();
+            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
             write_file.write_all(&[4]).unwrap();
             write_file.write_all(&[3]).unwrap();
             write_file.write_all(&[7,3,5]).unwrap();
             write_file.flush().unwrap();
         }
-        let read_file = directory.open_read(Path::new("toto")).unwrap();
+        let read_file = directory.open_read(*TEST_PATH).unwrap();
         let data: &[u8] = &*read_file;
-        assert_eq!(data.len(), 5);
-        assert_eq!(data[0], 4);
-        assert_eq!(data[1], 3);
-        assert_eq!(data[2], 7);
-        assert_eq!(data[3], 3);
-        assert_eq!(data[4], 5);
+        assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
+        assert!(directory.delete(*TEST_PATH).is_ok());
     }
 
-
-    fn test_directory_seek(directory: &mut Directory) {
+    fn test_seek(directory: &mut Directory) {
         {
-            let mut write_file = directory.open_write(Path::new("toto_seek")).unwrap();
-            write_file.write_all(&[4]).unwrap();
-            write_file.write_all(&[3]).unwrap();
-            write_file.write_all(&[7,3,5]).unwrap();
+            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+            write_file.write_all(&[4, 3, 7,3,5]).unwrap();
             write_file.seek(SeekFrom::Start(0)).unwrap();
             write_file.write_all(&[3,1]).unwrap();
             write_file.flush().unwrap();
         }
-        let read_file = directory.open_read(Path::new("toto_seek")).unwrap();
+        let read_file = directory.open_read(*TEST_PATH).unwrap();
         let data: &[u8] = &*read_file;
-        assert_eq!(data.len(), 5);
-        assert_eq!(data[0], 3);
-        assert_eq!(data[1], 1);
-        assert_eq!(data[2], 7);
-        assert_eq!(data[3], 3);
-        assert_eq!(data[4], 5);
+        assert_eq!(data, &[3u8, 1u8, 7u8, 3u8, 5u8]);
+        assert!(directory.delete(*TEST_PATH).is_ok());
+    }
+
+    fn test_rewrite_forbidden(directory: &mut Directory) {
+        {
+           directory.open_write(*TEST_PATH).unwrap();
+        }
+        {
+            assert!(directory.open_write(*TEST_PATH).is_err());
+        }
+        assert!(directory.delete(*TEST_PATH).is_ok());
+    }
+
+    fn test_write_create_the_file(directory: &mut Directory) {
+        {
+            assert!(directory.open_read(*TEST_PATH).is_err());
+            let _w = directory.open_write(*TEST_PATH).unwrap();
+            if let Err(e) = directory.open_read(*TEST_PATH) {
+                println!("{:?}", e);
+            }
+            assert!(directory.open_read(*TEST_PATH).is_ok());
+            assert!(directory.delete(*TEST_PATH).is_ok());
+        }
+    }
+
+    fn test_delete(directory: &mut Directory) {
+        assert!(directory.open_read(*TEST_PATH).is_err());
+        let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+        write_file.write_all(&[1, 2, 3, 4]).unwrap();
+        write_file.flush().unwrap();
+        let read_handle = directory.open_read(*TEST_PATH).unwrap();  
+        {
+            assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+            assert!(directory.delete(*TEST_PATH).is_ok());
+            assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
+            assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+        }
+        assert!(directory.open_read(*TEST_PATH).is_err());
     }
 
     fn test_directory(directory: &mut Directory) {
-        test_directory_simple(directory);
-        test_directory_seek(directory);
+        test_simple(directory);
+        test_seek(directory);
+        test_rewrite_forbidden(directory);
+        test_write_create_the_file(directory);
+        test_delete(directory);
     }
 
 }
