@@ -83,9 +83,7 @@ impl StoreWriter {
     fn write_and_compress_block(&mut self,) -> io::Result<()> {
         self.intermediary_buffer.clear();
         {
-            let mut encoder = lz4::EncoderBuilder::new()
-                    .build(&mut self.intermediary_buffer)
-                    .unwrap();
+            let mut encoder = try!(lz4::EncoderBuilder::new().build(&mut self.intermediary_buffer));
             try!(encoder.write_all(&self.current_block));
             let (_, encoder_result) = encoder.finish();
             try!(encoder_result);

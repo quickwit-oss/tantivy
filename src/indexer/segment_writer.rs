@@ -1,5 +1,6 @@
 use Result;
 use DocId;
+use std::io;
 use schema::Schema;
 use schema::Document;
 use schema::Term;
@@ -99,7 +100,7 @@ impl SegmentWriter {
 			  self.segment_serializer)
 	}
 
-    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> Result<()> {
+    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {
 			// TODO pos collision if the field is redundant				
