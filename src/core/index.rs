@@ -8,13 +8,14 @@ use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
 use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
-use core::writer::IndexWriter;
+use indexer::writer::IndexWriter;
+use indexer::segment_serializer::SegmentSerializer;
 use core::searcher::Searcher;
 use std::convert::From;
+use num_cpus;
 use super::SegmentComponent;
 
-use num_cpus;
-use core::segment_serializer::SegmentSerializer;
+
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {

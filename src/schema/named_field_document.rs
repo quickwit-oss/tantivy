@@ -3,6 +3,7 @@ use schema::Value;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 
+
 pub struct NamedFieldDocument(pub BTreeMap<String, Vec<Value>>);
 
 
@@ -29,28 +30,6 @@ impl Encodable for NamedFieldDocument {
                     
                 }));
             }
-            // try!(s.emit_struct_field("name", 0, |s| {
-            //     self.name.encode(s)
-            // }));
-            // match self.field_type {
-            //     FieldType::Text(ref options) => {
-            //         try!(s.emit_struct_field("type", 1, |s| {
-            //             s.emit_str("text")
-            //         }));
-            //         try!(s.emit_struct_field("options", 2, |s| {
-            //             options.encode(s)
-            //         }));
-            //     }
-            //     FieldType::U32(ref options) => {
-            //         try!(s.emit_struct_field("type", 1, |s| {
-            //             s.emit_str("u32")
-            //         }));
-            //         try!(s.emit_struct_field("options", 2, |s| {
-            //             options.encode(s)
-            //         }));
-            //     }
-            // }
-            
             Ok(())
         })
     }

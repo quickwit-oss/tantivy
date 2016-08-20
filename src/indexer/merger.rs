@@ -3,8 +3,8 @@ use core::SegmentReader;
 use core::index::Segment;
 use DocId;
 use core::index::SerializableSegment;
-use core::segment_serializer::SegmentSerializer;
 
+use indexer::segment_serializer::SegmentSerializer;
 use postings::PostingsSerializer;
 use postings::TermInfo;
 use postings::Postings;
@@ -313,7 +313,7 @@ mod tests {
                     doc.add_u32(score_field, 7);
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.wait().unwrap();
+                index_writer.commit().unwrap();
             }
 
             {
@@ -331,7 +331,7 @@ mod tests {
                     doc.add_u32(score_field, 13);
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.wait().unwrap();
+                index_writer.commit().unwrap();
             }
         }
         {

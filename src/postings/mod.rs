@@ -37,7 +37,7 @@ mod tests {
     use super::*;
     use schema::{Document, TEXT, Schema, Term};
     use core::SegmentComponent;
-    use core::SegmentWriter;
+    use indexer::SegmentWriter;
     use core::SegmentReader;
     use core::index::Index;
     use std::iter;

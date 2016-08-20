@@ -58,9 +58,9 @@ try!(index_writer.add_document(doc));
 // the document will be indexed if there
 // is a power outage for instance.
 // 
-// We can call .wait() to force the index_writer to 
+// We can call .commit() to force the index_writer to 
 // commit to disk. 
-try!(index_writer.wait());
+try!(index_writer.commit());
 
 // At this point we are guaranteed that
 // all documents that were added are index, and
@@ -135,6 +135,7 @@ extern crate uuid;
 extern crate num_cpus;
 extern crate combine;
 extern crate itertools;
+extern crate chan;
 
 
 #[cfg(test)] extern crate test;
@@ -151,6 +152,7 @@ mod core;
 mod compression;
 mod fastfield;
 mod store;
+mod indexer;
 mod common;
 mod error;
 
@@ -251,7 +253,7 @@ mod tests {
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
-            assert!(index_writer.wait().is_ok());
+            assert!(index_writer.commit().is_ok());
             // TODO reenable this test
             // let segment = commit_result.unwrap();
             // let segment_reader = SegmentReader::open(segment).unwrap();
@@ -270,7 +272,7 @@ mod tests {
             let mut doc = Document::new();
             doc.add_text(text_field, "a b c");
             index_writer.add_document(doc).unwrap();
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
@@ -284,14 +286,14 @@ mod tests {
                 doc.add_text(text_field, "a a");
                 index_writer.add_document(doc).unwrap();
             }
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             let mut doc = Document::new();
             doc.add_text(text_field, "c");
             index_writer.add_document(doc).unwrap();
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             let searcher = index.searcher().unwrap();
@@ -328,7 +330,7 @@ mod tests {
                 doc.add_text(text_field, "a b");
                 index_writer.add_document(doc).unwrap();
             }
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             
@@ -354,7 +356,7 @@ mod tests {
                 doc.add_text(text_field, "af af af bc bc");
                 index_writer.add_document(doc).unwrap();
             }
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             let searcher = index.searcher().unwrap();
@@ -391,7 +393,7 @@ mod tests {
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         {
             let searcher = index.searcher().unwrap();
@@ -459,7 +461,7 @@ mod tests {
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
-            index_writer.wait().unwrap();
+            index_writer.commit().unwrap();
         }
         index.searcher().unwrap();
     }

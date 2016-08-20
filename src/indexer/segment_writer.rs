@@ -3,8 +3,6 @@ use DocId;
 use schema::Schema;
 use schema::Document;
 use schema::Term;
-
-use core::segment_serializer::SegmentSerializer;
 use core::index::SegmentInfo;
 use core::index::Segment;
 use analyzer::SimpleTokenizer;
@@ -19,6 +17,7 @@ use schema::FieldType;
 use schema::TextIndexingOptions;
 use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
+use indexer::segment_serializer::SegmentSerializer;
 
 pub struct SegmentWriter {
     max_doc: DocId,

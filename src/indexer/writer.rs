@@ -1,44 +1,54 @@
 use schema::Schema;
 use schema::Document;
-use core::segment_serializer::SegmentSerializer;
+use indexer::segment_serializer::SegmentSerializer;
 use core::index::Index;
 use core::index::SerializableSegment;
 use core::index::Segment;
 use std::clone::Clone;
-use std::sync::mpsc;
 use std::thread;
-use std::io::ErrorKind;
 use std::io;
-use std::sync::Mutex;
-use std::sync::mpsc::SyncSender;
-use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
-use std::sync::Arc;
-use core::merger::IndexMerger;
-use core::segment_writer::SegmentWriter;
+use indexer::merger::IndexMerger;
+use indexer::segment_writer::SegmentWriter;
+use chan;
+
 use Result;
 use Error;
 
+// struct IndexWorker {
+// 	schema: Schema,
+// 	document_receiver: chan::Receiver<Document>,
+// }
+
 pub struct IndexWriter {
-	threads: Vec<JoinHandle<()>>,
+	index_workers: Vec<JoinHandle<()>>,
 	index: Index,
 	schema: Schema,
-	queue_input: SyncSender<Document>,
+	document_sender: chan::Sender<Document>,
 }
 
+const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 impl IndexWriter {
 
 	pub fn open(index: &Index, num_threads: usize) -> Result<IndexWriter> {
 		let schema = index.schema();
-		let (queue_input, queue_output): (SyncSender<Document>, Receiver<Document>) = mpsc::sync_channel(10_000);
-		let queue_output_sendable = Arc::new(Mutex::new(queue_output));
+		let (document_sender, document_receiver): (chan::Sender<Document>, chan::Receiver<Document>) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+		// let workers = (0 .. num_threads).map(_ {
+			
+		// });	
+		// let index_worker = IndexWorker {
+		// 	schema: schema.clone(),
+		// 	document_receiver: document_receiver,
+		// }
+		
+				
 		let threads = (0..num_threads).map(|_|  {
 			
-			let queue_output_clone = queue_output_sendable.clone();
+			let document_receiver_clone = document_receiver.clone();
 			let mut index_clone = index.clone();
 			let schema_clone = schema.clone();
-
+			
 			thread::spawn(move || {
 
 				// TODO think about how to handle error within the thread
@@ -51,12 +61,13 @@ impl IndexWriter {
 					
 					let mut doc: Document;
 					{
-						let queue = queue_output_clone.lock().unwrap();
-						match queue.recv() {
-							Ok(doc_) => { 
+						match document_receiver_clone.recv() {
+							Some(doc_) => { 
 								doc = doc_;
 							}
-							Err(_) => { return; }
+							None => {
+								return;
+							}
 						}
 					}
 					
@@ -66,12 +77,11 @@ impl IndexWriter {
 					
 					for _ in 0..100_000 {
 						{
-							let queue = queue_output_clone.lock().unwrap();
-							match queue.recv() {
-								Ok(doc_) => {
+							match document_receiver_clone.recv() {
+								Some(doc_) => {
 									doc = doc_
 								}
-								Err(_) => {
+								None => {
 									docs_remaining = false;
 									break;
 								}
@@ -86,10 +96,10 @@ impl IndexWriter {
 		}).collect();
 		// TODO err in thread?
 		Ok(IndexWriter {
-			threads: threads,
+			index_workers: threads,
 			index: index.clone(),
 			schema: schema,
-			queue_input: queue_input,
+			document_sender: document_sender,
 		})
 	}
 
@@ -103,22 +113,19 @@ impl IndexWriter {
 		Ok(())
 	}
 
-	pub fn wait(self,) -> Result<()> {
-		drop(self.queue_input);
-		for thread in self.threads {
-			try!(thread.join()
-					   .map_err(|e| Error::ErrorInThread(format!("{:?}", e)))
+	pub fn commit(self,) -> Result<()> {
+		drop(self.document_sender);
+		for worker in self.index_workers {
+			try!(worker
+				.join()
+				.map_err(|e| Error::ErrorInThread(format!("{:?}", e)))
 			);
 		}
 		Ok(())
 	}
   
     pub fn add_document(&mut self, doc: Document) -> io::Result<()> {
-        try!(
-			self.queue_input
-				.send(doc)
-				.map_err(|e| io::Error::new(ErrorKind::Other, e))
-		);
+		self.document_sender.send(doc);
 		Ok(())
 	}
 	
