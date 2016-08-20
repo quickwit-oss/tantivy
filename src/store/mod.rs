@@ -13,7 +13,7 @@ mod tests {
 
     use super::*;
     use test::Bencher;
-    use std::path::PathBuf;
+    use std::path::Path;
     use schema::Schema;
     use schema::TextOptions;
     use schema::FieldValue;
@@ -54,12 +54,12 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let path = PathBuf::from("store");
+        let path = Path::new("store");
         let mut directory = RAMDirectory::create();
-        let store_file = directory.open_write(&path).unwrap();
+        let store_file = directory.open_write(path).unwrap();
         let schema = write_lorem_ipsum_store(store_file);
         let field_title = schema.get_field("title").unwrap();
-        let store_source = directory.open_read(&path).unwrap();
+        let store_source = directory.open_read(path).unwrap();
         let store = StoreReader::new(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
             assert_eq!(*store.get(i).unwrap().get_first(field_title).unwrap().text(), format!("Doc {}", i));
@@ -69,9 +69,10 @@ mod tests {
     #[bench]
     fn bench_store_encode(b: &mut Bencher) {
         let mut directory = MmapDirectory::create_from_tempdir().unwrap();
-        let path = PathBuf::from("store");
+        let path = Path::new("store");
         b.iter(|| {
-            write_lorem_ipsum_store(directory.open_write(&path).unwrap());
+            write_lorem_ipsum_store(directory.open_write(path).unwrap());
+            directory.delete(path).unwrap();
         });
     }
 
@@ -79,9 +80,9 @@ mod tests {
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
         let mut directory = MmapDirectory::create_from_tempdir().unwrap();
-        let path = PathBuf::from("store");
-        write_lorem_ipsum_store(directory.open_write(&path).unwrap());
-        let store_source = directory.open_read(&path).unwrap();
+        let path = Path::new("store");
+        write_lorem_ipsum_store(directory.open_write(path).unwrap());
+        let store_source = directory.open_read(path).unwrap();
         let store = StoreReader::new(store_source);
         b.iter(|| {
             store.get(12).unwrap();
