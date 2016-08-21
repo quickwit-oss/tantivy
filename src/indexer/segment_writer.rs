@@ -62,6 +62,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 
 
 impl SegmentWriter {
+
 	pub fn for_segment(segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
 		let per_field_postings_writers = schema.fields()
@@ -70,7 +71,6 @@ impl SegmentWriter {
 				  posting_from_field_entry(field_entry)
 			  })
 			  .collect();
-
 		Ok(SegmentWriter {
 			max_doc: 0,
 			per_field_postings_writers: per_field_postings_writers,
@@ -173,6 +173,10 @@ impl SegmentWriter {
 		SegmentInfo {
 			max_doc: self.max_doc
 		}
+	}
+
+	pub fn max_doc(&self,) -> u32 {
+		self.max_doc
 	}
 
 }

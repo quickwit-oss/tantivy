@@ -12,14 +12,14 @@ pub enum Error {
     IOError(io::Error),
     Poisoned,
     OpenDirectoryError(OpenDirectoryError),
-    CorruptedFile(PathBuf, Box<error::Error>),
+    CorruptedFile(PathBuf, Box<error::Error + Send>),
     InvalidArgument(String),
     ErrorInThread(String), // TODO investigate better solution
-    Other(Box<error::Error>), // + Send + Sync + 'static
+    Other(Box<error::Error + Send>), // + Send + Sync + 'static
 }
 
 impl Error {
-    pub fn make_other<E: error::Error + 'static>(e: E) -> Error {
+    pub fn make_other<E: error::Error + 'static + Send>(e: E) -> Error {
         Error::Other(Box::new(e))
     }
 }

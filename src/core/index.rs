@@ -21,6 +21,7 @@ use super::SegmentComponent;
 pub struct IndexMeta {
     segments: Vec<SegmentId>,
     schema: Schema,
+    docstamp: u64,
 }
 
 impl IndexMeta {
@@ -28,6 +29,7 @@ impl IndexMeta {
         IndexMeta {
             segments: Vec::new(),
             schema: schema,
+            docstamp: 0u64,
         }
     }
 
@@ -53,7 +55,7 @@ pub struct Index {
 }
 
 lazy_static! {
-    static ref  META_FILEPATH: PathBuf = PathBuf::from("meta.json");
+    static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
 }
 
 impl Index {
@@ -79,6 +81,13 @@ impl Index {
         let mut index = Index::from_directory(directory_ptr, Schema::new());
         try!(index.load_metas()); //< TODO does the directory already exists?
         Ok(index)
+    }
+
+    pub fn docstamp(&self,) -> Result<u64> {
+        self.metas
+            .read()
+            .map(|metas| metas.docstamp)
+            .map_err(From::from)
     }
     
     /// Creates a multithreaded writer.
@@ -125,10 +134,13 @@ impl Index {
     /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segment(&mut self, segment: &Segment) -> Result<()> {
+    pub fn publish_segments(&mut self,
+            segment_ids: &[SegmentId],
+            docstamp: u64) -> Result<()> {
         {
-            let mut meta_write = self.metas.write().unwrap();
-            meta_write.segments.push(segment.segment_id);
+            let mut meta_write = try!(self.metas.write());
+            meta_write.segments.extend(segment_ids);
+            meta_write.docstamp = docstamp;
         }
         try!(self.save_metas());
         Ok(())
@@ -204,16 +216,10 @@ impl Index {
 }
 
 
-
-/////////////////////////
-// Segment
-
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct SegmentInfo {
 	pub max_doc: DocId,
 }
-
-
 
 #[derive(Clone)]
 pub struct Segment {
