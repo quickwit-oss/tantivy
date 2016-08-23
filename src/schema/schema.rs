@@ -8,7 +8,13 @@ use rustc_serialize::json;
 use rustc_serialize::json::Json;
 use std::collections::BTreeMap;
 use schema::field_entry::ValueParsingError;
+use std::sync::Arc;
 use super::*;
+use std::fmt;
+
+
+
+
 
 
 /// Tantivy has a very strict schema.
@@ -24,58 +30,119 @@ use super::*;
 /// ```
 /// use tantivy::schema::*;
 ///
-///   let mut schema = Schema::new();
-///   let id_field = schema.add_text_field("id", STRING);
-///   let title_field = schema.add_text_field("title", TEXT);
-///   let body_field = schema.add_text_field("body", TEXT);
+/// let mut schema_builder = SchemaBuilder::new();
+/// let id_field = schema_builder.add_text_field("id", STRING);
+/// let title_field = schema_builder.add_text_field("title", TEXT);
+/// let body_field = schema_builder.add_text_field("body", TEXT);
+/// let schema = schema_builder.build();
 ///
 /// ```
-#[derive(Clone, Debug)]
-pub struct Schema {
+pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
-    fields_map: HashMap<String, Field>,  // transient
+    fields_map: HashMap<String, Field
+    >,  // transient
 }
 
 
-impl Decodable for Schema {
-    fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
-        let mut schema = Schema::new();
-        try!(d.read_seq(|d, num_fields| {
-            for _ in 0..num_fields {
-                let field_entry = try!(FieldEntry::decode(d));
-                schema.add_field(field_entry);
-            }
-            Ok(())
-        }));
-        Ok(schema)
-    }
-}
+impl SchemaBuilder {
 
-impl Encodable for Schema {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        try!(s.emit_seq(self.fields.len(),
-            |mut e| {
-                for (ord, field) in self.fields.iter().enumerate() {
-                    try!(e.emit_seq_elt(ord, |e| field.encode(e)));
-                }
-                Ok(())
-            }));
-        Ok(())
-    }
-}
-
-impl Schema {
-
-    /// Creates a new, empty schema.
-    pub fn new() -> Schema {
-        Schema {
+    pub fn new() -> SchemaBuilder {
+        SchemaBuilder {
             fields: Vec::new(),
             fields_map: HashMap::new(),
         }
     }
     
+    /// Adds a new u32 field.
+    /// Returns the associated field handle
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name 
+    /// will result in the shadowing of the first 
+    /// by the second one.
+    /// The first field will get a field id 
+    /// but only the second one will be indexed  
+    pub fn add_u32_field(
+            &mut self,
+            field_name_str: &str, 
+            field_options: U32Options) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_u32(field_name, field_options);
+        self.add_field(field_entry)
+    }
+
+    /// Adds a new text field.
+    /// Returns the associated field handle
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name 
+    /// will result in the shadowing of the first 
+    /// by the second one.
+    /// The first field will get a field id 
+    /// but only the second one will be indexed  
+    pub fn add_text_field(
+            &mut self,
+            field_name_str: &str, 
+            field_options: TextOptions) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_text(field_name, field_options);
+        self.add_field(field_entry)
+    }
+
+    fn add_field(&mut self, field_entry: FieldEntry) -> Field {
+        let field = Field(self.fields.len() as u8);
+        let field_name = field_entry.name().clone();
+        self.fields.push(field_entry);
+        self.fields_map.insert(field_name, field);
+        field
+    }
+
+    pub fn build(self,) -> Schema {
+        Schema(Arc::new(InnerSchema {
+            fields: self.fields,
+            fields_map: self.fields_map,
+        })) 
+    }
+}
+
+
+#[derive(Debug)]
+struct InnerSchema {
+    fields: Vec<FieldEntry>,
+    fields_map: HashMap<String, Field>,  // transient
+}
+
+
+
+/// Tantivy has a very strict schema.
+/// You need to specify in advance, whether a field is indexed or not,
+/// stored or not, and RAM-based or not.
+///
+/// This is done by creating a schema object, and
+/// setting up the fields one by one.
+/// It is for the moment impossible to remove fields.
+///
+/// # Examples
+///
+/// ```
+/// use tantivy::schema::*;
+///
+/// let mut schema_builder = SchemaBuilder::new();
+/// let id_field = schema_builder.add_text_field("id", STRING);
+/// let title_field = schema_builder.add_text_field("title", TEXT);
+/// let body_field = schema_builder.add_text_field("body", TEXT);
+/// let schema = schema_builder.build();
+///
+/// ```
+#[derive(Clone)]
+pub struct Schema(Arc<InnerSchema>);
+
+impl Schema {
+
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
-        &self.fields[field.0 as usize]
+        &self.0.fields[field.0 as usize]
     }
     
     pub fn get_field_name(&self, field: Field) -> &String {
@@ -83,7 +150,7 @@ impl Schema {
     }
 
     pub fn fields(&self,) -> &Vec<FieldEntry> {
-        &self.fields
+        &self.0.fields
     }
     
     /// Returns the field options associated with a given name.
@@ -96,39 +163,8 @@ impl Schema {
     /// If panicking is not an option for you,
     /// you may use `get(&self, field_name: &str)`.
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
-        self.fields_map.get(field_name).map(|field| field.clone())
+        self.0.fields_map.get(field_name).map(|field| field.clone())
     }
-
-    /// Creates a new field.
-    /// Return the associated field handle.
-    pub fn add_u32_field(
-            &mut self,
-            field_name_str: &str, 
-            field_options: U32Options) -> Field {
-        let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_u32(field_name, field_options);
-        self.add_field(field_entry)
-    }
-    
-    pub fn add_text_field(
-            &mut self,
-            field_name_str: &str, 
-            field_options: TextOptions) -> Field {
-        // TODO case if field already exists
-        let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_text(field_name, field_options);
-        self.add_field(field_entry)
-    }
-
-    fn add_field(&mut self, field_entry: FieldEntry) -> Field {       
-        let field = Field(self.fields.len() as u8);
-        // TODO case if field already exists
-        let field_name = field_entry.name().clone();
-        self.fields.push(field_entry);
-        self.fields_map.insert(field_name, field.clone());
-        field
-    }
-    
 
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
@@ -205,9 +241,47 @@ impl Schema {
         }
         Ok(doc)    
     }
-
 }
 
+impl fmt::Debug for Schema {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl Decodable for Schema {
+    fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
+        let mut schema_builder = SchemaBuilder::new();
+        try!(d.read_seq(|d, num_fields| {
+            for _ in 0..num_fields {
+                let field_entry = try!(FieldEntry::decode(d));
+                schema_builder.add_field(field_entry);
+            }
+            Ok(())
+        }));
+        Ok(schema_builder.build())
+    }
+}
+
+impl Encodable for Schema {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        try!(s.emit_seq(self.0.fields.len(),
+            |mut e| {
+                for (ord, field) in self.0.fields.iter().enumerate() {
+                    try!(e.emit_seq_elt(ord, |e| field.encode(e)));
+                }
+                Ok(())
+            }));
+        Ok(())
+    }
+}
+
+
+impl From<SchemaBuilder> for Schema {
+    fn from(schema_builder: SchemaBuilder) -> Schema {
+        schema_builder.build()
+    }
+}
 
 
 
@@ -238,11 +312,12 @@ mod tests {
         
     #[test]
     pub fn test_schema_serialization() {
-        let mut schema = Schema::new();
+        let mut schema_builder = SchemaBuilder::new();
         let count_options = U32Options::new().set_stored().set_fast(); 
-        schema.add_text_field("title", TEXT);
-        schema.add_text_field("author", STRING);
-        schema.add_u32_field("count", count_options);
+        schema_builder.add_text_field("title", TEXT);
+        schema_builder.add_text_field("author", STRING);
+        schema_builder.add_u32_field("count", count_options);
+        let schema = schema_builder.build();
         let schema_json: String = format!("{}", json::as_pretty_json(&schema));
         println!("{}", schema_json);
         let expected = r#"[
@@ -280,11 +355,12 @@ mod tests {
     
     #[test]
     pub fn test_document_to_json() {
-        let mut schema = Schema::new();
+        let mut schema_builder = SchemaBuilder::new();
         let count_options = U32Options::new().set_stored().set_fast(); 
-        schema.add_text_field("title", TEXT);
-        schema.add_text_field("author", STRING);
-        schema.add_u32_field("count", count_options);
+        schema_builder.add_text_field("title", TEXT);
+        schema_builder.add_text_field("author", STRING);
+        schema_builder.add_u32_field("count", count_options);
+        let schema = schema_builder.build();
         let doc_json = r#"{
                 "title": "my title",
                 "author": "fulmicoton",
@@ -297,11 +373,12 @@ mod tests {
     
     #[test]
     pub fn test_parse_document() {
-        let mut schema = Schema::new();
+        let mut schema_builder = SchemaBuilder::new();
         let count_options = U32Options::new().set_stored().set_fast(); 
-        let title_field = schema.add_text_field("title", TEXT);
-        let author_field = schema.add_text_field("author", STRING);
-        let count_field = schema.add_u32_field("count", count_options);
+        let title_field = schema_builder.add_text_field("title", TEXT);
+        let author_field = schema_builder.add_text_field("author", STRING);
+        let count_field = schema_builder.add_u32_field("count", count_options);
+        let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();
             assert!(doc.get_fields().is_empty());

@@ -181,10 +181,7 @@ impl BitOr for TextOptions {
 
 #[cfg(test)]
 mod tests {
-    use schema::Schema;
-    use schema::Field;
-    use schema::FieldType;
-    use super::*;
+    use schema::*;
     
     #[test]
     fn test_field_options() {
@@ -194,8 +191,9 @@ mod tests {
             assert!(field_options.get_indexing_options().is_tokenized());
         }
         {
-            let mut schema = Schema::new();
-            let _body_field: Field = schema.add_text_field("body", TEXT);
+            let mut schema_builder = SchemaBuilder::new();
+            schema_builder.add_text_field("body", TEXT);
+            let schema = schema_builder.build();
             let field = schema.get_field("body").unwrap();
             let field_entry = schema.get_field_entry(field);
             match field_entry.field_type() {

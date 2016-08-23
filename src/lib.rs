@@ -6,8 +6,8 @@
 # extern crate rustc_serialize;
 # extern crate tantivy;
 # use std::fs;
-use tantivy::{Document, Index};
-use tantivy::schema::{Schema, TEXT, STORED};
+use tantivy::Index;
+use tantivy::schema::*;
 use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
 use tantivy::query::Query;
@@ -17,14 +17,16 @@ use std::path::PathBuf;
 # fn wrapper_err() -> tantivy::Result<()> {
 // We need to declare a schema
 // to create a new index.
-let mut schema = Schema::new();
+let mut schema_builder = SchemaBuilder::new();
 
 // TEXT | STORED is some syntactic sugar to describe
 // how tantivy should index this field.
 // It means the field should be tokenized and indexed,
 // along with its term frequency and term positions.  
-let title = schema.add_text_field("title", TEXT | STORED);
-let body = schema.add_text_field("body", TEXT);
+let title = schema_builder.add_text_field("title", TEXT | STORED);
+let body = schema_builder.add_text_field("body", TEXT);
+let schema = schema_builder.build();
+
 // the path in which our index will be created.
 # fs::create_dir("./tantivy-index").unwrap();
 let index_path = PathBuf::from("./tantivy-index");
@@ -225,15 +227,19 @@ impl ScoredDoc {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use collector::TestCollector;
     use query::MultiTermQuery;
+    use Index;
+    use core::SegmentReader;
+    use schema::*;
+    use DocSet;
+    use Postings;
 
     #[test]
     fn test_indexing() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
-
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_from_tempdir(schema).unwrap();
         {
             // writing the segment
@@ -264,9 +270,9 @@ mod tests {
 
     #[test]
     fn test_docfreq() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
-        let index = Index::create_in_ram(schema);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             let mut doc = Document::new();
@@ -311,9 +317,9 @@ mod tests {
     
     #[test]
     fn test_fieldnorm() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
-        let index = Index::create_in_ram(schema);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             {
@@ -345,8 +351,9 @@ mod tests {
 
     #[test]
     fn test_termfreq() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
@@ -371,8 +378,9 @@ mod tests {
 
     #[test]
     fn test_searcher() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         {
@@ -439,8 +447,9 @@ mod tests {
 
     #[test]
     fn test_searcher_2() {
-        let mut schema = schema::Schema::new();
-        let text_field = schema.add_text_field("text", schema::TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         {

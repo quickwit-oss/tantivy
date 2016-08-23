@@ -26,13 +26,24 @@ mod tests {
     use std::path::Path;
     use directory::{Directory, WritePtr, RAMDirectory};
     use schema::Document;
-    use schema::Schema;
+    use schema::{Schema, SchemaBuilder};
     use schema::FAST;
     use test::Bencher;
     use test;
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
+
+    lazy_static! {
+        static ref SCHEMA: Schema = {
+            let mut schema_builder = SchemaBuilder::new();
+            schema_builder.add_u32_field("field", FAST);
+            schema_builder.build()
+        };
+        static ref FIELD: Field = { 
+            SCHEMA.get_field("field").unwrap()
+        };
+    }
 
     #[test]
     fn test_compute_num_bits() {
@@ -55,15 +66,13 @@ mod tests {
     fn test_intfastfield_small() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            add_single_field_doc(&mut fast_field_writers, field, 13u32);
-            add_single_field_doc(&mut fast_field_writers, field, 14u32);
-            add_single_field_doc(&mut fast_field_writers, field, 2u32);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 13u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 14u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 2u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
@@ -73,7 +82,7 @@ mod tests {
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 13u32);
             assert_eq!(fast_field_reader.get(1), 14u32);
             assert_eq!(fast_field_reader.get(2), 2u32);
@@ -84,21 +93,19 @@ mod tests {
     fn test_intfastfield_large() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
-            add_single_field_doc(&mut fast_field_writers, field, 4u32);
-            add_single_field_doc(&mut fast_field_writers, field, 14_082_001u32);
-            add_single_field_doc(&mut fast_field_writers, field, 3_052u32);
-            add_single_field_doc(&mut fast_field_writers, field, 9002u32);
-            add_single_field_doc(&mut fast_field_writers, field, 15_001u32);
-            add_single_field_doc(&mut fast_field_writers, field, 777u32);
-            add_single_field_doc(&mut fast_field_writers, field, 1_002u32);
-            add_single_field_doc(&mut fast_field_writers, field, 1_501u32);
-            add_single_field_doc(&mut fast_field_writers, field, 215u32);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 4u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 14_082_001u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 3_052u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 9002u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 15_001u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 777u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 1_002u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 1_501u32);
+            add_single_field_doc(&mut fast_field_writers, *FIELD, 215u32);
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
@@ -108,7 +115,7 @@ mod tests {
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u32);
             assert_eq!(fast_field_reader.get(1), 14_082_001u32);
             assert_eq!(fast_field_reader.get(2), 3_052u32);
@@ -125,14 +132,14 @@ mod tests {
      fn test_intfastfield_null_amplitude() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
+
+
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
-                add_single_field_doc(&mut fast_field_writers, field, 100_000u32);
+                add_single_field_doc(&mut fast_field_writers, *FIELD, 100_000u32);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -143,7 +150,7 @@ mod tests {
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u32);
             }
@@ -164,14 +171,12 @@ mod tests {
         let permutation = generate_permutation();
         let n = permutation.len();
         let mut directory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
-                add_single_field_doc(&mut fast_field_writers, field, *x);
+                add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -179,7 +184,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             let mut a = 0u32;
             for _ in 0..n {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
@@ -219,14 +224,12 @@ mod tests {
         let path = Path::new("test");
         let permutation = generate_permutation();
         let mut directory: RAMDirectory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
-                add_single_field_doc(&mut fast_field_writers, field, *x);
+                add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -234,7 +237,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             b.iter(|| {
                 let n = test::black_box(7000u32);
                 let mut a = 0u32;
@@ -251,14 +254,12 @@ mod tests {
         let path = Path::new("test");
         let permutation = generate_permutation();
         let mut directory: RAMDirectory = RAMDirectory::create();
-        let mut schema = Schema::new();
-        let field = schema.add_u32_field("field", FAST);
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&schema);
+            let mut fast_field_writers = U32FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
-                add_single_field_doc(&mut fast_field_writers, field, *x);
+                add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -266,7 +267,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(field).unwrap();
+            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
             b.iter(|| {
                 let n = test::black_box(1000u32);
                 let mut a = 0u32;

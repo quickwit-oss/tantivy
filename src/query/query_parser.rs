@@ -277,11 +277,11 @@ mod tests {
     
     #[test]
     pub fn test_query_parser() {
-        let mut schema = Schema::new();
-        let text_field = schema.add_text_field("text", STRING);
-        let title_field = schema.add_text_field("title", STRING);
-        let author_field = schema.add_text_field("author", STRING);
-        let query_parser = QueryParser::new(schema, vec!(text_field, author_field));
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", STRING);
+        let title_field = schema_builder.add_text_field("title", STRING);
+        let author_field = schema_builder.add_text_field("author", STRING);
+        let query_parser = QueryParser::new(schema_builder.build(), vec!(text_field, author_field));
         assert!(query_parser.parse_query("a:b").is_err());
         {
             let terms = vec!(Term::from_field_text(title_field, "abctitle"));

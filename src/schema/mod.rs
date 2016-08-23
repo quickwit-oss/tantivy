@@ -27,11 +27,12 @@ directory.
 
 ```
 use tantivy::schema::*;
-let mut schema = Schema::new();
+let mut schema_builder = SchemaBuilder::new();
 let title_options = TextOptions::new()
     .set_stored()
     .set_indexing_options(TextIndexingOptions::TokenizedWithFreqAndPosition);
-schema.add_text_field("title_options", title_options);
+schema_builder.add_text_field("title_options", title_options);
+let schema = schema_builder.build();
 ```
 
 We can split the problem of generating a search result page into two phases :
@@ -56,8 +57,9 @@ The example can be rewritten :
 
 ```
 use tantivy::schema::*;
-let mut schema = Schema::new();
-schema.add_text_field("title_options", TEXT | STORED);
+let mut schema_builder = SchemaBuilder::new();
+schema_builder.add_text_field("title_options", TEXT | STORED);
+let schema = schema_builder.build();
 ``` 
 
 
@@ -68,11 +70,12 @@ schema.add_text_field("title_options", TEXT | STORED);
 
 ```
 use tantivy::schema::*;
-let mut schema = Schema::new();
+let mut schema_builder = SchemaBuilder::new();
 let num_stars_options = U32Options::new()
     .set_stored()
     .set_indexed();
-schema.add_u32_field("num_stars", num_stars_options);
+schema_builder.add_u32_field("num_stars", num_stars_options);
+let schema = schema_builder.build();
 ```
 
 Just like for Text fields (see above),
@@ -106,9 +109,8 @@ mod value;
 mod named_field_document;
 
 
-
 pub use self::named_field_document::NamedFieldDocument;
-pub use self::schema::Schema;
+pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;
 pub use self::schema::DocParsingError;
 

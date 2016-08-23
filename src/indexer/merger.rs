@@ -284,12 +284,12 @@ mod tests {
 
     #[test]
     fn test_index_merger() {
-        let mut schema = schema::Schema::new();
+        let mut schema_builder = schema::SchemaBuilder::new();
         let text_fieldtype = schema::TextOptions::new().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
-        let text_field = schema.add_text_field("text", text_fieldtype);
+        let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::U32Options::new().set_fast();
-        let score_field = schema.add_u32_field("score", score_fieldtype);
-        let index = Index::create_in_ram(schema);
+        let score_field = schema_builder.add_u32_field("score", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
 
         {
             {

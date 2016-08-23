@@ -110,14 +110,12 @@ impl From<Vec<FieldValue>> for Document {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use schema::Schema;
-    use schema::TEXT;
+    use schema::*;
     
     #[test]
     fn test_doc() {
-        let mut schema = Schema::new();
-        let text_field = schema.add_text_field("title", TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("title", TEXT);
         let mut doc = Document::new();
         doc.add_text(text_field, "My title");
         assert_eq!(doc.get_fields().len(), 1);

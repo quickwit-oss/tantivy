@@ -64,10 +64,10 @@ mod tests {
 
     #[test]
     pub fn test_term() {
-        let mut schema = Schema::new();
-        let _ = schema.add_text_field("text", STRING);
-        let title_field = schema.add_text_field("title", STRING);
-        let count_field = schema.add_text_field("count", STRING);
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("text", STRING);
+        let title_field = schema_builder.add_text_field("title", STRING);
+        let count_field = schema_builder.add_text_field("count", STRING);
         {
             let term = Term::from_field_text(title_field, "test");
             assert_eq!(term.get_field(), title_field);

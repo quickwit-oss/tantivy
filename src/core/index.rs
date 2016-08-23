@@ -1,4 +1,5 @@
 use Result;
+use Error;
 use std::path::{PathBuf, Path};
 use schema::Schema;
 use DocId;
@@ -44,13 +45,15 @@ impl fmt::Debug for Index {
 pub struct Index {
     metas: Arc<RwLock<IndexMeta>>,
     directory: Box<Directory>,
+    schema: Schema,
 }
 
 impl Clone for Index {
     fn clone(&self,) -> Index {
         Index {
             metas: self.metas.clone(),
-            directory: self.directory.box_clone()
+            directory: self.directory.box_clone(),
+            schema: self.schema.clone(),
         }
     }
 }
@@ -58,6 +61,18 @@ impl Clone for Index {
 lazy_static! {
     static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
 }
+
+
+fn load_metas(directory: &Directory) -> Result<IndexMeta> {
+    let meta_file = try!(directory.open_read(&META_FILEPATH));
+    let meta_content = String::from_utf8_lossy(meta_file.as_slice());
+    let loaded_meta = try!(
+        json::decode(&meta_content)
+            .map_err(|e| Error::CorruptedFile(META_FILEPATH.clone(), Box::new(e)))
+    );
+    Ok(loaded_meta)
+}
+
 
 impl Index {
 
@@ -78,10 +93,14 @@ impl Index {
 
     pub fn open(directory_path: &Path) -> Result<Index> {
         let directory = try!(MmapDirectory::open(directory_path));
-        let directory_ptr = Box::new(directory);
-        let mut index = Index::from_directory(directory_ptr, Schema::new());
-        try!(index.load_metas()); //< TODO does the directory already exists?
-        Ok(index)
+        let metas = try!(load_metas(&directory)); //< TODO does the directory already exists?
+        let schema = metas.schema.clone();
+        let locked_metas = Arc::new(RwLock::new(metas));
+        Ok(Index {
+            directory: Box::new(directory),
+            metas: locked_metas,
+            schema: schema,
+        })
     }
 
     pub fn docstamp(&self,) -> Result<u64> {
@@ -110,16 +129,15 @@ impl Index {
     
     pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Index {
         Index {
-            metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema))),
+            metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema.clone()))),
             directory: directory,
+            schema: schema,
         }
     }
-
+    
     pub fn schema(&self,) -> Schema {
-        self.metas.read().unwrap().schema.clone()
+        self.schema.clone()
     }
-
-
 
     /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
@@ -178,14 +196,6 @@ impl Index {
 
     pub fn new_segment(&self,) -> Segment {
         self.segment(SegmentId::new())
-    }
-
-    pub fn load_metas(&mut self,) -> Result<()> {
-        let meta_file = try!(self.directory.open_read(&META_FILEPATH));
-        let meta_content = String::from_utf8_lossy(meta_file.as_slice());
-        let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
-        self.metas.write().unwrap().clone_from(&loaded_meta);
-        Ok(())
     }
     
     pub fn save_metas(&mut self,) -> Result<()> {

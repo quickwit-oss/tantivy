@@ -35,7 +35,7 @@ pub use self::segment_postings_option::SegmentPostingsOption;
 mod tests {
     
     use super::*;
-    use schema::{Document, TEXT, Schema, Term};
+    use schema::{Document, TEXT, SchemaBuilder, Term};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
@@ -45,8 +45,9 @@ mod tests {
         
     #[test]
     pub fn test_position_write() {
-        let mut schema = Schema::new();
-        let text_field = schema.add_text_field("text", TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
         let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
@@ -64,8 +65,9 @@ mod tests {
     
     #[test]
     pub fn test_position_and_fieldnorm_write_fullstack() {
-        let mut schema = Schema::new();
-        let text_field = schema.add_text_field("text", TEXT);
+        let mut schema_builder = SchemaBuilder::new();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
         {
