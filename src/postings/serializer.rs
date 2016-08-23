@@ -36,7 +36,7 @@ pub struct PostingsSerializer {
 
 impl PostingsSerializer {
 
-    pub fn open(segment: &Segment) -> Result<PostingsSerializer> {
+    pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
         let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
         let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));

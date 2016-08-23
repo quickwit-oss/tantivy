@@ -3,7 +3,7 @@ use std::path::{PathBuf, Path};
 use schema::Schema;
 use DocId;
 use std::io::Write;
-use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
+use std::sync::{Arc, RwLock};
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
@@ -14,6 +14,7 @@ use core::searcher::Searcher;
 use std::convert::From;
 use num_cpus;
 use super::SegmentComponent;
+use std::collections::HashSet;
 
 
 
@@ -32,12 +33,6 @@ impl IndexMeta {
             docstamp: 0u64,
         }
     }
-
-    fn segment_ordinal(&self, segment_id: SegmentId) -> Option<usize> {
-        self.segments
-            .iter()
-            .position(|&el| el == segment_id)
-    }
 }
 
 impl fmt::Debug for Index {
@@ -46,12 +41,18 @@ impl fmt::Debug for Index {
    }
 }
 
-pub type DirectoryPtr = Box<Directory>;
-
-#[derive(Clone)]
 pub struct Index {
     metas: Arc<RwLock<IndexMeta>>,
-    directory: Arc<RwLock<DirectoryPtr>>,
+    directory: Box<Directory>,
+}
+
+impl Clone for Index {
+    fn clone(&self,) -> Index {
+        Index {
+            metas: self.metas.clone(),
+            directory: self.directory.box_clone()
+        }
+    }
 }
 
 lazy_static! {
@@ -107,10 +108,10 @@ impl Index {
         Searcher::for_index(self.clone())
     }
     
-    pub fn from_directory(directory: DirectoryPtr, schema: Schema) -> Index {
+    pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Index {
         Index {
             metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema))),
-            directory: Arc::new(RwLock::new(directory)),
+            directory: directory,
         }
     }
 
@@ -118,17 +119,6 @@ impl Index {
         self.metas.read().unwrap().schema.clone()
     }
 
-    fn rw_directory(&mut self) -> Result<RwLockWriteGuard<DirectoryPtr>> {
-        self.directory
-            .write()
-            .map_err(From::from)
-    }
-
-    fn ro_directory(&self) -> Result<RwLockReadGuard<DirectoryPtr>> {
-        self.directory
-            .read()
-            .map_err(From::from)
-    }
 
 
     /// Marks the segment as published.
@@ -146,21 +136,17 @@ impl Index {
         Ok(())
     }
 
-    pub fn publish_merge_segment(&mut self, segments: &Vec<Segment>, merged_segment: &Segment) -> Result<()> {
+    pub fn publish_merge_segment(&mut self, segment_merged_ids: HashSet<SegmentId>, merged_segment_id: SegmentId) -> Result<()> {
         {
-            let mut meta_write = self.metas.write().unwrap();
-            for segment in segments {
-                let segment_pos = meta_write.segment_ordinal(segment.id());
-                match segment_pos {
-                    Some(pos) => {
-                        meta_write.segments.remove(pos);
-                    }
-                    None => {
-                        panic!("Segment");
-                    }
-                }
-            }
-            meta_write.segments.push(merged_segment.id());
+            let mut meta_write = try!(self.metas.write());
+            let mut new_segment_ids: Vec<SegmentId> = meta_write
+                .segments
+                .iter()
+                .filter(|&segment_id| !segment_merged_ids.contains(segment_id))
+                .cloned()
+                .collect();
+            new_segment_ids.push(merged_segment_id);
+            meta_write.segments = new_segment_ids;
         }
         try!(self.save_metas());
         Ok(())
@@ -195,8 +181,7 @@ impl Index {
     }
 
     pub fn load_metas(&mut self,) -> Result<()> {
-        let ro_dir = try!(self.ro_directory());
-        let meta_file = try!(ro_dir.open_read(&META_FILEPATH));
+        let meta_file = try!(self.directory.open_read(&META_FILEPATH));
         let meta_content = String::from_utf8_lossy(meta_file.as_slice());
         let loaded_meta: IndexMeta = json::decode(&meta_content).unwrap();
         self.metas.write().unwrap().clone_from(&loaded_meta);
@@ -209,7 +194,7 @@ impl Index {
             let metas_lock = self.metas.read().unwrap();
             try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
         };
-        try!(self.rw_directory())
+        self.directory
             .atomic_write(&META_FILEPATH, &w[..])
             .map_err(From::from)
     }
@@ -249,15 +234,14 @@ impl Segment {
 
     pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource> {
         let path = self.relative_path(component);
-        let directory = try!(self.index.directory.read());
-        let source = try!(directory.open_read(&path));
+        let source = try!(self.index.directory.open_read(&path));
         Ok(source)
 
     }
 
-    pub fn open_write(&self, component: SegmentComponent) -> Result<WritePtr> {
+    pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr> {
         let path = self.relative_path(component);
-        let write = try!(self.index.directory.write().unwrap().open_write(&path));
+        let write = try!(self.index.directory.open_write(&path));
         Ok(write)
     }
 }

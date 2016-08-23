@@ -63,8 +63,8 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 
 impl SegmentWriter {
 
-	pub fn for_segment(segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
-		let segment_serializer = try!(SegmentSerializer::for_segment(&segment));
+	pub fn for_segment(mut segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
+		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let per_field_postings_writers = schema.fields()
 			  .iter()
 			  .map(|field_entry| {

@@ -20,7 +20,7 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
 
-    pub fn for_segment(segment: &Segment) -> Result<SegmentSerializer>  {
+    pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer>  {
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
 
         let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));

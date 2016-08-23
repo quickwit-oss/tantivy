@@ -48,8 +48,8 @@ mod tests {
         let mut schema = Schema::new();
         let text_field = schema.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema);
-        let segment = index.new_segment();
-        let mut posting_serializer = PostingsSerializer::open(&segment).unwrap();
+        let mut segment = index.new_segment();
+        let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
         let term = Term::from_field_text(text_field, "abc");
         posting_serializer.new_term(&term, 3).unwrap();
         for doc_id in 0u32..3u32 {

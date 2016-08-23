@@ -20,7 +20,7 @@ use super::shared_vec_slice::SharedVecSlice;
 /// On drop, if the writer was left in a *dirty* state.
 /// That is, if flush was not called after the last call
 /// to write. 
-/// 
+///
 struct VecWriter {
     path: PathBuf,
     shared_directory: InnerDirectory,
@@ -144,7 +144,8 @@ impl RAMDirectory {
 ///
 /// It's main purpose is unit test.
 /// Writes are only made visible upon flushing.
-/// 
+///
+#[derive(Clone)]
 pub struct RAMDirectory {
     fs: InnerDirectory,
 }
@@ -177,6 +178,10 @@ impl Directory for RAMDirectory {
         try!(vec_writer.write_all(data));
         try!(vec_writer.flush());
         Ok(())
+    }
+
+    fn box_clone(&self,) -> Box<Directory> {
+        Box::new(self.clone())
     }
 
 }

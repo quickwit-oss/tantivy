@@ -9,6 +9,7 @@ use indexer::SegmentWriter;
 use std::clone::Clone;
 use std::io;
 use std::thread;
+use std::collections::HashSet;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
 use std::mem::swap;
@@ -118,10 +119,11 @@ impl IndexWriter {
 	pub fn merge(&mut self, segments: &Vec<Segment>) -> Result<()> {
 		let schema = self.index.schema();
 		let merger = try!(IndexMerger::open(schema, segments));
-		let merged_segment = self.index.new_segment();
-		let segment_serializer = try!(SegmentSerializer::for_segment(&merged_segment));
+		let mut merged_segment = self.index.new_segment();
+		let segment_serializer = try!(SegmentSerializer::for_segment(&mut merged_segment));
 		try!(merger.write(segment_serializer));
-		try!(self.index.publish_merge_segment(segments, &merged_segment));
+		let merged_segment_ids: HashSet<SegmentId> = segments.iter().map(|segment| segment.id()).collect();
+		try!(self.index.publish_merge_segment(merged_segment_ids, merged_segment.id()));
 		Ok(())
 	}
 

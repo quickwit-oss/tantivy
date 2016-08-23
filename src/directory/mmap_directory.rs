@@ -18,6 +18,7 @@ use std::fs::OpenOptions;
 use directory::error::{OpenWriteError, FileError, OpenDirectoryError};
 use std::result;
 use common::make_io_err;
+use std::sync::Arc;
 use std::fs;
 use directory::shared_vec_slice::SharedVecSlice;
 
@@ -26,10 +27,11 @@ use directory::shared_vec_slice::SharedVecSlice;
 ///
 /// The Mmap object are cached to limit the 
 /// system calls. 
+#[derive(Clone)]
 pub struct MmapDirectory {
     root_path: PathBuf,
-    mmap_cache: RwLock<HashMap<PathBuf, MmapReadOnly>>,
-    _temp_directory: Option<TempDir>,
+    mmap_cache: Arc<RwLock<HashMap<PathBuf, MmapReadOnly>>>,
+    _temp_directory: Arc<Option<TempDir>>,
 }
 
 impl fmt::Debug for MmapDirectory {
@@ -51,8 +53,8 @@ impl MmapDirectory {
         let tempdir_path = PathBuf::from(tempdir.path());
         let directory = MmapDirectory {
             root_path: PathBuf::from(tempdir_path),
-            mmap_cache: RwLock::new(HashMap::new()),
-            _temp_directory: Some(tempdir)
+            mmap_cache: Arc::new(RwLock::new(HashMap::new())),
+            _temp_directory: Arc::new(Some(tempdir))
         };
         Ok(directory)
     }
@@ -72,8 +74,8 @@ impl MmapDirectory {
         else {
             Ok(MmapDirectory {
                 root_path: PathBuf::from(directory_path),
-                mmap_cache: RwLock::new(HashMap::new()),
-                _temp_directory: None
+                mmap_cache: Arc::new(RwLock::new(HashMap::new())),
+                _temp_directory: Arc::new(None)
             })
         }
     }
@@ -92,6 +94,7 @@ impl MmapDirectory {
         try!(fd.sync_all());
         Ok(())
     }
+
 }
 
 /// This Write wraps a File, but has the specificity of 
@@ -228,4 +231,8 @@ impl Directory for MmapDirectory {
         Ok(())
     }
 
+    fn box_clone(&self,) -> Box<Directory> {
+        Box::new(self.clone())
+    }
+    
 }

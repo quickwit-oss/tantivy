@@ -1,5 +1,4 @@
 use std::marker::Send;
-use std::marker::Sync;
 use std::fmt;
 use std::path::Path;
 use directory::error::{FileError, OpenWriteError};
@@ -16,7 +15,7 @@ use std::io;
 /// - The [RAMDirectory](struct.RAMDirectory.html), which 
 /// should be used mostly for tests.
 /// 
-pub trait Directory: fmt::Debug + Send + Sync {
+pub trait Directory: fmt::Debug + Send + 'static {
 
     /// Opens a virtual file for read.
     /// 
@@ -64,4 +63,9 @@ pub trait Directory: fmt::Debug + Send + Sync {
     /// 
     /// The file may or may not previously exists.
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
+
+    fn box_clone(&self) -> Box<Directory>;
 }
+
+
+
