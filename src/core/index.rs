@@ -246,7 +246,6 @@ impl Segment {
         let path = self.relative_path(component);
         let source = try!(self.index.directory.open_read(&path));
         Ok(source)
-
     }
 
     pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr> {

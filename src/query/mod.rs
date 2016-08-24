@@ -24,3 +24,4 @@ pub use self::scorer::Scorer;
 pub use self::query_parser::QueryParser;
 pub use self::explanation::Explanation;
 pub use self::multi_term_accumulator::MultiTermAccumulator;
+pub use self::query_parser::ParsingError;

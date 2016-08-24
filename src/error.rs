@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::error;
 use std::sync::PoisonError;
 use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
+use query;
+use schema;
 
 #[derive(Debug)]
 pub enum Error {
@@ -30,6 +32,12 @@ impl From<io::Error> for Error {
     }
 }
 
+impl From<query::ParsingError> for Error {
+    fn from(parsing_error: query::ParsingError) -> Error {
+        Error::InvalidArgument(format!("Query is invalid. {:?}", parsing_error))
+    }
+}
+
 impl<Guard> From<PoisonError<Guard>> for Error {
     fn from(_: PoisonError<Guard>) -> Error {
         Error::Poisoned
@@ -39,6 +47,12 @@ impl<Guard> From<PoisonError<Guard>> for Error {
 impl From<FileError> for Error {
     fn from(error: FileError) -> Error {
         Error::FileError(error)
+    }
+}
+
+impl From<schema::DocParsingError> for Error {
+    fn from(error: schema::DocParsingError) -> Error {
+        Error::InvalidArgument(format!("Failed to parse document {:?}", error))
     }
 }
 
