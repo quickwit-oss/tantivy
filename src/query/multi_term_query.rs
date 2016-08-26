@@ -118,7 +118,7 @@ impl Query for MultiTermQuery {
         &self,
         searcher: &Searcher,
         doc_address: &DocAddress) -> Result<Explanation> {
-            let segment_reader = &searcher.segments()[doc_address.segment_ord() as usize];
+            let segment_reader = searcher.segment_reader(doc_address.segment_ord() as usize);
             let similitude = SimilarityExplainer::from(self.similitude(searcher));
             let mut timer_tree = TimerTree::new();
             let mut postings = try!(
@@ -147,7 +147,7 @@ impl Query for MultiTermQuery {
         let mut timer_tree = TimerTree::new();        
         {
             let mut search_timer = timer_tree.open("search");
-            for (segment_ord, segment_reader) in searcher.segments().iter().enumerate() {
+            for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
                     let _ = segment_search_timer.open("set_segment");

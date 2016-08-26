@@ -14,7 +14,7 @@ use std::convert::From;
 use num_cpus;
 use std::collections::HashSet;
 use super::segment::Segment;
-
+use core::SegmentReader;
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
@@ -120,10 +120,6 @@ impl Index {
         self.writer_with_num_threads(num_cpus::get())
     }
 
-    pub fn searcher(&self,) -> Result<Searcher> {
-        Searcher::for_index(self.clone())
-    }
-    
     pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Index {
         Index {
             metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema.clone()))),
@@ -209,6 +205,16 @@ impl Index {
         self.directory
             .atomic_write(&META_FILEPATH, &w[..])
             .map_err(From::from)
+    }
+
+    pub fn searcher(&self,) -> Result<Searcher> {
+        let segment_readers: Vec<SegmentReader> = try!(
+            self.segments()
+                .into_iter()
+                .map(SegmentReader::open)
+                .collect()
+        ); 
+        Ok(Searcher::from_readers(segment_readers))
     }
 }
 

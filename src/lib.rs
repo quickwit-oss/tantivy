@@ -238,7 +238,7 @@ mod tests {
         {
             
             let searcher = index.searcher().unwrap();
-            let segment_reader: &SegmentReader = searcher.segments().iter().next().unwrap();
+            let segment_reader: &SegmentReader = searcher.segment_readers().iter().next().unwrap();
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
             assert_eq!(fieldnorms_reader.get(0), 3);
             assert_eq!(fieldnorms_reader.get(1), 0);
@@ -264,7 +264,7 @@ mod tests {
         }
         {
             let searcher = index.searcher().unwrap();
-            let reader = &searcher.segments()[0];
+            let reader = searcher.segment_reader(0);
             let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "af")).unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
