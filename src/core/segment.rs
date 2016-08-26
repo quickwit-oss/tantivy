@@ -21,8 +21,6 @@ impl fmt::Debug for Segment {
     }
 }
 
-
-
 impl Segment {
 
     pub fn new(index: Index, segment_id: SegmentId) -> Segment {

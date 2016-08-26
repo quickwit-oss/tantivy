@@ -123,7 +123,7 @@ fn run(index_path: &Path) -> tantivy::Result<()> {
     // Let's search our index. This starts
     // by creating a searcher. There can be more
     // than one searcher at a time.
-    let searcher = try!(index.searcher());
+    let searcher = index.searcher();
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which

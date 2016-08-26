@@ -340,7 +340,7 @@ mod tests {
             index_writer.merge(&segments).unwrap();
         }
         {
-            let searcher = index.searcher().unwrap();
+            let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::new();
                 let query = MultiTermQuery::from(terms);

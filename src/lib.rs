@@ -35,6 +35,7 @@ extern crate num_cpus;
 extern crate combine;
 extern crate itertools;
 extern crate chan;
+extern crate crossbeam;
 
 
 #[cfg(test)] extern crate test;
@@ -199,7 +200,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let searcher = index.searcher().unwrap();
+            let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, "a");
             assert_eq!(searcher.doc_freq(&term_a), 3);
             let term_b = Term::from_field_text(text_field, "b");
@@ -237,7 +238,7 @@ mod tests {
         }
         {
             
-            let searcher = index.searcher().unwrap();
+            let searcher = index.searcher();
             let segment_reader: &SegmentReader = searcher.segment_readers().iter().next().unwrap();
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
             assert_eq!(fieldnorms_reader.get(0), 3);
@@ -263,7 +264,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let searcher = index.searcher().unwrap();
+            let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "af")).unwrap();
             assert!(postings.advance());
@@ -301,7 +302,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let searcher = index.searcher().unwrap();
+            let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = MultiTermQuery::from(terms);
                 let mut collector = TestCollector::new();
@@ -369,6 +370,6 @@ mod tests {
             }
             index_writer.commit().unwrap();
         }
-        index.searcher().unwrap();
+        index.searcher();
     }
 }

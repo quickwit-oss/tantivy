@@ -5,6 +5,7 @@ mod segment_reader;
 mod segment_id;
 mod segment_component;
 mod segment;
+mod pool;
 
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;

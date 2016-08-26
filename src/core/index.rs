@@ -15,6 +15,8 @@ use num_cpus;
 use std::collections::HashSet;
 use super::segment::Segment;
 use core::SegmentReader;
+use super::pool::Pool;
+use super::pool::LeasedItem;
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
@@ -29,28 +31,6 @@ impl IndexMeta {
             segments: Vec::new(),
             schema: schema,
             docstamp: 0u64,
-        }
-    }
-}
-
-impl fmt::Debug for Index {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "Index({:?})", self.directory)
-   }
-}
-
-pub struct Index {
-    metas: Arc<RwLock<IndexMeta>>,
-    directory: Box<Directory>,
-    schema: Schema,
-}
-
-impl Clone for Index {
-    fn clone(&self,) -> Index {
-        Index {
-            metas: self.metas.clone(),
-            directory: self.directory.box_clone(),
-            schema: self.schema.clone(),
         }
     }
 }
@@ -71,6 +51,13 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 }
 
 
+pub struct Index {
+    metas: Arc<RwLock<IndexMeta>>,
+    directory: Box<Directory>,
+    schema: Schema,
+    searcher_pool: Arc<Pool<Searcher>>,
+}
+
 impl Index {
 
     pub fn create_in_ram(schema: Schema) -> Index {
@@ -90,11 +77,14 @@ impl Index {
 
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
-        Ok(Index {
+        let index = Index {
             directory: directory,
             metas: Arc::new(RwLock::new(metas)),
             schema: schema,
-        })
+            searcher_pool: Arc::new(Pool::new()),
+        };
+        try!(index.load_searchers());
+        Ok(index)
     }
 
     pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Result<Index> {
@@ -129,8 +119,6 @@ impl Index {
         self.writer_with_num_threads(num_cpus::get())
     }
 
-
-    
     pub fn schema(&self,) -> Schema {
         self.schema.clone()
     }
@@ -147,6 +135,7 @@ impl Index {
             meta_write.docstamp = docstamp;
         }
         try!(self.save_metas());
+        try!(self.load_searchers());
         Ok(())
     }
 
@@ -163,6 +152,7 @@ impl Index {
             meta_write.segments = new_segment_ids;
         }
         try!(self.save_metas());
+        try!(self.load_searchers());
         Ok(())
     }
 
@@ -210,16 +200,44 @@ impl Index {
             .map_err(From::from)
     }
 
-    pub fn searcher(&self,) -> Result<Searcher> {
-        let segment_readers: Vec<SegmentReader> = try!(
-            self.segments()
-                .into_iter()
-                .map(SegmentReader::open)
-                .collect()
-        );
-        Ok(Searcher::from_readers(segment_readers))
+    pub fn load_searchers(&self,) -> Result<()>{
+        let res_searchers: Result<Vec<Searcher>> = (0..12)
+            .map(|_| {
+                let segment_readers: Vec<SegmentReader> = try!(
+                    self.segments()
+                        .into_iter()
+                        .map(SegmentReader::open)
+                        .collect()
+                );
+                Ok(Searcher::from_readers(segment_readers))
+            })
+            .collect();
+        let searchers = try!(res_searchers);
+        self.searcher_pool.publish_new_generation(searchers);
+        Ok(())
+    }
+
+    pub fn searcher(&self,) -> LeasedItem<Searcher> {
+        self.searcher_pool.acquire()
     }
 }
 
 
 
+
+impl fmt::Debug for Index {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+       write!(f, "Index({:?})", self.directory)
+   }
+}
+
+impl Clone for Index {
+    fn clone(&self,) -> Index {
+        Index {
+            metas: self.metas.clone(),
+            directory: self.directory.box_clone(),
+            schema: self.schema.clone(),
+            searcher_pool: self.searcher_pool.clone(),
+        }
+    }
+}

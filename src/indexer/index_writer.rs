@@ -271,7 +271,7 @@ mod tests {
 
 
 		let num_docs_containing = |s: &str| {
-			let searcher = index.searcher().unwrap();
+			let searcher = index.searcher();
 			let term_a = Term::from_field_text(text_field, s);
             searcher.doc_freq(&term_a)
 		};
@@ -303,7 +303,7 @@ mod tests {
 			assert_eq!(num_docs_containing("b"), 1);
 			assert_eq!(num_docs_containing("c"), 1);
 		}
-		index.searcher().unwrap();
+		index.searcher();
 	}
 
 }
