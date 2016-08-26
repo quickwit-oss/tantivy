@@ -75,29 +75,38 @@ impl Index {
 
     pub fn create_in_ram(schema: Schema) -> Index {
         let directory = Box::new(RAMDirectory::create());
-        Index::from_directory(directory, schema)
+        Index::from_directory(directory, schema).unwrap()
     }
 
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
         let directory = Box::new(try!(MmapDirectory::open(directory_path)));
-        Ok(Index::from_directory(directory, schema))
+        Index::from_directory(directory, schema)
     }
 
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let directory = Box::new(try!(MmapDirectory::create_from_tempdir()));
-        Ok(Index::from_directory(directory, schema))
+        Index::from_directory(directory, schema)
+    }
+
+    fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
+        let schema = metas.schema.clone();
+        Ok(Index {
+            directory: directory,
+            metas: Arc::new(RwLock::new(metas)),
+            schema: schema,
+        })
+    }
+
+    pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Result<Index> {
+        let mut index = try!(Index::create_from_metas(directory, IndexMeta::with_schema(schema)));
+        try!(index.save_metas());
+        Ok(index)
     }
 
     pub fn open(directory_path: &Path) -> Result<Index> {
         let directory = try!(MmapDirectory::open(directory_path));
         let metas = try!(load_metas(&directory)); //< TODO does the directory already exists?
-        let schema = metas.schema.clone();
-        let locked_metas = Arc::new(RwLock::new(metas));
-        Ok(Index {
-            directory: Box::new(directory),
-            metas: locked_metas,
-            schema: schema,
-        })
+        Index::create_from_metas(directory.box_clone(), metas)
     }
 
     pub fn docstamp(&self,) -> Result<u64> {
@@ -120,13 +129,7 @@ impl Index {
         self.writer_with_num_threads(num_cpus::get())
     }
 
-    pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Index {
-        Index {
-            metas: Arc::new(RwLock::new(IndexMeta::with_schema(schema.clone()))),
-            directory: directory,
-            schema: schema,
-        }
-    }
+
     
     pub fn schema(&self,) -> Schema {
         self.schema.clone()
@@ -213,7 +216,7 @@ impl Index {
                 .into_iter()
                 .map(SegmentReader::open)
                 .collect()
-        ); 
+        );
         Ok(Searcher::from_readers(segment_readers))
     }
 }
