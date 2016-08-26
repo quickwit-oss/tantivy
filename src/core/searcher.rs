@@ -1,7 +1,7 @@
 use Result;
 use core::SegmentReader;
-use core::index::Index;
-use core::index::Segment;
+use core::Index;
+use core::segment::Segment;
 use schema::Document;
 use collector::Collector;
 use common::TimerTree;
@@ -9,7 +9,6 @@ use query::Query;
 use DocId;
 use DocAddress;
 use schema::Term;
-
 
 #[derive(Debug)]
 pub struct Searcher {

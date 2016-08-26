@@ -2,21 +2,18 @@ use Result;
 use Error;
 use std::path::{PathBuf, Path};
 use schema::Schema;
-use DocId;
 use std::io::Write;
 use std::sync::{Arc, RwLock};
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
-use directory::{Directory, MmapDirectory, RAMDirectory, ReadOnlySource, WritePtr};
-use indexer::writer::IndexWriter;
-use indexer::segment_serializer::SegmentSerializer;
+use directory::{Directory, MmapDirectory, RAMDirectory};
+use indexer::IndexWriter;
 use core::searcher::Searcher;
 use std::convert::From;
 use num_cpus;
-use super::SegmentComponent;
 use std::collections::HashSet;
-
+use super::segment::Segment;
 
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
@@ -178,10 +175,15 @@ impl Index {
     }
 
     pub fn segment(&self, segment_id: SegmentId) -> Segment {
-        Segment {
-            index: self.clone(),
-            segment_id: segment_id
-        }
+        Segment::new(self.clone(), segment_id)
+    }
+
+    pub fn directory(&self,) -> &Directory {
+        &*self.directory
+    }
+
+    pub fn directory_mut(&mut self,) -> &mut Directory {
+        &mut *self.directory
     }
 
     fn segment_ids(&self,) -> Vec<SegmentId> {
@@ -211,50 +213,4 @@ impl Index {
 }
 
 
-#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
-pub struct SegmentInfo {
-	pub max_doc: DocId,
-}
 
-#[derive(Clone)]
-pub struct Segment {
-    index: Index,
-    segment_id: SegmentId,
-}
-
-impl fmt::Debug for Segment {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Segment({:?})", self.segment_id.uuid_string())
-    }
-}
-
-impl Segment {
-
-    pub fn schema(&self,) -> Schema {
-        self.index.schema()
-    }
-
-    pub fn id(&self,) -> SegmentId {
-        self.segment_id
-    }
-    
-    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        self.segment_id.relative_path(component)
-    }
-
-    pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource> {
-        let path = self.relative_path(component);
-        let source = try!(self.index.directory.open_read(&path));
-        Ok(source)
-    }
-
-    pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr> {
-        let path = self.relative_path(component);
-        let write = try!(self.index.directory.open_write(&path));
-        Ok(write)
-    }
-}
-
-pub trait SerializableSegment {
-    fn write(&self, serializer: SegmentSerializer) -> Result<()>;
-}

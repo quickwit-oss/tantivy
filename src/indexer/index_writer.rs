@@ -1,9 +1,9 @@
 use schema::Schema;
 use schema::Document;
-use indexer::segment_serializer::SegmentSerializer;
-use core::index::Index;
-use core::index::SerializableSegment;
-use core::index::Segment;
+use indexer::SegmentSerializer;
+use core::Index;
+use core::SerializableSegment;
+use core::Segment;
 use std::thread::JoinHandle;
 use indexer::SegmentWriter;
 use std::clone::Clone;

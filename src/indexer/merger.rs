@@ -1,10 +1,10 @@
 use Result;
 use core::SegmentReader;
-use core::index::Segment;
+use core::Segment;
 use DocId;
-use core::index::SerializableSegment;
+use core::SerializableSegment;
 
-use indexer::segment_serializer::SegmentSerializer;
+use indexer::SegmentSerializer;
 use postings::PostingsSerializer;
 use postings::TermInfo;
 use postings::Postings;
@@ -17,7 +17,7 @@ use store::StoreWriter;
 use postings::ChainedPostings;
 use postings::HasLen;
 use postings::OffsetPostings;
-use core::index::SegmentInfo;
+use core::SegmentInfo;
 use std::cmp::{min, max, Ordering};
 use std::iter;
 
@@ -275,7 +275,7 @@ mod tests {
     use schema;
     use schema::Document;
     use schema::Term;
-    use core::index::Index;
+    use core::Index;
     use DocAddress;
     use collector::FastFieldTestCollector;
     use collector::TestCollector;

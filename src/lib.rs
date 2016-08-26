@@ -69,7 +69,7 @@ pub mod schema;
 
 pub use directory::Directory;
 pub use core::searcher::Searcher;
-pub use core::index::Index;
+pub use core::Index;
 pub use schema::Term;
 pub use schema::Document;
 pub use core::SegmentReader;

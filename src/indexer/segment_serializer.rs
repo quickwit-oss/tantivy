@@ -3,8 +3,8 @@ use Error;
 
 use std::io::Write;
 use rustc_serialize::json;
-use core::index::Segment;
-use core::index::SegmentInfo;
+use core::Segment;
+use core::SegmentInfo;
 use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;

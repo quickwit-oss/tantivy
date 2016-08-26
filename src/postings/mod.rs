@@ -39,7 +39,7 @@ mod tests {
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
-    use core::index::Index;
+    use core::Index;
     use std::iter;
     
         

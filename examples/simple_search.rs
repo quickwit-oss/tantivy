@@ -2,7 +2,6 @@ extern crate rustc_serialize;
 extern crate tantivy;
 extern crate tempdir;
 
-use std::fs;
 use std::path::Path;
 use tempdir::TempDir;
 use tantivy::Index;
@@ -10,7 +9,6 @@ use tantivy::schema::*;
 use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
 use tantivy::query::Query;
-use std::path::PathBuf; 
 
 fn main() {
 

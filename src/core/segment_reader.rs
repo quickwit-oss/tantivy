@@ -1,5 +1,5 @@
 use Result;
-use core::index::Segment;
+use core::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
@@ -13,7 +13,7 @@ use postings::TermInfo;
 use datastruct::FstMap;
 use std::fmt;
 use rustc_serialize::json;
-use core::index::SegmentInfo;
+use core::SegmentInfo;
 use schema::Field;
 use postings::SegmentPostingsOption;
 use postings::SegmentPostings;

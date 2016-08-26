@@ -10,7 +10,7 @@ use schema::TextIndexingOptions;
 use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockEncoder, CompositeEncoder};
 use DocId;
-use core::index::Segment;
+use core::Segment;
 use std::io;
 use core::SegmentComponent;
 use common::VInt;
