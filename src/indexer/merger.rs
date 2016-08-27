@@ -93,7 +93,7 @@ impl<'a> PostingsMerger<'a> {
             
             let offset = self.doc_offsets[heap_item.segment_ord];
             let reader = &self.readers[heap_item.segment_ord];
-            let segment_postings = reader.read_postings_all_info(&heap_item.term).unwrap();
+            let segment_postings = reader.read_postings_all_info(&heap_item.term);
             let offset_postings = OffsetPostings::new(segment_postings, offset);
             segment_postings_list.push(offset_postings);
         }
@@ -111,7 +111,7 @@ impl<'a> PostingsMerger<'a> {
                         Some(&ref next_heap_it) if next_heap_it.term == heap_it.term => {},
                         _ => { break; }
                     }
-                    let next_heap_it = self.heap.pop().unwrap();
+                    let next_heap_it = self.heap.pop().unwrap(); // unwrap is fine here.
                     self.append_segment(&next_heap_it, &mut segment_postings_list);
                 }
                 let chained_posting = ChainedPostings::new(segment_postings_list);
@@ -335,7 +335,7 @@ mod tests {
             }
         }
         {
-            let segments = index.segments();
+            let segments = index.segments().unwrap();
             let mut index_writer = index.writer_with_num_threads(1).unwrap();
             index_writer.merge(&segments).unwrap();
         }

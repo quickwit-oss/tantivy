@@ -106,7 +106,7 @@ impl<V: BinarySerializable> FstMap<V> {
     fn read_value(&self, offset: u64) -> V {
         let buffer = self.values_mmap.as_slice();
         let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
-        V::deserialize(&mut cursor).unwrap()
+        V::deserialize(&mut cursor).expect("Data in FST is corrupted")
     }
 
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {

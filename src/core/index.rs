@@ -62,7 +62,7 @@ impl Index {
 
     pub fn create_in_ram(schema: Schema) -> Index {
         let directory = Box::new(RAMDirectory::create());
-        Index::from_directory(directory, schema).unwrap()
+        Index::from_directory(directory, schema).unwrap() // unwrap is ok here 
     }
 
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
@@ -156,11 +156,15 @@ impl Index {
         Ok(())
     }
 
-    pub fn segments(&self,) -> Vec<Segment> {
-        self.segment_ids()
+    pub fn segments(&self,) -> Result<Vec<Segment>> {
+        let segment_ids = try!(self.segment_ids());
+        Ok(
+            segment_ids
             .into_iter()
             .map(|segment_id| self.segment(segment_id))
             .collect()
+        )
+            
     }
 
     pub fn segment(&self, segment_id: SegmentId) -> Segment {
@@ -175,14 +179,17 @@ impl Index {
         &mut *self.directory
     }
 
-    fn segment_ids(&self,) -> Vec<SegmentId> {
-        self.metas
-            .read()
-            .unwrap()
+    fn segment_ids(&self,) -> Result<Vec<SegmentId>> {
+        self.metas.read()
+        .map_err(From::from)
+        .map(|meta_read| {
+            meta_read
             .segments
             .iter()
             .cloned()
             .collect()
+        })
+            
     }
 
     pub fn new_segment(&self,) -> Segment {
@@ -192,7 +199,7 @@ impl Index {
     pub fn save_metas(&mut self,) -> Result<()> {
         let mut w = Vec::new();
         {
-            let metas_lock = self.metas.read().unwrap();
+            let metas_lock = try!(self.metas.read());
             try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
         };
         self.directory
@@ -203,8 +210,9 @@ impl Index {
     pub fn load_searchers(&self,) -> Result<()>{
         let res_searchers: Result<Vec<Searcher>> = (0..12)
             .map(|_| {
+                let segments: Vec<Segment> = try!(self.segments());
                 let segment_readers: Vec<SegmentReader> = try!(
-                    self.segments()
+                    segments
                         .into_iter()
                         .map(SegmentReader::open)
                         .collect()

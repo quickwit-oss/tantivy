@@ -182,7 +182,7 @@ impl SegmentReader {
         Some(SegmentPostings::from_data(term_info.doc_freq, &postings_data, freq_handler))
     }
 
-    pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
+    pub fn read_postings_all_info(&self, term: &Term) -> SegmentPostings {
         let field_entry = self.schema.get_field_entry(term.get_field());
         let segment_posting_option = match field_entry.field_type() {
             &FieldType::Str(ref text_options) => {
@@ -194,7 +194,7 @@ impl SegmentReader {
             }
             &FieldType::U32(_) => SegmentPostingsOption::NoFreq
         };
-        self.read_postings(term, segment_posting_option)
+        self.read_postings(term, segment_posting_option).expect("Read postings all info should not return None")
     }
 
     pub fn get_term_info<'a>(&'a self, term: &Term) -> Option<TermInfo> {
