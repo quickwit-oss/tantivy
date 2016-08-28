@@ -6,7 +6,7 @@ use schema::Field;
 use schema::Value;
 
 
-#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, RustcEncodable, RustcDecodable)]
 pub struct FieldValue {
     pub field: Field,
     pub value: Value,

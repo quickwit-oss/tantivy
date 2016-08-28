@@ -5,6 +5,7 @@ use directory::error::{FileError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
+use std::marker::Sync;
 
 /// Write-once read many (WORM) abstraction for where tantivy's index should be stored. 
 ///
@@ -15,7 +16,7 @@ use std::io;
 /// - The [RAMDirectory](struct.RAMDirectory.html), which 
 /// should be used mostly for tests.
 /// 
-pub trait Directory: fmt::Debug + Send + 'static {
+pub trait Directory: fmt::Debug + Send + Sync + 'static {
 
     /// Opens a virtual file for read.
     /// 

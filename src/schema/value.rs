@@ -4,7 +4,7 @@ use std::io;
 use std::io::Write;
 use std::io::Read;
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, RustcEncodable, RustcDecodable)]
 pub enum Value {
     Str(String),
     U32(u32),

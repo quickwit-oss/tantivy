@@ -4,17 +4,18 @@ use schema::Term;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
+use postings::block_appender::BlockAppender;
 
 
 struct TermPostingsWriter<Rec: Recorder + 'static> {
-    doc_ids: Vec<DocId>,
+    doc_ids: BlockAppender,
     recorder: Rec,
 }
 
 impl<Rec: Recorder + 'static> TermPostingsWriter<Rec> {
     pub fn new() -> TermPostingsWriter<Rec> {
         TermPostingsWriter {
-            doc_ids: Vec::new(),
+            doc_ids: BlockAppender::new(),
             recorder: Recorder::new(),
         }
     }
@@ -29,7 +30,7 @@ impl<Rec: Recorder + 'static> TermPostingsWriter<Rec> {
 
     pub fn suscribe(&mut self, doc: DocId, pos: u32) {
          match self.doc_ids.last() {
-            Some(&last_doc) => {
+            Some(last_doc) => {
                 if last_doc != doc {
                     self.close_doc();
                     self.doc_ids.push(doc);

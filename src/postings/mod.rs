@@ -1,7 +1,7 @@
 mod postings;
 mod recorder;
 mod serializer;
-mod writer;
+mod postings_writer;
 mod term_info;
 mod chained_postings;
 mod vec_postings;
@@ -12,13 +12,14 @@ mod freq_handler;
 mod docset;
 mod scored_docset;
 mod segment_postings_option;
+mod block_appender;
 
 pub use self::docset::{SkipResult, DocSet};
 pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
-pub use self::writer::PostingsWriter;
-pub use self::writer::SpecializedPostingsWriter;
+pub use self::postings_writer::PostingsWriter;
+pub use self::postings_writer::SpecializedPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 pub use self::vec_postings::VecPostings;

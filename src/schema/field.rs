@@ -3,7 +3,7 @@ use std::io::Write;
 use std::io::Read;
 use common::BinarySerializable;
 
-#[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Ord,Hash)]
+#[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Ord,Hash, RustcEncodable, RustcDecodable)]
 pub struct Field(pub u8);
 
 impl BinarySerializable for Field {

@@ -1,11 +1,7 @@
 /*!
 
-# Creating a new index, adding documents and searching.
+Tantivy is a search engine library.  
 
-```
-
- 
-```
 */
 
 #![feature(binary_heap_extras)]
@@ -71,6 +67,7 @@ pub mod schema;
 pub use directory::Directory;
 pub use core::searcher::Searcher;
 pub use core::Index;
+pub use indexer::IndexWriter;
 pub use schema::Term;
 pub use schema::Document;
 pub use core::SegmentReader;
@@ -158,10 +155,6 @@ mod tests {
                 index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.commit().is_ok());
-            // TODO reenable this test
-            // let segment = commit_result.unwrap();
-            // let segment_reader = SegmentReader::open(segment).unwrap();
-            // assert_eq!(segment_reader.max_doc(), 3);
         }
 
     }

@@ -12,7 +12,7 @@ use itertools::Itertools;
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct Document {
     field_values: Vec<FieldValue>,
 }

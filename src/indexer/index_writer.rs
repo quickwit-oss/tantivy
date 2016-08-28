@@ -28,6 +28,7 @@ pub struct IndexWriter {
 	target_num_docs: usize,
 	num_threads: usize,
 	docstamp: u64,
+	
 }
 
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
