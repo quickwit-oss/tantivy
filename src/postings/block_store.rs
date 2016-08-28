@@ -1,7 +1,6 @@
 use compression::NUM_DOCS_PER_BLOCK;
-use DocId;
 
-const BLOCK_SIZE: u32 = NUM_DOCS_PER_BLOCK as u32;
+pub const BLOCK_SIZE: u32 = NUM_DOCS_PER_BLOCK as u32;
 
 struct Block {
     data: [u32; BLOCK_SIZE as usize],
@@ -27,36 +26,43 @@ struct ListInfo {
 pub struct BlockStore {
     lists: Vec<ListInfo>,
     blocks: Vec<Block>,
-    free_blocks: Vec<u32>,
+    free_block_id: usize,
 }
 
 impl BlockStore {
-    pub fn allocate(num_blocks: usize) -> BlockStore {
+    pub fn  allocate(num_blocks: usize) -> BlockStore {
         BlockStore {
-            lists: Vec::with_capacity(1_000_000),
+            lists: Vec::with_capacity(100_000),
             blocks: (0 .. num_blocks).map(|_| Block::new()).collect(),
-            free_blocks: (0u32 .. num_blocks as u32).collect()
+            free_block_id: 0,
         }
     }
     
-    fn new_list(&mut self, first_el: u32) -> u32 {
+    pub fn new_list(&mut self) -> u32 {
         let res = self.lists.len() as u32;
         let new_block_id = self.new_block().unwrap();
-        self.blocks[new_block_id as usize].data[0] = first_el;
         self.lists.push(ListInfo {
             first: new_block_id,
             last: new_block_id,
-            len: 1,
+            len: 0,
         });
         res
     }
     
+    pub fn clear(&mut self,) {
+        self.free_block_id = 0;
+    }
+    
     fn new_block(&mut self,) -> Option<u32> {
-        self.free_blocks.pop()
-            .map(|block_id| {
-                self.blocks[block_id as usize].next = u32::max_value();
-                block_id
-            })
+        let block_id = self.free_block_id;
+        self.free_block_id += 1;
+        if block_id >= self.blocks.len() {
+            None
+        }
+        else {
+            self.blocks[block_id].next = u32::max_value();
+            Some(block_id as u32)
+        }
     }
         
     fn get_list_info(&mut self, list_id: u32) -> &mut ListInfo {
@@ -66,9 +72,7 @@ impl BlockStore {
     
     fn block_id_to_append(&mut self, list_id: u32) -> u32 {
         let list_info: ListInfo = self.lists[list_id as usize];
-        // get_list_info(list_id).len % BLOCK_SIZE == 0;
-        // let new_block_required: bool = self.get_list_info(list_id).len % BLOCK_SIZE == 0;
-        if list_info.len % BLOCK_SIZE == 0 {
+        if list_info.len != 0 && list_info.len % BLOCK_SIZE == 0 {
             // we need to add a fresh new block.
             let new_block_id: u32 = { self.new_block().unwrap() };
             let last_block_id: usize;
@@ -87,7 +91,6 @@ impl BlockStore {
     }
     
     pub fn push(&mut self, list_id: u32, val: u32) {
-        let new_block_required: bool = self.get_list_info(list_id).len % BLOCK_SIZE == 0;
         let block_id: u32 = self.block_id_to_append(list_id);
         let list_len: u32;
         {
@@ -139,107 +142,23 @@ impl<'a> Iterator for BlockIterator<'a> {
 }
 
 
-
-
-
-pub struct BlockAppender {
-    blocks: Vec<Box<[DocId; NUM_DOCS_PER_BLOCK]>>,
-    doc_freq: usize,
-}
-
-impl BlockAppender {
-    
-    pub fn new() -> BlockAppender {
-        BlockAppender {
-            blocks: Vec::new(),
-            doc_freq: 0,
-        }
-    }
-    
-    pub fn push(&mut self, doc_id: DocId) {
-        if self.doc_freq % NUM_DOCS_PER_BLOCK == 0 {
-            self.blocks.push(Box::new([0u32; NUM_DOCS_PER_BLOCK ]));
-        }
-        self.blocks[self.doc_freq / NUM_DOCS_PER_BLOCK][self.doc_freq % NUM_DOCS_PER_BLOCK] = doc_id;
-        self.doc_freq += 1;
-    }
-    
-    pub fn last(&self) -> Option<DocId> {
-        if self.doc_freq == 0 {
-            return None
-        }
-        else {
-            Some(self.get(self.doc_freq - 1))
-        }
-    }
-    
-    pub fn len(&self,) -> usize {
-        self.doc_freq
-    }
-    
-    
-    pub fn get(&self, cursor: usize) -> DocId {
-        self.blocks[cursor / NUM_DOCS_PER_BLOCK][cursor % NUM_DOCS_PER_BLOCK]
-    }
-        
-    
-    pub fn iter(&self,) -> IterBlockAppender {
-        IterBlockAppender {
-            cursor: 0,
-            block_appender: &self,
-        }
-    }
-}
-
-
-
-pub struct IterBlockAppender<'a> {
-    cursor: usize,
-    block_appender: &'a BlockAppender,
-}
-
-
-impl<'a> Iterator for IterBlockAppender<'a> {
-    
-    type Item = DocId;
-
-    fn next(&mut self) -> Option<u32> {
-        if self.cursor == self.block_appender.doc_freq {
-            return None
-        }
-        else {
-            let res = self.block_appender.get(self.cursor);
-            self.cursor += 1;
-            Some(res)    
-        }
-        
-    }
-}
-
-
-
-
-
-
 #[cfg(test)]
 mod tests {
     
-    
     use super::*;
     
-
     #[test]
     pub fn test_block_store() {
         let mut block_store = BlockStore::allocate(1_000);
-        let list_2 = block_store.new_list(0);
-        let list_3 = block_store.new_list(0);
-        let list_4 = block_store.new_list(0);
-        let list_5 = block_store.new_list(0);
-        for i in 1 .. 2_000 {
+        let list_2 = block_store.new_list();
+        let list_3 = block_store.new_list();
+        let list_4 = block_store.new_list();
+        let list_5 = block_store.new_list();
+        for i in 0 .. 2_000 {
             block_store.push(list_2, i * 2);
             block_store.push(list_3, i * 3);
         }
-        for i in 1 .. 10 {
+        for i in 0 .. 10 {
             block_store.push(list_4, i * 4);
             block_store.push(list_5, i * 5);
         }

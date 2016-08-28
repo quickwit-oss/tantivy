@@ -1,98 +1,199 @@
+use postings::block_store::BlockStore;
+use DocId;
+use std::io;
+use postings::PostingsSerializer;
 
 
+const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
+const POSITION_END: u32 = 4294967295; 
 
 pub trait Recorder {
-    fn new() -> Self;
-    fn record_position(&mut self, position: u32);
-    fn close_doc(&mut self,);
-    fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]);
+    fn current_doc(&self,) -> u32;
+    fn new(block_store: &mut BlockStore) -> Self;
+    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId);
+    fn record_position(&mut self, block_store: &mut BlockStore, position: u32);
+    fn close_doc(&mut self, block_store: &mut BlockStore);
+    fn doc_freq(&self,) -> u32;
+    
+    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()>;
 }
 
-const EMPTY_ARRAY: [u32; 0] = [];
-
-pub struct NothingRecorder;
+pub struct NothingRecorder {
+    list_id: u32,
+    current_doc: DocId,
+    doc_freq: u32,
+}
 
 impl Recorder for NothingRecorder {
-    fn new() -> Self {
-        NothingRecorder
+    
+    fn current_doc(&self,) -> DocId {
+        self.current_doc
     }
     
-    fn record_position(&mut self, _position: u32) {
+    fn new(block_store: &mut BlockStore) -> Self {
+        NothingRecorder {
+            list_id: block_store.new_list(),
+            current_doc: u32::max_value(),
+            doc_freq: 0u32,
+        }
     }
     
-    fn close_doc(&mut self,) {
+    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+        self.current_doc = doc;
+        block_store.push(self.list_id, doc);
+        self.doc_freq += 1;
     }
     
-    fn get_tf_and_posdeltas(&self, _: usize) -> (u32, &[u32]) {
-        (0u32, &EMPTY_ARRAY)
+    fn record_position(&mut self, _block_store: &mut BlockStore, _position: u32) {
+    }
+    
+    fn close_doc(&mut self, _block_store: &mut BlockStore) {
+    }
+    
+    fn doc_freq(&self,) -> u32 {
+        self.doc_freq
+    }
+    
+    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
+        let doc_id_iter = block_store.iter_list(self.list_id);
+        for doc in doc_id_iter {
+            try!(serializer.write_doc(doc, 0u32, &EMPTY_ARRAY));
+        }
+        Ok(())
     }
 }
 
 
 
 pub struct TermFrequencyRecorder {
-    term_freqs: Vec<u32>,
+    list_id: u32,
+    current_doc: DocId,
     current_tf: u32,
+    doc_freq: u32,
 }
 
 impl Recorder for TermFrequencyRecorder {
-    fn new() -> Self {
+    
+    fn new(block_store: &mut BlockStore) -> Self {
         TermFrequencyRecorder {
-            term_freqs: Vec::new(),
+            list_id: block_store.new_list(),
+            current_doc: u32::max_value(),
             current_tf: 0u32,
+            doc_freq: 0u32,
         }
     }
     
-    fn record_position(&mut self, _position: u32) {
+    fn current_doc(&self,) -> DocId {
+        self.current_doc
+    }
+    
+    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+        self.doc_freq += 1u32;
+        self.current_doc = doc;
+        block_store.push(self.list_id, doc);
+    }
+    
+    fn record_position(&mut self, _block_store: &mut BlockStore, _position: u32) {
         self.current_tf += 1;
     }
     
-    fn close_doc(&mut self,) {
+    fn close_doc(&mut self, block_store: &mut BlockStore) {
         assert!(self.current_tf > 0);
-        self.term_freqs.push(self.current_tf);
+        block_store.push(self.list_id, self.current_tf);
         self.current_tf = 0;
     }
     
-    fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]) {
-        (self.term_freqs[i], &EMPTY_ARRAY)
+    fn doc_freq(&self,) -> u32 {
+        self.doc_freq
+    }
+    
+    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
+        let mut doc_iter = block_store.iter_list(self.list_id);
+        loop {
+            if let Some(doc) = doc_iter.next() {
+                if let Some(term_freq) = doc_iter.next() {
+                    try!(serializer.write_doc(doc, term_freq, &EMPTY_ARRAY));
+                    continue;
+                }
+            }
+            break;
+        }
+        Ok(())
     }
 }
 
 
 
 pub struct TFAndPositionRecorder {
-    cumulated_tfs: Vec<u32>,
-    positions: Vec<u32>,
-    cumulated_tf: u32,
-    current_pos: u32,
+    list_id: u32,
+    current_doc: DocId,
+    doc_freq: u32,
 }
 
+
 impl Recorder for TFAndPositionRecorder {
-    fn new() -> Self {
+    
+    fn new(block_store: &mut BlockStore) -> Self {
         TFAndPositionRecorder {
-            cumulated_tfs: vec!(0u32),
-            cumulated_tf: 0u32,
-            positions: Vec::new(),
-            current_pos: 0u32,
+            list_id: block_store.new_list(),
+            current_doc: u32::max_value(),
+            doc_freq: 0u32,
         }
     }
     
-    fn record_position(&mut self, position: u32) {
-        self.cumulated_tf += 1;
-        self.positions.push(position - self.current_pos);
-        self.current_pos = position;
+    fn current_doc(&self,) -> DocId {
+        self.current_doc
     }
     
-    fn close_doc(&mut self,) {
-        self.cumulated_tfs.push(self.cumulated_tf);
-        self.current_pos = 0;
+    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+        self.doc_freq += 1;
+        self.current_doc = doc;
+        block_store.push(self.list_id, doc);
     }
     
-    fn get_tf_and_posdeltas(&self, i: usize) -> (u32, &[u32]) {
-        let tf = self.cumulated_tfs[i+1] - self.cumulated_tfs[i];
-        let pos_idx = self.cumulated_tfs[i] as usize;
-        let posdeltas = &self.positions[pos_idx..pos_idx + tf as usize];
-        (tf, posdeltas)
+    fn record_position(&mut self, block_store: &mut BlockStore, position: u32) {
+        block_store.push(self.list_id, position);
+    }
+    
+    fn close_doc(&mut self, block_store: &mut BlockStore) {
+        block_store.push(self.list_id, POSITION_END);
+    }
+    
+    fn doc_freq(&self,) -> u32 {
+        self.doc_freq
+    }
+    
+    
+    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
+        let mut positions = Vec::with_capacity(100);
+        let mut doc_iter = block_store.iter_list(self.list_id);
+        loop {
+            if let Some(doc) = doc_iter.next() {
+                let mut prev_position = 0;
+                positions.clear();
+                loop {
+                    match doc_iter.next() {
+                        Some(position) => {
+                            if position == POSITION_END {
+                                break;
+                            }
+                            else {
+                                positions.push(position - prev_position);
+                                prev_position = position;
+                            }
+                        }
+                        None => {
+                            panic!("This should never happen. Pleasee report the bug.");
+                        }
+                    }
+                }
+                try!(serializer.write_doc(doc, positions.len() as u32, &positions));
+            }
+            else {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -13,6 +13,7 @@ use std::collections::HashSet;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
 use std::mem::swap;
+use postings::BlockStore;
 use chan;
 
 use Result;
@@ -33,10 +34,12 @@ pub struct IndexWriter {
 
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-fn index_documents(segment: Segment,
+fn index_documents(block_store: &mut BlockStore,
+				   segment: Segment,
 				   schema: &Schema,
 				   document_iterator: &mut Iterator<Item=Document>) -> Result<usize> {
-	let mut segment_writer = try!(SegmentWriter::for_segment(segment, &schema));
+    block_store.clear();
+	let mut segment_writer = try!(SegmentWriter::for_segment(block_store, segment, &schema));
 	for doc in document_iterator {
 		try!(segment_writer.add_document(&doc, &schema));
 	}
@@ -63,6 +66,7 @@ impl IndexWriter {
 		let document_receiver_clone = self.document_receiver.clone();
 		let target_num_docs = self.target_num_docs;
 		let join_handle: JoinHandle<()> = thread::spawn(move || {
+			let mut block_store = BlockStore::allocate(100_000);
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
@@ -75,7 +79,7 @@ impl IndexWriter {
 				// creating a new segment's files 
 				// if no document are available.
 				if document_iterator.peek().is_some() {
-					let index_result = index_documents(segment, &schema, &mut document_iterator)
+					let index_result = index_documents(&mut block_store, segment, &schema, &mut document_iterator)
 						.map(|num_docs| (segment_id, num_docs));
 					segment_ready_sender_clone.send(index_result);
 				}

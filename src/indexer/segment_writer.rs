@@ -19,8 +19,10 @@ use schema::TextIndexingOptions;
 use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use indexer::segment_serializer::SegmentSerializer;
+use postings::BlockStore;
 
-pub struct SegmentWriter {
+pub struct SegmentWriter<'a> {
+	block_store: &'a mut BlockStore,
     max_doc: DocId,
 	tokenizer: SimpleTokenizer,
 	per_field_postings_writers: Vec<Box<PostingsWriter>>,
@@ -61,9 +63,9 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 }
 
 
-impl SegmentWriter {
+impl<'a> SegmentWriter<'a> {
 
-	pub fn for_segment(mut segment: Segment, schema: &Schema) -> Result<SegmentWriter> {
+	pub fn for_segment(block_store: &'a mut BlockStore, mut segment: Segment, schema: &Schema) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let per_field_postings_writers = schema.fields()
 			  .iter()
@@ -72,6 +74,7 @@ impl SegmentWriter {
 			  })
 			  .collect();
 		Ok(SegmentWriter {
+			block_store: block_store,
 			max_doc: 0,
 			per_field_postings_writers: per_field_postings_writers,
 			fieldnorms_writer: create_fieldnorms_writer(schema),
@@ -80,7 +83,7 @@ impl SegmentWriter {
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
 		})
 	}
-
+	
 	// Write on disk all of the stuff that
 	// is still on RAM :
 	// - the dictionary in an fst
@@ -91,9 +94,10 @@ impl SegmentWriter {
 	pub fn finalize(mut self,) -> Result<()> {
 		let segment_info = self.segment_info();
 		for per_field_postings_writer in self.per_field_postings_writers.iter_mut() {
-			per_field_postings_writer.close();
+			per_field_postings_writer.close(&mut self.block_store);
 		}
-		write(&self.per_field_postings_writers,
+		write(&mut self.block_store,
+			  &self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  segment_info,
@@ -120,7 +124,7 @@ impl SegmentWriter {
 								match tokens.next() {
 									Some(token) => {
 										let term = Term::from_field_text(field, token);
-										field_posting_writers.suscribe(doc_id, pos, term);
+										field_posting_writers.suscribe(&mut self.block_store, doc_id, pos, term);
 										pos += 1;
 										num_tokens += 1;
 									},
@@ -130,7 +134,7 @@ impl SegmentWriter {
 						}
 						else {
 							let term = Term::from_field_text(field, field_value.value().text());
-							field_posting_writers.suscribe(doc_id, 0, term);
+							field_posting_writers.suscribe(&mut self.block_store, doc_id, 0, term);
 						}
 						pos += 1;
 						// THIS is to avoid phrase query accross field repetition.
@@ -146,7 +150,7 @@ impl SegmentWriter {
 					if u32_options.is_indexed() {
 						for field_value in field_values {
 							let term = Term::from_field_u32(field_value.field(), field_value.value().u32_value());
-							field_posting_writers.suscribe(doc_id, 0, term);
+							field_posting_writers.suscribe(&mut self.block_store, doc_id, 0, term);
 						}
 					}
 				}
@@ -181,13 +185,14 @@ impl SegmentWriter {
 
 }
 
-fn write(per_field_postings_writers: &Vec<Box<PostingsWriter>>,
+fn write(block_store: &BlockStore,
+	 	 per_field_postings_writers: &Vec<Box<PostingsWriter>>,
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,
 	  	mut serializer: SegmentSerializer) -> Result<()> {
 		for per_field_postings_writer in per_field_postings_writers.iter() {
-			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer()));
+			try!(per_field_postings_writer.serialize(block_store, serializer.get_postings_serializer()));
 		}
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
@@ -196,9 +201,10 @@ fn write(per_field_postings_writers: &Vec<Box<PostingsWriter>>,
 		Ok(())
 }
 
-impl SerializableSegment for SegmentWriter {
+impl<'a> SerializableSegment for SegmentWriter<'a> {
 	fn write(&self, serializer: SegmentSerializer) -> Result<()> {
-		write(&self.per_field_postings_writers,
+		write(&self.block_store,
+			  &self.per_field_postings_writers,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  self.segment_info(),

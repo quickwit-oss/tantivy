@@ -12,7 +12,7 @@ mod freq_handler;
 mod docset;
 mod scored_docset;
 mod segment_postings_option;
-mod block_appender;
+mod block_store;
 
 pub use self::docset::{SkipResult, DocSet};
 pub use self::offset_postings::OffsetPostings;
@@ -31,6 +31,7 @@ pub use self::freq_handler::FreqHandler;
 pub use self::scored_docset::ScoredDocSet;
 pub use self::postings::HasLen;
 pub use self::segment_postings_option::SegmentPostingsOption;
+pub use self::block_store::BlockStore;
 
 #[cfg(test)]
 mod tests {
@@ -71,8 +72,9 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
+        let mut block_store = BlockStore::allocate(1_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(segment.clone(), &schema).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&mut block_store, segment.clone(), &schema).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "a b a c a d a a.");
