@@ -66,7 +66,7 @@ impl IndexWriter {
 		let document_receiver_clone = self.document_receiver.clone();
 		let target_num_docs = self.target_num_docs;
 		let join_handle: JoinHandle<()> = thread::spawn(move || {
-			let mut block_store = BlockStore::allocate(100_000);
+			let mut block_store = BlockStore::allocate(500_000);
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();

@@ -1,6 +1,4 @@
-use compression::NUM_DOCS_PER_BLOCK;
-
-pub const BLOCK_SIZE: u32 = NUM_DOCS_PER_BLOCK as u32;
+pub const BLOCK_SIZE: u32 = 64u32;
 
 struct Block {
     data: [u32; BLOCK_SIZE as usize],
@@ -32,7 +30,7 @@ pub struct BlockStore {
 impl BlockStore {
     pub fn  allocate(num_blocks: usize) -> BlockStore {
         BlockStore {
-            lists: Vec::with_capacity(100_000),
+            lists: Vec::with_capacity(num_blocks),
             blocks: (0 .. num_blocks).map(|_| Block::new()).collect(),
             free_block_id: 0,
         }
@@ -149,7 +147,7 @@ mod tests {
     
     #[test]
     pub fn test_block_store() {
-        let mut block_store = BlockStore::allocate(1_000);
+        let mut block_store = BlockStore::allocate(50_000);
         let list_2 = block_store.new_list();
         let list_3 = block_store.new_list();
         let list_4 = block_store.new_list();

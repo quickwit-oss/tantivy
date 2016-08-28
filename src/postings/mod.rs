@@ -72,7 +72,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
-        let mut block_store = BlockStore::allocate(1_000);
+        let mut block_store = BlockStore::allocate(50_000);
         {
             let mut segment_writer = SegmentWriter::for_segment(&mut block_store, segment.clone(), &schema).unwrap();
             {
