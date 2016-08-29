@@ -111,7 +111,7 @@ impl<'a> PostingsMerger<'a> {
                         Some(&ref next_heap_it) if next_heap_it.term == heap_it.term => {},
                         _ => { break; }
                     }
-                    let next_heap_it = self.heap.pop().unwrap(); // unwrap is fine here.
+                    let next_heap_it = self.heap.pop().expect("This is only reached if an element was peeked beforehand.");
                     self.append_segment(&next_heap_it, &mut segment_postings_list);
                 }
                 let chained_posting = ChainedPostings::new(segment_postings_list);

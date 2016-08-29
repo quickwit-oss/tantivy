@@ -62,7 +62,7 @@ impl Index {
 
     pub fn create_in_ram(schema: Schema) -> Index {
         let directory = Box::new(RAMDirectory::create());
-        Index::from_directory(directory, schema).unwrap() // unwrap is ok here 
+        Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail") // unwrap is ok here 
     }
 
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {

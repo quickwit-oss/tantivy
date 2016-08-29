@@ -1,30 +1,66 @@
 use DocId;
 use std::collections::HashMap;
 use schema::Term;
+use schema::FieldValue;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
 use postings::block_store::BlockStore;
-
+use analyzer::SimpleTokenizer;
+use schema::Field;
+use analyzer::StreamingIterator;
 
 pub trait PostingsWriter {
     
     fn close(&mut self, block_store: &mut BlockStore);
 
-    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, pos: u32, term: Term);
+    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, pos: u32, term: &Term);
 
     fn serialize(&self, block_store: &BlockStore, serializer: &mut PostingsSerializer) -> io::Result<()>;
+    
+    fn index_text<'a>(&mut self, block_store: &mut BlockStore, doc_id: DocId, field: Field, field_values: &Vec<&'a FieldValue>) -> u32  {
+        let mut pos = 0u32;
+        let mut num_tokens: u32 = 0u32;
+        let mut term = Term::allocate(field, 100);
+        for field_value in field_values {
+            let mut tokens = SimpleTokenizer.tokenize(field_value.value().text());
+            // right now num_tokens and pos are redundant, but it should
+            // change when we get proper analyzers
+            loop {
+                match tokens.next() {
+                    Some(token) => {
+                        term.set_text(token);
+                        self.suscribe(block_store, doc_id, pos, &term);
+                        pos += 1u32;
+                        num_tokens += 1u32;
+                    },
+                    None => { break; }
+                }
+            }
+            pos += 1;
+            // THIS is to avoid phrase query accross field repetition.
+            // span queries might still match though :|
+        }
+        num_tokens
+    }
 }
 
 pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
     term_index: HashMap<Term, Rec>,
 }
 
-
-fn get_or_create_recorder<'a, Rec: Recorder>(term: Term, term_index: &'a mut HashMap<Term, Rec>, block_store: &mut BlockStore) -> &'a mut Rec {
-    term_index
-        .entry(term)
-        .or_insert_with(|| Rec::new(block_store))    
+#[inline(always)]
+fn get_or_create_recorder<'a, Rec: Recorder>(term: &Term, term_index: &'a mut HashMap<Term, Rec>, block_store: &mut BlockStore) -> &'a mut Rec {
+    if term_index.contains_key(term) {
+        term_index.get_mut(term).expect("The term should be here as we just checked it")
+    }
+    else {
+        term_index
+        .entry(term.clone())
+        .or_insert_with(|| Rec::new(block_store))
+    }
+    
+   
 }
 
 impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
@@ -49,7 +85,8 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         }
     }
     
-    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, position: u32, term: Term) {
+    #[inline(always)]
+    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, position: u32, term: &Term) {
         let mut recorder = get_or_create_recorder(term, &mut self.term_index, block_store);
         let current_doc = recorder.current_doc();
         if current_doc != doc {
@@ -74,6 +111,6 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         }
         Ok(())
     }
-
+    
 
 }

@@ -7,7 +7,14 @@ use super::Field;
 pub struct Term(Vec<u8>);
 
 impl Term {
-
+    
+    
+    pub fn allocate(field: Field, num_bytes: usize) -> Term {
+        let mut term = Term(Vec::with_capacity(num_bytes));
+        field.serialize(&mut term.0);
+        term
+    }
+    
     fn field_id(&self,) -> u8 {
         self.0[0]
     }
@@ -31,7 +38,12 @@ impl Term {
         buffer.extend(text.as_bytes());
         Term(buffer)
     }
-
+    
+    pub fn set_text(&mut self, text: &str) {
+        self.0.resize(1, 0u8);
+        self.0.extend(text.as_bytes());
+    }
+    
     pub fn as_slice(&self,)->&[u8] {
         &self.0
     }

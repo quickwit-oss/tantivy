@@ -76,7 +76,7 @@ impl BlockStore {
         let list_info: ListInfo = self.lists[list_id as usize];
         if list_info.len != 0 && list_info.len % BLOCK_SIZE == 0 {
             // we need to add a fresh new block.
-            let new_block_id: u32 = { self.new_block().unwrap() };
+            let new_block_id: u32 = { self.new_block().expect("Failed to allocate block") };
             let last_block_id: usize;
             {
                 // update the list info.

@@ -65,7 +65,7 @@ impl IndexWriter {
 		let segment_ready_sender_clone = self.segment_ready_sender.clone();
 		let document_receiver_clone = self.document_receiver.clone();
 		let join_handle: JoinHandle<()> = thread::spawn(move || {
-			let mut block_store = BlockStore::allocate(1_000_000);
+			let mut block_store = BlockStore::allocate(1_500_000);
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
@@ -175,7 +175,7 @@ impl IndexWriter {
 			try!(worker_handle
 				.join()
 				.map_err(|e| Error::ErrorInThread(format!("{:?}", e)))
-			);
+			);	
 			// add a new worker for the next generation.
 			try!(self.add_indexing_worker());
 		}

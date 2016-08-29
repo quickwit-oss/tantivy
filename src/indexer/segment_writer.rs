@@ -6,9 +6,7 @@ use schema::Document;
 use schema::Term;
 use core::SegmentInfo;
 use core::Segment;
-use analyzer::SimpleTokenizer;
 use core::SerializableSegment;
-use analyzer::StreamingIterator;
 use postings::PostingsWriter;
 use fastfield::U32FastFieldsWriter;
 use schema::Field;
@@ -24,7 +22,6 @@ use postings::BlockStore;
 pub struct SegmentWriter<'a> {
 	block_store: &'a mut BlockStore,
     max_doc: DocId,
-	tokenizer: SimpleTokenizer,
 	per_field_postings_writers: Vec<Box<PostingsWriter>>,
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
@@ -80,7 +77,6 @@ impl<'a> SegmentWriter<'a> {
 			per_field_postings_writers: per_field_postings_writers,
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
-			tokenizer: SimpleTokenizer::new(),
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
 		})
 	}
@@ -106,45 +102,27 @@ impl<'a> SegmentWriter<'a> {
 	}
 	
 	pub fn is_buffer_full(&self,) -> bool {
-		self.block_store.num_free_blocks() < 1000
+		self.block_store.num_free_blocks() < 100_000
 	}
 	
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {
-			// TODO pos collision if the field is redundant				
-			let field_posting_writers: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
+			let field_posting_writer: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
 			match *field_options.field_type() {
 				FieldType::Str(ref text_options) => {
-					let mut pos = 0u32;
-					let mut num_tokens: usize = 0;
-					for field_value in field_values {
-						if text_options.get_indexing_options().is_tokenized() {
-							let mut tokens = self.tokenizer.tokenize(field_value.value().text());
-							// right now num_tokens and pos are redundant, but it should
-							// change when we get proper analyzers
-							let field = field_value.field();
-							loop {
-								match tokens.next() {
-									Some(token) => {
-										let term = Term::from_field_text(field, token);
-										field_posting_writers.suscribe(&mut self.block_store, doc_id, pos, term);
-										pos += 1;
-										num_tokens += 1;
-									},
-									None => { break; }
-								}
-							}
-						}
-						else {
-							let term = Term::from_field_text(field, field_value.value().text());
-							field_posting_writers.suscribe(&mut self.block_store, doc_id, 0, term);
-						}
-						pos += 1;
-						// THIS is to avoid phrase query accross field repetition.
-						// span queries might still match though :|
+					let mut num_tokens = 0u32;
+					if text_options.get_indexing_options().is_tokenized() {
+						num_tokens = field_posting_writer.index_text(&mut self.block_store, doc_id, field, &field_values);
 					}
+					else {
+						for field_value in field_values {
+							let term = Term::from_field_text(field, field_value.value().text());
+							field_posting_writer.suscribe(&mut self.block_store, doc_id, 0, &term);
+							num_tokens += 1u32;
+						}
+					}		
 					self.fieldnorms_writer
 						.get_field_writer(field)
 						.map(|field_norms_writer| {
@@ -155,7 +133,7 @@ impl<'a> SegmentWriter<'a> {
 					if u32_options.is_indexed() {
 						for field_value in field_values {
 							let term = Term::from_field_u32(field_value.field(), field_value.value().u32_value());
-							field_posting_writers.suscribe(&mut self.block_store, doc_id, 0, term);
+							field_posting_writer.suscribe(&mut self.block_store, doc_id, 0, &term);
 						}
 					}
 				}

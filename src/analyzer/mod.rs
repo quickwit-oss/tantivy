@@ -39,7 +39,8 @@ impl<'a, 'b> TokenIter<'b> {
 
 
 impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
-
+    
+    #[inline(always)]
     fn next(&'a mut self,) -> Option<&'a str> {
         self.term_buffer.clear();
         // skipping non-letter characters.

@@ -75,19 +75,19 @@ impl<T> Deref for LeasedItem<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.gen_item.as_ref().unwrap().item // unwrap is safe here
+        &self.gen_item.as_ref().expect("Unwrapping a leased item should never fail").item // unwrap is safe here
     }
 }
 
 impl<T> DerefMut for LeasedItem<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.gen_item.as_mut().unwrap().item // unwrap is safe here
+        &mut self.gen_item.as_mut().expect("Unwrapping a mut leased item should never fail").item // unwrap is safe here
     }
 }
 
 impl<T> Drop for LeasedItem<T> {
     fn drop(&mut self) {
-        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None).unwrap();
+        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None).expect("Unwrapping a leased item should never fail");
         self.recycle_queue.push(gen_item);
     }
 }
