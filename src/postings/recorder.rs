@@ -165,20 +165,20 @@ impl Recorder for TFAndPositionRecorder {
     
     
     fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
-        let mut positions = Vec::with_capacity(100);
-        let mut doc_iter = block_store.iter_list(self.list_id);
+        let mut doc_positions = Vec::with_capacity(100);
+        let mut positions_iter = block_store.iter_list(self.list_id);
         loop {
-            if let Some(doc) = doc_iter.next() {
+            if let Some(doc) = positions_iter.next() {
                 let mut prev_position = 0;
-                positions.clear();
+                doc_positions.clear();
                 loop {
-                    match doc_iter.next() {
+                    match positions_iter.next() {
                         Some(position) => {
                             if position == POSITION_END {
                                 break;
                             }
                             else {
-                                positions.push(position - prev_position);
+                                doc_positions.push(position - prev_position);
                                 prev_position = position;
                             }
                         }
@@ -187,7 +187,7 @@ impl Recorder for TFAndPositionRecorder {
                         }
                     }
                 }
-                try!(serializer.write_doc(doc, positions.len() as u32, &positions));
+                try!(serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions));
             }
             else {
                 break;
