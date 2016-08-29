@@ -63,6 +63,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
 }
 
 
+
 impl<'a> SegmentWriter<'a> {
 
 	pub fn for_segment(block_store: &'a mut BlockStore, mut segment: Segment, schema: &Schema) -> Result<SegmentWriter<'a>> {
@@ -103,7 +104,11 @@ impl<'a> SegmentWriter<'a> {
 			  segment_info,
 			  self.segment_serializer)
 	}
-
+	
+	pub fn is_buffer_full(&self,) -> bool {
+		self.block_store.num_free_blocks() < 1000
+	}
+	
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_fields() {

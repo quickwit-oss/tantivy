@@ -26,7 +26,6 @@ pub struct IndexWriter {
 	segment_ready_receiver: chan::Receiver<Result<(SegmentId, usize)>>,
 	document_receiver: chan::Receiver<Document>,
 	document_sender: chan::Sender<Document>,
-	target_num_docs: usize,
 	num_threads: usize,
 	docstamp: u64,
 	
@@ -42,6 +41,11 @@ fn index_documents(block_store: &mut BlockStore,
 	let mut segment_writer = try!(SegmentWriter::for_segment(block_store, segment, &schema));
 	for doc in document_iterator {
 		try!(segment_writer.add_document(&doc, &schema));
+		if segment_writer.is_buffer_full() {
+			println!("no more space committing.");
+			println!("seg max doc {}", segment_writer.max_doc());
+			break;
+		}
 	}
 	let num_docs = segment_writer.max_doc() as usize;
 	try!(segment_writer.finalize());
@@ -55,25 +59,19 @@ impl IndexWriter {
 	/// Spawns a new worker thread for indexing.
 	/// The thread consumes documents from the pipeline.
 	///
-	/// When target_num_docs is reached, or when the channel
-	/// is closed, the worker flushes its current segment to disc,
-	/// and sends its segment_id through the channel.
-	///
 	fn add_indexing_worker(&mut self,) -> Result<()> {
 		let index = self.index.clone();
 		let schema = self.index.schema();
 		let segment_ready_sender_clone = self.segment_ready_sender.clone();
 		let document_receiver_clone = self.document_receiver.clone();
-		let target_num_docs = self.target_num_docs;
 		let join_handle: JoinHandle<()> = thread::spawn(move || {
-			let mut block_store = BlockStore::allocate(500_000);
+			let mut block_store = BlockStore::allocate(1_000_000);
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
 				let mut document_iterator = document_receiver_clone
 					.clone()
 					.into_iter()
-					.take(target_num_docs)
 					.peekable();
 				// the peeking here is to avoid
 				// creating a new segment's files 
@@ -105,7 +103,6 @@ impl IndexWriter {
 			segment_ready_sender: segment_ready_sender,
 			document_receiver: document_receiver,
 			document_sender: document_sender,
-			target_num_docs: 100_000,
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
 			docstamp: try!(index.docstamp()),

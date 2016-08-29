@@ -36,6 +36,10 @@ impl BlockStore {
         }
     }
     
+    pub fn num_free_blocks(&self) -> usize {
+        self.blocks.len() - self.free_block_id
+    }
+    
     pub fn new_list(&mut self) -> u32 {
         let res = self.lists.len() as u32;
         let new_block_id = self.new_block().unwrap();
@@ -128,11 +132,18 @@ impl<'a> Iterator for BlockIterator<'a> {
             None
         }
         else {
+            if self.cursor % (BLOCK_SIZE as usize) == 0 {
+                if self.cursor != 0 {
+                    if self.current_block.next != u32::max_value() {
+                        self.current_block = &self.blocks[self.current_block.next as usize];
+                    }
+                    else {
+                        panic!("Block linked list ended prematurely.");
+                    }
+                }
+            }
             let res = self.current_block.data[self.cursor % (BLOCK_SIZE as usize)];
             self.cursor += 1;
-            if self.cursor % (BLOCK_SIZE as usize) == 0 {
-                self.current_block = &self.blocks[self.current_block.next as usize]; 
-            }
             Some(res)
         }
         

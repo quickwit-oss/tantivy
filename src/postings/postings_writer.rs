@@ -23,11 +23,9 @@ pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
 
 fn get_or_create_recorder<'a, Rec: Recorder>(term: Term, term_index: &'a mut HashMap<Term, Rec>, block_store: &mut BlockStore) -> &'a mut Rec {
     if term_index.contains_key(&term) {
-        println!("recorder here");
         term_index.get_mut(&term).unwrap()
     }
     else {
-        println!("adding recorder");
         let recorder = Rec::new(block_store);
         term_index
             .entry(term)

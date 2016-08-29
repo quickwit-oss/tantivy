@@ -167,23 +167,3 @@ mod tests {
     }
      
 }
-
-
-
-// #[cfg(test)]
-// mod tests {
-
-//     use super::*;
-//     use test::Bencher;
-
-//
-//     #[bench]
-//     fn bench_single_intersection(b: &mut Bencher) {
-//         b.iter(|| {
-//             let docs = VecPostings::new((0..1_000_000).collect());
-//             let intersection = IntersectionDocSet::from_postings(vec!(docs));
-//             intersection.count()
-//         });
-//     }
-// }
-//
