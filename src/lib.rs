@@ -5,9 +5,11 @@ Tantivy is a search engine library.
 */
 
 #![feature(binary_heap_extras)]
+#![feature(conservative_impl_trait)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
+#![feature(conservative_impl_trait)]
 
 
 #[macro_use]
@@ -32,7 +34,6 @@ extern crate combine;
 extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
-
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
@@ -138,7 +139,7 @@ mod tests {
         let index = Index::create_from_tempdir(schema).unwrap();
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "af b");
@@ -165,14 +166,14 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
             let mut doc = Document::new();
             doc.add_text(text_field, "a b c");
             index_writer.add_document(doc).unwrap();
             index_writer.commit().unwrap();
         }
         {
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "a");
@@ -186,7 +187,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000).unwrap();
             let mut doc = Document::new();
             doc.add_text(text_field, "c");
             index_writer.add_document(doc).unwrap();
@@ -212,7 +213,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "a b c");
@@ -248,7 +249,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "af af af bc bc");
@@ -276,7 +277,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "af af af b");
@@ -345,7 +346,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 100_000).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "af b");

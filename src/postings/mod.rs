@@ -12,7 +12,6 @@ mod freq_handler;
 mod docset;
 mod scored_docset;
 mod segment_postings_option;
-mod block_store;
 
 pub use self::docset::{SkipResult, DocSet};
 pub use self::offset_postings::OffsetPostings;
@@ -31,7 +30,6 @@ pub use self::freq_handler::FreqHandler;
 pub use self::scored_docset::ScoredDocSet;
 pub use self::postings::HasLen;
 pub use self::segment_postings_option::SegmentPostingsOption;
-pub use self::block_store::BlockStore;
 
 #[cfg(test)]
 mod tests {
@@ -43,6 +41,7 @@ mod tests {
     use core::SegmentReader;
     use core::Index;
     use std::iter;
+    use datastruct::stacker::Heap;
     
         
     #[test]
@@ -72,9 +71,9 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
-        let mut block_store = BlockStore::allocate(50_000);
+        let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&mut block_store, segment.clone(), &schema).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();
             {
                 let mut doc = Document::new();
                 doc.add_text(text_field, "a b a c a d a a.");

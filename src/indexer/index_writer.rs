@@ -12,14 +12,15 @@ use std::thread;
 use std::collections::HashSet;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
+use datastruct::stacker::Heap;
 use std::mem::swap;
-use postings::BlockStore;
 use chan;
 
 use Result;
 use Error;
 
 pub struct IndexWriter {
+	heap_size_in_bytes: usize,
 	index: Index,
 	workers_join_handle: Vec<JoinHandle<()>>,
 	segment_ready_sender: chan::Sender<Result<(SegmentId, usize)>>,
@@ -33,12 +34,12 @@ pub struct IndexWriter {
 
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-fn index_documents(block_store: &mut BlockStore,
+fn index_documents(heap: &mut Heap,
 				   segment: Segment,
 				   schema: &Schema,
 				   document_iterator: &mut Iterator<Item=Document>) -> Result<usize> {
-    block_store.clear();
-	let mut segment_writer = try!(SegmentWriter::for_segment(block_store, segment, &schema));
+	heap.clear();
+	let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
 	for doc in document_iterator {
 		try!(segment_writer.add_document(&doc, &schema));
 		if segment_writer.is_buffer_full() {
@@ -64,8 +65,9 @@ impl IndexWriter {
 		let schema = self.index.schema();
 		let segment_ready_sender_clone = self.segment_ready_sender.clone();
 		let document_receiver_clone = self.document_receiver.clone();
+		let heap_size_in_bytes = self.heap_size_in_bytes;
 		let join_handle: JoinHandle<()> = thread::spawn(move || {
-			let mut block_store = BlockStore::allocate(1_500_000);
+			let mut heap = Heap::with_capacity(heap_size_in_bytes);
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
@@ -77,7 +79,7 @@ impl IndexWriter {
 				// creating a new segment's files 
 				// if no document are available.
 				if document_iterator.peek().is_some() {
-					let index_result = index_documents(&mut block_store, segment, &schema, &mut document_iterator)
+					let index_result = index_documents(&mut heap, segment, &schema, &mut document_iterator)
 						.map(|num_docs| (segment_id, num_docs));
 					segment_ready_sender_clone.send(index_result);
 				}
@@ -94,10 +96,13 @@ impl IndexWriter {
 	/// 
 	/// num_threads tells the number of indexing worker that 
 	/// should work at the same time.
-	pub fn open(index: &Index, num_threads: usize) -> Result<IndexWriter> {
+	pub fn open(index: &Index,
+	            num_threads: usize,
+				heap_size_in_bytes: usize) -> Result<IndexWriter> {
 		let (document_sender, document_receiver): (chan::Sender<Document>, chan::Receiver<Document>) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (segment_ready_sender, segment_ready_receiver): (chan::Sender<Result<(SegmentId, usize)>>, chan::Receiver<Result<(SegmentId, usize)>>) = chan::async();
 		let mut index_writer = IndexWriter {
+			heap_size_in_bytes: heap_size_in_bytes,
 			index: index.clone(),
 			segment_ready_receiver: segment_ready_receiver,
 			segment_ready_sender: segment_ready_sender,
@@ -280,7 +285,7 @@ mod tests {
 		
 		{
 			// writing the segment
-			let mut index_writer = index.writer_with_num_threads(8).unwrap();
+			let mut index_writer = index.writer_with_num_threads(3, 30_000_000).unwrap();
 			{
 				let mut doc = Document::new();
 				doc.add_text(text_field, "a");

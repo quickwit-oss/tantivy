@@ -1,27 +1,34 @@
-use postings::block_store::BlockStore;
 use DocId;
 use std::io;
 use postings::PostingsSerializer;
-
+use datastruct::stacker::{Stack, Heap};
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 4294967295; 
 
-pub trait Recorder {
+pub trait Recorder: From<u32> {
     fn current_doc(&self,) -> u32;
-    fn new(block_store: &mut BlockStore) -> Self;
-    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId);
-    fn record_position(&mut self, block_store: &mut BlockStore, position: u32);
-    fn close_doc(&mut self, block_store: &mut BlockStore);
+    fn new_doc(&mut self, doc: DocId, heap: &Heap);
+    fn record_position(&mut self, position: u32, heap: &Heap);
+    fn close_doc(&mut self, heap: &Heap);
     fn doc_freq(&self,) -> u32;
-    
-    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()>;
+    fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
 }
 
 pub struct NothingRecorder {
-    list_id: u32,
+    stack: Stack,
     current_doc: DocId,
     doc_freq: u32,
+}
+
+impl From<u32> for NothingRecorder {
+    fn from(addr: u32) -> NothingRecorder {
+        NothingRecorder {
+            stack: Stack::from(addr),
+            current_doc: u32::max_value(),
+            doc_freq: 0u32,
+        }
+    }
 }
 
 impl Recorder for NothingRecorder {
@@ -30,33 +37,23 @@ impl Recorder for NothingRecorder {
         self.current_doc
     }
     
-    fn new(block_store: &mut BlockStore) -> Self {
-        NothingRecorder {
-            list_id: block_store.new_list(),
-            current_doc: u32::max_value(),
-            doc_freq: 0u32,
-        }
-    }
     
-    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
         self.current_doc = doc;
-        block_store.push(self.list_id, doc);
+        self.stack.push(doc, heap);
         self.doc_freq += 1;
     }
-    
-    fn record_position(&mut self, _block_store: &mut BlockStore, _position: u32) {
-    }
-    
-    fn close_doc(&mut self, _block_store: &mut BlockStore) {
-    }
-    
+
+    fn record_position(&mut self, _position: u32, _heap: &Heap) {}
+
+    fn close_doc(&mut self, _heap: &Heap) {}
+
     fn doc_freq(&self,) -> u32 {
         self.doc_freq
     }
     
-    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
-        let doc_id_iter = block_store.iter_list(self.list_id);
-        for doc in doc_id_iter {
+    fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
+        for doc in self.stack.iterate(self_addr, heap) {
             try!(serializer.write_doc(doc, 0u32, &EMPTY_ARRAY));
         }
         Ok(())
@@ -66,40 +63,42 @@ impl Recorder for NothingRecorder {
 
 
 pub struct TermFrequencyRecorder {
-    list_id: u32,
+    stack: Stack,
     current_doc: DocId,
     current_tf: u32,
     doc_freq: u32,
 }
 
-impl Recorder for TermFrequencyRecorder {
-    
-    fn new(block_store: &mut BlockStore) -> Self {
+impl From<u32> for TermFrequencyRecorder {
+    fn from(addr: u32) -> TermFrequencyRecorder {
         TermFrequencyRecorder {
-            list_id: block_store.new_list(),
+            stack: Stack::from(addr),
             current_doc: u32::max_value(),
             current_tf: 0u32,
-            doc_freq: 0u32,
-        }
+            doc_freq: 0u32
+        }    
     }
+}
+
+impl Recorder for TermFrequencyRecorder {
     
     fn current_doc(&self,) -> DocId {
         self.current_doc
     }
-    
-    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+
+    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
         self.doc_freq += 1u32;
         self.current_doc = doc;
-        block_store.push(self.list_id, doc);
+        self.stack.push(doc, heap);
     }
     
-    fn record_position(&mut self, _block_store: &mut BlockStore, _position: u32) {
+    fn record_position(&mut self, _position: u32, _heap: &Heap) {
         self.current_tf += 1;
     }
     
-    fn close_doc(&mut self, block_store: &mut BlockStore) {
+    fn close_doc(&mut self, heap: &Heap) {
         assert!(self.current_tf > 0);
-        block_store.push(self.list_id, self.current_tf);
+        self.stack.push(self.current_tf, heap);
         self.current_tf = 0;
     }
     
@@ -107,8 +106,8 @@ impl Recorder for TermFrequencyRecorder {
         self.doc_freq
     }
     
-    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
-        let mut doc_iter = block_store.iter_list(self.list_id);
+    fn serialize(&self, self_addr:u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
+        let mut doc_iter = self.stack.iterate(self_addr, heap);
         loop {
             if let Some(doc) = doc_iter.next() {
                 if let Some(term_freq) = doc_iter.next() {
@@ -125,48 +124,49 @@ impl Recorder for TermFrequencyRecorder {
 
 
 pub struct TFAndPositionRecorder {
-    list_id: u32,
+    stack: Stack,
     current_doc: DocId,
     doc_freq: u32,
 }
 
-
-impl Recorder for TFAndPositionRecorder {
-    
-    fn new(block_store: &mut BlockStore) -> Self {
+impl From<u32> for TFAndPositionRecorder {
+    fn from(addr: u32) -> TFAndPositionRecorder {
         TFAndPositionRecorder {
-            list_id: block_store.new_list(),
+            stack: Stack::from(addr),
             current_doc: u32::max_value(),
             doc_freq: 0u32,
         }
     }
     
+}
+
+impl Recorder for TFAndPositionRecorder {
+    
     fn current_doc(&self,) -> DocId {
         self.current_doc
     }
     
-    fn new_doc(&mut self, block_store: &mut BlockStore, doc: DocId) {
+    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
         self.doc_freq += 1;
         self.current_doc = doc;
-        block_store.push(self.list_id, doc);
+        self.stack.push(doc, heap);
+    }
+
+    fn record_position(&mut self, position: u32, heap: &Heap) {
+        self.stack.push(position, heap);
     }
     
-    fn record_position(&mut self, block_store: &mut BlockStore, position: u32) {
-        block_store.push(self.list_id, position);
-    }
-    
-    fn close_doc(&mut self, block_store: &mut BlockStore) {
-        block_store.push(self.list_id, POSITION_END);
+    fn close_doc(&mut self, heap: &Heap) {
+        self.stack.push(POSITION_END, heap);
     }
     
     fn doc_freq(&self,) -> u32 {
         self.doc_freq
     }
     
-    
-    fn serialize(&self, serializer: &mut PostingsSerializer, block_store: &BlockStore) -> io::Result<()> {
+    fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
-        let mut positions_iter = block_store.iter_list(self.list_id);
+        let mut positions_iter = self.stack.iterate(self_addr, heap);
         loop {
             if let Some(doc) = positions_iter.next() {
                 let mut prev_position = 0;

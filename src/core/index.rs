@@ -108,15 +108,15 @@ impl Index {
     
     /// Creates a multithreaded writer.
     /// Each writer produces an independant segment.
-    pub fn writer_with_num_threads(&self, num_threads: usize) -> Result<IndexWriter> {
-        IndexWriter::open(self, num_threads)
+    pub fn writer_with_num_threads(&self, num_threads: usize, heap_size_in_bytes: usize) -> Result<IndexWriter> {
+        IndexWriter::open(self, num_threads, heap_size_in_bytes)
     }
     
     
     /// Creates a multithreaded writer
     /// It just calls `writer_with_num_threads` with the number of core as `num_threads` 
-    pub fn writer(&self,) -> Result<IndexWriter> {
-        self.writer_with_num_threads(num_cpus::get())
+    pub fn writer(&self, heap_size_in_bytes: usize) -> Result<IndexWriter> {
+        self.writer_with_num_threads(num_cpus::get(), heap_size_in_bytes)
     }
 
     pub fn schema(&self,) -> Schema {

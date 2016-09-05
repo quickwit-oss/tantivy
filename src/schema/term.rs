@@ -3,16 +3,23 @@ use std::fmt;
 use common::BinarySerializable;
 use super::Field;
 
+
+
+
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 
 impl Term {
     
-    
     pub fn allocate(field: Field, num_bytes: usize) -> Term {
         let mut term = Term(Vec::with_capacity(num_bytes));
-        field.serialize(&mut term.0);
+        field.serialize(&mut term.0).expect("Serializing term in a Vec should never fail");
         term
+    }
+
+    pub fn set_content(&mut self, content: &[u8]) {
+        self.0.resize(content.len(), 0u8);
+        (&mut self.0[..]).clone_from_slice(content);
     }
     
     fn field_id(&self,) -> u8 {

@@ -1,24 +1,23 @@
 use DocId;
-use std::collections::HashMap;
 use schema::Term;
 use schema::FieldValue;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
-use postings::block_store::BlockStore;
 use analyzer::SimpleTokenizer;
 use schema::Field;
 use analyzer::StreamingIterator;
+use datastruct::stacker::{HashMap, Heap};
 
 pub trait PostingsWriter {
     
-    fn close(&mut self, block_store: &mut BlockStore);
+    fn close(&mut self, heap: &Heap);
 
-    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, pos: u32, term: &Term);
+    fn suscribe(&mut self,  doc: DocId, pos: u32, term: &Term, heap: &Heap);
 
-    fn serialize(&self, block_store: &BlockStore, serializer: &mut PostingsSerializer) -> io::Result<()>;
+    fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
     
-    fn index_text<'a>(&mut self, block_store: &mut BlockStore, doc_id: DocId, field: Field, field_values: &Vec<&'a FieldValue>) -> u32  {
+    fn index_text<'a>(&mut self, doc_id: DocId, field: Field, field_values: &Vec<&'a FieldValue>, heap: &Heap) -> u32  {
         let mut pos = 0u32;
         let mut num_tokens: u32 = 0u32;
         let mut term = Term::allocate(field, 100);
@@ -30,7 +29,7 @@ pub trait PostingsWriter {
                 match tokens.next() {
                     Some(token) => {
                         term.set_text(token);
-                        self.suscribe(block_store, doc_id, pos, &term);
+                        self.suscribe(doc_id, pos, &term, heap);
                         pos += 1u32;
                         num_tokens += 1u32;
                     },
@@ -45,68 +44,58 @@ pub trait PostingsWriter {
     }
 }
 
-pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
-    term_index: HashMap<Term, Rec>,
+pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
+    term_index: HashMap<'a, Rec>,
 }
 
-#[inline(always)]
-fn get_or_create_recorder<'a, Rec: Recorder>(term: &Term, term_index: &'a mut HashMap<Term, Rec>, block_store: &mut BlockStore) -> &'a mut Rec {
-    if term_index.contains_key(term) {
-        term_index.get_mut(term).expect("The term should be here as we just checked it")
-    }
-    else {
-        term_index
-        .entry(term.clone())
-        .or_insert_with(|| Rec::new(block_store))
-    }
-    
-   
-}
 
-impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
+impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 
-    pub fn new() -> SpecializedPostingsWriter<Rec> {
+    pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
         SpecializedPostingsWriter {
-            term_index: HashMap::new(),
+            term_index: HashMap::new(25, heap), // TODO compute the size of the table as a % of the heap
         }
     }
 
-    pub fn new_boxed() -> Box<PostingsWriter> {
-        Box::new(Self::new())
-    }
-    
+    pub fn new_boxed(heap: &'a Heap) -> Box<PostingsWriter + 'a> {
+        let res = SpecializedPostingsWriter::<Rec>::new(heap);
+        Box::new(res)
+    } 
+
 }
 
-impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
+impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
     
-    fn close(&mut self, block_store: &mut BlockStore) {
+    fn close(&mut self, heap: &Heap) {
         for recorder in self.term_index.values_mut() {
-            recorder.close_doc(block_store);
+            recorder.close_doc(heap);
         }
     }
     
     #[inline(always)]
-    fn suscribe(&mut self, block_store: &mut BlockStore, doc: DocId, position: u32, term: &Term) {
-        let mut recorder = get_or_create_recorder(term, &mut self.term_index, block_store);
+    fn suscribe(&mut self, doc: DocId, position: u32, term: &Term, heap: &Heap) {
+        let mut recorder = self.term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
         if current_doc != doc {
             if current_doc != u32::max_value() {
-                recorder.close_doc(block_store);
+                recorder.close_doc(heap);
             }
-            recorder.new_doc(block_store, doc);
+            recorder.new_doc(doc, heap);
         }
-        recorder.record_position(block_store, position);
+        recorder.record_position(position, heap);
     }
     
-    fn serialize(&self, block_store: &BlockStore, serializer: &mut PostingsSerializer) -> io::Result<()> {
-        let mut term_offsets: Vec<(&Term, &Rec)>  = self.term_index
+    fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
+        let mut term_offsets: Vec<(&[u8], (u32, &Rec))>  = self.term_index
             .iter()
-            .map(|(k,v)| (k, v))
             .collect();
         term_offsets.sort_by_key(|&(k, _v)| k);
-        for (term, recorder) in term_offsets {
-            try!(serializer.new_term(term, recorder.doc_freq()));
-            try!(recorder.serialize(serializer, block_store));
+        let mut term = Term::allocate(Field(0), 100);
+        for (term_bytes, (addr, recorder)) in term_offsets {
+            // TODO remove copy
+            term.set_content(term_bytes);
+            try!(serializer.new_term(&term, recorder.doc_freq()));
+            try!(recorder.serialize(addr, serializer, heap));
             try!(serializer.close_term());
         }
         Ok(())

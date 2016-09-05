@@ -52,7 +52,11 @@ fn run(index_path: &Path) -> tantivy::Result<()> {
     // There can be only one writer at one time.
     // The writer will use more than one thread
     // to use your multicore CPU.
-    let mut index_writer = try!(index.writer());
+    //
+    // Here we used a buffer of 1MB. In the 
+    // real world, you want to use much more RAM on your indexer,
+    // to maximum your throughput. (300MB for instance)
+    let mut index_writer = try!(index.writer(1_000_000));
 
 
 
