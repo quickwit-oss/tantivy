@@ -35,6 +35,10 @@ impl Heap {
         self.inner().clear();
     }
 
+    pub fn capacity(&self,) -> u32 {
+        self.inner().capacity()
+    }
+
     pub fn len(&self,) -> u32 {
         self.inner().len()
     }
@@ -83,6 +87,10 @@ impl InnerHeap {
 
     pub fn clear(&mut self) {
         self.used = 0u32;
+    }
+
+    pub fn capacity(&self,) -> u32 {
+        self.buffer.len() as u32
     }
 
     pub fn len(&self,) -> u32 {

@@ -292,9 +292,9 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
+            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
             {
                 // writing the segment
-                let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
                 {
                     let mut doc = Document::new();
                     doc.add_text(text_field, "af b");
@@ -318,7 +318,6 @@ mod tests {
 
             {
                 // writing the segment
-                let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
                 {
                     let mut doc = Document::new();
                     doc.add_text(text_field, "af b");

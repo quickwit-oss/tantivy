@@ -48,12 +48,26 @@ pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
     term_index: HashMap<'a, Rec>,
 }
 
+fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
+    let num_buckets_usable = heap_capacity / 100;
+    let hash_table_size = num_buckets_usable * 2;
+    let mut pow = 512;
+    for num_bit in 10 .. 32 {
+        pow = pow << 1;
+        if pow > hash_table_size {
+            return num_bit;
+        }
+    }
+    return 32 
+}
 
 impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
+        let capacity = heap.capacity();
+        let hashmap_size = hashmap_size_in_bits(capacity);
         SpecializedPostingsWriter {
-            term_index: HashMap::new(25, heap), // TODO compute the size of the table as a % of the heap
+            term_index: HashMap::new(hashmap_size, heap),
         }
     }
 
@@ -102,4 +116,13 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     }
     
 
+}
+
+
+#[test]
+fn test_hashmap_size() {
+    assert_eq!(hashmap_size_in_bits(10), 10);
+    assert_eq!(hashmap_size_in_bits(0), 10);
+    assert_eq!(hashmap_size_in_bits(100_000), 11);
+    assert_eq!(hashmap_size_in_bits(300_000_000), 23);
 }
