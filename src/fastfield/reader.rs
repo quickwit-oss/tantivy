@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use directory::ReadOnlySource;
-use fastfield::DividerU32;
 use common::BinarySerializable;
 use DocId;
 use schema::Field;
@@ -13,13 +12,11 @@ use super::compute_num_bits;
 
 pub struct U32FastFieldReader {
     _data: ReadOnlySource,
-    data_ptr: *const u64,
+    data_ptr: *const u8,
     min_val: u32,
     max_val: u32,
-    num_bits: u8,
+    num_bits: u32,
     mask: u32,
-    num_in_pack: u32,
-    divider: DividerU32,
 }
 
 impl U32FastFieldReader {
@@ -42,34 +39,24 @@ impl U32FastFieldReader {
         }
         let num_bits = compute_num_bits(amplitude);
         let mask = (1 << num_bits) - 1;
-        let num_in_pack;
-        if num_bits == 0u8 {
-            num_in_pack = 0u32;
-        }
-        else {
-            num_in_pack = 64u32 / (num_bits as u32);
-        }
         let ptr: *const u8 = &(data.deref()[8 as usize]);
         Ok(U32FastFieldReader {
             _data: data,
-            data_ptr: ptr as *const u64,
+            data_ptr: ptr,
             min_val: min_val,
             max_val: min_val + amplitude,
-            num_bits: num_bits,
+            num_bits: num_bits as u32,
             mask: mask,
-            num_in_pack: num_in_pack,
-            divider: DividerU32::divide_by(num_in_pack),
         })
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
-        if self.num_in_pack == 0u32 {
+        if self.num_bits == 0u32 {
             return self.min_val;
         }
-        let long_addr = self.divider.divide(doc);
-        let ord_within_long = doc - long_addr * self.num_in_pack;
-        let bit_shift = (self.num_bits as u32) * ord_within_long;
-        let val_unshifted_unmasked: u64 = unsafe { *self.data_ptr.offset(long_addr as isize) };
+        let addr = (doc * self.num_bits) / 8;
+        let bit_shift = (doc * self.num_bits) - addr * 8; //doc - long_addr * self.num_in_pack;
+        let val_unshifted_unmasked: u64 = unsafe { * (self.data_ptr.offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
         return self.min_val + (val_shifted & self.mask);
     }

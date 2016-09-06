@@ -10,12 +10,12 @@ pub struct FastFieldSerializer {
     written_size: usize,
     fields: Vec<(Field, u32)>,
     num_bits: u8,
-
     min_value: u32,
-
     field_open: bool,
+
+
     mini_buffer_written: usize,
-    mini_buffer: u64,
+    mini_buffer: u32,
 }
 
 impl FastFieldSerializer {
@@ -27,10 +27,11 @@ impl FastFieldSerializer {
             written_size: written_size,
             fields: Vec::new(),
             num_bits: 0u8,
-            field_open: false,
-            mini_buffer_written: 0,
-            mini_buffer: 0,
             min_value: 0,
+            field_open: false,
+            
+            mini_buffer_written: 0,
+            mini_buffer: 0u32,
         })
     }
 
@@ -57,13 +58,23 @@ impl FastFieldSerializer {
 
     pub fn add_val(&mut self, val: u32) -> io::Result<()> {
         let write: &mut Write = &mut self.write;
-        if self.mini_buffer_written + (self.num_bits as usize) > 64 {
+        let val_to_write: u32 = val - self.min_value;
+        if self.mini_buffer_written + self.num_bits as usize > 32 {
+            self.mini_buffer |= val_to_write.wrapping_shl(self.mini_buffer_written as u32);
             self.written_size += try!(self.mini_buffer.serialize(write));
-            self.mini_buffer = 0;
-            self.mini_buffer_written = 0;
+            // overflow of the shift operand is guarded here by the if case.
+            self.mini_buffer = val_to_write.wrapping_shr(32u32 - self.mini_buffer_written as u32);
+            self.mini_buffer_written = self.mini_buffer_written + (self.num_bits as usize) - 32 ;
         }
-        self.mini_buffer |= ((val - self.min_value) as u64) << self.mini_buffer_written;
-        self.mini_buffer_written += self.num_bits as usize;
+        else {
+            self.mini_buffer |= val_to_write << self.mini_buffer_written;
+            self.mini_buffer_written += self.num_bits as usize;
+            if self.mini_buffer_written == 32 {
+                self.written_size += try!(self.mini_buffer.serialize(write));
+                self.mini_buffer_written = 0;
+                self.mini_buffer = 0u32;
+            }    
+        }
         Ok(())
     }
 
@@ -76,6 +87,10 @@ impl FastFieldSerializer {
             self.mini_buffer_written = 0;
             self.written_size += try!(self.mini_buffer.serialize(&mut self.write));
         }
+        // adding some padding to make sure we
+        // can read the last elements with our u64
+        // cursor
+        self.written_size += try!(0u32.serialize(&mut self.write));
         self.mini_buffer = 0;
         Ok(())
     }
