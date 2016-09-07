@@ -1,7 +1,7 @@
 use DocId;
 use std::io;
 use postings::PostingsSerializer;
-use datastruct::stacker::{Stack, Heap};
+use datastruct::stacker::{ExpUnrolledLinkedList, Heap};
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 4294967295; 
@@ -16,7 +16,7 @@ pub trait Recorder: From<u32> {
 }
 
 pub struct NothingRecorder {
-    stack: Stack,
+    stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     doc_freq: u32,
 }
@@ -24,7 +24,7 @@ pub struct NothingRecorder {
 impl From<u32> for NothingRecorder {
     fn from(addr: u32) -> NothingRecorder {
         NothingRecorder {
-            stack: Stack::from(addr),
+            stack: ExpUnrolledLinkedList::from(addr),
             current_doc: u32::max_value(),
             doc_freq: 0u32,
         }
@@ -53,7 +53,7 @@ impl Recorder for NothingRecorder {
     }
     
     fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
-        for doc in self.stack.iterate(self_addr, heap) {
+        for doc in self.stack.iter(self_addr, heap) {
             try!(serializer.write_doc(doc, 0u32, &EMPTY_ARRAY));
         }
         Ok(())
@@ -63,7 +63,7 @@ impl Recorder for NothingRecorder {
 
 
 pub struct TermFrequencyRecorder {
-    stack: Stack,
+    stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
     doc_freq: u32,
@@ -72,7 +72,7 @@ pub struct TermFrequencyRecorder {
 impl From<u32> for TermFrequencyRecorder {
     fn from(addr: u32) -> TermFrequencyRecorder {
         TermFrequencyRecorder {
-            stack: Stack::from(addr),
+            stack: ExpUnrolledLinkedList::from(addr),
             current_doc: u32::max_value(),
             current_tf: 0u32,
             doc_freq: 0u32
@@ -107,7 +107,7 @@ impl Recorder for TermFrequencyRecorder {
     }
     
     fn serialize(&self, self_addr:u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
-        let mut doc_iter = self.stack.iterate(self_addr, heap);
+        let mut doc_iter = self.stack.iter(self_addr, heap);
         loop {
             if let Some(doc) = doc_iter.next() {
                 if let Some(term_freq) = doc_iter.next() {
@@ -124,7 +124,7 @@ impl Recorder for TermFrequencyRecorder {
 
 
 pub struct TFAndPositionRecorder {
-    stack: Stack,
+    stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     doc_freq: u32,
 }
@@ -132,7 +132,7 @@ pub struct TFAndPositionRecorder {
 impl From<u32> for TFAndPositionRecorder {
     fn from(addr: u32) -> TFAndPositionRecorder {
         TFAndPositionRecorder {
-            stack: Stack::from(addr),
+            stack: ExpUnrolledLinkedList::from(addr),
             current_doc: u32::max_value(),
             doc_freq: 0u32,
         }
@@ -166,7 +166,7 @@ impl Recorder for TFAndPositionRecorder {
     
     fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
-        let mut positions_iter = self.stack.iterate(self_addr, heap);
+        let mut positions_iter = self.stack.iter(self_addr, heap);
         loop {
             if let Some(doc) = positions_iter.next() {
                 let mut prev_position = 0;

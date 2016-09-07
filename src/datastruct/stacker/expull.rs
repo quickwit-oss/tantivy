@@ -14,7 +14,7 @@ pub fn jump_needed(val: u32) -> bool {
 
 
 #[derive(Debug)]
-pub struct Stack {
+pub struct ExpUnrolledLinkedList {
     len: u32,
     end: u32,
     val0: u32,
@@ -23,10 +23,10 @@ pub struct Stack {
     next: u32, // inline  of the first block
 }
 
-impl Stack {
+impl ExpUnrolledLinkedList {
 
-    pub fn iterate<'a>(&self, addr: u32, heap: &'a Heap) -> StackIterator<'a> {
-        StackIterator {
+    pub fn iter<'a>(&self, addr: u32, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
+        ExpUnrolledLinkedListIterator {
             heap: heap,
             addr: addr + 2u32 * (mem::size_of::<u32>() as u32),
             len: self.len,
@@ -53,10 +53,10 @@ impl Stack {
 }
 
 
-impl From<u32> for Stack {
-    fn from(addr: u32) -> Stack {
+impl From<u32> for ExpUnrolledLinkedList {
+    fn from(addr: u32) -> ExpUnrolledLinkedList {
         let last_addr = addr + mem::size_of::<u32>() as u32 * 2u32;
-        Stack {
+        ExpUnrolledLinkedList {
             len: 0u32,
             end: last_addr,
             val0: 0u32,
@@ -69,9 +69,9 @@ impl From<u32> for Stack {
 
 
 
-impl Default for Stack {
-    fn default() -> Stack {
-        Stack {
+impl Default for ExpUnrolledLinkedList {
+    fn default() -> ExpUnrolledLinkedList {
+        ExpUnrolledLinkedList {
             len: 0u32,
             end: 0u32,
             val0: 0u32,
@@ -83,14 +83,14 @@ impl Default for Stack {
 }
 
 
-pub struct StackIterator<'a> {
+pub struct ExpUnrolledLinkedListIterator<'a> {
     heap: &'a Heap,
     addr: u32,
     len: u32,
     consumed: u32,
 }
 
-impl<'a> Iterator for StackIterator<'a> {
+impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
     type Item = u32;
 
     fn next(&mut self,) -> Option<u32> {
@@ -130,13 +130,13 @@ mod tests {
     #[test]
     fn test_stack() {
         let heap = Heap::with_capacity(1_000_000);
-        let (addr, stack) = heap.new::<Stack>();
+        let (addr, stack) = heap.new::<ExpUnrolledLinkedList>();
         stack.push(1u32, &heap);
         stack.push(2u32, &heap);
         stack.push(4u32, &heap);
         stack.push(8u32, &heap);
         {
-            let mut it = stack.iterate(addr, &heap);
+            let mut it = stack.iter(addr, &heap);
             assert_eq!(it.next().unwrap(), 1u32);
             assert_eq!(it.next().unwrap(), 2u32);
             assert_eq!(it.next().unwrap(), 4u32);
@@ -167,7 +167,7 @@ mod tests {
         bench.iter(|| {
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {
-                let (_, stack) = heap.new::<Stack>();
+                let (_, stack) = heap.new::<ExpUnrolledLinkedList>();
                 stacks.push(stack);
             }
             for s in 0..NUM_STACK {
