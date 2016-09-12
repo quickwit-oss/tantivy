@@ -101,7 +101,7 @@ impl<'a> SegmentWriter<'a> {
 	}
 	
 	pub fn is_buffer_full(&self,) -> bool {
-		self.heap.free() <= 1_000_000
+		self.heap.free() <= 10_000_000
 	}
 	
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {

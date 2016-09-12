@@ -106,7 +106,9 @@ impl InnerHeap {
         self.used += num_bytes as u32;
         let len_buffer = self.buffer.len();
         if self.used > len_buffer as u32 {
-            self.buffer.resize(self.used as usize * 2, 0u8);
+            // TODO fix resizable heap
+            panic!("Resizing heap is not working");
+            // self.buffer.resize((self.used  * 2u32) as usize, 0u8);
         }
         addr
     }
@@ -123,6 +125,7 @@ impl InnerHeap {
 
     pub fn get_mut(&mut self, addr: u32) -> *mut u8 {
         let addr_usize = addr as isize;
+        debug_assert!(addr < self.used);
         unsafe { self.buffer.as_mut_ptr().offset(addr_usize) }
     }
 
@@ -139,6 +142,7 @@ impl InnerHeap {
     pub fn set<Item>(&mut self, addr: u32, val: &Item) {
         let v_ptr: *const Item = val as *const Item;
         let v_ptr_u8: *const u8 = v_ptr as *const u8;
+        debug_assert!(addr + mem::size_of::<Item>() as u32 <= self.used);
         unsafe {
             let dest_ptr: *mut u8 = self.get_mut(addr);
             ptr::copy(v_ptr_u8, dest_ptr, mem::size_of::<Item>());

@@ -60,7 +60,7 @@ impl DividerU32 {
             let floor_log_2_d: u8 = 31 - count_leading_zeros(d);
             let more: u8;
             let (mut proposed_m, rem) = divide_64_div_32_to_32((1u64 << floor_log_2_d) << 32, d);
-            assert!(rem > 0 && rem < d);
+            debug_assert!(rem > 0 && rem < d);
             let e = d - rem;
             if e < (1u32 << floor_log_2_d) {
                 more = floor_log_2_d;

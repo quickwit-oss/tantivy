@@ -15,6 +15,7 @@ pub trait Recorder: From<u32> {
     fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
 }
 
+#[repr(C, packed)]
 pub struct NothingRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
@@ -61,7 +62,7 @@ impl Recorder for NothingRecorder {
 }
 
 
-
+#[repr(C, packed)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
@@ -97,7 +98,7 @@ impl Recorder for TermFrequencyRecorder {
     }
     
     fn close_doc(&mut self, heap: &Heap) {
-        assert!(self.current_tf > 0);
+        debug_assert!(self.current_tf > 0);
         self.stack.push(self.current_tf, heap);
         self.current_tf = 0;
     }
@@ -122,7 +123,7 @@ impl Recorder for TermFrequencyRecorder {
 }
 
 
-
+#[repr(C, packed)]
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,

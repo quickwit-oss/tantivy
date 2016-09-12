@@ -137,7 +137,7 @@ impl BitOr for TextIndexingOptions {
         }
         else {
             // make it possible
-            panic!("Combining {:?} and {:?} is ambiguous");
+            panic!(format!("Combining {:?} and {:?} is ambiguous", self, other));
         }
     }
 }

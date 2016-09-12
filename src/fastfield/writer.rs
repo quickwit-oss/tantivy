@@ -80,7 +80,7 @@ impl U32FastFieldWriter {
     /// The missing values will be filled with 0.
     fn fill_val_up_to(&mut self, doc: DocId) {
         let target = doc as usize + 1;
-        assert!(self.vals.len() <= target);
+        debug_assert!(self.vals.len() <= target);
         while self.vals.len() < target {
             self.add_val(0u32)
         }
