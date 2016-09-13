@@ -19,9 +19,19 @@ use chan;
 use Result;
 use Error;
 
+// Size of the margin for the heap. A segment is closed when the remaining memory
+// in the heap goes below MARGIN_IN_BYTES.
+pub const MARGIN_IN_BYTES: u32 = 10_000_000u32;
+
+// We impose the memory per thread to be at least 30 MB.
+pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
+
+// Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
+const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
+
 pub struct IndexWriter {
-	heap_size_in_bytes: usize,
-	index: Index,
+    index: Index,
+	heap_size_in_bytes_per_thread: usize,
 	workers_join_handle: Vec<JoinHandle<()>>,
 	segment_ready_sender: chan::Sender<Result<(SegmentId, usize)>>,
 	segment_ready_receiver: chan::Receiver<Result<(SegmentId, usize)>>,
@@ -29,10 +39,8 @@ pub struct IndexWriter {
 	document_sender: chan::Sender<Document>,
 	num_threads: usize,
 	docstamp: u64,
-	
 }
 
-const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 fn index_documents(heap: &mut Heap,
 				   segment: Segment,
@@ -65,9 +73,9 @@ impl IndexWriter {
 		let schema = self.index.schema();
 		let segment_ready_sender_clone = self.segment_ready_sender.clone();
 		let document_receiver_clone = self.document_receiver.clone();
-		let heap_size_in_bytes = self.heap_size_in_bytes;
-		let join_handle: JoinHandle<()> = thread::spawn(move || {
-			let mut heap = Heap::with_capacity(heap_size_in_bytes);
+		
+		let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread); 
+        let join_handle: JoinHandle<()> = thread::spawn(move || {
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
@@ -98,11 +106,14 @@ impl IndexWriter {
 	/// should work at the same time.
 	pub fn open(index: &Index,
 	            num_threads: usize,
-				heap_size_in_bytes: usize) -> Result<IndexWriter> {
+				heap_size_in_bytes_per_thread: usize) -> Result<IndexWriter> {
+		if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
+			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
+		}
 		let (document_sender, document_receiver): (chan::Sender<Document>, chan::Receiver<Document>) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (segment_ready_sender, segment_ready_receiver): (chan::Sender<Result<(SegmentId, usize)>>, chan::Receiver<Result<(SegmentId, usize)>>) = chan::async();
 		let mut index_writer = IndexWriter {
-			heap_size_in_bytes: heap_size_in_bytes,
+			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
 			index: index.clone(),
 			segment_ready_receiver: segment_ready_receiver,
 			segment_ready_sender: segment_ready_sender,
@@ -285,7 +296,7 @@ mod tests {
 		
 		{
 			// writing the segment
-			let mut index_writer = index.writer_with_num_threads(3, 30_000_000).unwrap();
+			let mut index_writer = index.writer_with_num_threads(3, 40_000_000).unwrap();
 			{
 				let mut doc = Document::new();
 				doc.add_text(text_field, "a");

@@ -18,6 +18,7 @@ use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
+use indexer::index_writer::MARGIN_IN_BYTES;
 
 pub struct SegmentWriter<'a> {
 	heap: &'a Heap,
@@ -101,7 +102,7 @@ impl<'a> SegmentWriter<'a> {
 	}
 	
 	pub fn is_buffer_full(&self,) -> bool {
-		self.heap.free() <= 10_000_000
+		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
 	
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
@@ -137,7 +138,6 @@ impl<'a> SegmentWriter<'a> {
 					}
 				}
 			}
-
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
 		

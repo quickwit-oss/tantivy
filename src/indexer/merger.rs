@@ -292,7 +292,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 // writing the segment
                 {
@@ -335,7 +335,7 @@ mod tests {
         }
         {
             let segments = index.segments().unwrap();
-            let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer.merge(&segments).unwrap();
         }
         {
