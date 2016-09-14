@@ -51,8 +51,7 @@ fn index_documents(heap: &mut Heap,
 	for doc in document_iterator {
 		try!(segment_writer.add_document(&doc, &schema));
 		if segment_writer.is_buffer_full() {
-			println!("no more space committing.");
-			println!("seg max doc {}", segment_writer.max_doc());
+			info!("Buffer limit reached, flushing segment with maxdoc={}.", segment_writer.max_doc());
 			break;
 		}
 	}

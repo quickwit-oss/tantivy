@@ -16,6 +16,9 @@ Tantivy is a search engine library.
 extern crate lazy_static;
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate fst;
 extern crate byteorder;
 extern crate memmap;
@@ -34,6 +37,8 @@ extern crate combine;
 extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
+
+
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
