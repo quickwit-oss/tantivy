@@ -1,15 +1,23 @@
-mod fastdivide;
 mod reader;
 mod writer;
 mod serializer;
 
-
-pub use self::fastdivide::DividerU32;
 pub use self::writer::{U32FastFieldsWriter, U32FastFieldWriter};
 pub use self::reader::{U32FastFieldsReader, U32FastFieldReader};
 pub use self::serializer::FastFieldSerializer;
 
-use self::fastdivide::count_leading_zeros;
+fn count_leading_zeros(mut val: u32) -> u8 {
+    if val == 0 {
+        return 32;
+    }
+    let mut result = 0u8;
+    while (val & (1u32 << 31)) == 0 {
+        val <<= 1;
+        result += 1;
+    }
+    return result;
+}
+
 
 fn compute_num_bits(amplitude: u32) -> u8 {
     32u8 - count_leading_zeros(amplitude)
@@ -111,7 +119,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 58 as usize);
+            assert_eq!(source.len(), 50 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
