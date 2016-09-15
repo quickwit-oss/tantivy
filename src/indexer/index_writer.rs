@@ -30,7 +30,7 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 pub struct IndexWriter {
-    index: Index,
+	index: Index,
 	heap_size_in_bytes_per_thread: usize,
 	workers_join_handle: Vec<JoinHandle<()>>,
 	segment_ready_sender: chan::Sender<Result<(SegmentId, usize)>>,
@@ -74,7 +74,7 @@ impl IndexWriter {
 		let document_receiver_clone = self.document_receiver.clone();
 		
 		let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread); 
-        let join_handle: JoinHandle<()> = thread::spawn(move || {
+		let join_handle: JoinHandle<()> = thread::spawn(move || {
 			loop {
 				let segment = index.new_segment();
 				let segment_id = segment.id();
@@ -104,7 +104,7 @@ impl IndexWriter {
 	/// num_threads tells the number of indexing worker that 
 	/// should work at the same time.
 	pub fn open(index: &Index,
-	            num_threads: usize,
+				num_threads: usize,
 				heap_size_in_bytes_per_thread: usize) -> Result<IndexWriter> {
 		if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
@@ -262,7 +262,7 @@ impl IndexWriter {
 	/// 
 	/// Currently it represents the number of documents that 
 	/// have been added since the creation of the index. 
-    pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
+	pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
 		self.document_sender.send(doc);
 		self.docstamp += 1;
 		Ok(self.docstamp)
@@ -290,7 +290,7 @@ mod tests {
 		let num_docs_containing = |s: &str| {
 			let searcher = index.searcher();
 			let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+			searcher.doc_freq(&term_a)
 		};
 		
 		{
