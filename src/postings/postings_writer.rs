@@ -70,7 +70,7 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
             term_index: HashMap::new(hashmap_size, heap),
         }
     }
-
+    
     pub fn new_boxed(heap: &'a Heap) -> Box<PostingsWriter + 'a> {
         let res = SpecializedPostingsWriter::<Rec>::new(heap);
         Box::new(res)
