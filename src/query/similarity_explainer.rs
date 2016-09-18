@@ -42,7 +42,7 @@ impl<TSimilarity: Similarity + Sized> Similarity for SimilarityExplainer<TSimila
         self.scorer.score()
     } 
     
-    fn explain(&self, vals: &Vec<(usize, u32, u32)>) -> Explanation {
+    fn explain(&self, vals: &[(usize, u32, u32)]) -> Explanation {
         self.scorer.explain(vals)
     }
 }

@@ -40,8 +40,8 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 }
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box<PostingsWriter + 'a> {
-	match field_entry.field_type() {
-		&FieldType::Str(ref text_options) => {
+	match *field_entry.field_type() {
+		FieldType::Str(ref text_options) => {
 			match text_options.get_indexing_options() {
 				TextIndexingOptions::TokenizedWithFreq => {
 					SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
@@ -54,7 +54,7 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 				}
 			}
 		} 
-		&FieldType::U32(_) => {
+		FieldType::U32(_) => {
 			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
 		}
 	}
@@ -90,7 +90,7 @@ impl<'a> SegmentWriter<'a> {
 	// enforced by the fact that "self" is moved.
 	pub fn finalize(mut self,) -> Result<()> {
 		let segment_info = self.segment_info();
-		for per_field_postings_writer in self.per_field_postings_writers.iter_mut() {
+		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
 		}
 		write(&self.per_field_postings_writers,
@@ -112,17 +112,18 @@ impl<'a> SegmentWriter<'a> {
 			let field_options = schema.get_field_entry(field);
 			match *field_options.field_type() {
 				FieldType::Str(ref text_options) => {
-					let mut num_tokens = 0;
-					if text_options.get_indexing_options().is_tokenized() {
-						num_tokens = field_posting_writer.index_text(doc_id, field, &field_values, self.heap);
-					}
-					else {
-						for field_value in field_values {
-							let term = Term::from_field_text(field, field_value.value().text());
-							field_posting_writer.suscribe(doc_id, 0, &term, self.heap);
-							num_tokens += 1u32;
+					let num_tokens: u32 =
+						if text_options.get_indexing_options().is_tokenized() {
+							field_posting_writer.index_text(doc_id, field, &field_values, self.heap)
 						}
-					}
+						else {
+							let num_field_values = field_values.len() as u32;
+							for field_value in field_values {
+								let term = Term::from_field_text(field, field_value.value().text());
+								field_posting_writer.suscribe(doc_id, 0, &term, self.heap);
+							}
+							num_field_values
+						};
 					self.fieldnorms_writer
 						.get_field_writer(field)
 						.map(|field_norms_writer| {
@@ -141,7 +142,7 @@ impl<'a> SegmentWriter<'a> {
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
 		
-		self.fast_field_writers.add_document(&doc);
+		self.fast_field_writers.add_document(doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.get_fields()
 			.iter()
@@ -166,7 +167,7 @@ impl<'a> SegmentWriter<'a> {
 
 }
 
-fn write<'a>(per_field_postings_writers: &Vec<Box<PostingsWriter + 'a>>,
+fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,

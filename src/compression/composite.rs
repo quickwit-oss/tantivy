@@ -22,7 +22,7 @@ impl CompositeEncoder {
         let mut offset = 0u32;
         for i in 0..num_blocks {
             let vals_slice = &vals[i * NUM_DOCS_PER_BLOCK .. (i + 1) * NUM_DOCS_PER_BLOCK];
-            let block_compressed = self.block_encoder.compress_block_sorted(&vals_slice, offset);
+            let block_compressed = self.block_encoder.compress_block_sorted(vals_slice, offset);
             offset = vals_slice[NUM_DOCS_PER_BLOCK - 1];
             self.output.extend_from_slice(block_compressed);
         }
@@ -36,7 +36,7 @@ impl CompositeEncoder {
         let num_blocks = vals.len() / NUM_DOCS_PER_BLOCK;
         for i in 0..num_blocks {
             let vals_slice = &vals[i * NUM_DOCS_PER_BLOCK .. (i + 1) * NUM_DOCS_PER_BLOCK];
-            let block_compressed = self.block_encoder.compress_block_unsorted(&vals_slice);
+            let block_compressed = self.block_encoder.compress_block_unsorted(vals_slice);
             self.output.extend_from_slice(block_compressed);
         }
         let vint_compressed = self.block_encoder.compress_vint_unsorted(&vals[num_blocks * NUM_DOCS_PER_BLOCK..]);

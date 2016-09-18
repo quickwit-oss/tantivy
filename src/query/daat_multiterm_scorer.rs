@@ -14,8 +14,8 @@ use Score;
 struct HeapItem(DocId, u32);
 
 impl PartialOrd for HeapItem {
-    fn partial_cmp(&self, other:&Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -35,7 +35,7 @@ impl Filter {
         (self.and_mask & ord_set) == self.result
     }
     
-    fn new(occurs: &Vec<Occur>) -> Filter {
+    fn new(occurs: &[Occur]) -> Filter {
         let mut and_mask = 0u64;
         let mut result = 0u64;
         for (i, occur) in occurs.iter().enumerate() {
@@ -167,24 +167,19 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
                 }
             }
             self.advance_head();
-            loop {
-                match self.queue.peek() {
-                    Some(&HeapItem(peek_doc, peek_ord))  => {
-                        if peek_doc != self.doc {
-                            break;
-                        }
-                        else {
-                            let peek_ord: usize = peek_ord as usize;
-                            let peek_tf = self.term_frequencies[peek_ord];
-                            let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
-                            self.similarity.update(peek_ord, peek_tf, peek_fieldnorm);
-                            ord_bitset |= 1 << peek_ord;
-                        }
-                    }
-                    None => { break; }   
+            while let Some(&HeapItem(peek_doc, peek_ord)) = self.queue.peek() {
+                if peek_doc == self.doc {
+                    let peek_ord: usize = peek_ord as usize;
+                    let peek_tf = self.term_frequencies[peek_ord];
+                    let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                    self.similarity.update(peek_ord, peek_tf, peek_fieldnorm);
+                    ord_bitset |= 1 << peek_ord;
+                }
+                else  {
+                    break;
                 }
                 self.advance_head();
-            }
+            } 
             if self.filter.accept(ord_bitset) {
                 return true;
             }

@@ -30,8 +30,8 @@ pub enum StandardQuery {
 
 impl StandardQuery {
     pub fn num_terms(&self,) -> usize {
-        match self {
-            &StandardQuery::MultiTerm(ref q) => {
+        match *self {
+            StandardQuery::MultiTerm(ref q) => {
                 q.num_terms()
             }
         }
@@ -51,8 +51,8 @@ impl Query for StandardQuery {
         &self,
         searcher: &Searcher,
         doc_address: &DocAddress) -> tantivy_Error<Explanation> {
-        match self {
-            &StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
+        match *self {
+            StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
         }
     }
 }
@@ -62,13 +62,8 @@ fn compute_terms(field: Field, text: &str) -> Vec<Term> {
     let tokenizer = SimpleTokenizer::new();
     let mut tokens = Vec::new();
     let mut token_it = tokenizer.tokenize(text);
-    loop {
-        match token_it.next() {
-            Some(token_str) => {
-                tokens.push(Term::from_field_text(field, token_str));
-            }
-            None => { break; }
-        }
+    while let Some(token_str) = token_it.next() {
+        tokens.push(Term::from_field_text(field, token_str));
     }
     tokens
 }
@@ -86,11 +81,11 @@ impl QueryParser {
     
     fn transform_field_and_value(&self, field: Field, val: &str) -> Result<Vec<Term>, ParsingError> {
         let field_entry = self.schema.get_field_entry(field);
-        Ok(match field_entry.field_type() {
-            &FieldType::Str(_) => {
+        Ok(match *field_entry.field_type() {
+            FieldType::Str(_) => {
                 compute_terms(field, val)
             },
-            &FieldType::U32(_) => {
+            FieldType::U32(_) => {
                 let u32_parsed: u32 = try!(val
                     .parse::<u32>()
                     .map_err(|_| {
@@ -282,7 +277,7 @@ mod tests {
     
     #[test]
     pub fn test_query_parser() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", STRING);
         let title_field = schema_builder.add_text_field("title", STRING);
         let author_field = schema_builder.add_text_field("author", STRING);

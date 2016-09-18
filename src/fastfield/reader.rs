@@ -58,7 +58,8 @@ impl U32FastFieldReader {
         let bit_shift = (doc * self.num_bits) - addr * 8; //doc - long_addr * self.num_in_pack;
         let val_unshifted_unmasked: u64 = unsafe { * (self.data_ptr.offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
-        return self.min_val + (val_shifted & self.mask);
+        self.min_val + (val_shifted & self.mask)
+        
     }
 }
 
@@ -79,13 +80,13 @@ impl U32FastFieldsReader {
         }
         let mut end_offsets: Vec<u32> = field_offsets
             .iter()
-            .map(|&(_, offset)| offset.clone())
+            .map(|&(_, offset)| offset)
             .collect();
         end_offsets.push(header_offset);
         let mut field_offsets_map: HashMap<Field, (u32, u32)> = HashMap::new();
         for (field_start_offsets, stop_offset) in field_offsets.iter().zip(end_offsets.iter().skip(1)) {
-            let (field, start_offset) = field_start_offsets.clone();
-            field_offsets_map.insert(field.clone(), (start_offset.clone(), stop_offset.clone()));
+            let (field, start_offset) = *field_start_offsets;
+            field_offsets_map.insert(field, (start_offset, *stop_offset));
         }
         Ok(U32FastFieldsReader {
             field_offsets: field_offsets_map,

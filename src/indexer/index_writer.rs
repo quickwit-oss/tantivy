@@ -29,14 +29,21 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 // Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
+
+type DocumentSender = chan::Sender<Document>;
+type DocumentReceiver = chan::Receiver<Document>;
+
+type NewSegmentSender = chan::Sender<Result<(SegmentId, usize)>>;
+type NewSegmentReceiver = chan::Receiver<Result<(SegmentId, usize)>>;
+
 pub struct IndexWriter {
 	index: Index,
 	heap_size_in_bytes_per_thread: usize,
 	workers_join_handle: Vec<JoinHandle<()>>,
-	segment_ready_sender: chan::Sender<Result<(SegmentId, usize)>>,
-	segment_ready_receiver: chan::Receiver<Result<(SegmentId, usize)>>,
-	document_receiver: chan::Receiver<Document>,
-	document_sender: chan::Sender<Document>,
+	segment_ready_sender: NewSegmentSender,
+	segment_ready_receiver: NewSegmentReceiver,
+	document_receiver: DocumentReceiver,
+	document_sender: DocumentSender,
 	num_threads: usize,
 	docstamp: u64,
 }
@@ -109,8 +116,8 @@ impl IndexWriter {
 		if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
 		}
-		let (document_sender, document_receiver): (chan::Sender<Document>, chan::Receiver<Document>) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-		let (segment_ready_sender, segment_ready_receiver): (chan::Sender<Result<(SegmentId, usize)>>, chan::Receiver<Result<(SegmentId, usize)>>) = chan::async();
+		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+		let (segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
 			index: index.clone(),
@@ -133,7 +140,7 @@ impl IndexWriter {
 		Ok(())
 	}
 
-	pub fn merge(&mut self, segments: &Vec<Segment>) -> Result<()> {
+	pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
 		let schema = self.index.schema();
 		let merger = try!(IndexMerger::open(schema, segments));
 		let mut merged_segment = self.index.new_segment();
@@ -152,9 +159,9 @@ impl IndexWriter {
 	/// when no documents are remaining.
 	///
 	/// Returns the former segment_ready channel.  
-	fn recreate_channels(&mut self,) -> (chan::Receiver<Document>, chan::Receiver<Result<(SegmentId, usize)>>) {
-		let (mut document_sender, mut document_receiver): (chan::Sender<Document>, chan::Receiver<Document>) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-		let (mut segment_ready_sender, mut segment_ready_receiver): (chan::Sender<Result<(SegmentId, usize)>>, chan::Receiver<Result<(SegmentId, usize)>>) = chan::async();
+	fn recreate_channels(&mut self,) -> (DocumentReceiver, chan::Receiver<Result<(SegmentId, usize)>>) {
+		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+		let (mut segment_ready_sender, mut segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		swap(&mut self.document_sender, &mut document_sender);
 		swap(&mut self.document_receiver, &mut document_receiver);
 		swap(&mut self.segment_ready_sender, &mut segment_ready_sender);
@@ -282,7 +289,7 @@ mod tests {
 
 	#[test]
 	fn test_commit_and_rollback() {
-		let mut schema_builder = schema::SchemaBuilder::new();
+		let mut schema_builder = schema::SchemaBuilder::default();
 		let text_field = schema_builder.add_text_field("text", schema::TEXT);
 		let index = Index::create_in_ram(schema_builder.build());
 
@@ -297,7 +304,7 @@ mod tests {
 			// writing the segment
 			let mut index_writer = index.writer_with_num_threads(3, 40_000_000).unwrap();
 			{
-				let mut doc = Document::new();
+				let mut doc = Document::default();
 				doc.add_text(text_field, "a");
 				index_writer.add_document(doc).unwrap();
 			}
@@ -305,12 +312,12 @@ mod tests {
 			assert_eq!(num_docs_containing("a"), 0);
 
 			{
-				let mut doc = Document::new();
+				let mut doc = Document::default();
 				doc.add_text(text_field, "b");
 				index_writer.add_document(doc).unwrap();
 			}
 			{
-				let mut doc = Document::new();
+				let mut doc = Document::default();
 				doc.add_text(text_field, "c");
 				index_writer.add_document(doc).unwrap();
 			}

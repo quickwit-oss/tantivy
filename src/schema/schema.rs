@@ -14,9 +14,6 @@ use std::fmt;
 
 
 
-
-
-
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
@@ -30,7 +27,7 @@ use std::fmt;
 /// ```
 /// use tantivy::schema::*;
 ///
-/// let mut schema_builder = SchemaBuilder::new();
+/// let mut schema_builder = SchemaBuilder::default();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
@@ -39,19 +36,11 @@ use std::fmt;
 /// ```
 pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
-    fields_map: HashMap<String, Field
-    >,  // transient
+    fields_map: HashMap<String, Field>,
 }
 
 
 impl SchemaBuilder {
-
-    pub fn new() -> SchemaBuilder {
-        SchemaBuilder {
-            fields: Vec::new(),
-            fields_map: HashMap::new(),
-        }
-    }
     
     /// Adds a new u32 field.
     /// Returns the associated field handle
@@ -108,6 +97,15 @@ impl SchemaBuilder {
 }
 
 
+impl Default for SchemaBuilder {
+    fn default() -> SchemaBuilder {
+        SchemaBuilder {
+            fields: Vec::new(),
+            fields_map: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct InnerSchema {
     fields: Vec<FieldEntry>,
@@ -129,7 +127,7 @@ struct InnerSchema {
 /// ```
 /// use tantivy::schema::*;
 ///
-/// let mut schema_builder = SchemaBuilder::new();
+/// let mut schema_builder = SchemaBuilder::default();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
@@ -163,7 +161,7 @@ impl Schema {
     /// If panicking is not an option for you,
     /// you may use `get(&self, field_name: &str)`.
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
-        self.0.fields_map.get(field_name).map(|field| field.clone())
+        self.0.fields_map.get(field_name).cloned()
     }
 
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
@@ -190,24 +188,24 @@ impl Schema {
         let json_node = try!(Json::from_str(doc_json));
         let some_json_obj = json_node.as_object();
         if !some_json_obj.is_some() {
-            let doc_json_sample: String;
-            if doc_json.len() < 20 {
-                doc_json_sample = String::from(doc_json);
-            }
-            else {
-                doc_json_sample = format!("{:?}...", &doc_json[0..20]);
-            }
+            let doc_json_sample: String =
+                if doc_json.len() < 20 {
+                    String::from(doc_json)
+                }
+                else {
+                    format!("{:?}...", &doc_json[0..20])
+                };
             return Err(DocParsingError::NotJSONObject(doc_json_sample))
         }
         let json_obj = some_json_obj.unwrap();
-        let mut doc = Document::new();
+        let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
             match self.get_field(field_name) {
                 Some(field) => {
                     let field_entry = self.get_field_entry(field);
                     let field_type = field_entry.field_type();
-                    match json_value {
-                        &Json::Array(ref json_items) => {
+                    match *json_value {
+                        Json::Array(ref json_items) => {
                             for json_item in json_items {
                                 let value = try!(
                                     field_type
@@ -251,7 +249,7 @@ impl fmt::Debug for Schema {
 
 impl Decodable for Schema {
     fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         try!(d.read_seq(|d, num_fields| {
             for _ in 0..num_fields {
                 let field_entry = try!(FieldEntry::decode(d));
@@ -312,8 +310,8 @@ mod tests {
         
     #[test]
     pub fn test_schema_serialization() {
-        let mut schema_builder = SchemaBuilder::new();
-        let count_options = U32Options::new().set_stored().set_fast(); 
+        let mut schema_builder = SchemaBuilder::default();
+        let count_options = U32Options::default().set_stored().set_fast(); 
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u32_field("count", count_options);
@@ -355,8 +353,8 @@ mod tests {
     
     #[test]
     pub fn test_document_to_json() {
-        let mut schema_builder = SchemaBuilder::new();
-        let count_options = U32Options::new().set_stored().set_fast(); 
+        let mut schema_builder = SchemaBuilder::default();
+        let count_options = U32Options::default().set_stored().set_fast(); 
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u32_field("count", count_options);
@@ -373,8 +371,8 @@ mod tests {
     
     #[test]
     pub fn test_parse_document() {
-        let mut schema_builder = SchemaBuilder::new();
-        let count_options = U32Options::new().set_stored().set_fast(); 
+        let mut schema_builder = SchemaBuilder::default();
+        let count_options = U32Options::default().set_stored().set_fast(); 
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u32_field("count", count_options);

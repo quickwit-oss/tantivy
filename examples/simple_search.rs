@@ -24,7 +24,7 @@ fn main() {
 fn create_schema() -> Schema {
     // We need to declare a schema
     // to create a new index.
-    let mut schema_builder = SchemaBuilder::new();
+    let mut schema_builder = SchemaBuilder::default();
 
     // TEXT | STORED is some syntactic sugar to describe
     // how tantivy should index this field.
@@ -69,7 +69,7 @@ fn run(index_path: &Path) -> tantivy::Result<()> {
     let body = schema.get_field("body").unwrap();
 
 
-    let mut old_man_doc = Document::new();
+    let mut old_man_doc = Document::default();
     old_man_doc.add_text(title, "The Old Man and the Sea");
     old_man_doc.add_text(body, "He was an old man who fished alone in a skiff in the Gulf Stream and he had gone eighty-four days now without taking a fish.");
 

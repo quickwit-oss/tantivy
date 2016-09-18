@@ -44,12 +44,12 @@ impl Heap {
         self.inner().num_free_bytes()
     }
 
-    pub fn allocate(&self, num_bytes: usize) -> u32 {
-        self.inner().allocate(num_bytes)
+    pub fn allocate_space(&self, num_bytes: usize) -> u32 {
+        self.inner().allocate_space(num_bytes)
     }
     
-    pub fn new<V: From<u32>>(&self,) -> (u32, &mut V) {
-        let addr = self.inner().allocate(mem::size_of::<V>());
+    pub fn allocate_object<V: From<u32>>(&self,) -> (u32, &mut V) {
+        let addr = self.inner().allocate_space(mem::size_of::<V>());
         let v: V = V::from(addr);
         self.inner().set(addr, &v);
         (addr, self.inner().get_mut_ref(addr))
@@ -115,7 +115,7 @@ impl InnerHeap {
         } 
     }
 
-    pub fn allocate(&mut self, num_bytes: usize) -> u32 {
+    pub fn allocate_space(&mut self, num_bytes: usize) -> u32 {
         let addr = self.used;
         self.used += num_bytes as u32;
         if self.used <= self.buffer_len {
@@ -126,7 +126,7 @@ impl InnerHeap {
                 warn!("Exceeded heap size. The margin was apparently unsufficient. The segment will be committed right after indexing this very last document.");
                 self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
             }
-            self.next_heap.as_mut().unwrap().allocate(num_bytes) + self.buffer_len
+            self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len
         }
         
         
@@ -151,7 +151,7 @@ impl InnerHeap {
     }
 
     fn allocate_and_set(&mut self, data: &[u8]) -> BytesRef {
-        let start = self.allocate(data.len());
+        let start = self.allocate_space(data.len());
         let stop = start + data.len() as u32;
         self.get_mut_slice(start, stop).clone_from_slice(data);
         BytesRef {

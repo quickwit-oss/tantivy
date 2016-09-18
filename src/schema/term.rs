@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     pub fn test_term() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         schema_builder.add_text_field("text", STRING);
         let title_field = schema_builder.add_text_field("title", STRING);
         let count_field = schema_builder.add_text_field("count", STRING);

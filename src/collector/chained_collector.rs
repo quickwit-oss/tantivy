@@ -7,11 +7,11 @@ use ScoredDoc;
 
 pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
-    #[inline(always)]
+    #[inline]
     fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
         Ok(())
     }
-    #[inline(always)]
+    #[inline]
     fn collect(&mut self, _: ScoredDoc) {}
 }
 
@@ -29,7 +29,7 @@ impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
         }
     }
 
-    pub fn add<'b, C: Collector>(self, new_collector: &'b mut C) -> ChainedCollector<Self, MutRefCollector<'b, C>> {
+    pub fn push<C: Collector>(self, new_collector: &mut C) -> ChainedCollector<Self, MutRefCollector<C>> {
         ChainedCollector {
             left: self,
             right: MutRefCollector(new_collector),
@@ -79,11 +79,11 @@ mod tests {
     #[test]
     fn test_chained_collector() {
         let mut top_collector = TopCollector::with_limit(2);
-        let mut count_collector = CountCollector::new();
+        let mut count_collector = CountCollector::default();
         {
             let mut collectors = chain()
-                .add(&mut top_collector)
-                .add(&mut count_collector);
+                .push(&mut top_collector)
+                .push(&mut count_collector);
             collectors.collect(ScoredDoc(0.2, 1));
             collectors.collect(ScoredDoc(0.1, 2));
             collectors.collect(ScoredDoc(0.5, 3));

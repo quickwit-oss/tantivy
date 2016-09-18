@@ -1,3 +1,8 @@
+#![allow(unknown_lints)]
+#![allow(module_inception)]
+
+
+
 /*!
 
 Tantivy is a search engine library.  
@@ -138,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_indexing() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_from_tempdir(schema).unwrap();
@@ -146,17 +151,17 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
@@ -167,31 +172,31 @@ mod tests {
 
     #[test]
     fn test_docfreq() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         {
-            let mut doc = Document::new();
+            let mut doc = Document::default();
             doc.add_text(text_field, "a b c");
             index_writer.add_document(doc).unwrap();
             index_writer.commit().unwrap();
         }
         {
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a a");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
         }
         {
-            let mut doc = Document::new();
+            let mut doc = Document::default();
             doc.add_text(text_field, "c");
             index_writer.add_document(doc).unwrap();
             index_writer.commit().unwrap();
@@ -212,22 +217,22 @@ mod tests {
     
     #[test]
     fn test_fieldnorm() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let doc = Document::new();
+                let doc = Document::default();
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b");
                 index_writer.add_document(doc).unwrap();
             }
@@ -246,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_termfreq() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -254,7 +259,7 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "af af af bc bc");
                 index_writer.add_document(doc).unwrap();
             }
@@ -273,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_searcher() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -282,17 +287,17 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "af af af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }
@@ -302,7 +307,7 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = MultiTermQuery::from(terms);
-                let mut collector = TestCollector::new();
+                let mut collector = TestCollector::default();
                 assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()
             };
@@ -342,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_searcher_2() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -351,17 +356,17 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b c d");
                 index_writer.add_document(doc).unwrap();
             }

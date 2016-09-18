@@ -131,7 +131,7 @@ impl Index {
             docstamp: u64) -> Result<()> {
         {
             let mut meta_write = try!(self.metas.write());
-            meta_write.segments.extend(segment_ids);
+            meta_write.segments.extend_from_slice(segment_ids);
             meta_write.docstamp = docstamp;
         }
         try!(self.save_metas());
@@ -167,7 +167,7 @@ impl Index {
             
     }
 
-    pub fn segment(&self, segment_id: SegmentId) -> Segment {
+    fn segment(&self, segment_id: SegmentId) -> Segment {
         Segment::new(self.clone(), segment_id)
     }
 
@@ -193,7 +193,7 @@ impl Index {
     }
 
     pub fn new_segment(&self,) -> Segment {
-        self.segment(SegmentId::new())
+        self.segment(SegmentId::generate_random())
     }
     
     pub fn save_metas(&mut self,) -> Result<()> {

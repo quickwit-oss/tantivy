@@ -37,14 +37,14 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u32; // TODO not sure if we want after or here
-        let res;
-        if self.remaining == 0 {
-            self.remaining = self.period;
-            res = Some((doc_id, offset));
-        }
-        else {
-            res = None;
-        }
+        let res =
+            if self.remaining == 0 {
+                self.remaining = self.period;
+                Some((doc_id, offset))
+            }
+            else {
+                None
+            };
         try!(doc_id.serialize(&mut self.buffer));
         try!(value.serialize(&mut self.buffer));
         Ok(res)
@@ -69,7 +69,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         }
     }
 
-    fn get_skip_layer<'a>(&'a mut self, layer_id: usize) -> &mut LayerBuilder<u32> {
+    fn get_skip_layer(&mut self, layer_id: usize) -> &mut LayerBuilder<u32> {
         if layer_id == self.skip_layers.len() {
             let layer_builder = LayerBuilder::with_period(self.period);
             self.skip_layers.push(layer_builder);

@@ -80,10 +80,10 @@ impl DocSet for VecPostings {
         }
         self.cursor = Wrapping(start + 1);
         if self.cursor.0 < self.doc_ids.len() {
-            return SkipResult::OverStep;
+            SkipResult::OverStep
         }
         else {
-            return SkipResult::End;
+            SkipResult::End
         }
     }
 }

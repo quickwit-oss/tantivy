@@ -28,7 +28,7 @@ fn read_positions(data: &[u8]) -> Vec<u32> {
 
 impl FreqHandler {
     
-    pub fn new() -> FreqHandler {
+    pub fn new_without_freq() -> FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::with_val(1u32),
             positions: Vec::new(), 
@@ -110,7 +110,7 @@ impl FreqHandler {
         }
     }
     
-    #[inline(always)]
+    #[inline]
     pub fn freq(&self, idx: usize)-> u32 {
         self.freq_decoder.output(idx)
     }

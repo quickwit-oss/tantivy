@@ -78,13 +78,13 @@ impl InnerDirectory {
         InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
     }
 
-    fn write(&self, path: PathBuf, data: &Vec<u8>) -> io::Result<bool> {
+    fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
         let mut map = try!(
             self.0
                 .write()
                 .map_err(|_| make_io_err(format!("Failed to lock the directory, when trying to write {:?}", path)))
         );
-        let prev_value = map.insert(path, Arc::new(data.clone()));
+        let prev_value = map.insert(path, Arc::new(Vec::from(data)));
         Ok(prev_value.is_some())
     }
 

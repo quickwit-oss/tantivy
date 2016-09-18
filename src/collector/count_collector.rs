@@ -11,17 +11,18 @@ pub struct CountCollector {
 }
 
 impl CountCollector {
-    pub fn new() -> CountCollector {
-        CountCollector {
-            count: 0,
-        }
-    }
-
-
     // Returns the count of document that where
     // collected.
     pub fn count(&self,) -> usize {
         self.count
+    }
+}
+
+impl Default for CountCollector {
+    fn default() -> CountCollector {
+        CountCollector {
+            count: 0,
+        }
     }
 }
 
@@ -47,7 +48,7 @@ mod tests {
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-            let mut count_collector = CountCollector::new();
+            let mut count_collector = CountCollector::default();
             let docs: Vec<u32> = (0..1_000_000).collect();
             for doc in docs {
                 count_collector.collect(ScoredDoc(1f32, doc));

@@ -67,7 +67,7 @@ impl SIMDBlockEncoder {
                 }
             }
         }
-        return &self.output[..byte_written];
+        &self.output[..byte_written]
     }
     
     pub fn compress_vint_unsorted(&mut self, input: &[u32]) -> &[u8] {
@@ -88,7 +88,7 @@ impl SIMDBlockEncoder {
                 }
             }
         }
-        return &self.output[..byte_written];
+        &self.output[..byte_written]
     }
     
 }
@@ -170,12 +170,12 @@ impl SIMDBlockDecoder {
         &compressed_data[read_byte..]
     }
     
-    #[inline(always)]
+    #[inline]
     pub fn output_array(&self,) -> &[u32] {
         &self.output[..self.output_len]
     }
     
-    #[inline(always)]
+    #[inline]
     pub fn output(&self, idx: usize) -> u32 {
         self.output[idx]
     }

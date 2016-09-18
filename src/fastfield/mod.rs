@@ -15,7 +15,7 @@ fn count_leading_zeros(mut val: u32) -> u8 {
         val <<= 1;
         result += 1;
     }
-    return result;
+    result
 }
 
 
@@ -44,7 +44,7 @@ mod tests {
 
     lazy_static! {
         static ref SCHEMA: Schema = {
-            let mut schema_builder = SchemaBuilder::new();
+            let mut schema_builder = SchemaBuilder::default();
             schema_builder.add_u32_field("field", FAST);
             schema_builder.build()
         };
@@ -65,7 +65,7 @@ mod tests {
     }
 
     fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: Field, value: u32) {
-        let mut doc = Document::new();
+        let mut doc = Document::default();
         doc.add_u32(field, value);
         fast_field_writers.add_document(&doc);
     }

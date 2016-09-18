@@ -27,8 +27,8 @@ directory.
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::new();
-let title_options = TextOptions::new()
+let mut schema_builder = SchemaBuilder::default();
+let title_options = TextOptions::default()
     .set_stored()
     .set_indexing_options(TextIndexingOptions::TokenizedWithFreqAndPosition);
 schema_builder.add_text_field("title_options", title_options);
@@ -57,7 +57,7 @@ The example can be rewritten :
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::new();
+let mut schema_builder = SchemaBuilder::default();
 schema_builder.add_text_field("title_options", TEXT | STORED);
 let schema = schema_builder.build();
 ``` 
@@ -70,8 +70,8 @@ let schema = schema_builder.build();
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::new();
-let num_stars_options = U32Options::new()
+let mut schema_builder = SchemaBuilder::default();
+let num_stars_options = U32Options::default()
     .set_stored()
     .set_indexed();
 schema_builder.add_u32_field("num_stars", num_stars_options);

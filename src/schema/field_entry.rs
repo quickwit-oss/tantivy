@@ -16,20 +16,20 @@ pub enum FieldType {
 
 impl FieldType {
      pub fn value_from_json(&self, json: &Json) -> Result<Value, ValueParsingError> {
-        match json {
-            &Json::String(ref field_text) => {
-                match self {
-                    &FieldType::Str(_) => {
+        match *json {
+            Json::String(ref field_text) => {
+                match *self {
+                    FieldType::Str(_) => {
                         Ok(Value::Str(field_text.clone()))
                     }
-                    &FieldType::U32(_) => {
+                    FieldType::U32(_) => {
                         Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
                     }
                 }
             }
-            &Json::U64(ref field_val_u64) => {
-                match self {
-                    &FieldType::U32(_) => {
+            Json::U64(ref field_val_u64) => {
+                match *self {
+                    FieldType::U32(_) => {
                         if *field_val_u64 > (u32::max_value() as u64) {
                             Err(ValueParsingError::OverflowError(format!("Expected u32, but value {:?} overflows.", field_val_u64)))
                         }

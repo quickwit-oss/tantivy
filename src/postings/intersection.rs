@@ -21,13 +21,13 @@ impl<'a> IntersectionDocSet<'a> {
     
     pub fn new(mut postings: Vec<Box<DocSet + 'a>>) -> IntersectionDocSet<'a> {
         let left = postings.pop().unwrap();
-        let right;
-        if postings.len() == 1 {
-            right = postings.pop().unwrap();
-        }
-        else {
-            right = Box::new(IntersectionDocSet::new(postings));   
-        }
+        let right = 
+            if postings.len() == 1 {
+                postings.pop().unwrap()
+            }
+            else {
+                Box::new(IntersectionDocSet::new(postings))  
+            };
         IntersectionDocSet::from_pair(left, right)        
     }
 }
@@ -74,13 +74,11 @@ impl<'a> DocSet for IntersectionDocSet<'a> {
     }
 }
 
-#[inline(never)]
 pub fn intersection<'a, TDocSet: DocSet + 'a>(postings: Vec<TDocSet>) -> IntersectionDocSet<'a> {
     let boxed_postings: Vec<Box<DocSet + 'a>> = postings
         .into_iter()
-        .map(|postings| {
-            let boxed_p: Box<DocSet + 'a> = Box::new(postings);
-            boxed_p
+        .map(|postings: TDocSet| {
+            Box::new(postings) as Box<DocSet + 'a>
         })
         .collect();
     IntersectionDocSet::new(boxed_postings)

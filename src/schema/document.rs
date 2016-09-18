@@ -31,18 +31,17 @@ impl PartialEq for Document {
 impl Eq for Document {}
 
 impl Document {
-
-    pub fn new() -> Document {
-        Document {
-            field_values: Vec::new(),
-        }
-    }
     
     /// Returns the number of `(field, value)` pairs.
     pub fn len(&self,) -> usize {
         self.field_values.len()
     }
-
+        
+    /// Returns true iff the document contains no fields.
+    pub fn is_empty(&self,) -> bool {
+        self.field_values.is_empty()
+    }
+    
     /// Add a text field.
     pub fn add_text(&mut self, field: Field, text: &str) {
         self.add(FieldValue {
@@ -70,18 +69,17 @@ impl Document {
     pub fn get_sorted_fields(&self) -> Vec<(Field, Vec<&FieldValue>)> {
          let mut field_values:  Vec<&FieldValue> = self.get_fields().iter().collect();
          field_values.sort_by_key(|field_value| field_value.field());
-         let sorted_fields: Vec<(Field, Vec<&FieldValue>)> = field_values
+         field_values
             .into_iter()
             .group_by(|field_value| field_value.field())
             .into_iter()
             .map(|(key, group)| {
                 (key, group.into_iter().collect())
             })
-            .collect();
-         sorted_fields
-     }
+            .collect::<Vec<(Field, Vec<&FieldValue>)>>()
+    }
     
-    pub fn get_all<'a>(&'a self, field: Field) -> Vec<&'a Value> {
+    pub fn get_all(&self, field: Field) -> Vec<&Value> {
         self.field_values
             .iter()
             .filter(|field_value| field_value.field() == field)
@@ -89,12 +87,21 @@ impl Document {
             .collect()
     }
 
-    pub fn get_first<'a>(&'a self, field: Field) -> Option<&'a Value> {
+    pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.field_values
             .iter()
             .filter(|field_value| field_value.field() == field)
             .map(|field_value| field_value.value())
             .next()
+    }
+}
+
+impl Default for Document {
+    
+    fn default() -> Document {
+        Document {
+            field_values: Vec::new(),
+        }
     }
 }
 
@@ -114,9 +121,9 @@ mod tests {
     
     #[test]
     fn test_doc() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("title", TEXT);
-        let mut doc = Document::new();
+        let mut doc = Document::default();
         doc.add_text(text_field, "My title");
         assert_eq!(doc.get_fields().len(), 1);
     }

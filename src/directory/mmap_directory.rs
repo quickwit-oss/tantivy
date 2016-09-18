@@ -23,7 +23,7 @@ use std::fs;
 use directory::shared_vec_slice::SharedVecSlice;
 
 
-/// Directory storing data in files, read via MMap.
+/// Directory storing data in files, read via mmap.
 ///
 /// The Mmap object are cached to limit the 
 /// system calls. 
@@ -98,7 +98,7 @@ impl MmapDirectory {
 }
 
 /// This Write wraps a File, but has the specificity of 
-/// call sync_all on flush.  
+/// call `sync_all` on flush.  
 struct SafeFileWriter {
     writer: BufWriter<File>,
 }

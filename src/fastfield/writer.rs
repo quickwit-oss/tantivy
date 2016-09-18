@@ -30,14 +30,13 @@ impl U32FastFieldsWriter {
     }
     
     pub fn get_field_writer(&mut self, field: Field) -> Option<&mut U32FastFieldWriter> {
-        self.field_writers 
+        self.field_writers
             .iter_mut()
-            .filter(|field_writer| field_writer.field == field)
-            .next()
+            .find(|field_writer| field_writer.field == field)
     }
     
     pub fn add_document(&mut self, doc: &Document) {
-        for field_writer in self.field_writers.iter_mut() {
+        for field_writer in &mut self.field_writers {
             field_writer.add_document(doc);
         }
     }
@@ -69,7 +68,7 @@ pub struct U32FastFieldWriter {
 impl U32FastFieldWriter {
     pub fn new(field: Field) -> U32FastFieldWriter {
         U32FastFieldWriter {
-            field: field.clone(),
+            field: field,
             vals: Vec::new(),
         }
     }
@@ -94,13 +93,13 @@ impl U32FastFieldWriter {
         match doc.get_first(self.field) {
             Some(v) => {
                 match *v {
-                    Value::U32(ref val) => { return *val; }
+                    Value::U32(ref val) => { *val }
                     _ => { panic!("Expected a u32field, got {:?} ", v) }
                 }
             },
             None => {
                 // TODO make default value configurable
-                return 0u32;
+                0u32
             }            
         }
     }

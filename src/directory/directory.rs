@@ -11,9 +11,9 @@ use std::marker::Sync;
 ///
 /// There is currently two implementations of `Directory`
 /// 
-/// - The [MMapDirectory](struct.MmapDirectory.html), this
+/// - The [`MMapDirectory`](struct.MmapDirectory.html), this
 /// should be your default choice. 
-/// - The [RAMDirectory](struct.RAMDirectory.html), which 
+/// - The [`RAMDirectory`](struct.RAMDirectory.html), which 
 /// should be used mostly for tests.
 /// 
 pub trait Directory: fmt::Debug + Send + Sync + 'static {

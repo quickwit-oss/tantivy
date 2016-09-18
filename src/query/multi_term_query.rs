@@ -40,7 +40,7 @@ impl MultiTermQuery {
         let num_docs = searcher.num_docs() as f32;
         let idfs: Vec<f32> = self.occur_terms
             .iter()
-            .map(|&(_, ref term)| searcher.doc_freq(&term))
+            .map(|&(_, ref term)| searcher.doc_freq(term))
             .map(|doc_freq| {
                 if doc_freq == 0 {
                     1.
@@ -73,13 +73,10 @@ impl MultiTermQuery {
             let mut decode_timer = timer.open("decode_all");
             for &(occur, ref term) in &self.occur_terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
-                match reader.read_postings(&term, SegmentPostingsOption::Freq) {
-                    Some(postings) => {
-                        let field = term.get_field();
-                        let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
-                        postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
-                    }
-                    None => {}
+                if let Some(postings) = reader.read_postings(term, SegmentPostingsOption::Freq) {
+                    let field = term.get_field();
+                    let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
+                    postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
                 }
             }
         }
@@ -120,7 +117,7 @@ impl Query for MultiTermQuery {
         doc_address: &DocAddress) -> Result<Explanation> {
             let segment_reader = searcher.segment_reader(doc_address.segment_ord() as usize);
             let similitude = SimilarityExplainer::from(self.similitude(searcher));
-            let mut timer_tree = TimerTree::new();
+            let mut timer_tree = TimerTree::default();
             let mut postings = try!(
                 self.search_segment(
                     segment_reader,
@@ -144,7 +141,7 @@ impl Query for MultiTermQuery {
         &self,
         searcher: &Searcher,
         collector: &mut C) -> Result<TimerTree> {
-        let mut timer_tree = TimerTree::new();        
+        let mut timer_tree = TimerTree::default();        
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {

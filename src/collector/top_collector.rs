@@ -19,7 +19,7 @@ impl PartialOrd for GlobalScoredDoc {
 }
 
 impl Ord for GlobalScoredDoc {
-    #[inline(always)]
+    #[inline]
     fn cmp(&self, other: &GlobalScoredDoc) -> Ordering {
         other.0.partial_cmp(&self.0)
         .unwrap_or(
@@ -30,7 +30,7 @@ impl Ord for GlobalScoredDoc {
 
 impl PartialEq for GlobalScoredDoc {
     fn eq(&self, other: &GlobalScoredDoc) -> bool {
-        self.cmp(&other) == Ordering::Equal
+        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -77,7 +77,7 @@ impl TopCollector {
             .collect()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn at_capacity(&self, ) -> bool {
         self.heap.len() >= self.limit
     }

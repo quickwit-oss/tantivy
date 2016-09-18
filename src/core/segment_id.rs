@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub struct SegmentId(Uuid);
 
 impl SegmentId {
-    pub fn new() -> SegmentId {
+    pub fn generate_random() -> SegmentId {
         SegmentId(Uuid::new_v4())
     }
     

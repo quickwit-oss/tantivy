@@ -18,29 +18,22 @@ pub trait StreamingIterator<'a, T> {
 
 impl<'a, 'b> TokenIter<'b> {
     fn consume_token(&'a mut self) -> Option<&'a str> {
-        loop {
-            match self.chars.next() {
-                Some(c) => {
-                    if c.is_alphanumeric() {
-                        append_char_lowercase(c, &mut self.term_buffer);
-                    }
-                    else {
-                        break;
-                    }
-                },
-                None => {
-                    break;
-                }
+        for c in &mut self.chars { 
+            if c.is_alphanumeric() {
+                append_char_lowercase(c, &mut self.term_buffer);
+            }
+            else {
+                break;
             }
         }
-        return Some(&self.term_buffer);
+        Some(&self.term_buffer)
     }
 }
 
 
 impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
     
-    #[inline(always)]
+    #[inline]
     fn next(&'a mut self,) -> Option<&'a str> {
         self.term_buffer.clear();
         // skipping non-letter characters.

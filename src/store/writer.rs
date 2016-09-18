@@ -46,7 +46,7 @@ impl StoreWriter {
     }
 
     pub fn stack_reader(&mut self, reader: &StoreReader) -> io::Result<()> {
-        if self.current_block.len() > 0 {
+        if !self.current_block.is_empty() {
             try!(self.write_and_compress_block());
         }
         match reader.offsets.last() {
@@ -65,7 +65,7 @@ impl StoreWriter {
         }
     }
 
-    pub fn store<'a>(&mut self, field_values: &Vec<&'a FieldValue>) -> io::Result<()> {
+    pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
         self.intermediary_buffer.clear();
         try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
         for field_value in field_values {
@@ -98,7 +98,7 @@ impl StoreWriter {
     }
 
     pub fn close(&mut self,) -> io::Result<()> {
-        if self.current_block.len() > 0 {
+        if !self.current_block.is_empty() {
             try!(self.write_and_compress_block());
         }
         let header_offset: u64 = self.written;

@@ -61,7 +61,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn bucket(&self, key: &[u8]) -> usize {
         let hash: u64 = djb2(key);
         (hash as usize) & self.mask
@@ -81,7 +81,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
     }
     
     pub fn iter<'b: 'a>(&'b self,) -> impl Iterator<Item=(&'a [u8], (u32, &'a V))> + 'b {
-        let heap: &'a Heap = &self.heap;
+        let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
@@ -96,7 +96,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
     }
 
     pub fn values_mut<'b: 'a>(&'b self,) -> impl Iterator<Item=&'a mut V> + 'b {
-        let heap: &'a Heap = &self.heap;
+        let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
@@ -112,7 +112,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
                 self.heap.get_mut_ref(addr)
             }
             Entry::Vacant(bucket) => {
-                let (addr, val): (u32, &mut V) = self.heap.new();
+                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 self.set_bucket(key.as_ref(), bucket, addr);
                 val
             }

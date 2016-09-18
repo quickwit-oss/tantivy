@@ -30,7 +30,10 @@ impl TextOptions {
         self
     }
 
-    pub fn new() -> TextOptions {
+}
+
+impl Default for TextOptions {
+    fn default() -> TextOptions {
         TextOptions {
             indexing: TextIndexingOptions::Unindexed,
             stored: false,
@@ -90,17 +93,16 @@ impl Decodable for TextIndexingOptions {
 impl TextIndexingOptions {
     pub fn is_termfreq_enabled(&self) -> bool {
         match *self {
-            TextIndexingOptions::TokenizedWithFreq => true,
-            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            TextIndexingOptions::TokenizedWithFreq | TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
         }
     }
     
     pub fn is_tokenized(&self,) -> bool {
         match *self {
-            TextIndexingOptions::TokenizedNoFreq => true,
-            TextIndexingOptions::TokenizedWithFreq => true,
-            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            TextIndexingOptions::TokenizedNoFreq 
+            | TextIndexingOptions::TokenizedWithFreq 
+            | TextIndexingOptions::TokenizedWithFreqAndPosition=> true,
             _ => false,
         }
     }
@@ -129,10 +131,7 @@ impl BitOr for TextIndexingOptions {
         if self == Unindexed {
             other
         }
-        else if other == Unindexed {
-            self
-        }
-        else if self == other {
+        else if other == Unindexed || self == other {
             self
         }
         else {
@@ -156,7 +155,7 @@ pub const TEXT: TextOptions = TextOptions {
     stored: false,
 };
 
-/// A stored fields of a document can be retrieved given its DocId.
+/// A stored fields of a document can be retrieved given its `DocId`.
 /// Stored field are stored together and LZ4 compressed.
 /// Reading the stored fields of a document is relatively slow.
 /// (100 microsecs)
@@ -171,7 +170,7 @@ impl BitOr for TextOptions {
     type Output = TextOptions;
 
     fn bitor(self, other: TextOptions) -> TextOptions {
-        let mut res = TextOptions::new();
+        let mut res = TextOptions::default();
         res.indexing = self.indexing | other.indexing;
         res.stored = self.stored || other.stored;
         res
@@ -191,7 +190,7 @@ mod tests {
             assert!(field_options.get_indexing_options().is_tokenized());
         }
         {
-            let mut schema_builder = SchemaBuilder::new();
+            let mut schema_builder = SchemaBuilder::default();
             schema_builder.add_text_field("body", TEXT);
             let schema = schema_builder.build();
             let field = schema.get_field("body").unwrap();

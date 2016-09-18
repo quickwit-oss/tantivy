@@ -1,3 +1,5 @@
+#![allow(should_implement_trait)]
+
 use std::io;
 use std::io::Seek;
 use std::io::Write;
@@ -79,9 +81,10 @@ impl<'a, V: 'static + BinarySerializable> FstKeyIter<'a, V> {
     }
 }
 
+
 impl<V: BinarySerializable> FstMap<V> {
 
-    pub fn keys<'a>(&'a self,) -> FstKeyIter<'a, V> {
+    pub fn keys(&self,) -> FstKeyIter<V> {
         FstKeyIter {
             streamer: self.fst_index.stream(),
             __phantom__: PhantomData,

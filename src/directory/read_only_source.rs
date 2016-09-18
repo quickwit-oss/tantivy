@@ -32,6 +32,10 @@ impl ReadOnlySource {
     pub fn len(&self,) -> usize {
         self.as_slice().len()
     }
+    
+    pub fn is_empty(&self,) -> bool {
+        self.len() != 0
+    }
 
     /// Creates an empty ReadOnlySource
     pub fn empty() -> ReadOnlySource {
@@ -52,7 +56,7 @@ impl ReadOnlySource {
 
 
     /// Creates a cursor over the data.
-    pub fn cursor<'a>(&'a self) -> Cursor<&'a [u8]> {
+    pub fn cursor(&self) -> Cursor<&[u8]> {
         Cursor::new(&*self)
     }
 

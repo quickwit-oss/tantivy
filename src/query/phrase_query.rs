@@ -18,7 +18,7 @@ pub struct PhraseQuery {
 impl Query for PhraseQuery {
      
     fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> io::Result<TimerTree> {
-        let mut timer_tree = TimerTree::new();
+        let mut timer_tree = TimerTree::default();
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segments().iter().enumerate() {

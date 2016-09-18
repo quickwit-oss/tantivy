@@ -47,6 +47,9 @@ impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
 
 pub trait HasLen {
     fn len(&self,) -> usize;
+    fn is_empty(&self,) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<THasLen: HasLen> HasLen for Box<THasLen> {
@@ -55,7 +58,6 @@ impl<THasLen: HasLen> HasLen for Box<THasLen> {
         unboxed.borrow().len()
      }
 }
-
 
 impl<'a> HasLen for &'a HasLen {
     fn len(&self,) -> usize {

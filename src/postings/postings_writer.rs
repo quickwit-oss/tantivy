@@ -17,7 +17,7 @@ pub trait PostingsWriter {
 
     fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
     
-    fn index_text<'a>(&mut self, doc_id: DocId, field: Field, field_values: &Vec<&'a FieldValue>, heap: &Heap) -> u32  {
+    fn index_text<'a>(&mut self, doc_id: DocId, field: Field, field_values: &[&'a FieldValue], heap: &Heap) -> u32  {
         let mut pos = 0u32;
         let mut num_tokens: u32 = 0u32;
         let mut term = Term::allocate(field, 100);
@@ -25,16 +25,11 @@ pub trait PostingsWriter {
             let mut tokens = SimpleTokenizer.tokenize(field_value.value().text());
             // right now num_tokens and pos are redundant, but it should
             // change when we get proper analyzers
-            loop {
-                match tokens.next() {
-                    Some(token) => {
-                        term.set_text(token);
-                        self.suscribe(doc_id, pos, &term, heap);
-                        pos += 1u32;
-                        num_tokens += 1u32;
-                    },
-                    None => { break; }
-                }
+            while let Some(token) = tokens.next() {
+                term.set_text(token);
+                self.suscribe(doc_id, pos, &term, heap);
+                pos += 1u32;
+                num_tokens += 1u32;
             }
             pos += 1;
             // THIS is to avoid phrase query accross field repetition.
@@ -52,13 +47,13 @@ fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
     let num_buckets_usable = heap_capacity / 100;
     let hash_table_size = num_buckets_usable * 2;
     let mut pow = 512;
-    for num_bit in 10 .. 32 {
-        pow = pow << 1;
+    for num_bits in 10 .. 32 {
+        pow <<= 1;
         if pow > hash_table_size {
-            return num_bit;
+            return num_bits;
         }
     }
-    return 32 
+    32
 }
 
 impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
@@ -86,7 +81,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         }
     }
     
-    #[inline(always)]
+    #[inline]
     fn suscribe(&mut self, doc: DocId, position: u32, term: &Term, heap: &Heap) {
         let mut recorder = self.term_index.get_or_create(term);
         let current_doc = recorder.current_doc();

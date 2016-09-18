@@ -59,7 +59,7 @@ impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for
 
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u32::<NativeEndian>(self.clone())
+        writer.write_u32::<NativeEndian>(*self)
               .map(|_| 4)
               .map_err(convert_byte_order_error)
     }
@@ -73,7 +73,7 @@ impl BinarySerializable for u32 {
 
 impl BinarySerializable for u64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u64::<NativeEndian>(self.clone())
+        writer.write_u64::<NativeEndian>(*self)
               .map(|_| 8)
               .map_err(convert_byte_order_error)
     }
@@ -87,7 +87,7 @@ impl BinarySerializable for u64 {
 impl BinarySerializable for u8 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
         // TODO error
-        try!(writer.write_u8(self.clone()).map_err(convert_byte_order_error));
+        try!(writer.write_u8(*self).map_err(convert_byte_order_error));
         Ok(1)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u8> {

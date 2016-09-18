@@ -6,15 +6,7 @@ pub struct U32Options {
 }
 
 impl U32Options {
-
-    pub fn new() -> U32Options {
-        U32Options {
-            fast: false,
-            indexed: false,
-            stored: false,
-        }
-    }
-    
+   
     pub fn is_stored(&self,) -> bool {
         self.stored
     }
@@ -42,6 +34,17 @@ impl U32Options {
         self
     }
 }
+
+impl Default for U32Options {
+    fn default() -> U32Options {
+        U32Options {
+            fast: false,
+            indexed: false,
+            stored: false,
+        }
+    }    
+}
+
 
 /// The field will be tokenized and indexed
 pub const FAST: U32Options = U32Options {

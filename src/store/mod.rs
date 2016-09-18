@@ -20,9 +20,9 @@ mod tests {
     use directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr) -> Schema {
-        let mut schema_builder = SchemaBuilder::new();
-        let field_body = schema_builder.add_text_field("body", TextOptions::new().set_stored());
-        let field_title = schema_builder.add_text_field("title", TextOptions::new().set_stored());
+        let mut schema_builder = SchemaBuilder::default();
+        let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
+        let field_title = schema_builder.add_text_field("title", TextOptions::default().set_stored());
         let schema = schema_builder.build();
         let lorem = String::from("Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
         {

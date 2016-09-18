@@ -106,16 +106,14 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         let mut next_layer_skip: Option<(DocId, u32)> = None;
         for skip_layer_id in 0..self.skip_layers.len() {
             let mut skip_layer: &mut Layer<'a, u32> = &mut self.skip_layers[skip_layer_id];
-            match next_layer_skip {
-                 Some((_, offset)) => { skip_layer.seek_offset(offset as usize); },
-                 None => {}
-             };
-             next_layer_skip = skip_layer.seek(doc_id);
+            if let Some((_, offset)) = next_layer_skip {
+                skip_layer.seek_offset(offset as usize);
+            }
+            next_layer_skip = skip_layer.seek(doc_id);
          }
-         match next_layer_skip {
-             Some((_, offset)) => { self.data_layer.seek_offset(offset as usize); },
-             None => {}
-         };
+         if let Some((_, offset)) = next_layer_skip {
+             self.data_layer.seek_offset(offset as usize);
+         }
          self.data_layer.seek(doc_id)
     }
 

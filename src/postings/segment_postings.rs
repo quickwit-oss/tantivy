@@ -25,7 +25,7 @@ impl<'a> SegmentPostings<'a> {
             len: 0,
             doc_offset: 0,
             block_decoder: SIMDBlockDecoder::new(),
-            freq_handler: FreqHandler::new(),
+            freq_handler: FreqHandler::new_without_freq(),
             remaining_data: &EMPTY_ARRAY,
             cur: Wrapping(usize::max_value()),
         }
@@ -55,7 +55,6 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 
-    #[inline(always)]
     fn index_within_block(&self,) -> usize {
         self.cur.0 % NUM_DOCS_PER_BLOCK
     }
@@ -67,7 +66,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
 
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
-    #[inline(always)]
+    #[inline]
     fn advance(&mut self,) -> bool {
         self.cur += Wrapping(1);
         if self.cur.0 >= self.len {
@@ -76,10 +75,10 @@ impl<'a> DocSet for SegmentPostings<'a> {
         if self.index_within_block() == 0 {
             self.load_next_block();
         }
-        return true;
+        true
     }
 
-    #[inline(always)]
+    #[inline]
     fn doc(&self,) -> DocId {
         self.block_decoder.output(self.index_within_block())
     }

@@ -46,7 +46,7 @@ mod tests {
         
     #[test]
     pub fn test_position_write() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -66,7 +66,7 @@ mod tests {
     
     #[test]
     pub fn test_position_and_fieldnorm_write_fullstack() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
@@ -75,18 +75,18 @@ mod tests {
         {
             let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "a b a c a d a a.");
                 doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
                 segment_writer.add_document(&doc, &schema).unwrap();
             }
             {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 doc.add_text(text_field, "b a");
                 segment_writer.add_document(&doc, &schema).unwrap();
             }
             for i in 2..1000 {
-                let mut doc = Document::new();
+                let mut doc = Document::default();
                 let mut text = iter::repeat("e ").take(i).collect::<String>();
                 text.push_str(" a");
                 doc.add_text(text_field, &text);

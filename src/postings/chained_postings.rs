@@ -37,7 +37,7 @@ impl<'a> DocSet for ChainedPostings<'a> {
                 return false;
             }   
         }
-        return true
+        true
     }
 
     fn doc(&self,) -> DocId {

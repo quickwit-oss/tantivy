@@ -41,11 +41,6 @@ pub struct TimerTree {
 }
 
 impl TimerTree {
-    pub fn new() -> TimerTree {
-        TimerTree {
-            timings: Vec::new(),
-        }
-    }
     
     pub fn total_time(&self,) -> i64 {
         self.timings.last().unwrap().duration
@@ -61,6 +56,13 @@ impl TimerTree {
     }
 }
 
+impl Default for TimerTree {
+    fn default() -> TimerTree {
+        TimerTree {
+            timings: Vec::new(),
+        }
+    }
+}
 
 
 #[cfg(test)]
@@ -70,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_timer() {
-        let mut timer_tree = TimerTree::new();
+        let mut timer_tree = TimerTree::default();
         {
             let mut a = timer_tree.open("a");
             {

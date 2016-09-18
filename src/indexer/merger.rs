@@ -26,7 +26,7 @@ struct PostingsMerger<'a> {
     doc_offsets: Vec<DocId>,
     heap: BinaryHeap<HeapItem>,
     term_streams: Vec<FstKeyIter<'a, TermInfo>>,
-    readers: &'a Vec<SegmentReader>,
+    readers: &'a [SegmentReader],
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -43,12 +43,12 @@ impl PartialOrd for HeapItem {
 
 impl Ord for HeapItem {
     fn cmp(&self, other: &HeapItem) -> Ordering {
-        return (&other.term, &other.segment_ord).cmp(&(&self.term, &self.segment_ord))
+        (&other.term, &other.segment_ord).cmp(&(&self.term, &self.segment_ord))
     }
 }
 
 impl<'a> PostingsMerger<'a> {
-    fn new(readers: &'a Vec<SegmentReader>) -> PostingsMerger<'a> {
+    fn new(readers: &'a [SegmentReader]) -> PostingsMerger<'a> {
         let mut doc_offsets: Vec<DocId> = Vec::new();
         let mut max_doc = 0;
         for reader in readers {
@@ -74,15 +74,12 @@ impl<'a> PostingsMerger<'a> {
     // pushes the term_reader associated with the given segment ordinal
     // into the heap.
     fn push_next_segment_el(&mut self, segment_ord: usize) {
-        match self.term_streams[segment_ord].next() {
-            Some(term) => {
-                let it = HeapItem {
-                    term: Term::from(term),
-                    segment_ord: segment_ord,
-                };
-                self.heap.push(it);
-            }
-            None => {}
+        if let Some(term) = self.term_streams[segment_ord].next() {
+            let it = HeapItem {
+                term: Term::from(term),
+                segment_ord: segment_ord,
+            };
+            self.heap.push(it);
         }
     }
 
@@ -100,6 +97,12 @@ impl<'a> PostingsMerger<'a> {
         self.push_next_segment_el(heap_item.segment_ord);
     }
 
+}
+
+impl<'a> Iterator for PostingsMerger<'a> {
+    
+    type Item = (Term, ChainedPostings<'a>);
+    
     fn next(&mut self,) -> Option<(Term, ChainedPostings<'a>)> {
         // TODO remove the Vec<u8> allocations
         match self.heap.pop() {
@@ -121,6 +124,7 @@ impl<'a> PostingsMerger<'a> {
         }
     }
 }
+
 
 pub struct IndexMerger {
     schema: Schema,
@@ -145,20 +149,18 @@ impl DeltaPositionComputer {
             self.buffer.resize(positions.len(), 0u32);
         }
         let mut last_pos = 0u32;
-        let num_positions = positions.len();
-        for i in 0..num_positions {
-            let position = positions[i];
+        for (i, position) in positions.iter().cloned().enumerate() {
             self.buffer[i] = position - last_pos;
             last_pos = position;
         }
-        &self.buffer[..num_positions]
+        &self.buffer[..positions.len()]
     }
 }
 
 
 
 impl IndexMerger {
-    pub fn open(schema: Schema, segments: &Vec<Segment>) -> Result<IndexMerger> {
+    pub fn open(schema: Schema, segments: &[Segment]) -> Result<IndexMerger> {
         let mut readers = Vec::new();
         let mut max_doc = 0;
         for segment in segments {
@@ -232,26 +234,21 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
-        let mut postings_merger = PostingsMerger::new(&self.readers);
+        let postings_merger = PostingsMerger::new(&self.readers);
         let mut delta_position_computer = DeltaPositionComputer::new();
-        loop {
-            match postings_merger.next() {
-                Some((term, mut merged_doc_ids)) => {
-                    try!(postings_serializer.new_term(&term, merged_doc_ids.len() as DocId));
-                    while merged_doc_ids.advance() {
-                        let delta_positions: &[u32] = delta_position_computer.compute_delta_positions(merged_doc_ids.positions());
-                        try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), delta_positions));
-                    }
-                    try!(postings_serializer.close_term());
-                }
-                None => { break; }
+        for (term, mut merged_doc_ids) in postings_merger {
+            try!(postings_serializer.new_term(&term, merged_doc_ids.len() as DocId));
+            while merged_doc_ids.advance() {
+                let delta_positions: &[u32] = delta_position_computer.compute_delta_positions(merged_doc_ids.positions());
+                try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), delta_positions));
             }
+            try!(postings_serializer.close_term());
         }
         Ok(())
     }
 
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
-        for reader in self.readers.iter() {
+        for reader in &self.readers {
             let store_reader = reader.get_store_reader();
             try!(store_writer.stack_reader(store_reader));
         }
@@ -284,10 +281,10 @@ mod tests {
 
     #[test]
     fn test_index_merger() {
-        let mut schema_builder = schema::SchemaBuilder::new();
-        let text_fieldtype = schema::TextOptions::new().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_fieldtype = schema::TextOptions::default().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::U32Options::new().set_fast();
+        let score_fieldtype = schema::U32Options::default().set_fast();
         let score_field = schema_builder.add_u32_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
 
@@ -296,19 +293,19 @@ mod tests {
             {
                 // writing the segment
                 {
-                    let mut doc = Document::new();
+                    let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u32(score_field, 3);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
-                    let mut doc = Document::new();
+                    let mut doc = Document::default();
                     doc.add_text(text_field, "a b c");
                     doc.add_u32(score_field, 5);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
-                    let mut doc = Document::new();
+                    let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d");
                     doc.add_u32(score_field, 7);
                     index_writer.add_document(doc).unwrap();
@@ -319,13 +316,13 @@ mod tests {
             {
                 // writing the segment
                 {
-                    let mut doc = Document::new();
+                    let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u32(score_field, 11);
                     index_writer.add_document(doc).unwrap();
                 }
                 {
-                    let mut doc = Document::new();
+                    let mut doc = Document::default();
                     doc.add_text(text_field, "a b c g");
                     doc.add_u32(score_field, 13);
                     index_writer.add_document(doc).unwrap();
@@ -341,7 +338,7 @@ mod tests {
         {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
-                let mut collector = TestCollector::new();
+                let mut collector = TestCollector::default();
                 let query = MultiTermQuery::from(terms);
                 assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()

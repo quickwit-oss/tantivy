@@ -17,7 +17,7 @@ impl<T: Seek + Write> SeekableWrite for T {}
 
 /// Write object for Directory.
 ///
-/// WritePtr are required to implement both Write
+/// `WritePtr` are required to implement both Write
 /// and Seek.
 pub type WritePtr = Box<SeekableWrite>;
 

@@ -168,31 +168,26 @@ impl Recorder for TFAndPositionRecorder {
     fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
         let mut positions_iter = self.stack.iter(self_addr, heap);
-        loop {
-            if let Some(doc) = positions_iter.next() {
-                let mut prev_position = 0;
-                doc_positions.clear();
-                loop {
-                    match positions_iter.next() {
-                        Some(position) => {
-                            if position == POSITION_END {
-                                break;
-                            }
-                            else {
-                                doc_positions.push(position - prev_position);
-                                prev_position = position;
-                            }
+        while let Some(doc) = positions_iter.next() {
+            let mut prev_position = 0;
+            doc_positions.clear();
+            loop {
+                match positions_iter.next() {
+                    Some(position) => {
+                        if position == POSITION_END {
+                            break;
                         }
-                        None => {
-                            panic!("This should never happen. Pleasee report the bug.");
+                        else {
+                            doc_positions.push(position - prev_position);
+                            prev_position = position;
                         }
                     }
+                    None => {
+                        panic!("This should never happen. Pleasee report the bug.");
+                    }
                 }
-                try!(serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions));
             }
-            else {
-                break;
-            }
+            try!(serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions));
         }
         Ok(())
     }
