@@ -210,7 +210,12 @@ mod tests {
             vec!(
                 (Occur::Should, Literal::WithField(String::from("abc"), String::from("toto")))
             )
-        );       
+        );
+        assert_eq!(grammar_parser.parse("+toto").unwrap().0,
+            vec!(
+                (Occur::Must, Literal::DefaultField(String::from("toto")))
+            )
+        );            
         assert_eq!(
             grammar_parser.parse("\"some phrase query\"").unwrap().0,
             vec!(
