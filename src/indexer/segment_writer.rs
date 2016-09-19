@@ -20,6 +20,11 @@ use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
 use indexer::index_writer::MARGIN_IN_BYTES;
 
+/// A SegmentWriter is the object in charge of creating segment index from a
+/// documents.
+///  
+/// They creates the postings list in anonymous memory.
+/// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter<'a> {
 	heap: &'a Heap,
     max_doc: DocId,
@@ -28,6 +33,7 @@ pub struct SegmentWriter<'a> {
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
 }
+
 
 fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 	let u32_fields: Vec<Field> = schema.fields()
@@ -38,6 +44,7 @@ fn create_fieldnorms_writer(schema: &Schema) -> U32FastFieldsWriter {
 		.collect();
 	U32FastFieldsWriter::new(u32_fields)
 }
+
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box<PostingsWriter + 'a> {
 	match *field_entry.field_type() {
@@ -61,9 +68,18 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 }
 
 
-
 impl<'a> SegmentWriter<'a> {
-
+	
+	
+	/// Creates a new `SegmentWriter`
+	///
+	/// The arguments are defined as follows
+	///
+	/// - heap: most of the segment writer data (terms, and postings lists recorders)
+	/// is stored in a user-defined heap object. This makes it possible for the user to define
+	/// the flushing behavior as a buffer limit
+	/// - segment: The segment being written  
+	/// - schema
 	pub fn for_segment(heap: &'a Heap, mut segment: Segment, schema: &Schema) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let mut per_field_postings_writers: Vec<Box<PostingsWriter + 'a>> = Vec::new();
@@ -81,13 +97,10 @@ impl<'a> SegmentWriter<'a> {
 		})
 	}
 	
-	// Write on disk all of the stuff that
-	// is still on RAM :
-	// - the dictionary in an fst
-	// - the postings
-	// - the segment info
-	// The segment writer cannot be used after this, which is
-	// enforced by the fact that "self" is moved.
+	/// Lay on disk the current content of the `SegmentWriter`
+	/// 
+	/// Finalize consumes the `SegmentWriter`, so that it cannot 
+	/// be used afterwards.
 	pub fn finalize(mut self,) -> Result<()> {
 		let segment_info = self.segment_info();
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
@@ -101,10 +114,20 @@ impl<'a> SegmentWriter<'a> {
 			  self.heap)
 	}
 	
+	/// Returns true iff the segment writer's buffer has reached capacity.
+	///
+	/// The limit is defined as `the user defined heap size - an arbitrary margin of 10MB`
+	/// The `Segment` is `finalize`d when the buffer gets full.
+	///
+	/// Because, we cannot cut through a document, the margin is there to ensure that we rarely
+	/// exceeds the heap size.  
 	pub fn is_buffer_full(&self,) -> bool {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
 	
+	/// Indexes a new document
+	///
+	/// As a user, you should rather use `IndexWriter`'s add_document.
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         for (field, field_values) in doc.get_sorted_field_values() {
@@ -141,7 +164,6 @@ impl<'a> SegmentWriter<'a> {
 			}
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
-		
 		self.fast_field_writers.add_document(doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.field_values()
@@ -153,20 +175,39 @@ impl<'a> SegmentWriter<'a> {
         self.max_doc += 1;
 		Ok(())
     }
-
-
-	fn segment_info(&self,) -> SegmentInfo {
+	
+	/// Creates the `SegmentInfo` that will be serialized along
+	/// with the index in JSON format.  
+ 	fn segment_info(&self,) -> SegmentInfo {
 		SegmentInfo {
 			max_doc: self.max_doc
 		}
 	}
-
+	
+	
+	/// Max doc is 
+	/// - the number of documents in the segment assuming there is no deletes
+	/// - the maximum document id (including deleted documents) + 1
+	///
+	/// Currently, **tantivy** does not handle deletes anyway,
+	/// so `max_doc == num_docs`  
 	pub fn max_doc(&self,) -> u32 {
+		self.max_doc
+	}
+	
+	/// Number of documents in the index.
+	/// Deleted documents are not counted.
+	///
+	/// Currently, **tantivy** does not handle deletes anyway,
+	/// so `max_doc == num_docs`
+	#[allow(dead_code)]
+	pub fn num_docs(&self,) -> u32 {
 		self.max_doc
 	}
 
 }
 
+// This method is used as a trick to workaround the borrow checker
 fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,

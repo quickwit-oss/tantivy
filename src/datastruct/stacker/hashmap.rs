@@ -2,6 +2,7 @@ use std::iter;
 use std::marker::PhantomData;
 use super::heap::{Heap, BytesRef};
 
+/// dbj2 hash function
 fn djb2(key: &[u8]) -> u64 {
     let mut state: u64 = 5381; 
     for &b in key {
@@ -19,6 +20,13 @@ impl Default for BytesRef {
     }
 }
 
+/// `KeyValue` is the item stored in the hash table.
+/// The key is actually a `BytesRef` object stored in an external heap.
+/// The value_addr also points to an address in the heap.
+///
+/// The key and the value are actually stored contiguously.
+/// For this reason, the (start, stop) information is actually redundant
+/// and can be simplified in the future 
 #[derive(Copy, Clone, Default)]
 struct KeyValue {
     key: BytesRef,
@@ -31,6 +39,21 @@ impl KeyValue {
     }
 }
 
+pub enum Entry {
+    Vacant(usize),
+    Occupied(u32),
+}
+
+
+/// Customized HashMap with string keys
+/// 
+/// This `HashMap` takes String as keys. Keys are
+/// stored in a user defined heap.
+///
+/// The quirky API has the benefit of avoiding
+/// the computation of the hash of the key twice,
+/// or copying the key as long as there is no insert.
+///
 pub struct HashMap<'a, V> where V: From<u32> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
@@ -38,12 +61,6 @@ pub struct HashMap<'a, V> where V: From<u32> {
     mask: usize,
     occupied: Vec<usize>,
 }
-
-pub enum Entry {
-    Vacant(usize),
-    Occupied(u32),
-}
-
 
 impl<'a, V> HashMap<'a, V> where V: From<u32> {
 

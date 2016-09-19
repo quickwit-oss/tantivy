@@ -64,7 +64,8 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// 
     /// The file may or may not previously exists.
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
-
+        
+    /// Clone the directory and boxes the clone 
     fn box_clone(&self) -> Box<Directory>;
 }
 
