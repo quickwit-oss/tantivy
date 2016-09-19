@@ -107,7 +107,7 @@ impl<'a> SegmentWriter<'a> {
 	
     pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
-        for (field, field_values) in doc.get_sorted_fields() {
+        for (field, field_values) in doc.get_sorted_field_values() {
 			let field_posting_writer: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
 			match *field_options.field_type() {
@@ -144,7 +144,7 @@ impl<'a> SegmentWriter<'a> {
 		
 		self.fast_field_writers.add_document(doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
-			.get_fields()
+			.field_values()
 			.iter()
 			.filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
 			.collect();

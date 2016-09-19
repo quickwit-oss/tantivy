@@ -9,15 +9,26 @@ use schema::Value;
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, RustcEncodable, RustcDecodable)]
 pub struct FieldValue {
-    pub field: Field,
-    pub value: Value,
+    field: Field,
+    value: Value,
 }
 
 impl FieldValue {
+    
+    /// Constructor
+    pub fn new(field: Field, value: Value) -> FieldValue {
+        FieldValue {
+            field: field,
+            value: value,
+        }
+    }
+    
+    /// Field accessor 
     pub fn field(&self) -> Field {
         self.field
     }
 
+    /// Value accessor
     pub fn value(&self,) -> &Value {
         &self.value
     }
@@ -34,10 +45,7 @@ impl BinarySerializable for FieldValue {
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
         let field = try!(Field::deserialize(reader));
         let value = try!(Value::deserialize(reader));
-        Ok(FieldValue {
-            field: field,
-            value: value,
-        })
+        Ok(FieldValue::new(field, value))
     }
 }
 

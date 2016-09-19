@@ -36,6 +36,12 @@ impl PartialEq for GlobalScoredDoc {
 
 impl Eq for GlobalScoredDoc {}
 
+
+/// The Top Collector keeps track of the K documents
+/// with the best scores.
+///
+/// The implementation is based on a `BinaryHeap`.
+/// The theorical complexity is `O(n log K)`.
 pub struct TopCollector {
     limit: usize,
     heap: BinaryHeap<GlobalScoredDoc>,
@@ -58,7 +64,11 @@ impl TopCollector {
             segment_id: 0,
         }
     }
-
+    
+    /// Returns the decreasingly sorted K-best documents.
+    /// 
+    /// Calling this method will triggers the sort.
+    /// The result of the sort is not cached.
     pub fn docs(&self) -> Vec<DocAddress> {
         self.score_docs()
             .into_iter()
@@ -66,6 +76,10 @@ impl TopCollector {
             .collect()
     }
 
+    /// Returns the decreasingly sorted K-best ScoredDocument.
+    /// 
+    /// Calling this method will triggers the sort.
+    /// The result of the sort is not cached.
     pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
         let mut scored_docs: Vec<GlobalScoredDoc> = self.heap
             .iter()
@@ -76,7 +90,9 @@ impl TopCollector {
             .map(|GlobalScoredDoc(score, doc_address)| (score, doc_address))
             .collect()
     }
-
+    
+    /// Return true iff at least K document have gone through
+    /// the collector. 
     #[inline]
     pub fn at_capacity(&self, ) -> bool {
         self.heap.len() >= self.limit

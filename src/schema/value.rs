@@ -4,13 +4,21 @@ use std::io;
 use std::io::Write;
 use std::io::Read;
 
+/// Value represents the value of a any field.
+/// It is an enum over all over all of the possible field type.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, RustcEncodable, RustcDecodable)]
 pub enum Value {
+    /// The str type is used for any text information.
     Str(String),
+    /// Unsigned 32-bits Integer `u32`
     U32(u32),
 }
 
 impl Value {
+    /// Returns the text value, provided the value is of the `Str` type.
+    ///
+    /// # Panics
+    /// If the value is not of type `Str` 
     pub fn text(&self) -> &str {
         match *self {
             Value::Str(ref text) => {
@@ -22,6 +30,10 @@ impl Value {
         }
     }
     
+    /// Returns the u32-value, provided the value is of the `U32` type.
+    ///
+    /// # Panics
+    /// If the value is not of type `U32` 
     pub fn u32_value(&self) -> u32 {
         match *self {
             Value::U32(ref value) => {

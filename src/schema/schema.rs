@@ -79,7 +79,9 @@ impl SchemaBuilder {
         let field_entry = FieldEntry::new_text(field_name, field_options);
         self.add_field(field_entry)
     }
-
+    
+    
+    /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u8);
         let field_name = field_entry.name().clone();
@@ -87,7 +89,10 @@ impl SchemaBuilder {
         self.fields_map.insert(field_name, field);
         field
     }
-
+    
+    
+    /// Finalize the creation of a `Schema`
+    /// This will consume your `SchemaBuilder`
     pub fn build(self,) -> Schema {
         Schema(Arc::new(InnerSchema {
             fields: self.fields,
@@ -138,16 +143,19 @@ struct InnerSchema {
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {
-
+        
+    /// Return the `FieldEntry` associated to a `Field`.
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
         &self.0.fields[field.0 as usize]
     }
     
+    /// Return the field name for a given `Field`.
     pub fn get_field_name(&self, field: Field) -> &String {
         self.get_field_entry(field).name()
     }
-
-    pub fn fields(&self,) -> &Vec<FieldEntry> {
+    
+    /// Return the list of all the `Field`s.
+    pub fn fields(&self,) -> &[FieldEntry] {
         &self.0.fields
     }
     
@@ -166,7 +174,7 @@ impl Schema {
 
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
-        for (field, field_values) in doc.get_sorted_fields() {
+        for (field, field_values) in doc.get_sorted_field_values() {
             let field_name = self.get_field_name(field);
             let values: Vec<Value> = field_values
                 .into_iter()
@@ -177,9 +185,12 @@ impl Schema {
         }
         NamedFieldDocument(field_map)
     }
-
+    
+    
+    /// Encode the schema in JSON. 
+    ///
+    /// Encoding a document cannot fail.
     pub fn to_json(&self, doc: &Document) -> String {
-        // encoding a document cannot fail.
         json::encode(&self.to_named_doc(doc)).unwrap()
     }
 
@@ -212,10 +223,7 @@ impl Schema {
                                      .value_from_json(&json_item)
                                      .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
                                 );
-                                doc.add(FieldValue {
-                                    field: field,
-                                    value: value
-                                });
+                                doc.add(FieldValue::new(field, value));
                             }
                         }
                         _ => {
@@ -224,10 +232,7 @@ impl Schema {
                                  .value_from_json(&json_value)
                                  .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
                             );
-                            doc.add(FieldValue {
-                                field: field,
-                                value: value
-                            });
+                            doc.add(FieldValue::new(field, value));
                         }
                         
                     }
@@ -285,11 +290,17 @@ impl From<SchemaBuilder> for Schema {
 
 
 
+/// Error that may happen when deserializing 
+/// a document from JSON.
 #[derive(Debug)]
 pub enum DocParsingError {
+    /// The payload given is not valid JSON.
     NotJSON(json::ParserError),
+    /// The payload given is not a JSON Object (`{...}`).
     NotJSONObject(String),
+    /// One of the value node could not be parsed.
     ValueError(String, ValueParsingError),
+    /// The json-document contains a field that is not declared in the schema. 
     NoSuchFieldInSchema(String),
 }
 
@@ -379,7 +390,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();
-            assert!(doc.get_fields().is_empty());
+            assert!(doc.field_values().is_empty());
         }
         {
             let doc = schema.parse_document(r#"{

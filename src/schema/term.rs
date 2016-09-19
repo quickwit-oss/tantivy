@@ -5,31 +5,42 @@ use super::Field;
 
 
 
-
+/// Term represents the value that the token can take.
+///
+/// It actually wraps a `Vec<u8>`.
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 
 impl Term {
     
+    /// Pre-allocate a term buffer. 
     pub fn allocate(field: Field, num_bytes: usize) -> Term {
         let mut term = Term(Vec::with_capacity(num_bytes));
         field.serialize(&mut term.0).expect("Serializing term in a Vec should never fail");
         term
     }
 
+    /// Set the content of the term.
     pub fn set_content(&mut self, content: &[u8]) {
         self.0.resize(content.len(), 0u8);
         (&mut self.0[..]).clone_from_slice(content);
     }
     
+    /// Returns the field id.
     fn field_id(&self,) -> u8 {
         self.0[0]
     }
 
-    pub fn get_field(&self,) -> Field {
+    /// Returns the field.
+    pub fn field(&self,) -> Field {
         Field(self.field_id())
     }
 
+    /// Builds a term given a field, and a u32-value
+    ///
+    /// Assuming the term has a field id of 1, and a u32 value of 3234,
+    /// the Term will have 5 bytes.
+    /// The first byte is `1`, and the 4 following bytes are that of the u32.
     pub fn from_field_u32(field: Field, val: u32) -> Term {
         let mut buffer = Vec::with_capacity(1 + 4);
         buffer.clear();
@@ -37,7 +48,13 @@ impl Term {
         val.serialize(&mut buffer).unwrap();
         Term(buffer)
     }
-
+    
+    /// Builds a term given a field, and a string value
+    ///
+    /// Assuming the term has a field id of 2, and a text value of "abc",
+    /// the Term will have 4 bytes.
+    /// The first byte is 2, and the three following bytes are the utf-8 
+    /// representation of "abc".
     pub fn from_field_text(field: Field, text: &str) -> Term {
         let mut buffer = Vec::with_capacity(1 + text.len());
         buffer.clear();
@@ -46,11 +63,13 @@ impl Term {
         Term(buffer)
     }
     
+    /// Set the texts only, keeping the field untouched. 
     pub fn set_text(&mut self, text: &str) {
         self.0.resize(1, 0u8);
         self.0.extend(text.as_bytes());
     }
     
+    /// Returns the underlying `&[u8]` 
     pub fn as_slice(&self,)->&[u8] {
         &self.0
     }
@@ -89,13 +108,13 @@ mod tests {
         let count_field = schema_builder.add_text_field("count", STRING);
         {
             let term = Term::from_field_text(title_field, "test");
-            assert_eq!(term.get_field(), title_field);
+            assert_eq!(term.field(), title_field);
             assert_eq!(term.as_slice()[0], 1u8);
             assert_eq!(&term.as_slice()[1..], "test".as_bytes());
         }
         {
             let term = Term::from_field_u32(count_field, 983u32);
-            assert_eq!(term.get_field(), count_field);
+            assert_eq!(term.field(), count_field);
             assert_eq!(term.as_slice()[0], 2u8);
             assert_eq!(term.as_slice().len(), 5);
             assert_eq!(term.as_slice()[1], (983u32 % 256u32) as u8);            

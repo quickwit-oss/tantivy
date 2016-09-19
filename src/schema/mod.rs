@@ -133,6 +133,12 @@ pub use self::u32_options::FAST;
 
 use regex::Regex;
 
+
+/// Validator for a potential `field_name`.
+/// Returns true iff the name can be use for a field name.
+///
+/// Anything containing more than one (alphanumeric or `_`) character
+/// is a valid field name.
 pub fn is_valid_field_name(field_name: &str) -> bool {
     lazy_static! {
         static ref FIELD_NAME_PTN: Regex = Regex::new("[_a-zA-Z0-9]+").unwrap();

@@ -5,6 +5,9 @@ use std::io;
 use ScoredDoc;
 
 
+/// Collector that does nothing.
+/// This is used in the chain Collector and will hopefully 
+/// be optimized away by the compiler. 
 pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
     #[inline]
@@ -15,24 +18,20 @@ impl Collector for DoNothingCollector {
     fn collect(&mut self, _: ScoredDoc) {}
 }
 
+/// Zero-cost abstraction used to collect on multiple collectors.
+/// This contraption is only usable if the type of your collectors
+/// are known at compile time.
 pub struct ChainedCollector<Left: Collector, Right: Collector> {
     left: Left,
     right: Right
 }
 
 impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> { 
-
-    pub fn start() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
-        ChainedCollector {
-            left: DoNothingCollector,
-            right: DoNothingCollector
-        }
-    }
-
-    pub fn push<C: Collector>(self, new_collector: &mut C) -> ChainedCollector<Self, MutRefCollector<C>> {
+    /// Adds a collector
+    pub fn push<C: Collector>(self, new_collector: &mut C) -> ChainedCollector<Self, &mut C> {
         ChainedCollector {
             left: self,
-            right: MutRefCollector(new_collector),
+            right: new_collector,
         }
     }
 }
@@ -50,6 +49,7 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
     }
 }
 
+/// Creates a `ChainedCollector`
 pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
     ChainedCollector {
         left: DoNothingCollector,
@@ -57,17 +57,6 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
     }
 }
 
-pub struct MutRefCollector<'a, C: Collector + 'a>(&'a mut C);
-
-impl<'a, C: Collector> Collector for MutRefCollector<'a, C> {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
-        self.0.set_segment(segment_local_id, segment)
-    }
-
-    fn collect(&mut self, scored_doc: ScoredDoc) {
-        self.0.collect(scored_doc)
-    }
-}
 
 #[cfg(test)]
 mod tests {

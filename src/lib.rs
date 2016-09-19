@@ -143,7 +143,7 @@ impl ScoredDoc {
 #[cfg(test)]
 mod tests {
 
-    use collector::TestCollector;
+    use collector::tests::TestCollector;
     use query::MultiTermQuery;
     use Index;
     use core::SegmentReader;

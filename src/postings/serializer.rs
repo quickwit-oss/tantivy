@@ -82,7 +82,7 @@ impl PostingsSerializer {
             panic!("Called new_term, while the previous term was not closed.");
         }
         self.term_open = true;
-        self.load_indexing_options(term.get_field());
+        self.load_indexing_options(term.field());
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();

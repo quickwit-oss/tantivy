@@ -74,7 +74,7 @@ impl MultiTermQuery {
             for &(occur, ref term) in &self.occur_terms {
                 let _decode_one_timer = decode_timer.open("decode_one");
                 if let Some(postings) = reader.read_postings(term, SegmentPostingsOption::Freq) {
-                    let field = term.get_field();
+                    let field = term.field();
                     let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
                     postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
                 }

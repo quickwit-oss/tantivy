@@ -274,8 +274,8 @@ mod tests {
     use schema::Term;
     use core::Index;
     use DocAddress;
-    use collector::FastFieldTestCollector;
-    use collector::TestCollector;
+    use collector::tests::FastFieldTestCollector;
+    use collector::tests::TestCollector;
     use query::MultiTermQuery;
     use schema::TextIndexingOptions;
 

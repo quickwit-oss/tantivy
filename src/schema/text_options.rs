@@ -5,7 +5,7 @@ use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 
 
-/// Text options 
+/// Define how a text field should be handled by tantivy.
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {
     indexing: TextIndexingOptions,

@@ -140,7 +140,7 @@ impl SegmentReader {
     // is it because the term is not here, or because the 
     // field does not handle this functionality.
     pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
-        let field = term.get_field();
+        let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(&term));
         let offset = term_info.postings_offset as usize;
@@ -183,7 +183,7 @@ impl SegmentReader {
     }
 
     pub fn read_postings_all_info(&self, term: &Term) -> SegmentPostings {
-        let field_entry = self.schema.get_field_entry(term.get_field());
+        let field_entry = self.schema.get_field_entry(term.field());
         let segment_posting_option = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => {
                 match text_options.get_indexing_options() {

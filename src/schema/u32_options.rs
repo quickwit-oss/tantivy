@@ -1,3 +1,4 @@
+/// Define how a U32 field should be handled by tantivy.
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct U32Options {
     indexed: bool,

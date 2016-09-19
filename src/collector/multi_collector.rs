@@ -4,11 +4,17 @@ use ScoredDoc;
 use SegmentReader;
 use SegmentLocalId;
 
+
+/// Multicollector makes it possible to collect on more than one collector
+/// It should only be used for use cases where the Collector types is unknown 
+/// at compile time.
+/// If the type of the collectors is known, you should prefer to use `ChainedCollector`.
 pub struct MultiCollector<'a> {
     collectors: Vec<&'a mut Collector>,
 }
 
 impl<'a> MultiCollector<'a> {
+    /// Constructor
     pub fn from(collectors: Vec<&'a mut Collector>) -> MultiCollector {
         MultiCollector {
             collectors: collectors,
@@ -16,8 +22,8 @@ impl<'a> MultiCollector<'a> {
     }
 }
 
-impl<'a> Collector for MultiCollector<'a> {
 
+impl<'a> Collector for MultiCollector<'a> {
     fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
         for collector in &mut self.collectors {
             try!(collector.set_segment(segment_local_id, segment));
