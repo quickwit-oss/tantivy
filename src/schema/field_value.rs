@@ -6,6 +6,7 @@ use schema::Field;
 use schema::Value;
 
 
+/// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, RustcEncodable, RustcDecodable)]
 pub struct FieldValue {
     pub field: Field,
@@ -20,7 +21,6 @@ impl FieldValue {
     pub fn value(&self,) -> &Value {
         &self.value
     }
-    
 }
 
 impl BinarySerializable for FieldValue {

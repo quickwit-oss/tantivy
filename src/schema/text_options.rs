@@ -4,6 +4,8 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 
+
+/// Text options 
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct TextOptions {
     indexing: TextIndexingOptions,
@@ -12,19 +14,23 @@ pub struct TextOptions {
 
 impl TextOptions {
     
+    /// Returns the indexing options.
     pub fn get_indexing_options(&self,) -> TextIndexingOptions {
         self.indexing
     }
 
+    /// Returns true iff the text is to be stored.
     pub fn is_stored(&self,) -> bool {
         self.stored
     }
 
+    /// Sets the field as stored
     pub fn set_stored(mut self,) -> TextOptions {
         self.stored = true;
         self
     }
-
+    
+    /// Sets the field as indexed, with the specific indexing options.     
     pub fn set_indexing_options(mut self, indexing: TextIndexingOptions) -> TextOptions {
         self.indexing = indexing;
         self
@@ -41,12 +47,33 @@ impl Default for TextOptions {
     }
 }
 
+
+
+
+/// Describe how a field should be indexed
 #[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
 pub enum TextIndexingOptions {
+    /// Unindexed fields will not generate any postings. They will not be searchable either.
     Unindexed,
+    /// Untokenized means that the field text will not be split into tokens before being indexed.
+    /// A field with the value "Hello world", will have the document suscribe to one single 
+    /// postings, the postings associated to the string "Hello world".
+    ///
+    /// It will **not** be searchable if the user enter "hello" for instance.
+    /// This can be useful for tags, or ids for instance.   
     Untokenized,
+    /// TokenizedNoFreq will tokenize the field value, and append the document doc id 
+    /// to the posting lists associated to all of the tokens.
+    /// The frequence of appearance of the term in the document however will be lost.
+    /// The term frequency used in the TfIdf formula will always be 1.
     TokenizedNoFreq,
+    /// TokenizedWithFreq will tokenize the field value, and encode
+    /// both the docid and the term frequency in the posting lists associated to all
+    // of the tokens.
     TokenizedWithFreq,
+    /// Like TokenizedWithFreq, but also encodes the positions of the 
+    /// terms in a separate file. This option is required for phrase queries.
+    /// Don't use this if you are certain you won't need it, the term positions file can be very big.
     TokenizedWithFreqAndPosition,
 }
 
@@ -91,13 +118,17 @@ impl Decodable for TextIndexingOptions {
 }
 
 impl TextIndexingOptions {
+    
+    /// Returns true iff the term frequency will be encoded.
     pub fn is_termfreq_enabled(&self) -> bool {
         match *self {
-            TextIndexingOptions::TokenizedWithFreq | TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            TextIndexingOptions::TokenizedWithFreq
+            | TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
         }
     }
     
+    /// Returns true iff the term is tokenized before being indexed
     pub fn is_tokenized(&self,) -> bool {
         match *self {
             TextIndexingOptions::TokenizedNoFreq 
@@ -107,6 +138,8 @@ impl TextIndexingOptions {
         }
     }
     
+    
+    /// Returns true iff the term will generate some posting lists.
     pub fn is_indexed(&self,) -> bool {
         match *self {
             TextIndexingOptions::Unindexed => false,
@@ -114,6 +147,7 @@ impl TextIndexingOptions {
         }
     } 
     
+    /// Returns true iff the term positions within the document are stored as well. 
     pub fn is_position_enabled(&self,) -> bool {
         match *self {
             TextIndexingOptions::TokenizedWithFreqAndPosition => true,

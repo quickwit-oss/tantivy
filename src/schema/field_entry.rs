@@ -8,6 +8,9 @@ use rustc_serialize::Encoder;
 use rustc_serialize::json::Json;
 use schema::Value;
 
+
+/// A `FieldType` describes the type (text, u32) of a field as well as 
+/// how it should be handled by tantivy.   
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum FieldType {
     Str(TextOptions),
@@ -49,6 +52,14 @@ impl FieldType {
     }
 }
 
+
+/// A `FieldEntry` represents a field and its configuration.
+/// `Schema` are a collection of `FieldEntry`
+/// 
+/// It consists of 
+/// - a field name 
+/// - a field type, itself wrapping up options describing 
+/// how the field should be indexed.
 #[derive(Clone, Debug)]
 pub struct FieldEntry {
     name: String,
@@ -63,6 +74,8 @@ pub enum ValueParsingError {
 
 impl FieldEntry {
     
+    /// Creates a new u32 field entry in the schema, given
+    /// a name, and some options.
     pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
@@ -70,21 +83,26 @@ impl FieldEntry {
         }
     }
     
+    /// Creates a new u32 field entry in the schema, given
+    /// a name, and some options.
     pub fn new_u32(field_name: String, field_type: U32Options) -> FieldEntry {
         FieldEntry {
             name: field_name,
             field_type: FieldType::U32(field_type),
         }
     }
-
+    
+    /// Returns the name of the field
     pub fn name(&self,) -> &String {
         &self.name
     }
-    
+        
+    /// Returns the field type
     pub fn field_type(&self,) -> &FieldType {
         &self.field_type
     }
     
+    /// Returns true iff the field is indexed
     pub fn is_indexed(&self,) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
@@ -92,6 +110,7 @@ impl FieldEntry {
         }
     }
     
+    /// Returns true iff the field is a u32 fast field
     pub fn is_u32_fast(&self,) -> bool {
         match self.field_type {
             FieldType::U32(ref options) => options.is_fast(),
@@ -99,6 +118,7 @@ impl FieldEntry {
         }
     }
     
+    /// Returns true iff the field is stored
     pub fn is_stored(&self,) -> bool {
         match self.field_type {
             FieldType::U32(ref options) => {

@@ -1,13 +1,5 @@
-#![allow(unknown_lints)]
+#![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
-
-
-
-/*!
-
-Tantivy is a search engine library.  
-
-*/
 
 #![feature(binary_heap_extras)]
 #![feature(conservative_impl_trait)]
@@ -16,6 +8,7 @@ Tantivy is a search engine library.
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(conservative_impl_trait)]
 
+#![warn(missing_docs)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -102,28 +95,45 @@ pub type Score = f32;
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
-
+/// `DocAddress` contains all the necessary information 
+/// to identify a document given a `Searcher` object.
+/// 
+/// It consists in an id identifying its segment, and 
+/// its segment-local `DocId`.
+/// 
+/// The id used for the segment is actually an ordinal
+/// in the list of segment hold by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 impl DocAddress {
+    
+    /// Return the segment ordinal.
+    /// The segment ordinal is an id identifying the segment
+    /// hosting the document. It is only meaningful, in the context
+    /// of a searcher.
     pub fn segment_ord(&self,) -> SegmentLocalId {
         self.0
     }
-
+        
+    /// Return the segment local `DocId`
     pub fn doc(&self,) -> DocId {
         self.1
     }
 }
 
-
+/// A scored doc is simply a couple `(score, doc_id)`
 #[derive(Clone, Copy)]
 pub struct ScoredDoc(Score, DocId);
 
 impl ScoredDoc {
+    
+    /// Returns the score
     pub fn score(&self,) -> Score {
         self.0
     }
+    
+    /// Returns the doc
     pub fn doc(&self,) -> DocId {
         self.1
     }
@@ -241,7 +251,7 @@ mod tests {
         {
             
             let searcher = index.searcher();
-            let segment_reader: &SegmentReader = searcher.segment_readers().iter().next().unwrap();
+            let segment_reader: &SegmentReader = searcher.segment_reader(0);
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
             assert_eq!(fieldnorms_reader.get(0), 3);
             assert_eq!(fieldnorms_reader.get(1), 0);
