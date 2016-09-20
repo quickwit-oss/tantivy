@@ -132,13 +132,6 @@ impl fmt::Debug for RAMDirectory {
    }
 }
 
-impl RAMDirectory {
-    pub fn create() -> RAMDirectory {
-        RAMDirectory {
-            fs: InnerDirectory::new()
-        }
-    }
-}
 
 /// Directory storing everything in anonymous memory.
 ///
@@ -148,6 +141,16 @@ impl RAMDirectory {
 #[derive(Clone)]
 pub struct RAMDirectory {
     fs: InnerDirectory,
+}
+
+impl RAMDirectory {
+    
+    /// Constructor
+    pub fn create() -> RAMDirectory {
+        RAMDirectory {
+            fs: InnerDirectory::new()
+        }
+    }
 }
 
 impl Directory for RAMDirectory {

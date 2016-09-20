@@ -3,12 +3,15 @@ use super::MultiTermAccumulator;
 use super::Similarity;
 use super::Explanation;
 
+
+/// Wrapper over a similarity used to run `explain`
 pub struct SimilarityExplainer<TSimilarity: Similarity + Sized> {
     scorer: TSimilarity,
     vals: Vec<(usize, u32, u32)>,
 }
 
 impl<TSimilarity: Similarity + Sized> SimilarityExplainer<TSimilarity> {
+    /// Returns the underlying similary's score explanation.
     pub fn explain_score(&self,) -> Explanation {
         self.scorer.explain(&self.vals)
     }
@@ -34,7 +37,6 @@ impl<TSimilarity: Similarity + Sized> MultiTermAccumulator for SimilarityExplain
         self.scorer.clear();
     }
 }
-
 
 impl<TSimilarity: Similarity + Sized> Similarity for SimilarityExplainer<TSimilarity> {
     

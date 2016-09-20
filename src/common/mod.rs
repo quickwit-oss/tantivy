@@ -13,3 +13,10 @@ use std::io;
 pub fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
+
+pub trait HasLen {
+    fn len(&self,) -> usize;
+    fn is_empty(&self,) -> bool {
+        self.len() == 0
+    }
+}

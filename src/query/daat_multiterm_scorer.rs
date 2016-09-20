@@ -10,9 +10,17 @@ use std::iter;
 use super::Scorer;
 use Score;
 
+/// Each `HeapItem` represents the head of
+/// a segment postings being merged.
+///
+/// Heap(doc_id, segment_ordinal)
+/// * doc_id - is the current doc id for the given segment postings 
+/// * segment_ordinal - is the ordinal used to identify to which segment postings
+/// this heap item belong to.
 #[derive(Eq, PartialEq)]
 struct HeapItem(DocId, u32);
 
+/// HeapItem are ordered by the document
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -58,6 +66,10 @@ impl Filter {
     }
 }
 
+/// Document-At-A-Time multi term scorer.
+///
+/// The scorer merges multiple segment postings and pushes
+/// term information to the score accumulator. 
 pub struct DAATMultiTermScorer<TPostings: Postings, TAccumulator: MultiTermAccumulator> {
     fieldnorm_readers: Vec<U32FastFieldReader>,
     postings: Vec<TPostings>,
@@ -67,8 +79,6 @@ pub struct DAATMultiTermScorer<TPostings: Postings, TAccumulator: MultiTermAccum
     similarity: TAccumulator,
     filter: Filter,
 }
-
-
 
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScorer<TPostings, TAccumulator> {
     
@@ -102,6 +112,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
         }
     }
     
+    /// Constructor
     pub fn new(postings_and_fieldnorms: Vec<(Occur, TPostings, U32FastFieldReader)>, similarity: TAccumulator) -> DAATMultiTermScorer<TPostings, TAccumulator> {      
         let mut postings = Vec::new();
         let mut fieldnorm_readers = Vec::new();
@@ -117,17 +128,27 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
         DAATMultiTermScorer::new_non_empty(fieldnorm_readers, postings, similarity, filter)
     }
 
-
+    /// Returns the scorer
     pub fn scorer(&self,) -> &TAccumulator {
         &self.similarity
     }
-
+        
+    /// Advances the head of our heap (the segment postings with the lowest doc)
+    /// It will also update the new current `DocId` as well as the term frequency
+    /// associated with the segment postings.
+    /// 
+    /// After advancing the `SegmentPosting`, the postings is removed from the heap
+    /// if it has been entirely consumed, or pushed back into the heap.
+    /// 
+    /// # Panics
+    /// This method will panic if the head `SegmentPostings` is not empty.
     fn advance_head(&mut self,) {
         let ord = self.queue.peek().unwrap().1 as usize;
         let cur_postings = &mut self.postings[ord];
         if cur_postings.advance() {
             let doc = cur_postings.doc();
-            self.term_frequencies[ord] = cur_postings.term_freq();  
+            self.term_frequencies[ord] = cur_postings.term_freq();
+            // peek & replace is incredibly 
             self.queue.replace(HeapItem(doc, ord as u32));
         }
         else {
@@ -135,6 +156,8 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
         }
     }
     
+    /// Returns the field norm for the segment postings with the given ordinal,
+    /// and the given document. 
     fn get_field_norm(&self, ord:usize, doc:DocId) -> u32 {
         self.fieldnorm_readers[ord].get(doc)
     }
@@ -186,7 +209,6 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
         }
     }
 
-    // TODO implement a faster skip_next   
     fn doc(&self,) -> DocId {
         self.doc
     }

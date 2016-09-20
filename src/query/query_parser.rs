@@ -11,24 +11,64 @@ use DocAddress;
 use query::Explanation;
 use query::Occur;
 
+
+
+/// Possible error that may happen when parsing a query.
 #[derive(Debug)]
 pub enum ParsingError {
+    /// Error in the query syntax
     SyntaxError,
+    /// `FieldDoesNotExist(field_name: String)`
+    /// The query references a field that is not in the schema
     FieldDoesNotExist(String),
+    /// `ExpectedU32(field_name: String, field_value: String)`
+    /// The query contains a term for a `u32`-field, but the value
+    /// is not a u32.
     ExpectedU32(String, String),
 }
 
+/// Tantivy's Query parser
+///
+/// The language covered by the current is extremely simple.
+///
+/// * simple terms: "e.g.: `Barack Obama` are simply analyzed using 
+///   tantivy's `StandardTokenizer`, hence becoming `["barack", "obama"]`.
+///   The terms are then searched within the default terms of the query parser.
+///   
+///   e.g. If `body` and `title` are default fields, our example terms are
+///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
+///   By default, all tokenized and indexed fields are default fields.
+///   
+///   Multiple terms are handled as an `OR` : any document containing at least
+///   one of the term will go through the scoring.
+///
+///   This behavior is slower, but is not a bad idea if the user is sorting
+///   by relevance : The user typically just scans through the first few
+///   documents in order of decreasing relevance and will stop when the document
+///   are not relevant anymore.
+///   Making it possible to make this behavior customizable is tracked in
+///   [issue #27](https://github.com/fulmicoton/tantivy/issues/27).
+///   
+/// * negative terms: By prepending a term by a `-`, a term can be excluded
+///   from the search. This is useful for disambiguating a query.
+///   e.g. `apple -fruit` 
+///
+/// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///   
 pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
 }
 
+
+/// The `QueryParser` returns a `StandardQuery`. 
 #[derive(Eq, PartialEq, Debug)]
 pub enum StandardQuery {
     MultiTerm(MultiTermQuery),
 }
 
 impl StandardQuery {
+    /// Number of terms involved in the query.
     pub fn num_terms(&self,) -> usize {
         match *self {
             StandardQuery::MultiTerm(ref q) => {
@@ -38,38 +78,12 @@ impl StandardQuery {
     }
 }
 
-impl Query for StandardQuery {
-    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> tantivy_Error<TimerTree> {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => {
-                q.search(searcher, collector)
-            }
-        }
-    }
-
-    fn explain(
-        &self,
-        searcher: &Searcher,
-        doc_address: &DocAddress) -> tantivy_Error<Explanation> {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
-        }
-    }
-}
-
-
-fn compute_terms(field: Field, text: &str) -> Vec<Term> {
-    let tokenizer = SimpleTokenizer::new();
-    let mut tokens = Vec::new();
-    let mut token_it = tokenizer.tokenize(text);
-    while let Some(token_str) = token_it.next() {
-        tokens.push(Term::from_field_text(field, token_str));
-    }
-    tokens
-}
-
 
 impl QueryParser {
+    /// Creates a `QueryParser`
+    /// * schema - index Schema
+    /// * default_fields - fields used to search if no field is specifically defined
+    ///   in the query.
     pub fn new(schema: Schema,
                default_fields: Vec<Field>) -> QueryParser {
         QueryParser {
@@ -77,7 +91,6 @@ impl QueryParser {
             default_fields: default_fields,
         }
     }   
-    
     
     fn transform_field_and_value(&self, field: Field, val: &str) -> Result<Vec<Term>, ParsingError> {
         let field_entry = self.schema.get_field_entry(field);
@@ -119,6 +132,16 @@ impl QueryParser {
         }
     }
 
+    /// Parse a query
+    ///
+    /// Note that `parse_query` returns an error if the input
+    /// not a valid query.
+    /// 
+    /// There is currently no lenient mode for the query parse
+    /// which makes it a bad choice for a public/broad user search engine.
+    ///
+    /// Implementing a lenient mode for this query parser is tracked 
+    /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<StandardQuery, ParsingError> {
         match parser(query_language).parse(query.trim()) {
             Ok(literals) => {
@@ -141,16 +164,45 @@ impl QueryParser {
             }
         }
     }
-
 }
+
+
+impl Query for StandardQuery {
+    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> tantivy_Error<TimerTree> {
+        match *self {
+            StandardQuery::MultiTerm(ref q) => {
+                q.search(searcher, collector)
+            }
+        }
+    }
+
+    fn explain(
+        &self,
+        searcher: &Searcher,
+        doc_address: &DocAddress) -> tantivy_Error<Explanation> {
+        match *self {
+            StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
+        }
+    }
+}
+
+
+fn compute_terms(field: Field, text: &str) -> Vec<Term> {
+    let tokenizer = SimpleTokenizer::new();
+    let mut tokens = Vec::new();
+    let mut token_it = tokenizer.tokenize(text);
+    while let Some(token_str) = token_it.next() {
+        tokens.push(Term::from_field_text(field, token_str));
+    }
+    tokens
+}
+
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Literal {
     WithField(String, String),
     DefaultField(String),
 }
-
-// TODO handle as a specific case, having a single MUST_NOT term 
 
 
 pub fn query_language(input: State<&str>) -> ParseResult<Vec<(Occur, Literal)>, &str>
@@ -187,7 +239,7 @@ pub fn query_language(input: State<&str>) -> ParseResult<Vec<(Occur, Literal)>, 
 
 
 #[cfg(test)]
-mod tests {
+mod test {
     
     use combine::*;
     use schema::*;
@@ -195,9 +247,6 @@ mod tests {
     use query::Occur;
     use super::*;
     
-
-
-
     #[test]
     pub fn test_query_grammar() {
         let mut grammar_parser = parser(query_language);

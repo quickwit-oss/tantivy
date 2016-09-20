@@ -11,6 +11,7 @@ pub enum SkipResult {
 }
 
 
+/// Represents an iterable set of sorted doc ids. 
 pub trait DocSet {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
@@ -32,7 +33,8 @@ pub trait DocSet {
             }
         }
     }
-
+    
+    /// Returns the current document
     fn doc(&self,) -> DocId;
     
     fn next(&mut self,) -> Option<DocId> {

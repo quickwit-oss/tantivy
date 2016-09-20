@@ -135,7 +135,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
             }
         }
     }
-
+    
     pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
         let key_bytes: &[u8] = key.as_ref();
         let mut bucket = self.bucket(key_bytes);

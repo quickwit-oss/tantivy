@@ -23,18 +23,20 @@ use postings::SegmentPostingsOption;
 use query::DAATMultiTermScorer;
 
 
+/// Query involving one or more terms.
 #[derive(Eq, PartialEq, Debug)]
 pub struct MultiTermQuery {
     occur_terms: Vec<(Occur, Term)>,    
 }
 
-
 impl MultiTermQuery {
     
+    /// Accessor for the number of terms
     pub fn num_terms(&self,) -> usize {
         self.occur_terms.len()
-    } 
+    }
     
+    /// Builds the similitude object
     fn similitude(&self, searcher: &Searcher) -> TfIdf {
         let num_terms = self.num_terms();
         let num_docs = searcher.num_docs() as f32;
@@ -62,7 +64,9 @@ impl MultiTermQuery {
         tfidf.set_term_names(term_names);
         tfidf
     }
-      
+    
+    
+    /// Search the segment.
     fn search_segment<'a, 'b, TAccumulator: MultiTermAccumulator>(
             &'b self,
             reader: &'b SegmentReader,

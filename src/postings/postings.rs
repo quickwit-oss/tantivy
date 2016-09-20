@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 use postings::docset::DocSet;
-
+use common::HasLen;
 
 
 
@@ -45,12 +45,7 @@ impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
 
 }
 
-pub trait HasLen {
-    fn len(&self,) -> usize;
-    fn is_empty(&self,) -> bool {
-        self.len() == 0
-    }
-}
+
 
 impl<THasLen: HasLen> HasLen for Box<THasLen> {
      fn len(&self,) -> usize {

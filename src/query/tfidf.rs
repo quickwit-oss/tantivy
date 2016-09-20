@@ -3,6 +3,10 @@ use super::MultiTermAccumulator;
 use super::Explanation;
 use super::Similarity;
 
+
+/// TfIdf is the default pertinence score in tantivy.
+///
+/// See [TfIdf in the global documentation](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html) 
 #[derive(Clone)]
 pub struct TfIdf {
     coords: Vec<f32>,
@@ -29,6 +33,12 @@ impl MultiTermAccumulator for TfIdf {
 }
 
 impl TfIdf {
+    /// Constructor
+    /// * coords - Coords act as a boosting factor for queries 
+    ///   containing many terms. The coords must have a length 
+    ///   of `num_terms + 1`
+    /// * idf - idf value for each given term. `idf` must
+    ///   have a length of `num_terms`. 
     pub fn new(coords: Vec<f32>, idf: Vec<f32>) -> TfIdf {
         TfIdf {
             coords: coords,
@@ -39,14 +49,17 @@ impl TfIdf {
         }
     }
     
+    /// Compute the coord term
     fn coord(&self,) -> f32 {
         self.coords[self.num_fields]
     }
     
+    /// Set the term names for the explain function
     pub fn set_term_names(&mut self, term_names: Vec<String>) {
         self.term_names = Some(term_names);
     }
-
+    
+    /// Return the name for the ordinal `ord` 
     fn term_name(&self, ord: usize) -> String {
         match self.term_names {
             Some(ref term_names_vec) => term_names_vec[ord].clone(),
@@ -61,6 +74,7 @@ impl TfIdf {
 }
 
 impl Similarity for TfIdf {
+    
     #[inline]
     fn score(&self, ) -> Score {
         self.score * self.coord()

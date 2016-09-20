@@ -171,7 +171,8 @@ impl Schema {
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
         self.0.fields_map.get(field_name).cloned()
     }
-
+    
+    /// Create a named document off the doc.
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {
