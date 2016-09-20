@@ -5,7 +5,10 @@ use postings::DocSet;
 use postings::HasLen;
 use DocId;
 
-
+/// Wraps a posting object and offset all of the doc id with a given offset.
+///
+/// Assuming the original posting list is `0, 5, 7, 8...`, and the offset is `3`
+/// the `OffsetPostings` becomes  `3, 8, 10, 11...`.
 pub struct OffsetPostings<'a> {
     underlying: SegmentPostings<'a>,
     offset: DocId,
@@ -37,8 +40,6 @@ impl<'a> DocSet for OffsetPostings<'a> {
             self.underlying.skip_next(target - self.offset)    
         }
     }
-    
- 
 }
 
 impl<'a> HasLen for OffsetPostings<'a> {

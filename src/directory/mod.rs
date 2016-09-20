@@ -12,6 +12,7 @@ pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
 
+/// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}
 impl<T: Seek + Write> SeekableWrite for T {}
 

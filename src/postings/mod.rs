@@ -105,8 +105,12 @@ mod tests {
                 }
             }
             {
+                let term_a = Term::from_field_text(text_field, "abcdef");
+                assert!(segment_reader.read_postings_all_info(&term_a).is_none());
+            }
+            {
                 let term_a = Term::from_field_text(text_field, "a");
-                let mut postings_a = segment_reader.read_postings_all_info(&term_a);
+                let mut postings_a = segment_reader.read_postings_all_info(&term_a).unwrap();
                 assert_eq!(postings_a.len(), 1000);
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 0);
@@ -125,7 +129,7 @@ mod tests {
             }
             {
                 let term_e = Term::from_field_text(text_field, "e");
-                let mut postings_e = segment_reader.read_postings_all_info(&term_e);
+                let mut postings_e = segment_reader.read_postings_all_info(&term_e).unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
                 for i in 2u32 .. 1000u32 {
                     assert!(postings_e.advance());

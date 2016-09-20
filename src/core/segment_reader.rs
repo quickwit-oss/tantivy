@@ -24,6 +24,18 @@ use postings::FreqHandler;
 use schema::TextIndexingOptions;
 use error::Error;
 
+
+/// Entrypoint to access all of the datastructures of the `Segment`
+///
+/// - term dictionary
+/// - postings
+/// - store
+/// - fast field readers
+/// - field norm reader
+///
+/// The segment reader has a very low memory footprint,
+/// as close to all of the memory data is in Mmapped.
+/// 
 pub struct SegmentReader {
     segment_info: SegmentInfo,
     segment_id: SegmentId,
@@ -37,8 +49,6 @@ pub struct SegmentReader {
 }
 
 impl SegmentReader {
-
-
     /// Returns the highest document id ever attributed in
     /// this segment + 1.
     /// Today, `tantivy` does not handle deletes so, it happens
@@ -47,6 +57,11 @@ impl SegmentReader {
         self.segment_info.max_doc
     }
     
+    /// Returns the number of documents.
+    /// Deleted documents are not counted.
+    ///
+    /// Today, `tantivy` does not handle deletes so max doc and
+    /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
         self.segment_info.max_doc
     }
@@ -68,7 +83,9 @@ impl SegmentReader {
     pub fn get_fieldnorms_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         self.fieldnorms_reader.get_field(field) 
     }
-
+    
+    
+    /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> u32 {
         match self.get_term_info(term) {
             Some(term_info) => term_info.doc_freq,
@@ -122,7 +139,8 @@ impl SegmentReader {
             schema: schema,
         })
     }
-
+    
+    /// Return the term dictionary datastructure.
     pub fn term_infos(&self) -> &FstMap<TermInfo> {
         &self.term_infos
     }
@@ -136,9 +154,14 @@ impl SegmentReader {
     }
 
 
-    // TODO None is quite ambiguous here.
-    // is it because the term is not here, or because the 
-    // field does not handle this functionality.
+    /// Returns the segment postings associated with the term, and with the given option,
+    /// or `None` if the term has never been encounterred and indexed. 
+    /// 
+    /// # Panics
+    /// This method panics if the field was not indexed with the indexing options that cover 
+    /// the requested options.
+    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a `TextIndexingOptions`
+    /// that does not index position will panic.
     pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
@@ -181,8 +204,10 @@ impl SegmentReader {
         };
         Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, freq_handler))
     }
-
-    pub fn read_postings_all_info(&self, term: &Term) -> SegmentPostings {
+    
+    
+    /// Returns the posting list associated with a term.
+    pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());
         let segment_posting_option = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => {
@@ -194,9 +219,10 @@ impl SegmentReader {
             }
             FieldType::U32(_) => SegmentPostingsOption::NoFreq
         };
-        self.read_postings(term, segment_posting_option).expect("Read postings all info should not return None")
+        self.read_postings(term, segment_posting_option)
     }
-
+    
+    /// Returns the term info of associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }

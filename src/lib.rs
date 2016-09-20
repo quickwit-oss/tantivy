@@ -278,7 +278,8 @@ mod tests {
         {
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "af"));
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "af")).unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);

@@ -9,8 +9,7 @@ use DocAddress;
 use schema::Term;
 
 
-/// A searcher holds a snapshot of the list of `SegmentReader`s,
-/// for all of the segments that were present at its creation.
+/// Holds a list of `SegmentReader`s ready for search.
 ///
 /// It guarantees that the `Segment` will not be removed before  
 /// the destruction of the `Searcher`.
@@ -21,7 +20,7 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    
+      
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the
@@ -53,18 +52,22 @@ impl Searcher {
     pub fn segment_readers(&self,) -> &Vec<SegmentReader> {
         &self.segment_readers
     }
-
+    
+    /// Returns the segment_reader associated with the given segment_ordinal
     pub fn segment_reader(&self, segment_ord: usize) -> &SegmentReader {
         &self.segment_readers[segment_ord]
     }
+       
+    /// Runs a query on the segment readers wrapped by the searcher
+    pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> Result<TimerTree> {
+        query.search(self, collector)
+    }
+}
 
-    pub fn from_readers(segment_readers: Vec<SegmentReader>) -> Searcher {
+impl From<Vec<SegmentReader>> for Searcher {
+    fn from(segment_readers: Vec<SegmentReader>) -> Searcher {
         Searcher {
             segment_readers: segment_readers,
         }
-    }
-    
-    pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> Result<TimerTree> {
-        query.search(self, collector)
     }
 }
