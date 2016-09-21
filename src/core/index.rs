@@ -21,6 +21,14 @@ use super::pool::LeasedItem;
 
 const NUM_SEARCHERS: usize = 12; 
 
+/// MetaInformation about the `Index`.
+/// 
+/// This object is serialized on disk in the `meta.json` file.
+/// It keeps information about 
+/// * the searchable segments,
+/// * the index docstamp
+/// * the schema
+///
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
     segments: Vec<SegmentId>,
@@ -53,7 +61,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
-
+/// Tantivy's Search Index
 pub struct Index {
     metas: Arc<RwLock<IndexMeta>>,
     directory: Box<Directory>,
@@ -62,8 +70,6 @@ pub struct Index {
 }
 
 impl Index {
-    
-    
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.

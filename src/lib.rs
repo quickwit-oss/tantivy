@@ -70,6 +70,9 @@ pub mod schema;
 
 pub use directory::Directory;
 pub use core::searcher::Searcher;
+
+
+/// 
 pub use core::Index;
 pub use indexer::IndexWriter;
 pub use schema::Term;
@@ -94,17 +97,6 @@ pub type Score = f32;
 /// A segment local id identifies a segment.
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
-
-/// `DocAddress` contains all the necessary information 
-/// to identify a document given a `Searcher` object.
-/// 
-/// It consists in an id identifying its segment, and 
-/// its segment-local `DocId`.
-/// 
-/// The id used for the segment is actually an ordinal
-/// in the list of segment hold by a `Searcher`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 impl DocAddress {
     
@@ -138,6 +130,19 @@ impl ScoredDoc {
         self.1
     }
 }
+
+
+
+/// `DocAddress` contains all the necessary information 
+/// to identify a document given a `Searcher` object.
+/// 
+/// It consists in an id identifying its segment, and 
+/// its segment-local `DocId`.
+/// 
+/// The id used for the segment is actually an ordinal
+/// in the list of segment hold by a `Searcher`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 
 #[cfg(test)]

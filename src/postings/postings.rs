@@ -4,16 +4,21 @@ use common::HasLen;
 
 
 
-// Postings trait defines all of the information
-// associated with a term.
-// 
-// List of docids, term freqs and positions.
-//
-// It's main implementation is SegmentPostings,
-// but some other implementation mocking SegmentPostings exists,
-// in order to help merging segment or for testing.  
+/// Postings (also called inverted list)
+///
+/// For a given term, it is the list of doc ids of the doc
+/// containing the term. Optionally, for each document,
+/// it may also give access to the term frequency
+/// as well as the list of term positions.
+/// 
+/// Its main implementation is `SegmentPostings`,
+/// but some other implementation mocking SegmentPostings exists,
+/// in order to help merging segment or for testing.  
 pub trait Postings: DocSet {
+    /// Returns the term frequency
     fn term_freq(&self,) -> u32;
+    /// Returns the list of positions of the term, expressed as a list of
+    /// token ordinals.
     fn positions(&self) -> &[u32];
 }
 
