@@ -9,14 +9,29 @@ use schema::Field;
 use analyzer::StreamingIterator;
 use datastruct::stacker::{HashMap, Heap};
 
+/// The `PostingsWriter` is in charge of receiving documenting  
+/// and building a `Segment` in anonymous memory.
+///
+/// `PostingsWriter` writes in a `Heap`.
 pub trait PostingsWriter {
     
-    fn close(&mut self, heap: &Heap);
-
+    /// Record that a document contains a term at a given position.
+    ///
+    /// * doc  - the document id
+    /// * pos  - the term position (expressed in tokens)
+    /// * term - the term
+    /// * heap - heap used to store the postings informations as well as the terms
+    /// in the hashmap.
     fn suscribe(&mut self,  doc: DocId, pos: u32, term: &Term, heap: &Heap);
-
+    
+    /// Serializes the postings on disk.
+    /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
     
+    /// Closes all of the currently open `Recorder`'s.
+    fn close(&mut self, heap: &Heap);
+        
+    /// Tokenize a text and suscribe all of its token.
     fn index_text<'a>(&mut self, doc_id: DocId, field: Field, field_values: &[&'a FieldValue], heap: &Heap) -> u32  {
         let mut pos = 0u32;
         let mut num_tokens: u32 = 0u32;
@@ -39,10 +54,13 @@ pub trait PostingsWriter {
     }
 }
 
+/// The SpecializedPostingsWriter is just here to remove dynamic
+/// dispatch to the recorder information.
 pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
     term_index: HashMap<'a, Rec>,
 }
 
+/// Given a `Heap` size, computes a relevant size for the `HashMap`.
 fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
     let num_buckets_usable = heap_capacity / 100;
     let hash_table_size = num_buckets_usable * 2;
@@ -57,7 +75,8 @@ fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
 }
 
 impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
-
+    
+    /// constructor
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
         let capacity = heap.capacity();
         let hashmap_size = hashmap_size_in_bits(capacity);
@@ -66,9 +85,9 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
         }
     }
     
+    /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
     pub fn new_boxed(heap: &'a Heap) -> Box<PostingsWriter + 'a> {
-        let res = SpecializedPostingsWriter::<Rec>::new(heap);
-        Box::new(res)
+        Box::new(SpecializedPostingsWriter::<Rec>::new(heap))
     } 
 
 }

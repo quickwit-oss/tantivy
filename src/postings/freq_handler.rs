@@ -6,6 +6,9 @@ use compression::CompositeDecoder;
 use postings::SegmentPostingsOption;
 use compression::NUM_DOCS_PER_BLOCK;
 
+
+/// The FreqHandler object is in charge of decompressing
+/// frequencies and/or positions.
 pub struct FreqHandler {
     freq_decoder: SIMDBlockDecoder,
     positions: Vec<u32>,
@@ -28,6 +31,7 @@ fn read_positions(data: &[u8]) -> Vec<u32> {
 
 impl FreqHandler {
     
+    /// Returns a `FreqHandler` that just decodes `DocId`s.
     pub fn new_without_freq() -> FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::with_val(1u32),
@@ -37,6 +41,7 @@ impl FreqHandler {
         }
     }
     
+    /// Returns a `FreqHandler` that decodes `DocId`s and term frequencies.
     pub fn new_with_freq() -> FreqHandler {
         FreqHandler {
             freq_decoder: SIMDBlockDecoder::new(),
@@ -46,6 +51,8 @@ impl FreqHandler {
         }
     }
 
+
+    /// Returns a `FreqHandler` that decodes `DocId`s, term frequencies, and term positions.
     pub fn new_with_freq_and_position(position_data: &[u8]) -> FreqHandler {
         let positions = read_positions(position_data);
         FreqHandler {
@@ -75,12 +82,26 @@ impl FreqHandler {
         }
     }
     
+    
+    /// Accessor to term frequency
+    ///
+    /// idx is the offset of the current doc in the block.
+    /// It takes value between 0 and 128.
+    pub fn freq(&self, idx: usize)-> u32 {
+        self.freq_decoder.output(idx)
+    }
+    
+    /// Accessor to the positions
+    ///
+    /// idx is the offset of the current doc in the block.
+    /// It takes value between 0 and 128.
     pub fn positions(&self, idx: usize) -> &[u32] {
         let start = self.positions_offsets[idx];
         let stop = self.positions_offsets[idx + 1];
         &self.positions[start..stop]        
     }
     
+    /// Decompresses a complete frequency block
     pub fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
         match self.option {
             SegmentPostingsOption::NoFreq => {
@@ -96,7 +117,8 @@ impl FreqHandler {
             }
         }
     }
-
+        
+    /// Decompresses an incomplete frequency block
     pub fn read_freq_vint(&mut self, data: &[u8], num_els: usize) {
         match self.option {
             SegmentPostingsOption::NoFreq => {}
@@ -110,8 +132,4 @@ impl FreqHandler {
         }
     }
     
-    #[inline]
-    pub fn freq(&self, idx: usize)-> u32 {
-        self.freq_decoder.output(idx)
-    }
 }

@@ -157,11 +157,12 @@ impl SegmentReader {
     /// Returns the segment postings associated with the term, and with the given option,
     /// or `None` if the term has never been encounterred and indexed. 
     /// 
-    /// # Panics
-    /// This method panics if the field was not indexed with the indexing options that cover 
-    /// the requested options.
+    /// If the field was not indexed with the indexing options that cover 
+    /// the requested options, the returned `SegmentPostings` the method does not fail
+    /// and returns a `SegmentPostings` with as much information as possible.
+    ///
     /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a `TextIndexingOptions`
-    /// that does not index position will panic.
+    /// that does not index position will return a `SegmentPostings` with `DocId`s and frequencies.
     pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
@@ -204,8 +205,7 @@ impl SegmentReader {
         };
         Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, freq_handler))
     }
-    
-    
+        
     /// Returns the posting list associated with a term.
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());

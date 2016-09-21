@@ -2,7 +2,9 @@ use postings::DocSet;
 use std::cmp::Ordering;
 use DocId;
 
+// TODO Find a way to specialize IntersectionDocSet
 
+/// Creates a DocSet that iterator through the intersection of two `DocSet`s.
 pub struct IntersectionDocSet<'a> {
     left: Box<DocSet + 'a>,
     right: Box<DocSet + 'a>,
@@ -10,7 +12,8 @@ pub struct IntersectionDocSet<'a> {
 }
 
 impl<'a> IntersectionDocSet<'a> {
-    
+        
+    /// Intersect two `DocSet`s
     fn from_pair(left: Box<DocSet + 'a>, right: Box<DocSet + 'a>) -> IntersectionDocSet<'a> {
         IntersectionDocSet {
             left: left,
@@ -19,6 +22,7 @@ impl<'a> IntersectionDocSet<'a> {
         }         
     }
     
+    /// Intersect a list of `DocSet`s
     pub fn new(mut postings: Vec<Box<DocSet + 'a>>) -> IntersectionDocSet<'a> {
         let left = postings.pop().unwrap();
         let right = 
@@ -74,6 +78,7 @@ impl<'a> DocSet for IntersectionDocSet<'a> {
     }
 }
 
+/// Intersects a `Vec` of `DocSets`
 pub fn intersection<'a, TDocSet: DocSet + 'a>(postings: Vec<TDocSet>) -> IntersectionDocSet<'a> {
     let boxed_postings: Vec<Box<DocSet + 'a>> = postings
         .into_iter()

@@ -6,7 +6,11 @@ use std::num::Wrapping;
 
 
 
-// No Term Frequency, no postings.
+/// `SegmentPostings` represents the inverted list or postings associated to 
+/// a term in a `Segment`.
+/// 
+/// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
+/// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings<'a> {
     len: usize,
     doc_offset: u32,
@@ -16,22 +20,9 @@ pub struct SegmentPostings<'a> {
     cur: Wrapping<usize>,
 }
 
-const EMPTY_ARRAY: [u8; 0] = [];
-
 impl<'a> SegmentPostings<'a> {
-
-    pub fn empty() -> SegmentPostings<'a> {
-        SegmentPostings {
-            len: 0,
-            doc_offset: 0,
-            block_decoder: SIMDBlockDecoder::new(),
-            freq_handler: FreqHandler::new_without_freq(),
-            remaining_data: &EMPTY_ARRAY,
-            cur: Wrapping(usize::max_value()),
-        }
-    }
     
-    pub fn load_next_block(&mut self,) {
+    fn load_next_block(&mut self,) {
         let num_remaining_docs = self.len - self.cur.0;
         if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
             self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
@@ -44,6 +35,12 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 
+    /// Reads a Segment postings from an &[u8]
+    ///
+    /// * `len` - number of document in the posting lists.
+    /// * `data` - data array. The complete data is not necessarily used.
+    /// * `freq_handler` - the freq handler is in charge of decoding 
+    ///   frequencies and/or positions
     pub fn from_data(len: u32, data: &'a [u8], freq_handler: FreqHandler) -> SegmentPostings<'a> {
         SegmentPostings {
             len: len as usize,
@@ -54,7 +51,9 @@ impl<'a> SegmentPostings<'a> {
             cur: Wrapping(usize::max_value()),
         }
     }
-
+    
+    /// Index within a block is used as an address when
+    /// interacting with the `FreqHandler` 
     fn index_within_block(&self,) -> usize {
         self.cur.0 % NUM_DOCS_PER_BLOCK
     }
@@ -77,7 +76,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
         }
         true
     }
-
+    
     #[inline]
     fn doc(&self,) -> DocId {
         self.block_decoder.output(self.index_within_block())

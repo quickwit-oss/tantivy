@@ -15,6 +15,8 @@ pub struct OffsetPostings<'a> {
 }
 
 impl<'a> OffsetPostings<'a> {
+    
+    /// Constructor
     pub fn new(underlying: SegmentPostings<'a>, offset: DocId) -> OffsetPostings {
         OffsetPostings {
             underlying: underlying,
