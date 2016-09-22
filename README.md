@@ -1,10 +1,9 @@
+![Tantivy](http://fulmicoton.com/tantivy.png#hash =500)
+
 [![Build Status](https://travis-ci.org/fulmicoton/tantivy.svg?branch=master)](https://travis-ci.org/fulmicoton/tantivy)
 [![Coverage Status](https://coveralls.io/repos/github/fulmicoton/tantivy/badge.svg?branch=master)](https://coveralls.io/github/fulmicoton/tantivy?branch=master)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-
-
-![Tantivy](http://fulmicoton.com/tantivy.png#hash)
 
 **Tantivy** is a **text search engine library** written in rust.
 Without being exactly a port of Lucene in Rust, it is strongly inspired by Lucene's design.
