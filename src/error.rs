@@ -9,23 +9,28 @@ use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
 
+
+/// Generic tantivy error.
+///
+/// Any specialized error return in tantivy can be converted in `tantivy::Error`.
 #[derive(Debug)]
 pub enum Error {
-    FileError(FileError),
-    OpenWriteError(OpenWriteError),
+    /// Path does not exist.
+    PathDoesNotExist(PathBuf),
+    /// File already exists, this is a problem when we try to write into a new file.
+    FileAlreadyExists(PathBuf),
+    /// IO Error
     IOError(io::Error),
+    /// A thread holding the locked panicked and poisoned the lock.
     Poisoned,
-    OpenDirectoryError(OpenDirectoryError),
+    /// The data within is corrupted.
+    ///
+    /// For instance, it contains invalid JSON.
     CorruptedFile(PathBuf, Box<error::Error + Send>),
+    /// Invalid argument was passed by the user.
     InvalidArgument(String),
+    /// An Error happened in one of the thread
     ErrorInThread(String), // TODO investigate better solution
-    Other(Box<error::Error + Send>), // + Send + Sync + 'static
-}
-
-impl Error {
-    pub fn make_other<E: error::Error + 'static + Send>(e: E) -> Error {
-        Error::Other(Box::new(e))
-    }
 }
 
 impl From<io::Error> for Error {
@@ -48,7 +53,10 @@ impl<Guard> From<PoisonError<Guard>> for Error {
 
 impl From<FileError> for Error {
     fn from(error: FileError) -> Error {
-        Error::FileError(error)
+        match error {
+            FileError::FileDoesNotExist(filepath) => Error::PathDoesNotExist(filepath),
+            FileError::IOError(io_error) => Error::IOError(io_error),
+        }
     }
 }
 
@@ -60,14 +68,25 @@ impl From<schema::DocParsingError> for Error {
 
 impl From<OpenWriteError> for Error {
     fn from(error: OpenWriteError) -> Error {
-        Error::OpenWriteError(error)
+        match error {
+            OpenWriteError::FileAlreadyExists(filepath) => 
+                Error::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) => 
+                Error::IOError(io_error),
+        }
     }
 }
 
 impl From<OpenDirectoryError> for Error {
     fn from(error: OpenDirectoryError) -> Error {
-        Error::OpenDirectoryError(error)
+        match error {
+            OpenDirectoryError::DoesNotExist(directory_path) =>
+                Error::PathDoesNotExist(directory_path),
+            OpenDirectoryError::NotADirectory(directory_path) => 
+                Error::InvalidArgument(format!("{:?} is not a directory", directory_path)),
+        }
     }
 }
 
+/// Tantivy result.
 pub type Result<T> = result::Result<T, Error>;

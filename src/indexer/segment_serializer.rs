@@ -57,10 +57,8 @@ impl SegmentSerializer {
 
     pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
-        let json_data = try!(
-            json::encode(segment_info)
-            .map_err(|err| Error::Other(Box::new(err)))
-        );
+        let json_data = json::encode(segment_info)
+                .expect("Encoding to segment_info to JSON failed. This should never happen");
         try!(write.write_all(json_data.as_bytes()));
         try!(write.flush());
         Ok(())

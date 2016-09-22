@@ -6,9 +6,9 @@ use std::io;
 #[derive(Debug)]
 pub enum OpenDirectoryError {
     /// The underlying directory does not exists. 
-    DoesNotExist,
+    DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
-    NotADirectory,
+    NotADirectory(PathBuf),
 }
 
 /// Error that may occur when starting to write in a file

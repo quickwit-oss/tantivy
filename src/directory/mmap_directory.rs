@@ -66,10 +66,10 @@ impl MmapDirectory {
     /// exist or if it is not a directory.
     pub fn open(directory_path: &Path) -> Result<MmapDirectory, OpenDirectoryError> {
         if !directory_path.exists() {
-            Err(OpenDirectoryError::DoesNotExist)
+            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(directory_path)))
         }
         else if !directory_path.is_dir() {
-            Err(OpenDirectoryError::NotADirectory)
+            Err(OpenDirectoryError::NotADirectory(PathBuf::from(directory_path)))
         }
         else {
             Ok(MmapDirectory {

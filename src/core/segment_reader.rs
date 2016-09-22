@@ -102,7 +102,10 @@ impl SegmentReader {
         let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
         let segment_info_data = try!(
             str::from_utf8(&*segment_info_reader)
-                .map_err(Error::make_other)
+                .map_err(|err| {
+                    let segment_info_filepath = segment.relative_path(SegmentComponent::INFO);
+                    Error::CorruptedFile(segment_info_filepath, Box::new(err))
+                })
          );
         let segment_info: SegmentInfo = try!(
             json::decode(&segment_info_data)
