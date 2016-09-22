@@ -4,7 +4,7 @@
 
 
 
-![Tantivy](http://fulmicoton.com/tantivy.png)
+![Tantivy](http://fulmicoton.com/tantivy.png#hash)
 
 **Tantivy** is a **text search engine library** written in rust.
 Without being exactly a port of Lucene in Rust, it is strongly inspired by Lucene's design.
