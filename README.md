@@ -1,4 +1,4 @@
-![Tantivy](http://fulmicoton.com/tantivy.png#hash =500)
+![Tantivy](http://fulmicoton.com/tantivy_500.png)
 
 [![Build Status](https://travis-ci.org/fulmicoton/tantivy.svg?branch=master)](https://travis-ci.org/fulmicoton/tantivy)
 [![Coverage Status](https://coveralls.io/repos/github/fulmicoton/tantivy/badge.svg?branch=master)](https://coveralls.io/github/fulmicoton/tantivy?branch=master)
