@@ -3,6 +3,8 @@ mod ram_directory;
 mod directory;
 mod read_only_source;
 mod shared_vec_slice;
+
+/// Errors specific to the directory module.
 pub mod error;
 
 use std::io::{Seek, Write};

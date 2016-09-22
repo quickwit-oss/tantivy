@@ -150,7 +150,10 @@ impl Index {
     pub fn writer(&self, heap_size_in_bytes: usize) -> Result<IndexWriter> {
         self.writer_with_num_threads(num_cpus::get(), heap_size_in_bytes)
     }
-
+    
+    /// Accessor to the index schema
+    ///
+    /// The schema is actually cloned.
     pub fn schema(&self,) -> Schema {
         self.schema.clone()
     }

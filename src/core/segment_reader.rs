@@ -65,7 +65,8 @@ impl SegmentReader {
     pub fn num_docs(&self) -> DocId {
         self.segment_info.max_doc
     }
-
+    
+    /// Accessor to a segment's fast field reader given a field.
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         match *field_entry.field_type() {
@@ -80,11 +81,17 @@ impl SegmentReader {
         }
     }
     
+    /// Accessor to the segment's `Field norms`'s reader.
+    ///
+    /// Field norms are the length (in tokens) of the fields.
+    /// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
+    ///
+    /// They are simply stored as a fast field, serialized in 
+    /// the `.fieldnorm` file of the segment. 
     pub fn get_fieldnorms_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         self.fieldnorms_reader.get_field(field) 
     }
-    
-    
+        
     /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> u32 {
         match self.get_term_info(term) {
@@ -92,7 +99,8 @@ impl SegmentReader {
             None => 0,
         }
     }    
-
+    
+    /// Accessor to the segment's `StoreReader`.
     pub fn get_store_reader(&self) -> &StoreReader {
         &self.store_reader
     }

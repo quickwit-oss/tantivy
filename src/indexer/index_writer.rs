@@ -36,6 +36,12 @@ type DocumentReceiver = chan::Receiver<Document>;
 type NewSegmentSender = chan::Sender<Result<(SegmentId, usize)>>;
 type NewSegmentReceiver = chan::Receiver<Result<(SegmentId, usize)>>;
 
+/// `IndexWriter` is the user entry-point to add document to an index.
+///
+/// It manages a small number of indexing thread, as well as a shared
+/// indexing queue.
+/// Each indexing thread builds its own independant `Segment`, via
+/// a `SegmentWriter` object.
 pub struct IndexWriter {
 	index: Index,
 	heap_size_in_bytes_per_thread: usize,
@@ -66,7 +72,6 @@ fn index_documents(heap: &mut Heap,
 	try!(segment_writer.finalize());
 	Ok(num_docs)
 }
-
 
 
 impl IndexWriter {
@@ -139,7 +144,8 @@ impl IndexWriter {
 		}
 		Ok(())
 	}
-
+	
+	/// Merges a given list of segments
 	pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
 		let schema = self.index.schema();
 		let merger = try!(IndexMerger::open(schema, segments));

@@ -1,3 +1,8 @@
+/// Query module
+/// 
+/// The query module regroups all of tantivy's query objects
+///
+
 mod query;
 mod multi_term_query;
 mod multi_term_accumulator;

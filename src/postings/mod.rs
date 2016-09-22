@@ -1,3 +1,9 @@
+/// Postings module
+///
+/// Postings, also called inverted lists, is the key datastructure
+/// to full-text search.
+
+
 mod postings;
 mod recorder;
 mod serializer;

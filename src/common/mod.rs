@@ -14,8 +14,13 @@ pub fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
+
+/// Has length trait
 pub trait HasLen {
+    /// Return length
     fn len(&self,) -> usize;
+    
+    /// Returns true iff empty.
     fn is_empty(&self,) -> bool {
         self.len() == 0
     }

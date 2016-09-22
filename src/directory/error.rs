@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::io;
 
-
 /// Error that may occur when opening a directory
 #[derive(Debug)]
 pub enum OpenDirectoryError {

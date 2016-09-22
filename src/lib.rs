@@ -10,6 +10,11 @@
 
 #![warn(missing_docs)]
 
+//! # `tantivy`
+//!
+//! Tantivy is a search engine library. 
+//! Think `Lucene`, but in Rust.
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -61,18 +66,22 @@ pub use error::{Result, Error};
 mod analyzer;
 mod datastruct;
 
-pub mod postings;
-pub mod query;
-pub mod directory;
 
+/// Query module
+pub mod query;
+/// Directory module
+pub mod directory;
+/// Collector module
 pub mod collector;
+/// Postings module (also called inverted index)
+pub mod postings;
+/// Schema
 pub mod schema;
+
 
 pub use directory::Directory;
 pub use core::searcher::Searcher;
 
-
-/// 
 pub use core::Index;
 pub use indexer::IndexWriter;
 pub use schema::Term;

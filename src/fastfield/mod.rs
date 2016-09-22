@@ -1,3 +1,15 @@
+/// FastField module
+///
+/// FastField are the equivalent of `DocValues` in `Lucene`.
+/// FastFields are stored in column-oriented fashion and allow fast
+/// random access given a `DocId`.
+///
+/// Their performance is comparable to that of an array lookup.
+/// FastField are useful when a field is required for all or most of
+/// the `DocSet` : for instance for scoring, grouping, filtering, or facetting.
+/// 
+/// Currently only u32 fastfield are supported.
+
 mod reader;
 mod writer;
 mod serializer;

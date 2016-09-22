@@ -1,5 +1,7 @@
 #![allow(enum_variant_names)]
 
+/// Definition of Tantivy's error and result.
+
 use std::io;
 use std::result;
 use std::path::PathBuf;
@@ -8,6 +10,10 @@ use std::sync::PoisonError;
 use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
+
+
+/// Tantivy result.
+pub type Result<T> = result::Result<T, Error>;
 
 
 /// Generic tantivy error.
@@ -87,6 +93,3 @@ impl From<OpenDirectoryError> for Error {
         }
     }
 }
-
-/// Tantivy result.
-pub type Result<T> = result::Result<T, Error>;
