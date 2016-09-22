@@ -1,5 +1,5 @@
 use std::mem;
-use super::heap::Heap;
+use super::heap::{Heap, HeapAllocable};
 
 
 #[inline]
@@ -53,8 +53,8 @@ impl ExpUnrolledLinkedList {
 }
 
 
-impl From<u32> for ExpUnrolledLinkedList {
-    fn from(addr: u32) -> ExpUnrolledLinkedList {
+impl HeapAllocable for ExpUnrolledLinkedList {
+    fn with_addr(addr: u32) -> ExpUnrolledLinkedList {
         let last_addr = addr + mem::size_of::<u32>() as u32 * 2u32;
         ExpUnrolledLinkedList {
             len: 0u32,
@@ -66,22 +66,6 @@ impl From<u32> for ExpUnrolledLinkedList {
         }
     }
 }
-
-
-
-impl Default for ExpUnrolledLinkedList {
-    fn default() -> ExpUnrolledLinkedList {
-        ExpUnrolledLinkedList {
-            len: 0u32,
-            end: 0u32,
-            val0: 0u32,
-            val1: 0u32,
-            val2: 0u32,
-            next: 0u32,
-        }
-    }
-}
-
 
 pub struct ExpUnrolledLinkedListIterator<'a> {
     heap: &'a Heap,

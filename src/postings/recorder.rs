@@ -1,20 +1,38 @@
 use DocId;
 use std::io;
 use postings::PostingsSerializer;
-use datastruct::stacker::{ExpUnrolledLinkedList, Heap};
+use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 4294967295; 
 
-pub trait Recorder: From<u32> {
+/// Recorder is in charge of recording relevant information about
+/// the presence of a term in a document.
+///
+/// Depending on the `TextIndexingOptions` associated to the 
+/// field, the recorder may records
+///   * the document frequency
+///   * the document id 
+///   * the term frequency
+///   * the term positions
+pub trait Recorder: HeapAllocable {
+    /// Returns the current document
     fn current_doc(&self,) -> u32;
+    /// Starts recording information about a new document
+    /// This method shall only be called if the term is within the document. 
     fn new_doc(&mut self, doc: DocId, heap: &Heap);
+    /// Record the position of a term. For each document, 
+    /// this method will be called `term_freq` times.
     fn record_position(&mut self, position: u32, heap: &Heap);
+    /// Close the document. It will help record the term frequency. 
     fn close_doc(&mut self, heap: &Heap);
+    /// Returns the number of document that have been seen so far
     fn doc_freq(&self,) -> u32;
+    /// Pushes the postings information to the serializer.
     fn serialize(&self, self_addr: u32, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
 }
 
+/// Only records the doc ids
 #[repr(C, packed)]
 pub struct NothingRecorder {
     stack: ExpUnrolledLinkedList,
@@ -22,10 +40,10 @@ pub struct NothingRecorder {
     doc_freq: u32,
 }
 
-impl From<u32> for NothingRecorder {
-    fn from(addr: u32) -> NothingRecorder {
+impl HeapAllocable for NothingRecorder {
+    fn with_addr(addr: u32) -> NothingRecorder {
         NothingRecorder {
-            stack: ExpUnrolledLinkedList::from(addr),
+            stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
             doc_freq: 0u32,
         }
@@ -33,11 +51,10 @@ impl From<u32> for NothingRecorder {
 }
 
 impl Recorder for NothingRecorder {
-    
+        
     fn current_doc(&self,) -> DocId {
         self.current_doc
     }
-    
     
     fn new_doc(&mut self, doc: DocId, heap: &Heap) {
         self.current_doc = doc;
@@ -59,9 +76,10 @@ impl Recorder for NothingRecorder {
         }
         Ok(())
     }
+
 }
 
-
+/// Recorder encoding document ids, and term frequencies
 #[repr(C, packed)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
@@ -70,10 +88,10 @@ pub struct TermFrequencyRecorder {
     doc_freq: u32,
 }
 
-impl From<u32> for TermFrequencyRecorder {
-    fn from(addr: u32) -> TermFrequencyRecorder {
+impl HeapAllocable for TermFrequencyRecorder {
+    fn with_addr(addr: u32) -> TermFrequencyRecorder {
         TermFrequencyRecorder {
-            stack: ExpUnrolledLinkedList::from(addr),
+            stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
             current_tf: 0u32,
             doc_freq: 0u32
@@ -82,6 +100,8 @@ impl From<u32> for TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
+       
+    
     
     fn current_doc(&self,) -> DocId {
         self.current_doc
@@ -120,9 +140,10 @@ impl Recorder for TermFrequencyRecorder {
         }
         Ok(())
     }
+
 }
 
-
+/// Recorder encoding term frequencies as well as positions.
 #[repr(C, packed)]
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
@@ -130,18 +151,18 @@ pub struct TFAndPositionRecorder {
     doc_freq: u32,
 }
 
-impl From<u32> for TFAndPositionRecorder {
-    fn from(addr: u32) -> TFAndPositionRecorder {
+impl HeapAllocable for TFAndPositionRecorder {
+    fn with_addr(addr: u32) -> TFAndPositionRecorder {
         TFAndPositionRecorder {
-            stack: ExpUnrolledLinkedList::from(addr),
+            stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
             doc_freq: 0u32,
         }
     }
-    
 }
 
 impl Recorder for TFAndPositionRecorder {
+  
     
     fn current_doc(&self,) -> DocId {
         self.current_doc
@@ -191,6 +212,7 @@ impl Recorder for TFAndPositionRecorder {
         }
         Ok(())
     }
+
 }
 
 

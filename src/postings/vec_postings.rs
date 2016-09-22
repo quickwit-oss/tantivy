@@ -7,6 +7,11 @@ use std::cmp::Ordering;
 
 const EMPTY_ARRAY: [u32; 0] = []; 
 
+/// Simulate a `Postings` objects from a `VecPostings`.
+/// `VecPostings` only exist for testing purposes.
+///
+/// Term frequencies always return 1.
+/// No positions are returned.
 pub struct VecPostings {
     doc_ids: Vec<DocId>,
     cursor: Wrapping<usize>,

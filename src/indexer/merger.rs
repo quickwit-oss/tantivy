@@ -118,7 +118,7 @@ impl<'a> Iterator for PostingsMerger<'a> {
                     let next_heap_it = self.heap.pop().expect("This is only reached if an element was peeked beforehand.");
                     self.append_segment(&next_heap_it, &mut segment_postings_list);
                 }
-                let chained_posting = ChainedPostings::new(segment_postings_list);
+                let chained_posting = ChainedPostings::from(segment_postings_list);
                 Some((heap_it.term, chained_posting))
             },
             None => None

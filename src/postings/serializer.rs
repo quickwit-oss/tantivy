@@ -17,6 +17,35 @@ use common::VInt;
 use common::BinarySerializable;
 
 
+/// `PostingsSerializer` is in charge of serializing
+/// postings on disk, in the 
+/// * `.idx` (inverted index)
+/// * `.pos` (positions file)
+/// * `.term` (term dictionary)
+/// 
+/// `PostingsWriter` are in charge of pushing the data to the 
+/// serializer.
+/// 
+/// The serializer expects to receive the following calls
+/// in this order :
+///
+/// * `new_term(...)`
+/// * `write_doc(...)`
+/// * `write_doc(...)`
+/// * `write_doc(...)`
+/// * ...
+/// * `close_term()`
+/// * `new_term(...)`
+/// * `write_doc(...)`
+/// * ...
+/// * `close_term()`
+/// * `close()`
+///
+/// Terms have to be pushed in a lexicographically-sorted order.
+/// Within a term, document have to be pushed in increasing order.
+///
+/// A description of the serialization format is 
+/// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html). 
 pub struct PostingsSerializer {
     terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, // TODO find an alternative to work around the "move"
     postings_write: WritePtr,
@@ -35,7 +64,8 @@ pub struct PostingsSerializer {
 }
 
 impl PostingsSerializer {
-
+    
+    /// Open a new `PostingsSerializer` for the given segment  
     pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
         let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
@@ -59,8 +89,8 @@ impl PostingsSerializer {
             term_open: false,
         })
     }
-
-    pub fn load_indexing_options(&mut self, field: Field) {
+    
+    fn load_indexing_options(&mut self, field: Field) {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         self.text_indexing_options = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => {
@@ -76,7 +106,11 @@ impl PostingsSerializer {
             }
         };
     }
-
+    
+    /// Starts the postings for a new term.
+    /// * term - the term. It needs to come after the previous term according
+    ///   to the lexicographical order. 
+    /// * doc_freq - return the number of document containing the term.
     pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
         if self.term_open {
             panic!("Called new_term, while the previous term was not closed.");
@@ -95,7 +129,11 @@ impl PostingsSerializer {
         self.terms_fst_builder
             .insert(term.as_slice(), &term_info)
     }
-
+    
+    /// Finish the serialization for this term postings.
+    ///
+    /// If the current block is incomplete, it need to be encoded
+    /// using `VInt` encoding.  
     pub fn close_term(&mut self,) -> io::Result<()> {
         if self.term_open {
             if !self.doc_ids.is_empty() {
@@ -133,7 +171,17 @@ impl PostingsSerializer {
         }
         Ok(())
     }
-
+    
+    
+    /// Serialize the information that a document contains the current term,
+    /// its term frequency, and the position deltas.
+    ///
+    /// At this point, the positions are already `delta-encoded`.
+    /// For instance, if the positions are `2, 3, 17`,
+    /// `position_deltas` is `2, 1, 14`
+    ///
+    /// Term frequencies and positions may be ignored by the serializer depending
+    /// on the configuration of the field in the `Schema`.
     pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) -> io::Result<()> {
         self.doc_ids.push(doc_id);
         if self.text_indexing_options.is_termfreq_enabled() {
@@ -161,7 +209,8 @@ impl PostingsSerializer {
         }
         Ok(())
     }
-
+    
+    /// Closes the serializer.
     pub fn close(mut self,) -> io::Result<()> {
         try!(self.close_term());
         try!(self.terms_fst_builder.finish());

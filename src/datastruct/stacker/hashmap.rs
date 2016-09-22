@@ -1,6 +1,9 @@
 use std::iter;
 use std::marker::PhantomData;
-use super::heap::{Heap, BytesRef};
+use super::heap::{Heap, HeapAllocable, BytesRef};
+
+
+
 
 /// dbj2 hash function
 fn djb2(key: &[u8]) -> u64 {
@@ -54,7 +57,7 @@ pub enum Entry {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 ///
-pub struct HashMap<'a, V> where V: From<u32> {
+pub struct HashMap<'a, V> where V: HeapAllocable {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     _phantom: PhantomData<V>,
@@ -62,7 +65,7 @@ pub struct HashMap<'a, V> where V: From<u32> {
     occupied: Vec<usize>,
 }
 
-impl<'a, V> HashMap<'a, V> where V: From<u32> {
+impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
 
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a, V> {
         let table_size = 1 << num_bucket_power_of_2;
@@ -157,7 +160,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
 mod tests {
     
     use super::*;
-    use super::super::heap::Heap;
+    use super::super::heap::{Heap, HeapAllocable};
     use super::djb2;
     use test::Bencher;
     use std::hash::SipHasher;
@@ -168,8 +171,8 @@ mod tests {
         _addr: u32,
     }
 
-    impl From<u32> for TestValue {
-        fn from(addr: u32) -> TestValue {
+    impl HeapAllocable for TestValue {
+        fn with_addr(addr: u32) -> TestValue {
             TestValue {
                 val: 0u32,
                 _addr: addr,

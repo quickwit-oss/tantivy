@@ -4,19 +4,26 @@ use postings::OffsetPostings;
 use postings::DocSet;
 use postings::HasLen;
 
+/// Creates a posting object that chains two postings 
+/// together.
+///
+/// When iterating over the chained postings,
+/// it will consume all of the documents of the first postings, 
+/// and then iterate over the documents over the second postings.
+/// 
+/// The chained postings is used when merging segments. 
 pub struct ChainedPostings<'a> {
     chained_postings: Vec<OffsetPostings<'a>>,
     posting_id: usize,
     len: usize,
 }
 
-impl<'a> ChainedPostings<'a> {
-    
-    pub fn new(chained_postings: Vec<OffsetPostings<'a>>) -> ChainedPostings {
+impl<'a> From<Vec<OffsetPostings<'a>>> for ChainedPostings<'a> {
+    fn from(chained_postings: Vec<OffsetPostings<'a>>) -> ChainedPostings {
         let len: usize = chained_postings
             .iter()
             .map(|segment_postings| segment_postings.len())
-            .fold(0, |sum, addition| sum + addition);
+            .sum();
         ChainedPostings {
             chained_postings: chained_postings,
             posting_id: 0,

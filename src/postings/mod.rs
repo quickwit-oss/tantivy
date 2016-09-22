@@ -20,7 +20,10 @@ pub use self::postings_writer::PostingsWriter;
 pub use self::postings_writer::SpecializedPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
+
+#[cfg(test)]
 pub use self::vec_postings::VecPostings;
+
 pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::intersection;

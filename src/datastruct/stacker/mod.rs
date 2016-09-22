@@ -2,7 +2,7 @@ mod hashmap;
 mod heap;
 mod expull;
 
-pub use self::heap::Heap;
+pub use self::heap::{Heap, HeapAllocable};
 pub use self::expull::ExpUnrolledLinkedList;
 pub use self::hashmap::{HashMap, Entry};
 
