@@ -4,13 +4,17 @@
 
 
 
-# Tantivy
+![Tantivy](http://fulmicoton.com/tantivy.png)
 
 **Tantivy** is a **text search engine library** written in rust.
 Without being exactly a port of Lucene in Rust, it is strongly inspired by Lucene's design.
 
-You might also be interested in [tantivy-cli](https://github.com/fulmicoton/tantivy-cli) and its [tutorial](https://github.com/fulmicoton/tantivy-cli) 
-that can help you get a search engine up and running in minutes.
+
+To get started with tantivy, you should check out [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
+
+You might also be interested in [tantivy-cli](https://github.com/fulmicoton/tantivy-cli) and its [tutorial](https://github.com/fulmicoton/tantivy-cli).
+It will walk you through getting a wikipedia search engine up and running in a few minutes.
+
 
 # Compiling 
 
