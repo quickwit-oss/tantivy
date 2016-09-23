@@ -6,19 +6,33 @@
 
 ![Tantivy](http://fulmicoton.com/tantivy.png)
 
-**Tantivy** is a **text search engine library** written in rust.
+**Tantivy** is a **full text search engine library** written in rust.
 Without being exactly a port of Lucene in Rust, it is strongly inspired by Lucene's design.
 
+# Features
 
-To get started with tantivy, you should check out [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
+- configurable indexing (optional term frequency and position indexing)
+- Tf-Idf scoring
+- Basic query language
+- Incremental indexing
+- Multithreaded indexing (indexing en wikipedia takes 4mn on my desktop)
+- Mmap based
+- SIMD integer compression
+- u32 fast fields (equivalent of doc values in Lucene)
+- LZ4 compressed document store
+- Cheesy logo with a horse
 
-You might also be interested in [tantivy-cli](https://github.com/fulmicoton/tantivy-cli) and its [tutorial](https://github.com/fulmicoton/tantivy-cli).
+# Getting started
+
+- [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
+- [tantivy-cli and its tutorial](https://github.com/fulmicoton/tantivy-cli).
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
+- [reference doc](http://fulmicoton.com/tantivy/tantivy/index.html).
 
 
 # Compiling 
 
-`simdcomp` has a submodule.
+Tantivy has a git submodule called `simdcomp`.
 After cloning the repository, you will need to initialize and update
 the submodules. The project can then be build using `cargo`.
 
@@ -27,9 +41,6 @@ the submodules. The project can then be build using `cargo`.
     git submodule update
     cargo build
 
-
-Check out the [reference doc](http://fulmicoton.com/tantivy/tantivy/index.html).
-You may also want to have look at [tantivy-cli and its tutorial](https://github.com/fulmicoton/tantivy-cli) , a command-line util for tantivy.
 
 
 # Contribute
