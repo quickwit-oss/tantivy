@@ -14,3 +14,18 @@ pub use self::segment::Segment;
 pub use self::segment::SegmentInfo;
 pub use self::segment::SerializableSegment;
 pub use self::index::Index;
+
+#[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
+pub struct SegmentMeta {
+    pub segment_id: SegmentId,
+    pub num_docs: usize,
+}
+
+impl SegmentMeta {
+    pub fn new(segment_id: SegmentId, num_docs: usize) -> SegmentMeta {
+        SegmentMeta {
+            segment_id: segment_id,
+            num_docs: num_docs,
+        }
+    }
+}

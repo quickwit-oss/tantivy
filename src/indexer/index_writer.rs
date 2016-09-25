@@ -9,12 +9,13 @@ use indexer::SegmentWriter;
 use std::clone::Clone;
 use std::io;
 use std::thread;
-use std::collections::HashSet;
 use indexer::merger::IndexMerger;
+use indexer::SegmentUpdate;
 use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
+use core::SegmentMeta;
 
 use Result;
 use Error;
@@ -33,8 +34,8 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 type DocumentSender = chan::Sender<Document>;
 type DocumentReceiver = chan::Receiver<Document>;
 
-type NewSegmentSender = chan::Sender<Result<(SegmentId, usize)>>;
-type NewSegmentReceiver = chan::Receiver<Result<(SegmentId, usize)>>;
+type NewSegmentSender = chan::Sender<Result<SegmentMeta>>;
+type NewSegmentReceiver = chan::Receiver<Result<SegmentMeta>>;
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -99,7 +100,10 @@ impl IndexWriter {
 				// if no document are available.
 				if document_iterator.peek().is_some() {
 					let index_result = index_documents(&mut heap, segment, &schema, &mut document_iterator)
-						.map(|num_docs| (segment_id, num_docs));
+						.map(|num_docs| SegmentMeta {
+							segment_id: segment_id,
+							num_docs: num_docs, 
+						});
 					segment_ready_sender_clone.send(index_result);
 				}
 				else {
@@ -132,7 +136,7 @@ impl IndexWriter {
 			document_sender: document_sender,
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
-			docstamp: try!(index.docstamp()),
+			docstamp: index.docstamp(),
 		};
 		try!(index_writer.start_workers());
 		Ok(index_writer)
@@ -147,13 +151,19 @@ impl IndexWriter {
 	
 	/// Merges a given list of segments
 	pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
+		//  TODO fix commit or uncommited?
 		let schema = self.index.schema();
 		let merger = try!(IndexMerger::open(schema, segments));
 		let mut merged_segment = self.index.new_segment();
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut merged_segment));
-		try!(merger.write(segment_serializer));
-		let merged_segment_ids: HashSet<SegmentId> = segments.iter().map(|segment| segment.id()).collect();
-		try!(self.index.publish_merge_segment(merged_segment_ids, merged_segment.id()));
+		let num_docs = try!(merger.write(segment_serializer));
+		let merged_segment_ids: Vec<SegmentId> = segments.iter().map(|segment| segment.id()).collect();
+		let segment_meta = SegmentMeta {
+			segment_id: merged_segment.id(),
+			num_docs: num_docs,
+		};
+		let segment_update = SegmentUpdate::EndMerge(merged_segment_ids, segment_meta);
+		try!(self.index.update_commited_segments(segment_update));
 		Ok(())
 	}
 
@@ -165,7 +175,7 @@ impl IndexWriter {
 	/// when no documents are remaining.
 	///
 	/// Returns the former segment_ready channel.  
-	fn recreate_channels(&mut self,) -> (DocumentReceiver, chan::Receiver<Result<(SegmentId, usize)>>) {
+	fn recreate_channels(&mut self,) -> (DocumentReceiver, NewSegmentReceiver) {
 		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (mut segment_ready_sender, mut segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		swap(&mut self.document_sender, &mut document_sender);
@@ -209,7 +219,7 @@ impl IndexWriter {
 		}
 
 		// reset the docstamp to what it was before
-		self.docstamp = try!(self.index.docstamp());
+		self.docstamp = self.index.docstamp();
 		Ok(self.docstamp)
 	}
 
@@ -248,18 +258,14 @@ impl IndexWriter {
 			try!(self.add_indexing_worker());
 		}
 		
-		let segment_ids_and_size: Vec<(SegmentId, usize)> = try!(
+		let segment_metas: Vec<SegmentMeta> = try!(
 			segment_ready_receiver
 				.into_iter()
 				.collect()
 		);
 
-		let segment_ids: Vec<SegmentId> = segment_ids_and_size
-			.iter()
-			.map(|&(segment_id, _num_docs)| segment_id)
-			.collect();
 		
-		try!(self.index.publish_segments(&segment_ids, commit_docstamp));
+		try!(self.index.publish_segments(&segment_metas, commit_docstamp));
 
 		Ok(commit_docstamp)
 	}

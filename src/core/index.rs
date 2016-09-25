@@ -3,7 +3,7 @@ use Error;
 use std::path::{PathBuf, Path};
 use schema::Schema;
 use std::io::Write;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
@@ -12,11 +12,13 @@ use indexer::IndexWriter;
 use core::searcher::Searcher;
 use std::convert::From;
 use num_cpus;
-use std::collections::HashSet;
 use super::segment::Segment;
 use core::SegmentReader;
 use super::pool::Pool;
 use super::pool::LeasedItem;
+use core::SegmentMeta;
+use indexer::SegmentRegister;
+use indexer::SegmentUpdate;
 
 
 const NUM_SEARCHERS: usize = 12; 
@@ -31,7 +33,8 @@ const NUM_SEARCHERS: usize = 12;
 ///
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
-    segments: Vec<SegmentId>,
+    committed_segments: Vec<SegmentMeta>,
+    uncommitted_segments: Vec<SegmentMeta>,
     schema: Schema,
     docstamp: u64,
 }
@@ -39,7 +42,8 @@ pub struct IndexMeta {
 impl IndexMeta {
     fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
-            segments: Vec::new(),
+            committed_segments: Vec::new(),
+            uncommitted_segments: Vec::new(),
             schema: schema,
             docstamp: 0u64,
         }
@@ -63,10 +67,14 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 
 /// Tantivy's Search Index
 pub struct Index {
-    metas: Arc<RwLock<IndexMeta>>,
+    
+    committed_segments: Arc<SegmentRegister>,
+    uncommitted_segments: Arc<SegmentRegister>,
+    
     directory: Box<Directory>,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
+    docstamp: u64,
 }
 
 impl Index {
@@ -103,11 +111,15 @@ impl Index {
     /// Creates a new index given a directory and an IndexMeta.
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
+        let docstamp = metas.docstamp;
+        let committed_segments = SegmentRegister::from(metas.committed_segments);
         let index = Index {
+            committed_segments: Arc::new(committed_segments),
+            uncommitted_segments: Arc::new(SegmentRegister::default()),
             directory: directory,
-            metas: Arc::new(RwLock::new(metas)),
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
+            docstamp: docstamp,
         };
         try!(index.load_searchers());
         Ok(index)
@@ -131,11 +143,8 @@ impl Index {
     ///
     /// The docstamp is the number of documents that have been added
     /// from the beginning of time, and until the moment of the last commit.
-    pub fn docstamp(&self,) -> Result<u64> {
-        self.metas
-            .read()
-            .map(|metas| metas.docstamp)
-            .map_err(From::from)
+    pub fn docstamp(&self,) -> u64 {
+        self.docstamp
     }
     
     /// Creates a multithreaded writer.
@@ -162,46 +171,44 @@ impl Index {
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn publish_segments(&mut self,
-            segment_ids: &[SegmentId],
+            segment_metas: &[SegmentMeta],
             docstamp: u64) -> Result<()> {
-        {
-            let mut meta_write = try!(self.metas.write());
-            meta_write.segments.extend_from_slice(segment_ids);
-            meta_write.docstamp = docstamp;
+        self.docstamp = docstamp;
+        for segment_meta in segment_metas {
+            let segment_update = SegmentUpdate::NewSegment(segment_meta.clone());
+            try!(self.committed_segments.segment_update(segment_update));
         }
         try!(self.save_metas());
         try!(self.load_searchers());
         Ok(())
     }
 
+
     /// Exchange a set of `SegmentId`s for the `SegmentId` of a merged segment.   
-    pub fn publish_merge_segment(&mut self, segment_merged_ids: HashSet<SegmentId>, merged_segment_id: SegmentId) -> Result<()> {
-        {
-            let mut meta_write = try!(self.metas.write());
-            let mut new_segment_ids: Vec<SegmentId> = meta_write
-                .segments
-                .iter()
-                .filter(|&segment_id| !segment_merged_ids.contains(segment_id))
-                .cloned()
-                .collect();
-            new_segment_ids.push(merged_segment_id);
-            meta_write.segments = new_segment_ids;
-        }
+    pub fn update_uncommited_segments(&mut self, segment_update: SegmentUpdate) -> Result<()> {
+        try!(self.uncommitted_segments.segment_update(segment_update));
+        try!(self.save_metas());
+        try!(self.load_searchers());
+        Ok(())
+    }
+    
+    /// Exchange a set of `SegmentId`s for the `SegmentId` of a merged segment.   
+    pub fn update_commited_segments(&mut self, segment_update: SegmentUpdate) -> Result<()> {
+        try!(self.committed_segments.segment_update(segment_update));
         try!(self.save_metas());
         try!(self.load_searchers());
         Ok(())
     }
     
     /// Returns the list of segments that are searchable
-    pub fn segments(&self,) -> Result<Vec<Segment>> {
-        let segment_ids = try!(self.segment_ids());
+    pub fn searchable_segments(&self,) -> Result<Vec<Segment>> {
+        let segment_ids = try!(self.searchable_segment_ids());
         Ok(
             segment_ids
             .into_iter()
             .map(|segment_id| self.segment(segment_id))
             .collect()
         )
-            
     }
     
     /// Return a segment object given a segment_id
@@ -223,22 +230,25 @@ impl Index {
     }
     
     /// Returns the list of segment ids that are searchable.
-    fn segment_ids(&self,) -> Result<Vec<SegmentId>> {
-        self.metas.read()
-        .map_err(From::from)
-        .map(|meta_read| {
-            meta_read
-            .segments
-            .iter()
-            .cloned()
-            .collect()
-        })
-            
+    fn searchable_segment_ids(&self,) -> Result<Vec<SegmentId>> {
+        self.committed_segments
+            .segment_ids()
     }
     
     /// Creates a new segment.
     pub fn new_segment(&self,) -> Segment {
         self.segment(SegmentId::generate_random())
+    }
+    
+    fn create_metas(&self,) -> Result<IndexMeta> {
+        let committed_segments = try!(self.committed_segments.segment_metas());
+        let uncommitted_segments = try!(self.uncommitted_segments.segment_metas());
+        Ok(IndexMeta {
+            committed_segments: committed_segments,
+            uncommitted_segments: uncommitted_segments,
+            schema: self.schema.clone(),
+            docstamp: self.docstamp, 
+        })
     }
     
     /// Save the index meta file.
@@ -249,11 +259,9 @@ impl Index {
     /// - it success, and `meta.json` is written 
     /// and flushed.
     pub fn save_metas(&mut self,) -> Result<()> {
+        let metas = try!(self.create_metas());
         let mut w = Vec::new();
-        {
-            let metas_lock = try!(self.metas.read());
-            try!(write!(&mut w, "{}\n", json::as_pretty_json(&*metas_lock)));
-        };
+        try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
         self.directory
             .atomic_write(&META_FILEPATH, &w[..])
             .map_err(From::from)
@@ -267,7 +275,7 @@ impl Index {
     pub fn load_searchers(&self,) -> Result<()>{
         let res_searchers: Result<Vec<Searcher>> = (0..NUM_SEARCHERS)
             .map(|_| {
-                let segments: Vec<Segment> = try!(self.segments());
+                let segments: Vec<Segment> = try!(self.searchable_segments());
                 let segment_readers: Vec<SegmentReader> = try!(
                     segments
                         .into_iter()
@@ -307,10 +315,13 @@ impl fmt::Debug for Index {
 impl Clone for Index {
     fn clone(&self,) -> Index {
         Index {
-            metas: self.metas.clone(),
+            committed_segments: self.committed_segments.clone(),
+            uncommitted_segments: self.uncommitted_segments.clone(),
+            
             directory: self.directory.box_clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
+            docstamp: self.docstamp,
         }
     }
 }

@@ -258,13 +258,14 @@ impl IndexMerger {
 }
 
 impl SerializableSegment for IndexMerger {
-    fn write(&self, mut serializer: SegmentSerializer) -> Result<()> {
+    fn write(&self, mut serializer: SegmentSerializer) -> Result<usize> {
         try!(self.write_postings(serializer.get_postings_serializer()));
         try!(self.write_fieldnorms(serializer.get_fieldnorms_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
         try!(self.write_storable_fields(serializer.get_store_writer()));
         try!(serializer.write_segment_info(&self.segment_info));
-        serializer.close()
+        try!(serializer.close());
+        Ok(self.segment_info.max_doc as usize)
     }
 }
 
@@ -332,7 +333,7 @@ mod tests {
             }
         }
         {
-            let segments = index.segments().unwrap();
+            let segments = index.searchable_segments().unwrap();
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer.merge(&segments).unwrap();
         }

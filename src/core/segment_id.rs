@@ -3,6 +3,8 @@ use std::fmt;
 use rustc_serialize::{Encoder, Decoder, Encodable, Decodable};
 use core::SegmentComponent;
 use std::path::PathBuf;
+use std::cmp::{Ordering, Ord};
+
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentId(Uuid);
@@ -40,3 +42,15 @@ impl fmt::Debug for SegmentId {
     }
 }
 
+
+impl PartialOrd for SegmentId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SegmentId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.as_bytes().cmp(other.0.as_bytes())
+    }
+}

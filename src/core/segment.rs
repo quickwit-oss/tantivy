@@ -56,7 +56,7 @@ impl Segment {
 }
 
 pub trait SerializableSegment {
-    fn write(&self, serializer: SegmentSerializer) -> Result<()>;
+    fn write(&self, serializer: SegmentSerializer) -> Result<usize>;
 }
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]

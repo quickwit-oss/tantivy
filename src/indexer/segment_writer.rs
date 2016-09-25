@@ -106,12 +106,13 @@ impl<'a> SegmentWriter<'a> {
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
 		}
-		write(&self.per_field_postings_writers,
+		try!(write(&self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  segment_info,
 			  self.segment_serializer,
-			  self.heap)
+			  self.heap));
+		Ok(())
 	}
 	
 	/// Returns true iff the segment writer's buffer has reached capacity.
@@ -213,7 +214,7 @@ fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,
 	  	 mut serializer: SegmentSerializer,
-		 heap: &'a Heap,) -> Result<()> {
+		 heap: &'a Heap,) -> Result<usize> {
 		for per_field_postings_writer in per_field_postings_writers.iter() {
 			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer(), heap));
 		}
@@ -221,11 +222,11 @@ fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
 		try!(serializer.write_segment_info(&segment_info));
 		try!(serializer.close());
-		Ok(())
+		Ok(segment_info.max_doc as usize)
 }
 
 impl<'a> SerializableSegment for SegmentWriter<'a> {
-	fn write(&self, serializer: SegmentSerializer) -> Result<()> {
+	fn write(&self, serializer: SegmentSerializer) -> Result<usize> {
 		write(&self.per_field_postings_writers,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,
