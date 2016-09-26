@@ -20,12 +20,6 @@ fn main() {
 }
 
 
-fn create_schema() -> Schema {
-
-}
-
-
-
 fn run_example(index_path: &Path) -> tantivy::Result<()> {
     
     
