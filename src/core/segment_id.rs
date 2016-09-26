@@ -6,12 +6,39 @@ use std::path::PathBuf;
 use std::cmp::{Ordering, Ord};
 
 
+#[cfg(test)]
+use std::sync::atomic;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentId(Uuid);
 
+
+#[cfg(test)]
+lazy_static! {
+    static ref AUTO_INC_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::default();
+    static ref EMPTY_ARR: [u8; 8] = [0u8; 8];
+}
+
+
+// During tests, we generate the segment id in a autoincrement manner
+// for consistency of segment id between run.
+//
+// The order of the test execution is not guaranteed, but the order 
+// of segments within a single test is guaranteed.
+#[cfg(test)]
+fn create_uuid() -> Uuid {
+    let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::Release);
+    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &*EMPTY_ARR)
+}
+
+#[cfg(not(test))]
+fn create_uuid() -> Uuid {
+    Uuid::new_v4()
+}
+
 impl SegmentId {
     pub fn generate_random() -> SegmentId {
-        SegmentId(Uuid::new_v4())
+        SegmentId(create_uuid())
     }
     
     pub fn uuid_string(&self,) -> String {

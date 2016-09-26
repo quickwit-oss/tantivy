@@ -64,6 +64,7 @@ impl SegmentRegister {
         Ok(segment_ids)
     }
     
+    #[cfg(test)]
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         self.segment_states
             .read()
