@@ -68,8 +68,8 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 /// Tantivy's Search Index
 pub struct Index {
     
-    committed_segments: Arc<SegmentRegister>,
-    uncommitted_segments: Arc<SegmentRegister>,
+    pub committed_segments: Arc<SegmentRegister>,
+    pub uncommitted_segments: Arc<SegmentRegister>,
     
     directory: Box<Directory>,
     schema: Schema,
@@ -170,11 +170,12 @@ impl Index {
     /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
-    pub fn publish_segments(&mut self,
+    pub fn commit(&mut self,
             segment_metas: &[SegmentMeta],
             docstamp: u64) -> Result<()> {
         self.docstamp = docstamp;
         for segment_meta in segment_metas {
+            self.uncommitted_segments.remove_segment(&segment_meta.segment_id);
             let segment_update = SegmentUpdate::NewSegment(segment_meta.clone());
             try!(self.committed_segments.segment_update(segment_update));
         }

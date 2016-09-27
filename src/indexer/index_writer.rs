@@ -15,7 +15,9 @@ use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
+use std::sync::Arc;
 use core::SegmentMeta;
+use indexer::SegmentRegister;
 
 use Result;
 use Error;
@@ -48,13 +50,26 @@ pub struct IndexWriter {
 	heap_size_in_bytes_per_thread: usize,
 	workers_join_handle: Vec<JoinHandle<()>>,
 	segment_ready_sender: NewSegmentSender,
-	segment_ready_receiver: NewSegmentReceiver,
+	segment_ready_consumer: JoinHandle<Result<Vec<SegmentMeta>>>,
 	document_receiver: DocumentReceiver,
 	document_sender: DocumentSender,
 	num_threads: usize,
 	docstamp: u64,
 }
 
+fn create_segment_consumer(
+		segment_queue: chan::Receiver<Result<SegmentMeta>>, 
+		segment_register: Arc<SegmentRegister>) -> JoinHandle<Result<Vec<SegmentMeta>>> {
+	thread::spawn(move || {
+		let mut segment_metas = Vec::new();
+		for segment_meta_res in segment_queue {
+			let segment_meta = try!(segment_meta_res);
+			segment_metas.push(segment_meta.clone());
+			segment_register.segment_update(SegmentUpdate::NewSegment(segment_meta));
+		}
+		Ok(segment_metas)
+	})
+}
 
 fn index_documents(heap: &mut Heap,
 				   segment: Segment,
@@ -127,10 +142,11 @@ impl IndexWriter {
 		}
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
+		let segment_ready_consumer = create_segment_consumer(segment_ready_receiver, index.uncommitted_segments.clone());
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
 			index: index.clone(),
-			segment_ready_receiver: segment_ready_receiver,
+			segment_ready_consumer: segment_ready_consumer,
 			segment_ready_sender: segment_ready_sender,
 			document_receiver: document_receiver,
 			document_sender: document_sender,
@@ -151,6 +167,7 @@ impl IndexWriter {
 	
 	/// Merges a given list of segments
 	pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
+		
 		//  TODO fix commit or uncommited?
 		let schema = self.index.schema();
 		let merger = try!(IndexMerger::open(schema, segments));
@@ -175,16 +192,21 @@ impl IndexWriter {
 	/// when no documents are remaining.
 	///
 	/// Returns the former segment_ready channel.  
-	fn recreate_channels(&mut self,) -> (DocumentReceiver, NewSegmentReceiver) {
+	fn recreate_channels(&mut self,) -> (DocumentReceiver, JoinHandle<Result<Vec<SegmentMeta>>>) {
 		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-		let (mut segment_ready_sender, mut segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
+		let (mut segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		swap(&mut self.document_sender, &mut document_sender);
 		swap(&mut self.document_receiver, &mut document_receiver);
 		swap(&mut self.segment_ready_sender, &mut segment_ready_sender);
-		swap(&mut self.segment_ready_receiver, &mut segment_ready_receiver);
-		(document_receiver, segment_ready_receiver)
+		let mut segment_ready_consumer = create_segment_consumer(segment_ready_receiver, self.index.uncommitted_segments.clone());
+		swap(&mut self.segment_ready_consumer, &mut segment_ready_consumer);
+		(document_receiver, segment_ready_consumer)
 	}
 
+	// TODO what if we merge uncommitted segments 
+	// and a) they become committeded
+	//     b) they end up being committed.
+	// (but they don't exist anymore)
 
 	/// Rollback to the last commit
 	///
@@ -198,7 +220,9 @@ impl IndexWriter {
 
 		// we cannot drop segment ready receiver yet
 		// as it would block the workers.
-		let (document_receiver, mut _segment_ready_receiver) = self.recreate_channels();
+		let (document_receiver, mut _segment_ready_consumer) = self.recreate_channels();
+		
+		// TODO cancel the segment_ready_consumer as well.
 
 		// consumes the document receiver pipeline
 		// worker don't need to index the pending documents.
@@ -258,14 +282,15 @@ impl IndexWriter {
 			try!(self.add_indexing_worker());
 		}
 		
-		let segment_metas: Vec<SegmentMeta> = try!(
+		let segment_metas_result = try!(
 			segment_ready_receiver
-				.into_iter()
-				.collect()
+				.join()
+				.map_err(|e| super::super::error::Error::ErrorInThread(String::from("Joining receiver thread failed while committing.")))
 		);
-
 		
-		try!(self.index.publish_segments(&segment_metas, commit_docstamp));
+		let segment_metas: Vec<SegmentMeta> = try!(segment_metas_result);
+		
+		try!(self.index.commit(&segment_metas, commit_docstamp));
 
 		Ok(commit_docstamp)
 	}

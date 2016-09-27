@@ -45,7 +45,6 @@ pub struct SegmentRegister {
 
 impl SegmentRegister {
     
-    
     pub fn segment_metas(&self,) -> Result<Vec<SegmentMeta>> {
         let segment_register_lock = try!(self.segment_states.read());
         let mut segment_ids: Vec<SegmentMeta> = segment_register_lock
@@ -71,6 +70,12 @@ impl SegmentRegister {
             .expect("Could not acquire lock")
             .get(&segment_id)
             .map(|segment_entry| segment_entry.clone())
+    }
+
+    pub fn remove_segment(&self, segment_id: &SegmentId) -> Result<()> {
+        try!(self.segment_states.write())
+            .remove(segment_id);
+        Ok(())
     }
     
     pub fn segment_update(&self, segment_update: SegmentUpdate) -> Result<()> {
