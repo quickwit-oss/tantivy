@@ -171,8 +171,7 @@ impl Index {
     // TODO find a rusty way to hide that, while keeping
     // it visible for IndexWriters.
     pub fn commit(&mut self,
-            segment_metas: &[SegmentMeta],
-            docstamp: u64) -> Result<()> {
+                   docstamp: u64) -> Result<()> {
         self.docstamp = docstamp;
         for segment_meta in segment_metas {
             self.uncommitted_segments.remove_segment(&segment_meta.segment_id);
