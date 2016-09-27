@@ -50,7 +50,7 @@ pub struct IndexWriter {
 	heap_size_in_bytes_per_thread: usize,
 	workers_join_handle: Vec<JoinHandle<()>>,
 	segment_ready_sender: NewSegmentSender,
-	segment_ready_consumer: JoinHandle<Result<Vec<SegmentMeta>>>,
+	segment_ready_consumer: JoinHandle<Result<()>>,
 	document_receiver: DocumentReceiver,
 	document_sender: DocumentSender,
 	num_threads: usize,
@@ -59,15 +59,13 @@ pub struct IndexWriter {
 
 fn create_segment_consumer(
 		segment_queue: chan::Receiver<Result<SegmentMeta>>, 
-		segment_register: Arc<SegmentRegister>) -> JoinHandle<Result<Vec<SegmentMeta>>> {
+		segment_register: Arc<SegmentRegister>) -> JoinHandle<Result<()>> {
 	thread::spawn(move || {
-		let mut segment_metas = Vec::new();
 		for segment_meta_res in segment_queue {
 			let segment_meta = try!(segment_meta_res);
-			segment_metas.push(segment_meta.clone());
-			segment_register.segment_update(SegmentUpdate::NewSegment(segment_meta));
+			try!(segment_register.segment_update(SegmentUpdate::NewSegment(segment_meta)));
 		}
-		Ok(segment_metas)
+		Ok(())
 	})
 }
 
@@ -192,7 +190,7 @@ impl IndexWriter {
 	/// when no documents are remaining.
 	///
 	/// Returns the former segment_ready channel.  
-	fn recreate_channels(&mut self,) -> (DocumentReceiver, JoinHandle<Result<Vec<SegmentMeta>>>) {
+	fn recreate_channels(&mut self,) -> (DocumentReceiver, JoinHandle<Result<()>>) {
 		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (mut segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		swap(&mut self.document_sender, &mut document_sender);
@@ -281,17 +279,14 @@ impl IndexWriter {
 			// add a new worker for the next generation.
 			try!(self.add_indexing_worker());
 		}
-		
+
 		let segment_metas_result = try!(
 			segment_ready_receiver
 				.join()
-				.map_err(|e| super::super::error::Error::ErrorInThread(String::from("Joining receiver thread failed while committing.")))
+				.map_err(|_| super::super::error::Error::ErrorInThread(String::from("Joining receiver thread failed while committing.")))
 		);
-		
-		let segment_metas: Vec<SegmentMeta> = try!(segment_metas_result);
-		
-		try!(self.index.commit(&segment_metas, commit_docstamp));
-
+		try!(segment_metas_result);
+		try!(self.index.commit(commit_docstamp));
 		Ok(commit_docstamp)
 	}
 	
