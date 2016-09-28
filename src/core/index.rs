@@ -17,9 +17,7 @@ use core::SegmentReader;
 use super::pool::Pool;
 use super::pool::LeasedItem;
 use core::SegmentMeta;
-use indexer::SegmentRegister;
-use indexer::SegmentUpdate;
-
+use indexer::SegmentManager;
 
 const NUM_SEARCHERS: usize = 12; 
 
@@ -67,9 +65,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 
 /// Tantivy's Search Index
 pub struct Index {
-    
-    pub committed_segments: Arc<SegmentRegister>,
-    pub uncommitted_segments: Arc<SegmentRegister>,
+    pub segment_manager: Arc<SegmentManager>,
     
     directory: Box<Directory>,
     schema: Schema,
@@ -112,10 +108,10 @@ impl Index {
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
         let docstamp = metas.docstamp;
-        let committed_segments = SegmentRegister::from(metas.committed_segments);
+        let committed_segments = metas.committed_segments;
+        // TODO log somethings is uncommitted is not empty.
         let index = Index {
-            committed_segments: Arc::new(committed_segments),
-            uncommitted_segments: Arc::new(SegmentRegister::default()),
+            segment_manager: Arc::new(SegmentManager::from_segments(committed_segments)),
             directory: directory,
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
@@ -173,34 +169,12 @@ impl Index {
     pub fn commit(&mut self,
                    docstamp: u64) -> Result<()> {
         self.docstamp = docstamp;
-        let segment_metas = try!(self.uncommitted_segments.segment_metas());
-        for segment_meta in segment_metas {
-            let segment_update = SegmentUpdate::NewSegment(segment_meta.clone());
-            try!(self.committed_segments.segment_update(segment_update));
-        }
-        try!(self.uncommitted_segments.clear());
+        try!(self.segment_manager.commit());
         try!(self.save_metas());
         try!(self.load_searchers());
         Ok(())
     }
-
-
-    /// Exchange a set of `SegmentId`s for the `SegmentId` of a merged segment.   
-    pub fn update_uncommited_segments(&mut self, segment_update: SegmentUpdate) -> Result<()> {
-        try!(self.uncommitted_segments.segment_update(segment_update));
-        try!(self.save_metas());
-        try!(self.load_searchers());
-        Ok(())
-    }
-    
-    /// Exchange a set of `SegmentId`s for the `SegmentId` of a merged segment.   
-    pub fn update_commited_segments(&mut self, segment_update: SegmentUpdate) -> Result<()> {
-        try!(self.committed_segments.segment_update(segment_update));
-        try!(self.save_metas());
-        try!(self.load_searchers());
-        Ok(())
-    }
-    
+        
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self,) -> Result<Vec<Segment>> {
         let segment_ids = try!(self.searchable_segment_ids());
@@ -232,8 +206,7 @@ impl Index {
     
     /// Returns the list of segment ids that are searchable.
     fn searchable_segment_ids(&self,) -> Result<Vec<SegmentId>> {
-        self.committed_segments
-            .segment_ids()
+        self.segment_manager.committed_segments()
     }
     
     /// Creates a new segment.
@@ -242,8 +215,7 @@ impl Index {
     }
     
     fn create_metas(&self,) -> Result<IndexMeta> {
-        let committed_segments = try!(self.committed_segments.segment_metas());
-        let uncommitted_segments = try!(self.uncommitted_segments.segment_metas());
+        let (committed_segments, uncommitted_segments) = try!(self.segment_manager.segment_metas());
         Ok(IndexMeta {
             committed_segments: committed_segments,
             uncommitted_segments: uncommitted_segments,
@@ -316,8 +288,7 @@ impl fmt::Debug for Index {
 impl Clone for Index {
     fn clone(&self,) -> Index {
         Index {
-            committed_segments: self.committed_segments.clone(),
-            uncommitted_segments: self.uncommitted_segments.clone(),
+            segment_manager: self.segment_manager.clone(),
             
             directory: self.directory.box_clone(),
             schema: self.schema.clone(),

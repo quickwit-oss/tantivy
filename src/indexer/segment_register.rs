@@ -1,5 +1,3 @@
-use std::sync::RwLock;
-use error::Result;
 use core::SegmentId;
 use std::collections::HashMap;
 use core::SegmentMeta;
@@ -8,12 +6,6 @@ use core::SegmentMeta;
 pub enum SegmentState {
     Ready,
     InMerge,    
-}
-
-pub enum SegmentUpdate {
-    StartMerge(Vec<SegmentId>),
-    EndMerge(Vec<SegmentId>, SegmentMeta),
-    NewSegment(SegmentMeta),
 }
 
 #[derive(Clone)]
@@ -30,7 +22,6 @@ impl SegmentEntry {
 
 
 
-
 /// The segment register keeps track
 /// of the list of segment, their size as well
 /// as the state they are in.
@@ -40,84 +31,65 @@ impl SegmentEntry {
 /// and by the index merger to identify 
 /// merge candidates.
 pub struct SegmentRegister {
-    segment_states: RwLock<HashMap<SegmentId, SegmentEntry>>, 
+    segment_states: HashMap<SegmentId, SegmentEntry>, 
 }
 
 impl SegmentRegister {
     
-    pub fn clear(&self,) -> Result<()> {
-        try!(self.segment_states.write()).clear();
-        Ok(())
+    pub fn clear(&mut self,) {
+        self.segment_states.clear();
     }
     
-    pub fn segment_metas(&self,) -> Result<Vec<SegmentMeta>> {
-        let segment_register_lock = try!(self.segment_states.read());
-        let mut segment_ids: Vec<SegmentMeta> = segment_register_lock
+    pub fn segment_metas(&self,) -> Vec<SegmentMeta> {
+        let mut segment_ids: Vec<SegmentMeta> = self.segment_states
             .values()
             .map(|segment_entry| segment_entry.meta.clone())
             .collect();
         segment_ids.sort_by_key(|meta| meta.segment_id);
-        Ok(segment_ids)
+        segment_ids
     }
     
-    pub fn segment_ids(&self,) -> Result<Vec<SegmentId>> {
-        let segment_ids: Vec<SegmentId> = try!(self.segment_metas())
+    pub fn segment_ids(&self,) -> Vec<SegmentId> {
+        let segment_ids: Vec<SegmentId> = self.segment_metas()
             .into_iter()
             .map(|segment_meta| segment_meta.segment_id)
             .collect();
-        Ok(segment_ids)
+        segment_ids
     }
     
     #[cfg(test)]
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         self.segment_states
-            .read()
-            .expect("Could not acquire lock")
             .get(&segment_id)
             .map(|segment_entry| segment_entry.clone())
     }
 
-    pub fn remove_segment(&self, segment_id: &SegmentId) -> Result<()> {
-        try!(self.segment_states.write())
-            .remove(segment_id);
-        Ok(())
+    pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
+        segment_ids
+            .iter()
+            .all(|segment_id| self.segment_states.contains_key(segment_id))
     }
     
-    pub fn segment_update(&self, segment_update: SegmentUpdate) -> Result<()> {
-        let mut segment_register_lock = try!(self.segment_states.write());
-        match segment_update {
-            SegmentUpdate::StartMerge(segment_ids) => {
-                for segment_id in segment_ids {
-                    segment_register_lock
-                        .get_mut(&segment_id)
-                        .expect("Received a merge notification for a segment that is not registered")
-                        .start_merge();
-                }
-            }
-            SegmentUpdate::EndMerge(merged_segment_ids, resulting_segment_meta) => {
-                 for segment_id in merged_segment_ids {
-                     segment_register_lock
-                         .remove(&segment_id)
-                         .expect(&format!("The segment {:?} is not within the segment register.", segment_id));
-                 }
-                 let segment_id_clone = resulting_segment_meta.segment_id.clone();
-                 let segment_entry = SegmentEntry {
-                     meta: resulting_segment_meta,
-                     state: SegmentState::Ready,
-                 };
-                 segment_register_lock.insert(segment_id_clone, segment_entry);
-            }
-            SegmentUpdate::NewSegment(segment_meta) => {
-                let segment_id = segment_meta.segment_id.clone();
-                let segment_entry = SegmentEntry {
-                    meta: segment_meta,
-                    state: SegmentState::Ready,
-                };
-                segment_register_lock.insert(segment_id, segment_entry);
-            }
-        }
-        Ok(())        
+    pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
+        let segment_id = segment_meta.segment_id.clone();
+        let segment_entry = SegmentEntry {
+            meta: segment_meta.clone(),
+            state: SegmentState::Ready,
+        };
+        self.segment_states.insert(segment_id, segment_entry);
     }
+    
+    pub fn remove_segment(&mut self, segment_id: &SegmentId) {
+        self.segment_states.remove(segment_id);
+    }   
+    
+    pub fn start_merge(&mut self, segment_id: &SegmentId) {
+        self.segment_states
+            .get_mut(&segment_id)
+            .expect("Received a merge notification for a segment that is not registered")
+            .start_merge();
+    } 
+    
     
 }
 
@@ -135,7 +107,7 @@ impl From<Vec<SegmentMeta>> for SegmentRegister {
             segment_states.insert(segment_id, segment_entry);
         }
         SegmentRegister {
-            segment_states: RwLock::new(segment_states),
+            segment_states: segment_states,
         }
     }
 }
@@ -143,7 +115,7 @@ impl From<Vec<SegmentMeta>> for SegmentRegister {
 impl Default for SegmentRegister {
     fn default() -> SegmentRegister {
         SegmentRegister {
-            segment_states: RwLock::new(HashMap::new()),
+            segment_states: HashMap::new(),
         }
     }
 }
@@ -157,21 +129,24 @@ mod tests {
     
     #[test]
     fn test_segment_register() {
-        let segment_register = SegmentRegister::default();
+        let mut segment_register = SegmentRegister::default();
         let segment_id_a = SegmentId::generate_random();
         let segment_id_b = SegmentId::generate_random();
         let segment_id_merged = SegmentId::generate_random();
         let segment_meta_merged = SegmentMeta::new(segment_id_merged, 10 + 20);
-        segment_register.segment_update(SegmentUpdate::NewSegment(SegmentMeta::new(segment_id_a, 10))).unwrap();
+        segment_register.add_segment(SegmentMeta::new(segment_id_a, 10));
         assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::Ready);
-        assert_eq!(segment_register.segment_ids().unwrap(), vec!(segment_id_a));
-        segment_register.segment_update(SegmentUpdate::NewSegment(SegmentMeta::new(segment_id_b, 20))).unwrap();
+        assert_eq!(segment_register.segment_ids(), vec!(segment_id_a));
+        segment_register.add_segment(SegmentMeta::new(segment_id_b, 20));
         assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state, SegmentState::Ready);
-        segment_register.segment_update(SegmentUpdate::StartMerge(vec!(segment_id_a, segment_id_b))).unwrap();
+        segment_register.start_merge(&segment_id_a);
+        segment_register.start_merge(&segment_id_b);
         assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::InMerge);
         assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state, SegmentState::InMerge);
-        segment_register.segment_update(SegmentUpdate::EndMerge(vec!(segment_id_a, segment_id_b), segment_meta_merged)).unwrap();
-        assert_eq!(segment_register.segment_ids().unwrap(), vec!(segment_id_merged));        
+        segment_register.remove_segment(&segment_id_a);
+        segment_register.remove_segment(&segment_id_b);
+        segment_register.add_segment(segment_meta_merged);        
+        assert_eq!(segment_register.segment_ids(), vec!(segment_id_merged));        
     }
     
 }
