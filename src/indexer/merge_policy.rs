@@ -1,5 +1,5 @@
 use core::SegmentId;
-use indexer::SegmentRegister;
+use indexer::segment_register::SegmentRegister;
 
 pub struct MergeCandidate {
     segments: Vec<SegmentId>,

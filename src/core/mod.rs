@@ -1,6 +1,6 @@
 pub mod searcher;
 
-mod index;
+pub mod index;
 mod segment_reader;
 mod segment_id;
 mod segment_component;
