@@ -44,3 +44,10 @@ gcc = "0.3"
 
 # [profile.release]
 # debug = true
+
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+debug-assertions = false

@@ -45,6 +45,11 @@ pub struct SegmentRegister {
 
 impl SegmentRegister {
     
+    pub fn clear(&self,) -> Result<()> {
+        try!(self.segment_states.write()).clear();
+        Ok(())
+    }
+    
     pub fn segment_metas(&self,) -> Result<Vec<SegmentMeta>> {
         let segment_register_lock = try!(self.segment_states.read());
         let mut segment_ids: Vec<SegmentMeta> = segment_register_lock

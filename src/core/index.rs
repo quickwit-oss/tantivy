@@ -173,11 +173,12 @@ impl Index {
     pub fn commit(&mut self,
                    docstamp: u64) -> Result<()> {
         self.docstamp = docstamp;
+        let segment_metas = try!(self.uncommitted_segments.segment_metas());
         for segment_meta in segment_metas {
-            self.uncommitted_segments.remove_segment(&segment_meta.segment_id);
             let segment_update = SegmentUpdate::NewSegment(segment_meta.clone());
             try!(self.committed_segments.segment_update(segment_update));
         }
+        try!(self.uncommitted_segments.clear());
         try!(self.save_metas());
         try!(self.load_searchers());
         Ok(())
