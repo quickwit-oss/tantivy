@@ -4,7 +4,7 @@ use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 
 
-/// Expressed the outcome of a call to `DocSet`'s `.skip_next(...)`.
+/// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
 pub enum SkipResult {
     /// target was in the docset
@@ -24,7 +24,7 @@ pub trait DocSet {
     /// element.
     fn advance(&mut self,) -> bool;
     
-    /// After skipping position, the iterator in such a way `.doc()`
+    /// After skipping, position the iterator in such a way `.doc()`
     /// will return a value greater or equal to target.
     /// 
     /// SkipResult expresses whether the `target value` was reached, overstepped,

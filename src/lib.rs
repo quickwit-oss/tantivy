@@ -96,7 +96,7 @@ pub use postings::SegmentPostingsOption;
 
 
 /// u32 identifying a document within a segment.
-/// Document gets their doc id assigned incrementally,
+/// Documents have their doc id assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
 

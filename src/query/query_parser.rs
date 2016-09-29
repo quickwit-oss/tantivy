@@ -29,7 +29,7 @@ pub enum ParsingError {
 
 /// Tantivy's Query parser
 ///
-/// The language covered by the current is extremely simple.
+/// The language covered by the current parser is extremely simple.
 ///
 /// * simple terms: "e.g.: `Barack Obama` are simply analyzed using 
 ///   tantivy's `StandardTokenizer`, hence becoming `["barack", "obama"]`.
@@ -44,7 +44,7 @@ pub enum ParsingError {
 ///
 ///   This behavior is slower, but is not a bad idea if the user is sorting
 ///   by relevance : The user typically just scans through the first few
-///   documents in order of decreasing relevance and will stop when the document
+///   documents in order of decreasing relevance and will stop when the documents
 ///   are not relevant anymore.
 ///   Making it possible to make this behavior customizable is tracked in
 ///   [issue #27](https://github.com/fulmicoton/tantivy/issues/27).
@@ -135,9 +135,9 @@ impl QueryParser {
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
-    /// not a valid query.
+    /// is not a valid query.
     /// 
-    /// There is currently no lenient mode for the query parse
+    /// There is currently no lenient mode for the query parser
     /// which makes it a bad choice for a public/broad user search engine.
     ///
     /// Implementing a lenient mode for this query parser is tracked 
