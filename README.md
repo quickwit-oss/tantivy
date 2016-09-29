@@ -35,7 +35,7 @@ It will walk you through getting a wikipedia search engine up and running in a f
 
 Tantivy has a git submodule called `simdcomp`.
 After cloning the repository, you will need to initialize and update
-the submodules. The project can then be build using `cargo`.
+the submodules. The project can then be built using `cargo`.
 
     git clone git@github.com:fulmicoton/tantivy.git
     git submodule init
