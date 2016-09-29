@@ -25,7 +25,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     
     // # Defining the schema
     //
-    // Tantivy index require to have a very strict schema.
+    // The Tantivy index requires a very strict schema.
     // The schema declares which fields are in the index,
     // and for each field, its type and "the way it should 
     // be indexed".
@@ -47,7 +47,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // `STORED` means that the field will also be saved
     // in a compressed, row-oriented key-value store.
     // This store is useful to reconstruct the 
-    // document that were selected during the search phase.
+    // documents that were selected during the search phase.
     schema_builder.add_text_field("title", TEXT | STORED);
     
     // Our first field is body.
@@ -64,29 +64,29 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Let's create a brand new index.
     // 
     // This will actually just save a meta.json
-    // with our schema the directory.
+    // with our schema in the directory.
     let index = try!(Index::create(index_path, schema.clone()));
 
     
     
     // To insert document we need an index writer.
-    // There shall be only one writer at a time.
-    // Besides, this single `IndexWriter` is already
+    // There must be only one writer at a time.
+    // This single `IndexWriter` is already
     // multithreaded.
     //
-    // Here we used a buffer of 1 GB. Using a bigger 
+    // Here we use a buffer of 1 GB. Using a bigger 
     // heap for the indexer can increase its throughput.
     // This buffer will be split between the indexing
     // threads.
     let mut index_writer = try!(index.writer(1_000_000_000));
 
-    // Let's now index our documents!
+    // Let's index our documents!
     // We first need a handle on the title and the body field.
     
     
     // ### Create a document "manually".
     //
-    // We can create a document manually, by setting adding the fields
+    // We can create a document manually, by setting the fields
     // one by one in a Document object.
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();
@@ -122,7 +122,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // This is an example, so we will only index 3 documents
     // here. You can check out tantivy's tutorial to index
     // the English wikipedia. Tantivy's indexing is rather fast. 
-    // Indexing 5 millions articles of the English wikipedia takes
+    // Indexing 5 million articles of the English wikipedia takes
     // around 4 minutes on my computer!
     
     
@@ -131,56 +131,56 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // At this point our documents are not searchable.
     //
     // 
-    // We need to call .commit() explicitely to force the
+    // We need to call .commit() explicitly to force the
     // index_writer to finish processing the documents in the queue,
-    // flush the current index on the disk, and advertise
+    // flush the current index to the disk, and advertise
     // the existence of new documents.
     //
     // This call is blocking.
     try!(index_writer.commit());
     
     // If `.commit()` returns correctly, then all of the
-    // documents have been added before are guaranteed to be
+    // documents that have been added are guaranteed to be
     // persistently indexed.
     // 
     // In the scenario of a crash or a power failure,
-    // tantivy behaves as if it rollbacked to its last
+    // tantivy behaves as if has rolled back to its last
     // commit.
     
     
     // # Searching
     //
-    // Let's search our index. This starts
+    // Let's search our index. We start
     // by creating a searcher. There can be more
     // than one searcher at a time.
     // 
-    // You are supposed to acquire a search
+    // You should create a searcher
     // every time you start a "search query".
     let searcher = index.searcher();
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which
-    // field he wants to search, tantivy will search
+    // field they want to search, tantivy will search
     // in both title and body.
     let query_parser = QueryParser::new(index.schema(), vec!(title, body));
     
     // QueryParser may fail if the query is not in the right
     // format. For user facing applications, this can be a problem.
-    // A ticket has been filled regarding this problem.
+    // A ticket has been opened regarding this problem.
     let query = try!(query_parser.parse_query("sea whale"));
     
     
     // A query defines a set of documents, as
     // well as the way they should be scored.
     //  
-    // Query created by the query parser are scoring according
+    // A query created by the query parser is scored according
     // to a metric called Tf-Idf, and will consider
     // any document matching at least one of our terms.
     
     // ### Collectors 
     //
-    // We are not interested in all of the document but 
-    // only in the top 10. Keep track of our top 10 best documents
+    // We are not interested in all of the documents but 
+    // only in the top 10. Keeping track of our top 10 best documents
     // is the role of the TopCollector.
     
     let mut top_collector = TopCollector::with_limit(10);
@@ -188,14 +188,14 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // We can now perform our query.
     try!(query.search(&searcher, &mut top_collector));
 
-    // Our top collector now contains are 10 
+    // Our top collector now contains the 10 
     // most relevant doc ids...
     let doc_addresses = top_collector.docs();
 
     // The actual documents still need to be 
     // retrieved from Tantivy's store.
     // 
-    // Since body was not configured as stored,
+    // Since the body field was not configured as stored,
     // the document returned will only contain
     // a title.
     
