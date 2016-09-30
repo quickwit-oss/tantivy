@@ -16,8 +16,8 @@ It is strongly inspired by Lucene's design.
 - tf-idf scoring
 - Basic query language
 - Incremental indexing
-- Multithreaded indexing (indexing english Wikipedia takes 4 minutes on my desktop)
-- Mmap based
+- Multithreaded indexing (indexing English Wikipedia takes 4 minutes on my desktop)
+- mmap based
 - SIMD integer compression
 - u32 fast fields (equivalent of doc values in Lucene)
 - LZ4 compressed document store
