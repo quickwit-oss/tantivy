@@ -42,6 +42,12 @@ impl SegmentManager {
         }
     }
 
+    pub fn rollback(&self,) -> Result<()> {
+        let mut registers_lock = try!(self.registers.write());
+        registers_lock.uncommitted.clear();
+        Ok(())
+    }
+
     pub fn commit(&self,) -> Result<()> {
         let mut registers_lock = try!(self.registers.write());
         let segment_metas = registers_lock.uncommitted.segment_metas();

@@ -71,8 +71,6 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 pub fn commit(index: &mut Index, docstamp: u64) -> Result<()> {
     index.docstamp = docstamp;
     try!(index.segment_manager.commit());
-    try!(index.save_metas());
-    try!(index.load_searchers());
     Ok(())
 }
         

@@ -125,6 +125,13 @@ impl IndexWriter {
 		self.workers_join_handle.push(join_handle);
 		Ok(())
 	}
+
+
+	fn on_change(&mut self,) -> Result<()> {
+		try!(self.index.save_metas());
+    	try!(self.index.load_searchers());
+		Ok(())
+	}
 	
 	/// Open a new index writer
 	/// 
@@ -238,6 +245,8 @@ impl IndexWriter {
 			try!(self.add_indexing_worker());
 		}
 
+		get_segment_manager(&self.index).rollback();
+
 		// reset the docstamp to what it was before
 		self.docstamp = self.index.docstamp();
 		Ok(self.docstamp)
@@ -280,6 +289,7 @@ impl IndexWriter {
 		}
 
 		try!(super::super::core::index::commit(&mut self.index, commit_docstamp));
+		try!(self.on_change());
 		Ok(commit_docstamp)
 	}
 	
