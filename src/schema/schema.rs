@@ -15,7 +15,7 @@ use std::fmt;
 
 
 /// Tantivy has a very strict schema.
-/// You need to specify in advance, whether a field is indexed or not,
+/// You need to specify in advance whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
 ///
 /// This is done by creating a schema object, and

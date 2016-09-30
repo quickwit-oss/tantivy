@@ -90,7 +90,7 @@ impl Index {
     /// Creates a new index in a temp directory.
     ///
     /// The index will use the `MMapDirectory` in a newly created directory.
-    /// The temp directory will be destroyed automatically when the Index object
+    /// The temp directory will be destroyed automatically when the `Index` object
     /// is destroyed.
     ///
     /// The temp directory is only used for testing the `MmapDirectory`.
@@ -100,7 +100,7 @@ impl Index {
         Index::from_directory(directory, schema)
     }
     
-    /// Creates a new index given a directory and an IndexMeta.
+    /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
         let index = Index {
@@ -160,7 +160,7 @@ impl Index {
 
     /// Marks the segment as published.
     // TODO find a rusty way to hide that, while keeping
-    // it visible for IndexWriters.
+    // it visible for `IndexWriter`s.
     pub fn publish_segments(&mut self,
             segment_ids: &[SegmentId],
             docstamp: u64) -> Result<()> {
@@ -204,7 +204,7 @@ impl Index {
             
     }
     
-    /// Return a segment object given a segment_id
+    /// Return a segment object given a `segment_id`
     ///
     /// The segment may or may not exist.
     fn segment(&self, segment_id: SegmentId) -> Segment {
@@ -246,7 +246,7 @@ impl Index {
     /// Either
     //  - it fails, in which case an error is returned,
     /// and the `meta.json` remains untouched, 
-    /// - it success, and `meta.json` is written 
+    /// - it succeeds, and `meta.json` is written 
     /// and flushed.
     pub fn save_metas(&mut self,) -> Result<()> {
         let mut w = Vec::new();
@@ -286,9 +286,9 @@ impl Index {
     /// 
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searcher are taken from a pool of `NUM_SEARCHERS` searchers.
+    /// The searchers are taken from a pool of `NUM_SEARCHERS` searchers.
     /// If no searcher is available
-    /// it may block.
+    /// this may block.
     ///
     /// The same searcher must be used for a given query, as it ensures 
     /// the use of a consistent segment set. 
