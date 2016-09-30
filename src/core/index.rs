@@ -63,6 +63,15 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
+pub fn commit(index: &mut Index, docstamp: u64) -> Result<()> {
+    index.docstamp = docstamp;
+    try!(index.segment_manager.commit());
+    try!(index.save_metas());
+    try!(index.load_searchers());
+    Ok(())
+}
+        
+
 /// Tantivy's Search Index
 pub struct Index {
     pub segment_manager: Arc<SegmentManager>,
@@ -163,18 +172,7 @@ impl Index {
         self.schema.clone()
     }
 
-    /// Marks the segment as published.
-    // TODO find a rusty way to hide that, while keeping
-    // it visible for IndexWriters.
-    pub fn commit(&mut self,
-                   docstamp: u64) -> Result<()> {
-        self.docstamp = docstamp;
-        try!(self.segment_manager.commit());
-        try!(self.save_metas());
-        try!(self.load_searchers());
-        Ok(())
-    }
-        
+
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self,) -> Result<Vec<Segment>> {
         let segment_ids = try!(self.searchable_segment_ids());

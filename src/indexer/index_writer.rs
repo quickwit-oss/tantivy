@@ -274,7 +274,7 @@ impl IndexWriter {
 			try!(self.add_indexing_worker());
 		}
 
-		try!(self.index.commit(commit_docstamp));
+		try!(super::super::core::index::commit(&mut self.index, commit_docstamp));
 		Ok(commit_docstamp)
 	}
 	
