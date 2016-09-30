@@ -20,8 +20,7 @@ impl CountCollector {
 
 impl Default for CountCollector {
     fn default() -> CountCollector {
-        CountCollector {
-            count: 0,
+        CountCollector {count: 0,
         }
     }
 }

@@ -25,7 +25,7 @@ use schema::TextIndexingOptions;
 use error::Error;
 
 
-/// Entrypoint to access all of the datastructures of the `Segment`
+/// Entry point to access all of the datastructures of the `Segment`
 ///
 /// - term dictionary
 /// - postings
@@ -34,8 +34,8 @@ use error::Error;
 /// - field norm reader
 ///
 /// The segment reader has a very low memory footprint,
-/// as close to all of the memory data is in Mmapped.
-/// 
+/// as close to all of the memory data is mmapped.
+///
 pub struct SegmentReader {
     segment_info: SegmentInfo,
     segment_id: SegmentId,
@@ -51,7 +51,7 @@ pub struct SegmentReader {
 impl SegmentReader {
     /// Returns the highest document id ever attributed in
     /// this segment + 1.
-    /// Today, `tantivy` does not handle deletes so, it happens
+    /// Today, `tantivy` does not handle deletes, so it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
         self.segment_info.max_doc
@@ -233,7 +233,7 @@ impl SegmentReader {
         self.read_postings(term, segment_posting_option)
     }
     
-    /// Returns the term info of associated with the term.
+    /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
     }

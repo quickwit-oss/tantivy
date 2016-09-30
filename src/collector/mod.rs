@@ -29,7 +29,7 @@ pub use self::chained_collector::chain;
 ///
 /// As they work on multiple segments, they first inform
 /// the collector of a change in a segment and then 
-/// call the collect method to push the document to the collector.
+/// call the `collect` method to push the document to the collector.
 ///
 /// Temporally, our collector will receive calls
 /// - `.set_segment(0, segment_reader_0)`
