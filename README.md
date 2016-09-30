@@ -13,10 +13,10 @@ It is strongly inspired by Lucene's design.
 # Features
 
 - configurable indexing (optional term frequency and position indexing)
-- Tf-Idf scoring
+- tf-idf scoring
 - Basic query language
 - Incremental indexing
-- Multithreaded indexing (indexing en wikipedia takes 4mn on my desktop)
+- Multithreaded indexing (indexing english Wikipedia takes 4 minutes on my desktop)
 - Mmap based
 - SIMD integer compression
 - u32 fast fields (equivalent of doc values in Lucene)
