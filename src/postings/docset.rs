@@ -24,8 +24,8 @@ pub trait DocSet {
     /// element.
     fn advance(&mut self,) -> bool;
     
-    /// After skipping, position the iterator in such a way `.doc()`
-    /// will return a value greater or equal to target.
+    /// After skipping, position the iterator in such a way that `.doc()`
+    /// will return a value greater than or equal to target.
     /// 
     /// SkipResult expresses whether the `target value` was reached, overstepped,
     /// or if the `DocSet` was entirely consumed without finding any value

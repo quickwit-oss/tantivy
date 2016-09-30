@@ -47,7 +47,7 @@ impl MmapDirectory {
     /// Creates a new MmapDirectory in a temporary directory.
     ///
     /// This is mostly useful to test the MmapDirectory itself.
-    /// For your unit test, prefer the RAMDirectory. 
+    /// For your unit tests, prefer the RAMDirectory. 
     pub fn create_from_tempdir() -> io::Result<MmapDirectory> {
         let tempdir = try!(TempDir::new("index"));
         let tempdir_path = PathBuf::from(tempdir.path());
@@ -81,7 +81,7 @@ impl MmapDirectory {
     }
 
     /// Joins a relative_path to the directory `root_path`
-    /// to create proper complete `filepath`.
+    /// to create a proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.root_path.join(relative_path)
     }
