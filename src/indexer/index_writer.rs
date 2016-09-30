@@ -16,6 +16,7 @@ use std::mem::swap;
 use chan;
 use core::SegmentMeta;
 use indexer::SegmentAppender;
+use super::super::core::index::get_segment_manager;
 use Result;
 use Error;
 
@@ -136,7 +137,9 @@ impl IndexWriter {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
 		}
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-		let segment_appender = SegmentAppender::for_manager(index.segment_manager.clone());
+		let segment_manager = get_segment_manager(index);
+		let segment_appender = SegmentAppender::for_manager(segment_manager);
+
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
 			index: index.clone(),
@@ -174,7 +177,8 @@ impl IndexWriter {
 			segment_id: merged_segment.id(),
 			num_docs: num_docs,
 		};
-		try!(self.index.segment_manager.end_merge(&merged_segment_ids, &segment_meta));
+		let segment_manager = get_segment_manager(&self.index);
+		try!(segment_manager.end_merge(&merged_segment_ids, &segment_meta));
 		try!(self.index.load_searchers());
 		Ok(())
 	}
@@ -191,7 +195,8 @@ impl IndexWriter {
 		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		swap(&mut self.document_sender, &mut document_sender);
 		swap(&mut self.document_receiver, &mut document_receiver);
-		self.segment_appender = SegmentAppender::for_manager(self.index.segment_manager.clone());
+		let segment_manager = get_segment_manager(&self.index);
+		self.segment_appender = SegmentAppender::for_manager(segment_manager);
 		document_receiver
 	}
 

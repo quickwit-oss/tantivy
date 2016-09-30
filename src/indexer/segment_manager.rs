@@ -32,12 +32,6 @@ pub struct SegmentManager {
 }
 
 impl SegmentManager {
-
-    pub fn default() -> SegmentManager {
-        SegmentManager {
-            registers: RwLock::new(SegmentRegisters::default()),
-        }
-    }
     
     pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
         SegmentManager {

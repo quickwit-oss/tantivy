@@ -21,6 +21,11 @@ use indexer::SegmentManager;
 
 const NUM_SEARCHERS: usize = 12; 
 
+
+pub fn get_segment_manager(index: &Index) -> Arc<SegmentManager> {
+    index.segment_manager.clone()
+}
+
 /// MetaInformation about the `Index`.
 /// 
 /// This object is serialized on disk in the `meta.json` file.
@@ -74,8 +79,8 @@ pub fn commit(index: &mut Index, docstamp: u64) -> Result<()> {
 
 /// Tantivy's Search Index
 pub struct Index {
-    pub segment_manager: Arc<SegmentManager>,
-    
+    segment_manager: Arc<SegmentManager>,
+
     directory: Box<Directory>,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
@@ -171,7 +176,6 @@ impl Index {
     pub fn schema(&self,) -> Schema {
         self.schema.clone()
     }
-
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self,) -> Result<Vec<Segment>> {
