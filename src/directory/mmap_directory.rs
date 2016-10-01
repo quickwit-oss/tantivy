@@ -222,6 +222,11 @@ impl Directory for MmapDirectory {
         Ok(())
     }
 
+    fn exists(&self, path: &Path) -> bool {
+        let full_path = self.resolve_path(path);
+        full_path.exists()
+    }
+
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         let full_path = self.resolve_path(path);
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);

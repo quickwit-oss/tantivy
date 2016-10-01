@@ -41,10 +41,13 @@ impl SegmentManager {
         }
     }
 
-    pub fn rollback(&self,) -> Result<()> {
+    /// Removes all of the uncommitted segments
+    /// and returns them.
+    pub fn rollback(&self,) -> Result<Vec<SegmentId>> {
         let mut registers_lock = try!(self.registers.write());
+        let segment_ids = registers_lock.uncommitted.segment_ids();
         registers_lock.uncommitted.clear();
-        Ok(())
+        Ok(segment_ids)
     }
 
     pub fn commit(&self,) -> Result<()> {

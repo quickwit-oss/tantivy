@@ -124,6 +124,13 @@ impl InnerDirectory {
             })
     }
 
+    fn exists(&self, path: &Path) -> bool {
+        self.0
+            .read()
+            .expect("Failed to get read lock directory.")
+            .contains_key(path)
+    }
+
 }
 
 impl fmt::Debug for RAMDirectory {
@@ -172,6 +179,11 @@ impl Directory for RAMDirectory {
 
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
         self.fs.delete(path)
+    }
+
+    
+    fn exists(&self, path: &Path) -> bool {
+        self.fs.exists(path)
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

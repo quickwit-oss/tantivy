@@ -27,7 +27,7 @@ lazy_static! {
 // of segments within a single test is guaranteed.
 #[cfg(test)]
 fn create_uuid() -> Uuid {
-    let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::Release);
+    let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::SeqCst);
     Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &*EMPTY_ARR)
 }
 

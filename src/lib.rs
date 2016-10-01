@@ -82,6 +82,7 @@ pub mod schema;
 pub use directory::Directory;
 pub use core::searcher::Searcher;
 
+pub use core::Segment;
 pub use core::Index;
 pub use indexer::IndexWriter;
 pub use schema::Term;

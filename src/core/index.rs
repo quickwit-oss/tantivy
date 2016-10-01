@@ -18,6 +18,7 @@ use super::pool::Pool;
 use super::pool::LeasedItem;
 use core::SegmentMeta;
 use indexer::SegmentManager;
+use super::segment::create_segment;
 
 const NUM_SEARCHERS: usize = 12; 
 
@@ -78,7 +79,7 @@ pub fn commit(index: &mut Index, docstamp: u64) -> Result<()> {
 /// Tantivy's Search Index
 pub struct Index {
     segment_manager: Arc<SegmentManager>,
-
+    
     directory: Box<Directory>,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
@@ -185,14 +186,22 @@ impl Index {
             .collect()
         )
     }
+
+    /// Remove all of the file associated with the segment.
+    /// 
+    /// This method cannot fail. If a problem occurs,
+    /// some files may end up never being removed.
+    /// The error will only be logged. 
+    pub fn delete_segment(&self, segment_id: SegmentId) {
+        self.segment(segment_id).delete();
+    }
     
     /// Return a segment object given a segment_id
     ///
     /// The segment may or may not exist.
     fn segment(&self, segment_id: SegmentId) -> Segment {
-        Segment::new(self.clone(), segment_id)
+        create_segment(self.clone(), segment_id)
     }
-    
     
     /// Return a reference to the index directory.
     pub fn directory(&self,) -> &Directory {

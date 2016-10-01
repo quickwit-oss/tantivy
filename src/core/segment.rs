@@ -8,6 +8,8 @@ use directory::{ReadOnlySource, WritePtr};
 use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
+use std::result;
+use directory::error::{FileError, OpenWriteError};
 
 #[derive(Clone)]
 pub struct Segment {
@@ -21,34 +23,73 @@ impl fmt::Debug for Segment {
     }
 }
 
+
+/// Creates a new segment given an `Index` and a `SegmentId`
+/// 
+/// The function is here to make it private outside `tantivy`. 
+pub fn create_segment(index: Index, segment_id: SegmentId) -> Segment {
+    Segment {
+        index: index,
+        segment_id: segment_id,
+    }
+}
+
 impl Segment {
 
-    pub fn new(index: Index, segment_id: SegmentId) -> Segment {
-        Segment {
-            index: index,
-            segment_id: segment_id,
-        }
-    }
 
+    /// Returns our index's schema.
     pub fn schema(&self,) -> Schema {
         self.index.schema()
     }
 
+    /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
         self.segment_id
     }
     
+
+    /// Returns the relative path of a component of our segment.
+    ///  
+    /// It just joins the segment id with the extension 
+    /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.segment_id.relative_path(component)
     }
 
-    pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource> {
+    /// Deletes all of the document of the segment.
+    /// This is called when there is a merge or a rollback.
+    ///
+    /// # Disclaimer
+    /// If deletion of a file fails (e.g. a file 
+    /// was read-only.), the method does not
+    /// fail and just logs an error
+    pub fn delete(&self,) {
+        for component in SegmentComponent::values() {
+            let rel_path = self.relative_path(component);
+            if let Err(err) = self.index.directory().delete(&rel_path) {
+                match err {
+                    FileError::FileDoesNotExist(_) => {
+                        // this is normal behavior.
+                        // the position file for instance may not exists.
+                    }
+                    FileError::IOError(err) => {
+                		error!("Failed to remove {:?} : {:?}", self.segment_id, err);
+                    }
+                }
+            }
+        }
+    }
+
+
+    /// Open one of the component file for read.
+    pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, FileError> {
         let path = self.relative_path(component);
         let source = try!(self.index.directory().open_read(&path));
         Ok(source)
     }
 
-    pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr> {
+    /// Open one of the component file for write.
+    pub fn open_write(&mut self, component: SegmentComponent) -> result::Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
         let write = try!(self.index.directory_mut().open_write(&path));
         Ok(write)

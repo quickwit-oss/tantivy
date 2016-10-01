@@ -21,6 +21,7 @@ pub struct SegmentMeta {
     pub num_docs: usize,
 }
 
+#[cfg(test)]
 impl SegmentMeta {
     pub fn new(segment_id: SegmentId, num_docs: usize) -> SegmentMeta {
         SegmentMeta {

@@ -58,6 +58,7 @@ mod tests {
     fn test_simple(directory: &mut Directory) {
         {
             let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+            assert!(directory.exists(*TEST_PATH));
             write_file.write_all(&[4]).unwrap();
             write_file.write_all(&[3]).unwrap();
             write_file.write_all(&[7,3,5]).unwrap();
@@ -67,6 +68,7 @@ mod tests {
         let data: &[u8] = &*read_file;
         assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
         assert!(directory.delete(*TEST_PATH).is_ok());
+        assert!(!directory.exists(*TEST_PATH));
     }
 
     fn test_seek(directory: &mut Directory) {
@@ -85,7 +87,9 @@ mod tests {
 
     fn test_rewrite_forbidden(directory: &mut Directory) {
         {
-           directory.open_write(*TEST_PATH).unwrap();
+            directory.open_write(*TEST_PATH).unwrap();
+            assert!(directory.exists(*TEST_PATH));
+            
         }
         {
             assert!(directory.open_write(*TEST_PATH).is_err());
@@ -97,6 +101,7 @@ mod tests {
         {
             assert!(directory.open_read(*TEST_PATH).is_err());
             let _w = directory.open_write(*TEST_PATH).unwrap();
+            assert!(directory.exists(*TEST_PATH));
             if let Err(e) = directory.open_read(*TEST_PATH) {
                 println!("{:?}", e);
             }

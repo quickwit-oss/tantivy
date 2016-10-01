@@ -12,7 +12,6 @@ use std::thread;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
 use datastruct::stacker::Heap;
-use std::sync::Arc;
 use std::mem::swap;
 use chan;
 use core::SegmentMeta;
@@ -101,13 +100,18 @@ pub enum SegmentUpdate {
 //
 // If the segment manager has been changed a result,
 // return true. (else return false)
-fn process_segment_update(segment_manager: &SegmentManager,
-				  segment_update: SegmentUpdate,
- 			      is_cancelled_generation: &mut bool) -> Result<bool> {
+fn process_segment_update(
+		index: &Index,
+		segment_manager: &SegmentManager,
+		segment_update: SegmentUpdate,
+		is_cancelled_generation: &mut bool) -> Result<bool> {
 	match segment_update {
 		SegmentUpdate::AddSegment(segment_meta) => {
 			if !*is_cancelled_generation {
 				try!(segment_manager.add_segment(segment_meta));
+			}
+			else {
+				index.delete_segment(segment_meta.segment_id);
 			}
 			Ok(true)
 		},
@@ -120,6 +124,9 @@ fn process_segment_update(segment_manager: &SegmentManager,
 		},
 		SegmentUpdate::EndMerge(segment_ids, segment_meta) => {
 			try!(segment_manager.end_merge(&segment_ids, &segment_meta));
+			for segment_id in segment_ids {
+				index.delete_segment(segment_id);
+			}
 			Ok(true)
 		},
 		SegmentUpdate::CancelGeneration => {
@@ -148,7 +155,8 @@ fn on_segment_change() {
 // happen in the same thread, and makes
 // the implementation of rollback and commit 
 // trivial.
-fn process_segment_updates(segment_manager: &SegmentManager,
+fn process_segment_updates(index: Index,
+						   segment_manager: &SegmentManager,
 						   segment_update_receiver: SegmentUpdateReceiver) -> Result<()> {
 	let mut segment_update_it = segment_update_receiver.into_iter();
 	let mut is_cancelled_generation = false;
@@ -156,6 +164,7 @@ fn process_segment_updates(segment_manager: &SegmentManager,
 		if let Some(segment_update) = segment_update_it.next() {
 			let has_changed = try!(
 				process_segment_update(
+					&index,
 					segment_manager,
 					segment_update,
 					&mut is_cancelled_generation)
@@ -169,7 +178,6 @@ fn process_segment_updates(segment_manager: &SegmentManager,
 			return Ok(());
 		}
 	}
-	Ok(())
 }
 
 impl IndexWriter {
@@ -215,7 +223,6 @@ impl IndexWriter {
 		Ok(())
 	}
 
-
 	fn on_change(&mut self,) -> Result<()> {
 		try!(self.index.save_metas());
     	try!(self.index.load_searchers());
@@ -229,7 +236,7 @@ impl IndexWriter {
 	pub fn open(index: &Index,
 				num_threads: usize,
 				heap_size_in_bytes_per_thread: usize) -> Result<IndexWriter> {
-		if heap_size_in_byt es_per_thread <= HEAP_SIZE_LIMIT as usize {
+		if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
 		}
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -237,8 +244,9 @@ impl IndexWriter {
 		
 		let segment_manager = get_segment_manager(index);
 
+		let index_clone = index.clone();
 		let segment_update_worker = thread::spawn(move || {
-			process_segment_updates(&*segment_manager, segment_update_receiver)
+			process_segment_updates(index_clone, &*segment_manager, segment_update_receiver)
 		});
 
 		let mut index_writer = IndexWriter {
@@ -300,7 +308,6 @@ impl IndexWriter {
 		let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		swap(&mut self.document_sender, &mut document_sender);
 		swap(&mut self.document_receiver, &mut document_receiver);
-		let segment_manager = get_segment_manager(&self.index);
 		document_receiver
 	}
 
@@ -320,8 +327,8 @@ impl IndexWriter {
 		// as it would block the workers.
 		let document_receiver = self.recreate_channel();
 		
-		// consumes the document receiver pipeline
-		// worker don't need to index the pending documents.
+		// Drains the document receiver pipeline :
+		// Workers don't need to index the pending documents.
 		for _ in document_receiver {};
 		
 		let mut former_workers_join_handle = Vec::new();
@@ -329,7 +336,6 @@ impl IndexWriter {
 		
 		// wait for all the worker to finish their work
 		// (it should be fast since we consumed all pending documents)
-		let num_workers = former_workers_join_handle.len();
 		for worker_handle in former_workers_join_handle {
 			// we stop one worker at a time ...
 			try!(try!(
@@ -352,7 +358,11 @@ impl IndexWriter {
 		// from now on.
 		self.segment_update_sender.send(SegmentUpdate::NewGeneration);
 
-		get_segment_manager(&self.index).rollback();
+		let rollbacked_segments = try!(get_segment_manager(&self.index).rollback());
+		for segment_id in rollbacked_segments {
+			self.index.delete_segment(segment_id);
+		}
+		try!(self.on_change());
 
 		// reset the docstamp to what it was before
 		self.docstamp = self.index.docstamp();
@@ -434,8 +444,6 @@ mod tests {
 		let mut schema_builder = schema::SchemaBuilder::default();
 		let text_field = schema_builder.add_text_field("text", schema::TEXT);
 		let index = Index::create_in_ram(schema_builder.build());
-
-
 		let num_docs_containing = |s: &str| {
 			let searcher = index.searcher();
 			let term_a = Term::from_field_text(text_field, s);
@@ -444,15 +452,28 @@ mod tests {
 		
 		{
 			// writing the segment
-			let mut index_writer = index.writer_with_num_threads(3, 40_000_000).unwrap();
+			let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
 			{
 				let mut doc = Document::default();
 				doc.add_text(text_field, "a");
 				index_writer.add_document(doc).unwrap();
+				index_writer.commit().expect("commit failed");
 			}
-			assert_eq!(index_writer.rollback().unwrap(), 0u64);
-			assert_eq!(num_docs_containing("a"), 0);
-
+			{
+				let mut doc = Document::default();
+				doc.add_text(text_field, "a");
+				index_writer.add_document(doc).unwrap();
+				// here we have a partial segment.
+			}
+			{
+				let mut doc = Document::default();
+				doc.add_text(text_field, "a");
+				index_writer.add_document(doc).unwrap();
+				// here we have a partial segment.
+			}
+			assert_eq!(index_writer.rollback().unwrap(), 1u64);
+			assert_eq!(num_docs_containing("a"), 1);
+			
 			{
 				let mut doc = Document::default();
 				doc.add_text(text_field, "b");
@@ -463,9 +484,8 @@ mod tests {
 				doc.add_text(text_field, "c");
 				index_writer.add_document(doc).unwrap();
 			}
-			assert_eq!(index_writer.commit().unwrap(), 2u64);
-			
-			assert_eq!(num_docs_containing("a"), 0);
+			assert_eq!(index_writer.commit().unwrap(), 3u64);
+			assert_eq!(num_docs_containing("a"), 1);
 			assert_eq!(num_docs_containing("b"), 1);
 			assert_eq!(num_docs_containing("c"), 1);
 		}
