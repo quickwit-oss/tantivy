@@ -11,4 +11,4 @@ pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;
 pub use self::index_writer::IndexWriter;
 pub use self::merge_policy::MergePolicy;
-pub use self::segment_manager::{SegmentManager, SegmentAppender};
+pub use self::segment_manager::SegmentManager;

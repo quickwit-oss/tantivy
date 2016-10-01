@@ -3,8 +3,6 @@ use std::sync::RwLock;
 use core::SegmentMeta;
 use error::Result;
 use core::SegmentId;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
@@ -19,6 +17,7 @@ impl Default for SegmentRegisters {
         }
     }
 }
+
 
 
 
@@ -58,7 +57,7 @@ impl SegmentManager {
         Ok(())        
     }
     
-    fn add_segment(&self, segment_meta: SegmentMeta) -> Result<()> {
+    pub fn add_segment(&self, segment_meta: SegmentMeta) -> Result<()> {
         let mut registers_lock = try!(self.registers.write());
         registers_lock.uncommitted.add_segment(segment_meta);
         Ok(())
@@ -107,37 +106,3 @@ impl SegmentManager {
     }
 }
 
-
-#[derive(Clone)]
-pub struct SegmentAppender {
-    is_open: Arc<AtomicBool>,
-    manager: Arc<SegmentManager>,
-}
-
-impl SegmentAppender {
-
-    pub fn for_manager(manager: Arc<SegmentManager>) -> SegmentAppender {
-        SegmentAppender {
-            is_open: Arc::new(AtomicBool::new(true)),
-            manager: manager,
-        }
-    }
-
-    pub fn is_open(&self,) -> bool {
-        self.is_open.load(Ordering::Acquire) 
-    }
-
-    pub fn add_segment(&mut self, segment_meta: SegmentMeta) -> Result<bool> {
-        if self.is_open() {
-            try!(self.manager.add_segment(segment_meta));
-            Ok(true)
-        }
-        else {
-            Ok(false)
-        }
-    }
-
-    pub fn close(&mut self,) {
-        self.is_open.store(false, Ordering::Release);
-    }
-}
