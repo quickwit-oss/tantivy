@@ -56,7 +56,6 @@ pub struct IndexWriter {
 	document_sender: DocumentSender,
 	num_threads: usize,
 	  docstamp: u64,
-    lockfile: WritePtr
 }
 
 
@@ -138,7 +137,7 @@ impl IndexWriter {
       let mut cloned_index = index.clone();
       let lockfile_path = Path::new(LOCKFILE_NAME);
 
-      let lf = try!(cloned_index.directory_mut().open_write(lockfile_path));
+      try!(cloned_index.directory_mut().open_write(lockfile_path));
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		let mut index_writer = IndexWriter {
@@ -151,7 +150,6 @@ impl IndexWriter {
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
 			docstamp: try!(index.docstamp()),
-        lockfile: lf
 		};
 		try!(index_writer.start_workers());
 		Ok(index_writer)
