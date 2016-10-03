@@ -78,7 +78,15 @@ fn index_documents(heap: &mut Heap,
 	Ok(num_docs)
 }
 
-
+impl Drop for IndexWriter {
+    fn drop(&mut self) {
+        let lockfile_path = Path::new(LOCKFILE_NAME);
+        match self.index.directory_mut().delete(lockfile_path) {
+            Ok(_) => (),
+            Err(_) => ()
+        }
+    }
+}
 impl IndexWriter {
 
 	/// Spawns a new worker thread for indexing.
