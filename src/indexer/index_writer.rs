@@ -8,6 +8,7 @@ use std::thread::JoinHandle;
 use indexer::SegmentWriter;
 use std::clone::Clone;
 use std::io;
+use std::path::Path;
 use std::thread;
 use std::collections::HashSet;
 use indexer::merger::IndexMerger;
@@ -15,6 +16,7 @@ use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
+use directory::WritePtr;
 
 use Result;
 use Error;
@@ -28,6 +30,8 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 
 // Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
+
+pub const LOCKFILE_NAME: &'static str = ".tantivy-indexer.lock";
 
 
 type DocumentSender = chan::Sender<Document>;
@@ -51,7 +55,8 @@ pub struct IndexWriter {
 	document_receiver: DocumentReceiver,
 	document_sender: DocumentSender,
 	num_threads: usize,
-	docstamp: u64,
+	  docstamp: u64,
+    lockfile: WritePtr
 }
 
 
@@ -121,11 +126,16 @@ impl IndexWriter {
 		if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
 		}
+
+      let mut cloned_index = index.clone();
+      let lockfile_path = Path::new(LOCKFILE_NAME);
+
+      let lf = try!(cloned_index.directory_mut().open_write(lockfile_path));
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 		let (segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
-			index: index.clone(),
+			index: cloned_index,
 			segment_ready_receiver: segment_ready_receiver,
 			segment_ready_sender: segment_ready_sender,
 			document_receiver: document_receiver,
@@ -133,6 +143,7 @@ impl IndexWriter {
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
 			docstamp: try!(index.docstamp()),
+        lockfile: lf
 		};
 		try!(index_writer.start_workers());
 		Ok(index_writer)
