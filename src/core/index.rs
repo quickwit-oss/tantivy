@@ -18,6 +18,7 @@ use super::pool::Pool;
 use super::pool::LeasedItem;
 use core::SegmentMeta;
 use indexer::SegmentManager;
+use indexer::{MergePolicy, SimpleMergePolicy};
 use super::segment::create_segment;
 
 const NUM_SEARCHERS: usize = 12; 
@@ -69,12 +70,10 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
-pub fn commit(index: &mut Index, docstamp: u64) -> Result<()> {
+pub fn commit(index: &mut Index, docstamp: u64) {
     index.docstamp = docstamp;
-    try!(index.segment_manager.commit());
-    Ok(())
+    index.segment_manager.commit();
 }
-        
 
 /// Tantivy's Search Index
 pub struct Index {
@@ -84,6 +83,7 @@ pub struct Index {
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
     docstamp: u64,
+    
 }
 
 impl Index {
@@ -177,14 +177,11 @@ impl Index {
     }
 
     /// Returns the list of segments that are searchable
-    pub fn searchable_segments(&self,) -> Result<Vec<Segment>> {
-        let segment_ids = try!(self.searchable_segment_ids());
-        Ok(
-            segment_ids
+    pub fn searchable_segments(&self,) -> Vec<Segment> {
+        self.searchable_segment_ids()
             .into_iter()
             .map(|segment_id| self.segment(segment_id))
             .collect()
-        )
     }
 
     /// Remove all of the file associated with the segment.
@@ -214,7 +211,7 @@ impl Index {
     }
     
     /// Returns the list of segment ids that are searchable.
-    fn searchable_segment_ids(&self,) -> Result<Vec<SegmentId>> {
+    fn searchable_segment_ids(&self,) -> Vec<SegmentId> {
         self.segment_manager.committed_segments()
     }
     
@@ -223,14 +220,14 @@ impl Index {
         self.segment(SegmentId::generate_random())
     }
     
-    fn create_metas(&self,) -> Result<IndexMeta> {
-        let (committed_segments, uncommitted_segments) = try!(self.segment_manager.segment_metas());
-        Ok(IndexMeta {
+    fn create_metas(&self,) -> IndexMeta {
+        let (committed_segments, uncommitted_segments) = self.segment_manager.segment_metas();
+        IndexMeta {
             committed_segments: committed_segments,
             uncommitted_segments: uncommitted_segments,
             schema: self.schema.clone(),
             docstamp: self.docstamp, 
-        })
+        }
     }
     
     /// Save the index meta file.
@@ -241,7 +238,7 @@ impl Index {
     /// - it success, and `meta.json` is written 
     /// and flushed.
     pub fn save_metas(&mut self,) -> Result<()> {
-        let metas = try!(self.create_metas());
+        let metas = self.create_metas();
         let mut w = Vec::new();
         try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
         self.directory
@@ -257,9 +254,8 @@ impl Index {
     pub fn load_searchers(&self,) -> Result<()>{
         let res_searchers: Result<Vec<Searcher>> = (0..NUM_SEARCHERS)
             .map(|_| {
-                let segments: Vec<Segment> = try!(self.searchable_segments());
                 let segment_readers: Vec<SegmentReader> = try!(
-                    segments
+                    self.searchable_segments()
                         .into_iter()
                         .map(SegmentReader::open)
                         .collect()
@@ -284,6 +280,13 @@ impl Index {
     /// the use of a consistent segment set. 
     pub fn searcher(&self,) -> LeasedItem<Searcher> {
         self.searcher_pool.acquire()
+    }
+
+    pub fn get_merge_policy(&self,) -> Box<MergePolicy> {
+	    // TODO load that from conf.
+        Box::new(
+            SimpleMergePolicy::default()
+        )
     }
 }
 

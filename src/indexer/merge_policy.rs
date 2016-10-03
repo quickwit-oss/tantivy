@@ -1,10 +1,10 @@
 use core::SegmentId;
-use indexer::segment_register::SegmentRegister;
+use core::SegmentMeta;
 
-pub struct MergeCandidate {
-    segments: Vec<SegmentId>,
-}
+
+#[derive(Debug)]
+pub struct MergeCandidate(pub Vec<SegmentId>);
 
 pub trait MergePolicy {
-    fn merge_candidates(segments: &SegmentRegister) -> Vec<MergeCandidate>;
+    fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate>;
 }

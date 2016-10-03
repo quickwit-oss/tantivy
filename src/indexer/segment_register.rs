@@ -18,6 +18,10 @@ impl SegmentEntry {
     fn start_merge(&mut self,) {
         self.state = SegmentState::InMerge;
     }
+
+    fn is_ready(&self,) -> bool {
+        self.state == SegmentState::Ready
+    }
 }
 
 
@@ -40,6 +44,14 @@ impl SegmentRegister {
         self.segment_states.clear();
     }
     
+    pub fn get_segment_ready_for_commit(&self,) -> Vec<SegmentMeta> {
+        self.segment_states
+            .values()
+            .filter(|segment_entry| segment_entry.is_ready())
+            .map(|segment_entry| segment_entry.meta.clone())
+            .collect()
+    }
+
     pub fn segment_metas(&self,) -> Vec<SegmentMeta> {
         let mut segment_ids: Vec<SegmentMeta> = self.segment_states
             .values()

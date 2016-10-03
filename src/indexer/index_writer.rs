@@ -8,6 +8,7 @@ use std::thread::JoinHandle;
 use indexer::SegmentWriter;
 use std::clone::Clone;
 use std::io;
+use indexer::MergePolicy;
 use std::thread;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
@@ -16,7 +17,7 @@ use std::mem::swap;
 use chan;
 use core::SegmentMeta;
 use super::super::core::index::get_segment_manager;
-use super::segment_manager::SegmentManager;
+use super::segment_manager::{SegmentManager, get_segment_ready_for_commit};
 use Result;
 use Error;
 
@@ -53,10 +54,11 @@ pub struct IndexWriter {
 	document_sender: DocumentSender,
 
 	segment_update_sender: SegmentUpdateSender,
-	segment_update_worker: JoinHandle<Result<()>>,
 
 	num_threads: usize,
 	docstamp: u64,
+
+	merge_policy: Box<MergePolicy>,
 }
 
 
@@ -108,7 +110,7 @@ fn process_segment_update(
 	match segment_update {
 		SegmentUpdate::AddSegment(segment_meta) => {
 			if !*is_cancelled_generation {
-				try!(segment_manager.add_segment(segment_meta));
+				segment_manager.add_segment(segment_meta);
 			}
 			else {
 				index.delete_segment(segment_meta.segment_id);
@@ -117,13 +119,13 @@ fn process_segment_update(
 		},
 		SegmentUpdate::StartMerge(segment_ids) => {
 			if !*is_cancelled_generation {
-				try!(segment_manager.start_merge(&segment_ids));
+				segment_manager.start_merge(&segment_ids);
 				// TODO spawn a segment merge thread
 			}
 			Ok(false)
 		},
 		SegmentUpdate::EndMerge(segment_ids, segment_meta) => {
-			try!(segment_manager.end_merge(&segment_ids, &segment_meta));
+			segment_manager.end_merge(&segment_ids, &segment_meta);
 			for segment_id in segment_ids {
 				index.delete_segment(segment_id);
 			}
@@ -140,12 +142,28 @@ fn process_segment_update(
 	}
 }
  
+fn consider_merge_options(index: &mut Index, merge_policy: &MergePolicy) {
+	let segment_manager = get_segment_manager(index);
+	let (committed_segments, uncommitted_segments) = get_segment_ready_for_commit(&*segment_manager);
+	// committed segments cannot be merged with uncommitted_segments.
+	let merge_candidates_committed = merge_policy.compute_merge_candidates(&committed_segments);
+	let merge_candidates_uncommitted = merge_policy.compute_merge_candidates(&uncommitted_segments);
+	merge_candidates_committed.into_iter().chain(merge_candidates_uncommitted)
+	.map(|merge_candidate| {
+		println!("{:?}", merge_candidate);
+	});
+}
 
-fn on_segment_change() {
-	// TODO
-	// - save meta.json,
-	// - merge opportunities
-	// - update searchers
+fn on_segment_change(index: &mut Index,
+				     merge_policy: &MergePolicy) -> Result<()> {
+	// saving the meta file.
+	try!(index.save_metas());
+	// update the searcher so that they eventually will
+	// use the new segments.
+	try!(index.load_searchers());
+	// consider merge options.
+	consider_merge_options(index, merge_policy);
+	Ok(())
 }
 
 // Consumes the `segment_update_receiver` channel
@@ -155,11 +173,12 @@ fn on_segment_change() {
 // happen in the same thread, and makes
 // the implementation of rollback and commit 
 // trivial.
-fn process_segment_updates(index: Index,
+fn process_segment_updates(mut index: Index,
 						   segment_manager: &SegmentManager,
 						   segment_update_receiver: SegmentUpdateReceiver) -> Result<()> {
 	let mut segment_update_it = segment_update_receiver.into_iter();
 	let mut is_cancelled_generation = false;
+	let merge_policy = index.get_merge_policy();
 	loop {
 		if let Some(segment_update) = segment_update_it.next() {
 			let has_changed = try!(
@@ -170,7 +189,7 @@ fn process_segment_updates(index: Index,
 					&mut is_cancelled_generation)
 			);
 			if has_changed {
-				on_segment_change();
+				on_segment_change(&mut index, &*merge_policy);
 			}
 		}
 		else {
@@ -204,11 +223,14 @@ impl IndexWriter {
 				// creating a new segment's files 
 				// if no document are available.
 				if document_iterator.peek().is_some() {
-					try!(index_documents(&mut heap,
-									segment,
-									&schema,
-									&mut document_iterator,
-									&mut segment_update_sender));
+					try!(
+						index_documents(
+							&mut heap,
+							segment,
+							&schema,
+							&mut document_iterator,
+							&mut segment_update_sender)
+					);
 				}
 				else {
 					// No more documents.
@@ -245,7 +267,7 @@ impl IndexWriter {
 		let segment_manager = get_segment_manager(index);
 
 		let index_clone = index.clone();
-		let segment_update_worker = thread::spawn(move || {
+		thread::spawn(move || {
 			process_segment_updates(index_clone, &*segment_manager, segment_update_receiver)
 		});
 
@@ -257,10 +279,11 @@ impl IndexWriter {
 			document_sender: document_sender,
 
 			segment_update_sender: segment_update_sender,
-			segment_update_worker: segment_update_worker,
 			
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
+
+			merge_policy: index.get_merge_policy(),
 			docstamp: index.docstamp(),
 		};
 		try!(index_writer.start_workers());
@@ -291,7 +314,7 @@ impl IndexWriter {
 			num_docs: num_docs,
 		};
 		let segment_manager = get_segment_manager(&self.index);
-		try!(segment_manager.end_merge(&merged_segment_ids, &segment_meta));
+		segment_manager.end_merge(&merged_segment_ids, &segment_meta);
 		try!(self.index.load_searchers());
 		Ok(())
 	}
@@ -358,7 +381,7 @@ impl IndexWriter {
 		// from now on.
 		self.segment_update_sender.send(SegmentUpdate::NewGeneration);
 
-		let rollbacked_segments = try!(get_segment_manager(&self.index).rollback());
+		let rollbacked_segments = get_segment_manager(&self.index).rollback();
 		for segment_id in rollbacked_segments {
 			self.index.delete_segment(segment_id);
 		}
@@ -405,7 +428,7 @@ impl IndexWriter {
 			try!(self.add_indexing_worker());
 		}
 
-		try!(super::super::core::index::commit(&mut self.index, commit_docstamp));
+		super::super::core::index::commit(&mut self.index, commit_docstamp);
 		try!(self.on_change());
 		Ok(commit_docstamp)
 	}
@@ -429,8 +452,6 @@ impl IndexWriter {
 	
 
 }
-
-
 
 #[cfg(test)]
 mod tests {
