@@ -309,16 +309,20 @@ mod tests {
 	use schema::{self, Document};
 	use Index;
 	use Term;
+    use Error;
+    use directory::error::OpenWriteError;
 
     #[test]
-    #[should_panic]
     fn test_lockfile_stops_duplicates() {
         
 		    let mut schema_builder = schema::SchemaBuilder::default();
 		    let text_field = schema_builder.add_text_field("text", schema::TEXT);
 		    let index = Index::create_in_ram(schema_builder.build());
 			  let index_writer = index.writer(40_000_000).unwrap();
-        let index_writer_two = index.writer(40_000_000).unwrap();
+        match index.writer(40_000_000) {
+            Err(Error::FileAlreadyExists(_)) => {},
+            _ => panic!("Expected FileAlreadyExists error")
+        }
     }
 
     #[test]
