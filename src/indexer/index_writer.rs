@@ -82,8 +82,7 @@ impl Drop for IndexWriter {
     fn drop(&mut self) {
         let lockfile_path = Path::new(LOCKFILE_NAME);
         match self.index.directory_mut().delete(lockfile_path) {
-            Ok(_) => (),
-            Err(_) => (),
+            Ok(_) | Err(_) => ()
         }
     }
 }
