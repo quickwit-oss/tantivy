@@ -121,10 +121,14 @@ impl IndexWriter {
         Ok(())
     }
 
-    /// Open a new index writer
+    /// Open a new index writer. Attempts to acquire a lockfile.
     ///
-    /// num_threads tells the number of indexing worker that
+    /// num_threads specifies the number of indexing workers that
     /// should work at the same time.
+    /// # Errors
+    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// # Panics
+    /// If the heap size per thread is too small, panics.
     pub fn open(index: &Index,
                 num_threads: usize,
                 heap_size_in_bytes_per_thread: usize)

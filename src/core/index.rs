@@ -139,14 +139,23 @@ impl Index {
     }
     
     /// Creates a multithreaded writer.
-    /// Each writer produces an independant segment.
+    /// Each writer produces an independent segment.
+    ///
+    /// # Errors
+    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// # Panics
+    /// If the heap size per thread is too small, panics.
     pub fn writer_with_num_threads(&self, num_threads: usize, heap_size_in_bytes: usize) -> Result<IndexWriter> {
         IndexWriter::open(self, num_threads, heap_size_in_bytes)
     }
     
     
     /// Creates a multithreaded writer
-    /// It just calls `writer_with_num_threads` with the number of core as `num_threads` 
+    /// It just calls `writer_with_num_threads` with the number of cores as `num_threads` 
+    /// # Errors
+    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// # Panics
+    /// If the heap size per thread is too small, panics.
     pub fn writer(&self, heap_size_in_bytes: usize) -> Result<IndexWriter> {
         self.writer_with_num_threads(num_cpus::get(), heap_size_in_bytes)
     }
