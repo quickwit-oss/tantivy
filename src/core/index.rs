@@ -196,7 +196,7 @@ impl Index {
     /// Return a segment object given a segment_id
     ///
     /// The segment may or may not exist.
-    fn segment(&self, segment_id: SegmentId) -> Segment {
+    pub fn segment(&self, segment_id: SegmentId) -> Segment {
         create_segment(self.clone(), segment_id)
     }
     

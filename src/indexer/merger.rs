@@ -333,7 +333,7 @@ mod tests {
             }
         }
         {
-            let segments = index.searchable_segments().unwrap();
+            let segments = index.searchable_segments();
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer.merge(&segments).unwrap();
         }
