@@ -11,7 +11,7 @@ impl MergePolicy for SimpleMergePolicy {
         let num_packs = segments.len() / PACK_LEN; 
         (0..num_packs)
             .map(|i| {
-                let segment_ids = segments[i..i*PACK_LEN]
+                let segment_ids = segments[i*PACK_LEN..(i+1)*PACK_LEN]
                     .iter()
                     .map(|segment_meta| segment_meta.segment_id)
                     .collect();

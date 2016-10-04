@@ -2,7 +2,7 @@ use core::SegmentId;
 use core::SegmentMeta;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MergeCandidate(pub Vec<SegmentId>);
 
 pub trait MergePolicy {

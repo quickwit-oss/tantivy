@@ -19,8 +19,6 @@ impl Default for SegmentRegisters {
 }
 
 
-
-
 /// The segment manager stores the list of segments
 /// as well as their state.
 ///
