@@ -105,6 +105,9 @@ fn process_segment_update(
 		segment_manager: &SegmentManager,
 		segment_update: SegmentUpdate,
 		is_cancelled_generation: &mut bool) -> bool {
+
+	info!("Segment update: {:?}", segment_update);
+
 	match segment_update {
 		SegmentUpdate::AddSegment(segment_meta) => {
 			if !*is_cancelled_generation {
@@ -182,6 +185,7 @@ fn process_segment_updates(mut index: Index,
 					let index_clone = index.clone();
 					let segment_update_sender_clone = segment_update_sender.clone();
 					thread::spawn(move || {
+						info!("Start merge: {:?}", segment_ids);
 						let schema = index_clone.schema();
 						let segments: Vec<Segment> = segment_ids
 							.iter()
