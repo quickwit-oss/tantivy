@@ -1,6 +1,7 @@
 #![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
 
+#![feature(optin_builtin_traits)]
 #![feature(binary_heap_extras)]
 #![feature(conservative_impl_trait)]
 #![cfg_attr(test, feature(test))]

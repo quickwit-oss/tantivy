@@ -1,8 +1,6 @@
 use std::cell::UnsafeCell;
 use std::mem;
 use std::ptr;
-use std::iter;
-
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
 #[derive(Copy, Clone)]
@@ -103,11 +101,23 @@ struct InnerHeap {
     next_heap: Option<Box<InnerHeap>>,
 }
 
+/// initializing a long Vec<u8> is crazy slow in 
+/// debug mode.
+fn allocate_fast(num_bytes: usize) -> Vec<u8> {
+    let mut scavenged = Vec::with_capacity(num_bytes);
+    unsafe {
+        let ptr = scavenged.as_mut_ptr();
+        mem::forget(scavenged);
+        Vec::from_raw_parts(ptr, num_bytes, num_bytes)
+    }
+}
+
 impl InnerHeap {
 
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
+        let buffer: Vec<u8> = allocate_fast(num_bytes);
         InnerHeap {
-            buffer: iter::repeat(0u8).take(num_bytes).collect(),
+            buffer: buffer,
             buffer_len: num_bytes as u32,
             next_heap: None,
             used: 0u32,

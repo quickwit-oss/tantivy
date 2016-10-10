@@ -4,17 +4,25 @@ use core::SegmentMeta;
 use core::SegmentId;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
 }
 
+#[derive(Eq, PartialEq)]
+pub enum CommitState {
+    Committed,
+    Uncommitted,
+    Missing,
+}
+
 impl Default for SegmentRegisters {
     fn default() -> SegmentRegisters {
         SegmentRegisters {
             uncommitted: SegmentRegister::default(),
-            committed: SegmentRegister::default(),
+            committed: SegmentRegister::default()
         }
     }
 }
@@ -27,6 +35,12 @@ impl Default for SegmentRegisters {
 /// changes (merges especially)
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
+    // generation  is an ever increasing counter that 
+    // is incremented whenever we modify 
+    // the segment manager. It can be useful for debugging
+    // purposes, and it also acts as a "dirty" marker,
+    // to detect when the `meta.json` should be written.
+    generation: AtomicUsize, 
 }
 
 impl Debug for SegmentManager {
@@ -49,16 +63,30 @@ pub fn get_segment_ready_for_commit(segment_manager: &SegmentManager,) -> (Vec<S
 }
 
 impl SegmentManager {
+    
+    /// Returns whether a segment is committed, uncommitted or missing.
+    pub fn is_committed(&self, segment_id: SegmentId) -> CommitState {
+        let lock = self.read();
+        if lock.uncommitted.contains(segment_id) {
+            CommitState::Uncommitted
+        }
+        else if lock.committed.contains(segment_id) {
+            CommitState::Committed
+        }
+        else {
+            CommitState::Missing
+        }
+    }
 
     pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::from(segment_metas),
-            })
+            }),
+            generation: AtomicUsize::default(),
         }
     }
-
 
     // Lock poisoning should never happen :
     // The lock is acquired and released within this class,
@@ -66,8 +94,14 @@ impl SegmentManager {
     fn read(&self,) -> RwLockReadGuard<SegmentRegisters> { 
         self.registers.read().expect("Failed to acquire read lock on SegmentManager.")
     }
+
     fn write(&self,) -> RwLockWriteGuard<SegmentRegisters> {
+        self.generation.fetch_add(1, Ordering::Release);
         self.registers.write().expect("Failed to acquire write lock on SegmentManager.")
+    }
+
+    pub fn generation(&self,) -> usize {
+        self.generation.load(Ordering::Acquire)
     }
 
     /// Removes all of the uncommitted segments

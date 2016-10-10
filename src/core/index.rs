@@ -70,10 +70,10 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
-pub fn commit(index: &mut Index, docstamp: u64) {
-    index.docstamp = docstamp;
-    index.segment_manager.commit();
-}
+// pub fn commit(index: &mut Index, docstamp: u64) {
+//     index.docstamp = docstamp;
+//     index.segment_manager.commit();
+// }
 
 /// Tantivy's Search Index
 pub struct Index {
