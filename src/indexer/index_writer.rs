@@ -55,7 +55,10 @@ pub struct IndexWriter {
 	document_sender: DocumentSender,
 
 	segment_update_sender: SegmentUpdateSender,
-
+	segment_update_thread: JoinHandle<()>,
+	
+	worker_id: usize,
+	
 	num_threads: usize,
 	docstamp: u64,
 }
@@ -165,59 +168,63 @@ fn process_segment_updates(mut index: Index,
 						   segment_manager: &SegmentManager,
 						   segment_update_receiver: SegmentUpdateReceiver,
 						   segment_update_sender: SegmentUpdateSender) {
-	let mut segment_update_it = segment_update_receiver.into_iter();
 	let mut is_cancelled_generation = false;
 	let merge_policy = index.get_merge_policy();
-	loop {
-		if let Some(segment_update) = segment_update_it.next() {
-			let has_changed = process_segment_update(
-					&index,
-					segment_manager,
-					segment_update,
-					&mut is_cancelled_generation);
-			if has_changed {
-				on_segment_change(&mut index);
+	for segment_update in segment_update_receiver {
+		let has_changed = process_segment_update(
+				&index,
+				segment_manager,
+				segment_update,
+				&mut is_cancelled_generation);
+		if has_changed {
+			on_segment_change(&mut index);
 
-				let segment_manager = get_segment_manager(&index);
+			let segment_manager = get_segment_manager(&index);
 
-				for MergeCandidate(segment_ids) in consider_merge_options(&index, &*merge_policy) {
-					segment_manager.start_merge(&segment_ids);
-					let index_clone = index.clone();
-					let segment_update_sender_clone = segment_update_sender.clone();
-					thread::spawn(move || {
-						info!("Start merge: {:?}", segment_ids);
-						let schema = index_clone.schema();
-						let segments: Vec<Segment> = segment_ids
-							.iter()
-							.map(|&segment_id| index_clone.segment(segment_id))
-							.collect();
-						// An IndexMerger is like a "view" of our merged segments. 
-						// TODO unwrap
-						let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
-						let mut merged_segment = index_clone.new_segment();
-						// ... we just serialize this index merger in our new segment
-						// to merge the two segments.
-						let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
-						let num_docs = merger.write(segment_serializer).unwrap();
-						let segment_meta = SegmentMeta {
-							segment_id: merged_segment.id(),
-							num_docs: num_docs,
-						};
-						let segment_update = SegmentUpdate::EndMerge(segment_ids, segment_meta);
-						segment_update_sender_clone.send(segment_update);
-					});
-				}
+			for MergeCandidate(segment_ids) in consider_merge_options(&index, &*merge_policy) {
+				segment_manager.start_merge(&segment_ids);
+				let index_clone = index.clone();
+				let segment_update_sender_clone = segment_update_sender.clone();
+				thread::Builder::new().name(format!("merge_thread_{:?}", segment_ids[0])).spawn(move || {
+					info!("Start merge: {:?}", segment_ids);
+					let schema = index_clone.schema();
+					let segments: Vec<Segment> = segment_ids
+						.iter()
+						.map(|&segment_id| index_clone.segment(segment_id))
+						.collect();
+					// An IndexMerger is like a "view" of our merged segments. 
+					// TODO unwrap
+					let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
+					let mut merged_segment = index_clone.new_segment();
+					// ... we just serialize this index merger in our new segment
+					// to merge the two segments.
+					let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
+					let num_docs = merger.write(segment_serializer).unwrap();
+					let segment_meta = SegmentMeta {
+						segment_id: merged_segment.id(),
+						num_docs: num_docs,
+					};
+					let segment_update = SegmentUpdate::EndMerge(segment_ids, segment_meta);
+					segment_update_sender_clone.send(segment_update);
+				}).expect("Failed to spawn merge thread");
 			}
-		}
-		else {
-			// somehow, the channel was dropped.
-			return;
 		}
 	}
 }
 
 impl IndexWriter {
-
+	
+	pub fn wait_merging_threads(self) -> Result<()> {
+		drop(self.segment_update_sender);
+		info!("Joining update thread");
+		self.segment_update_thread
+			.join()
+			.map_err(|err| {
+				error!("Error in the merging thread {:?}", err);
+				Error::ErrorInThread(format!("{:?}", err))
+			})
+	}
+	
 	/// Spawns a new worker thread for indexing.
 	/// The thread consumes documents from the pipeline.
 	///
@@ -228,8 +235,11 @@ impl IndexWriter {
 		let document_receiver_clone = self.document_receiver.clone();
 		let mut segment_update_sender = self.segment_update_sender.clone();
 
-		let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread); 
-		let join_handle: JoinHandle<Result<()>> = thread::spawn(move || {
+		let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
+		 
+		let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
+			.name(format!("indexing_thread_{}", self.worker_id))
+			.spawn(move || {
 			loop {
 				let segment = index.new_segment();
 				let mut document_iterator = document_receiver_clone
@@ -256,7 +266,8 @@ impl IndexWriter {
 					return Ok(());
 				}
 			}
-		});
+		}));
+		self.worker_id += 1;
 		self.workers_join_handle.push(join_handle);
 
 		Ok(())
@@ -285,9 +296,9 @@ impl IndexWriter {
 
 		let index_clone = index.clone();
 		let segment_update_sender_clone = segment_update_sender.clone();
-		thread::spawn(move || {
+		let segment_update_thread = try!(thread::Builder::new().name("segment_update".to_string()).spawn(move || {
 			process_segment_updates(index_clone, &*segment_manager, segment_update_receiver, segment_update_sender_clone)
-		});
+		}));
 
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
@@ -297,11 +308,13 @@ impl IndexWriter {
 			document_sender: document_sender,
 
 			segment_update_sender: segment_update_sender,
+			segment_update_thread: segment_update_thread,
 			
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
 
 			docstamp: index.docstamp(),
+			worker_id: 0,
 		};
 		try!(index_writer.start_workers());
 		Ok(index_writer)

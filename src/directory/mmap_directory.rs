@@ -136,6 +136,7 @@ impl Directory for MmapDirectory {
     
 
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+        debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
         
         let mut mmap_cache = try!(
@@ -176,6 +177,7 @@ impl Directory for MmapDirectory {
     }
     
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
         
         let open_res = OpenOptions::new()
@@ -206,6 +208,7 @@ impl Directory for MmapDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+        debug!("Delete {:?}", path);
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
@@ -228,6 +231,7 @@ impl Directory for MmapDirectory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
         try!(meta_file.write(|f| {
