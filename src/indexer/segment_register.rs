@@ -1,11 +1,22 @@
 use core::SegmentId;
 use std::collections::HashMap;
 use core::SegmentMeta;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum SegmentState {
     Ready,
     InMerge,    
+}
+
+impl SegmentState {
+    fn letter_code(&self,) -> char {
+        match *self {
+            SegmentState::InMerge => 'M',
+            SegmentState::Ready => 'R',
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -38,6 +49,17 @@ pub struct SegmentRegister {
     segment_states: HashMap<SegmentId, SegmentEntry>, 
 }
 
+impl Debug for SegmentRegister {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        try!(write!(f, "SegmentRegister("));
+        for (ref k, ref v) in &self.segment_states {
+            try!(write!(f, "{}:{}, ", k.short_uuid_string(), v.state.letter_code()));
+        }
+        try!(write!(f, ")"));
+        Ok(())
+    }
+}
+
 impl SegmentRegister {
     
     pub fn clear(&mut self,) {
@@ -51,7 +73,14 @@ impl SegmentRegister {
             .map(|segment_entry| segment_entry.meta.clone())
             .collect()
     }
-
+    
+    pub fn segment_entries(&self,) -> Vec<SegmentEntry>{
+        self.segment_states
+            .values()
+            .cloned()
+            .collect()
+    }
+    
     pub fn segment_metas(&self,) -> Vec<SegmentMeta> {
         let mut segment_ids: Vec<SegmentMeta> = self.segment_states
             .values()
@@ -82,13 +111,16 @@ impl SegmentRegister {
             .all(|segment_id| self.segment_states.contains_key(segment_id))
     }
     
+    pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
+        let segment_id = segment_entry.meta.segment_id;
+        self.segment_states.insert(segment_id, segment_entry);
+    }
+    
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
-        let segment_id = segment_meta.segment_id.clone();
-        let segment_entry = SegmentEntry {
+        self.add_segment_entry(SegmentEntry {
             meta: segment_meta.clone(),
             state: SegmentState::Ready,
-        };
-        self.segment_states.insert(segment_id, segment_entry);
+        });
     }
     
     pub fn remove_segment(&mut self, segment_id: &SegmentId) {

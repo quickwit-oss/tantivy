@@ -3,6 +3,7 @@ use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
+use std::fmt::{self, Debug, Formatter};
 
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
@@ -28,16 +29,21 @@ pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
 }
 
+impl Debug for SegmentManager {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        let lock = self.read();
+        write!(f, "{{ uncommitted: {:?}, committed: {:?} }}", lock.uncommitted, lock.committed)
+    }
+}
+
+
 /// Returns the segment_metas for (committed segment, uncommitted segments).
 /// The result is consistent with other transactions.
 ///
 /// For instance, a segment will not appear in both committed and uncommitted 
 /// segments
 pub fn get_segment_ready_for_commit(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
-    let registers_lock = segment_manager
-        .registers
-        .read()
-        .expect("Segment manager lock is poisoned");
+    let registers_lock = segment_manager.read();
     (registers_lock.committed.get_segment_ready_for_commit(),
      registers_lock.uncommitted.get_segment_ready_for_commit())
 }
@@ -75,9 +81,9 @@ impl SegmentManager {
 
     pub fn commit(&self,) {
         let mut registers_lock = self.write();
-        let segment_metas = registers_lock.uncommitted.segment_metas();
-        for segment_meta in segment_metas {
-            registers_lock.committed.add_segment(segment_meta.clone());
+        let segment_entries = registers_lock.uncommitted.segment_entries();
+        for segment_entry in segment_entries {
+            registers_lock.committed.add_segment_entry(segment_entry);
         }
         registers_lock.uncommitted.clear();       
     }
@@ -114,6 +120,8 @@ impl SegmentManager {
                 registers_lock.committed.remove_segment(segment_id);
             }
             registers_lock.committed.add_segment(merged_segment_meta.clone());
+        } else {
+            warn!("couldn't find segment in SegmentManager");
         }
     }
     
