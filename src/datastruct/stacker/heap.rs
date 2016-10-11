@@ -104,12 +104,11 @@ struct InnerHeap {
 /// initializing a long Vec<u8> is crazy slow in 
 /// debug mode.
 fn allocate_fast(num_bytes: usize) -> Vec<u8> {
-    let mut scavenged = Vec::with_capacity(num_bytes);
+    let mut v = Vec::with_capacity(num_bytes);
     unsafe {
-        let ptr = scavenged.as_mut_ptr();
-        mem::forget(scavenged);
-        Vec::from_raw_parts(ptr, num_bytes, num_bytes)
+        v.set_len(num_bytes);
     }
+    v
 }
 
 impl InnerHeap {
