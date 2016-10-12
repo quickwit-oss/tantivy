@@ -1,8 +1,7 @@
 use Result;
 use Error;
-use std::path::{PathBuf, Path};
+use std::path::Path;
 use schema::Schema;
-use std::io::Write;
 use std::sync::Arc;
 use std::fmt;
 use rustc_serialize::json;
@@ -16,49 +15,21 @@ use super::segment::Segment;
 use core::SegmentReader;
 use super::pool::Pool;
 use super::pool::LeasedItem;
-use core::SegmentMeta;
 use indexer::SegmentManager;
 use indexer::{MergePolicy, SimpleMergePolicy};
+use core::IndexMeta;
+use core::META_FILEPATH;
 use super::segment::create_segment;
 
 const NUM_SEARCHERS: usize = 12; 
 
-
+/// Accessor to the index segment manager
+///
+/// This method is not part of tantivy's public API 
 pub fn get_segment_manager(index: &Index) -> Arc<SegmentManager> {
     index.segment_manager.clone()
 }
-
-/// MetaInformation about the `Index`.
-/// 
-/// This object is serialized on disk in the `meta.json` file.
-/// It keeps information about 
-/// * the searchable segments,
-/// * the index docstamp
-/// * the schema
-///
-#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
-pub struct IndexMeta {
-    committed_segments: Vec<SegmentMeta>,
-    uncommitted_segments: Vec<SegmentMeta>,
-    schema: Schema,
-    docstamp: u64,
-}
-
-impl IndexMeta {
-    fn with_schema(schema: Schema) -> IndexMeta {
-        IndexMeta {
-            committed_segments: Vec::new(),
-            uncommitted_segments: Vec::new(),
-            schema: schema,
-            docstamp: 0u64,
-        }
-    }
-}
-
-lazy_static! {
-    static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
-}
-
+    
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_file = try!(directory.open_read(&META_FILEPATH));
@@ -70,10 +41,9 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
-// pub fn commit(index: &mut Index, docstamp: u64) {
-//     index.docstamp = docstamp;
-//     index.segment_manager.commit();
-// }
+pub fn set_metas(index: &mut Index, docstamp: u64) {
+    index.docstamp = docstamp;
+}
 
 /// Tantivy's Search Index
 pub struct Index {
@@ -136,9 +106,10 @@ impl Index {
     
     /// Opens a new directory from a directory.
     pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Result<Index> {
-        let mut index = try!(Index::create_from_metas(directory, IndexMeta::with_schema(schema)));
-        try!(index.save_metas());
-        Ok(index)
+        Index::create_from_metas(
+            directory,
+            IndexMeta::with_schema(schema)
+        )
     }
 
     /// Opens a new directory from an index path.
@@ -218,32 +189,6 @@ impl Index {
     /// Creates a new segment.
     pub fn new_segment(&self,) -> Segment {
         self.segment(SegmentId::generate_random())
-    }
-    
-    fn create_metas(&self,) -> IndexMeta {
-        let (committed_segments, uncommitted_segments) = self.segment_manager.segment_metas();
-        IndexMeta {
-            committed_segments: committed_segments,
-            uncommitted_segments: uncommitted_segments,
-            schema: self.schema.clone(),
-            docstamp: self.docstamp, 
-        }
-    }
-    
-    /// Save the index meta file.
-    /// This operation is atomic :
-    /// Either
-    //  - it fails, in which case an error is returned,
-    /// and the `meta.json` remains untouched, 
-    /// - it success, and `meta.json` is written 
-    /// and flushed.
-    pub fn save_metas(&mut self,) -> Result<()> {
-        let metas = self.create_metas();
-        let mut w = Vec::new();
-        try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
-        self.directory
-            .atomic_write(&META_FILEPATH, &w[..])
-            .map_err(From::from)
     }
     
     /// Creates a new generation of searchers after 

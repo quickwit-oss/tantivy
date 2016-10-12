@@ -37,15 +37,16 @@ impl<T> Pool<T> {
     }
 
     fn generation(&self,) -> usize {
-        self.generation.load(Ordering::SeqCst)
+        self.generation.load(Ordering::Acquire)
     }
 
     pub fn inc_generation(&self,) {
-        self.generation.fetch_add(1, Ordering::SeqCst);
+        self.generation.fetch_add(1, Ordering::Release);
     }
 
     pub fn acquire(&self,) -> LeasedItem<T> {
-        let generation = self.generation.load(Ordering::SeqCst);
+        let generation = self.generation.load(Ordering::Acquire);
+        println("generation {}");
         loop {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {

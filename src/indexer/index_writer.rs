@@ -2,13 +2,16 @@ use schema::Schema;
 use schema::Document;
 use indexer::SegmentSerializer;
 use core::Index;
+use Directory;
 use core::SerializableSegment;
 use core::Segment;
 use std::thread::JoinHandle;
+use rustc_serialize::json;
 use indexer::SegmentWriter;
 use indexer::MergeCandidate;
 use std::clone::Clone;
 use std::io;
+use std::io::Write;
 use indexer::MergePolicy;
 use std::thread;
 use std::mem;
@@ -18,6 +21,8 @@ use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
 use core::SegmentMeta;
+use core::IndexMeta;
+use core::META_FILEPATH;
 use super::super::core::index::get_segment_manager;
 use super::segment_manager::{CommitState, SegmentManager, get_segment_ready_for_commit};
 use Result;
@@ -40,6 +45,44 @@ type DocumentReceiver = chan::Receiver<Document>;
 type SegmentUpdateSender = chan::Sender<SegmentUpdate>;
 type SegmentUpdateReceiver = chan::Receiver<SegmentUpdate>;
 
+
+
+fn create_metas(segment_manager: &SegmentManager,
+				schema: Schema,
+				docstamp: u64) -> IndexMeta {
+	let (committed_segments, uncommitted_segments) = segment_manager.segment_metas();
+	IndexMeta {
+		committed_segments: committed_segments,
+		uncommitted_segments: uncommitted_segments,
+		schema: schema,
+		docstamp: docstamp, 
+	}
+}
+
+
+/// Save the index meta file.
+/// This operation is atomic :
+/// Either
+//  - it fails, in which case an error is returned,
+/// and the `meta.json` remains untouched, 
+/// - it success, and `meta.json` is written 
+/// and flushed.
+///
+/// This method is not part of tantivy's public API
+pub fn save_metas(
+	segment_manager: &SegmentManager,
+	schema: Schema,
+	docstamp: u64,
+	directory: &mut Directory) -> Result<()> {
+    let metas = create_metas(segment_manager, schema, docstamp);
+    let mut w = Vec::new();
+    try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
+    directory
+        .atomic_write(&META_FILEPATH, &w[..])
+        .map_err(From::from)
+}
+
+
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
 /// It manages a small number of indexing thread, as well as a shared
@@ -61,7 +104,9 @@ pub struct IndexWriter {
 	worker_id: usize,
 	
 	num_threads: usize,
-	docstamp: u64,
+	
+	uncommitted_docstamp: u64,
+	committed_docstamp: u64,
 }
 
 // IndexWriter cannot be sent to another thread.
@@ -207,8 +252,12 @@ fn process_segment_updates(mut index: Index,
 		if generation != new_generation {
 			generation = new_generation;
 			
-			// saving the meta file.
-			index.save_metas().expect("Could not save metas.");
+			// saving the meta file.		
+			save_metas(
+				segment_manager,
+				index.schema(),
+				index.docstamp(),
+				index.directory_mut()).expect("Could not save metas.");
 
 			// update the searchers so that they eventually will
 			// use the new segments.
@@ -326,7 +375,15 @@ impl IndexWriter {
 	}
 
 	fn on_change(&mut self,) -> Result<()> {
-		try!(self.index.save_metas());
+		let segment_manager = get_segment_manager(&self.index);
+		// saving the meta file.		
+		try!(
+			save_metas(
+				&*segment_manager,
+				self.index.schema(),
+				self.committed_docstamp,
+				self.index.directory_mut())
+		);
     	try!(self.index.load_searchers());
 		Ok(())
 	}
@@ -365,7 +422,8 @@ impl IndexWriter {
 			workers_join_handle: Vec::new(),
 			num_threads: num_threads,
 
-			docstamp: index.docstamp(),
+			committed_docstamp: index.docstamp(),
+			uncommitted_docstamp: index.docstamp(),
 			worker_id: 0,
 		};
 		try!(index_writer.start_workers());
@@ -498,9 +556,9 @@ impl IndexWriter {
 		}
 		try!(self.on_change());
 
-		// reset the docstamp to what it was before
-		self.docstamp = self.index.docstamp();
-		Ok(self.docstamp)
+		// reset the docstamp
+		self.uncommitted_docstamp = self.committed_docstamp;
+		Ok(self.committed_docstamp)
 	}
 
 
@@ -525,7 +583,7 @@ impl IndexWriter {
 		self.recreate_document_channel();
 		
 		// Docstamp of the last document in this commit.
-		let commit_docstamp = self.docstamp;
+		self.committed_docstamp = self.uncommitted_docstamp;
 
 		let mut former_workers_join_handle = Vec::new();
 		swap(&mut former_workers_join_handle, &mut self.workers_join_handle);
@@ -541,10 +599,10 @@ impl IndexWriter {
 		}
 
 		self.segment_update_sender.send(SegmentUpdate::Commit);
-
+		
 		// super::super::core::index::commit(&mut self.index, commit_docstamp);
 		try!(self.on_change());
-		Ok(commit_docstamp)
+		Ok(self.committed_docstamp)
 	}
 	
 
@@ -560,8 +618,8 @@ impl IndexWriter {
 	/// have been added since the creation of the index. 
 	pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
 		self.document_sender.send(doc);
-		self.docstamp += 1;
-		Ok(self.docstamp)
+		self.uncommitted_docstamp += 1;
+		Ok(self.uncommitted_docstamp)
 	}
 	
 
