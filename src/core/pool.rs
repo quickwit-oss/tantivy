@@ -41,12 +41,11 @@ impl<T> Pool<T> {
     }
 
     pub fn inc_generation(&self,) {
-        self.generation.fetch_add(1, Ordering::Release);
+        self.generation.fetch_add(1, Ordering::SeqCst);
     }
 
     pub fn acquire(&self,) -> LeasedItem<T> {
         let generation = self.generation.load(Ordering::Acquire);
-        println("generation {}");
         loop {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {

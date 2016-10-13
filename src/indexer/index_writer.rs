@@ -23,6 +23,7 @@ use chan;
 use core::SegmentMeta;
 use core::IndexMeta;
 use core::META_FILEPATH;
+use std::time::Duration;
 use super::super::core::index::get_segment_manager;
 use super::segment_manager::{CommitState, SegmentManager, get_segment_ready_for_commit};
 use Result;
@@ -148,7 +149,7 @@ pub enum SegmentUpdate {
     CancelGeneration,
     NewGeneration,
 	Terminate,
-	Commit,
+	Commit(u64),
 }
 
 impl SegmentUpdate {
@@ -193,8 +194,8 @@ impl SegmentUpdate {
 				// indexing new documents.
 				*is_cancelled_generation = false;
 			}
-			SegmentUpdate::Commit => {
-				segment_manager.commit();
+			SegmentUpdate::Commit(docstamp) => {
+				segment_manager.commit(docstamp);
 			}
 			SegmentUpdate::Terminate => {
 				return true;
@@ -597,8 +598,24 @@ impl IndexWriter {
 			// add a new worker for the next generation.
 			try!(self.add_indexing_worker());
 		}
-
-		self.segment_update_sender.send(SegmentUpdate::Commit);
+		// here, because we join all of the worker threads,
+		// all of the segment update for this commit have been
+		// sent.
+		//
+		// No document belonging to the next generation have been 
+		// pushed too, because add_document can only happen
+		// on this thread.
+		
+		// This will move uncommitted segments to the state of
+		// committed segments.
+		self.segment_update_sender.send(SegmentUpdate::Commit(self.committed_docstamp));
+		
+		// wait for the segment update thread to have processed the info
+		let segment_manager = get_segment_manager(&self.index);
+		while segment_manager.docstamp() != self.committed_docstamp {
+			println!("wait");
+			thread::sleep(Duration::from_millis(100));
+		}		
 		
 		// super::super::core::index::commit(&mut self.index, commit_docstamp);
 		try!(self.on_change());

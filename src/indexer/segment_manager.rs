@@ -7,6 +7,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct SegmentRegisters {
+    docstamp: u64,
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
 }
@@ -21,6 +22,7 @@ pub enum CommitState {
 impl Default for SegmentRegisters {
     fn default() -> SegmentRegisters {
         SegmentRegisters {
+            docstamp: 0u64,
             uncommitted: SegmentRegister::default(),
             committed: SegmentRegister::default()
         }
@@ -77,10 +79,15 @@ impl SegmentManager {
             CommitState::Missing
         }
     }
+    
+    pub fn docstamp(&self,) -> u64 {
+        self.read().docstamp
+    }
 
     pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
+                docstamp: 0u64, // TODO put the actual value
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::from(segment_metas),
             }),
@@ -113,13 +120,14 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self,) {
+    pub fn commit(&self, docstamp: u64) {
         let mut registers_lock = self.write();
         let segment_entries = registers_lock.uncommitted.segment_entries();
         for segment_entry in segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
-        registers_lock.uncommitted.clear();       
+        registers_lock.docstamp = docstamp;
+        registers_lock.uncommitted.clear();    
     }
     
     pub fn add_segment(&self, segment_meta: SegmentMeta) {
