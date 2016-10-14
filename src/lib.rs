@@ -304,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn test_searcher() {
+    fn test_searcher_1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();

@@ -18,7 +18,10 @@ use Score;
 /// * segment_ordinal - is the ordinal used to identify to which segment postings
 /// this heap item belong to.
 #[derive(Eq, PartialEq)]
-struct HeapItem(DocId, u32);
+struct HeapItem {
+    doc: DocId,
+    ord: u32,
+}
 
 /// HeapItem are ordered by the document
 impl PartialOrd for HeapItem {
@@ -29,7 +32,7 @@ impl PartialOrd for HeapItem {
 
 impl Ord for HeapItem {
     fn cmp(&self, other:&Self) -> Ordering {
-         (other.0).cmp(&self.0)
+         (other.doc).cmp(&self.doc)
     }
 }
 
@@ -98,7 +101,10 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
             .enumerate()
             .map(|(ord, (doc, tf))| {
                 term_frequencies[ord] = tf;
-                HeapItem(doc, ord as u32)
+                HeapItem {
+                    doc: doc,
+                    ord: ord as u32
+                }
             })
             .collect();
         DAATMultiTermScorer {
@@ -143,17 +149,19 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
     /// # Panics
     /// This method will panic if the head `SegmentPostings` is not empty.
     fn advance_head(&mut self,) {
-        let ord = self.queue.peek().unwrap().1 as usize;
-        let cur_postings = &mut self.postings[ord];
-        if cur_postings.advance() {
-            let doc = cur_postings.doc();
-            self.term_frequencies[ord] = cur_postings.term_freq();
-            // peek & replace is incredibly 
-            self.queue.replace(HeapItem(doc, ord as u32));
+        
+        {
+            let mut mutable_head = self.queue.peek_mut().unwrap();
+            let cur_postings = &mut self.postings[mutable_head.ord as usize];
+            if cur_postings.advance() {
+                let doc = cur_postings.doc();
+                self.term_frequencies[mutable_head.ord as usize] = cur_postings.term_freq();
+                mutable_head.doc = doc; 
+                return;
+            }
+            
         }
-        else {
-            self.queue.pop();
-        }
+        self.queue.pop();
     }
     
     /// Returns the field norm for the segment postings with the given ordinal,
@@ -177,10 +185,10 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
             self.similarity.clear();
             let mut ord_bitset = 0u64;
             match self.queue.peek() {
-                Some(&HeapItem(doc, ord)) => {
-                    self.doc = doc;
-                    let ord: usize = ord as usize;
-                    let fieldnorm = self.get_field_norm(ord, doc);
+                Some(ref heap_item) => {
+                    self.doc = heap_item.doc;
+                    let ord: usize = heap_item.ord as usize;
+                    let fieldnorm = self.get_field_norm(ord, heap_item.doc);
                     let tf = self.term_frequencies[ord];
                     self.similarity.update(ord, tf, fieldnorm);
                     ord_bitset |= 1 << ord;  
@@ -190,11 +198,11 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
                 }
             }
             self.advance_head();
-            while let Some(&HeapItem(peek_doc, peek_ord)) = self.queue.peek() {
-                if peek_doc == self.doc {
-                    let peek_ord: usize = peek_ord as usize;
+            while let Some(&HeapItem { doc: doc, ord: ord}) = self.queue.peek() {
+                if doc == self.doc {
+                    let peek_ord: usize = ord as usize;
                     let peek_tf = self.term_frequencies[peek_ord];
-                    let peek_fieldnorm = self.get_field_norm(peek_ord, peek_doc);
+                    let peek_fieldnorm = self.get_field_norm(peek_ord, doc);
                     self.similarity.update(peek_ord, peek_tf, peek_fieldnorm);
                     ord_bitset |= 1 << peek_ord;
                 }

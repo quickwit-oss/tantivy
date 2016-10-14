@@ -163,7 +163,7 @@ mod tests {
     use super::super::heap::{Heap, HeapAllocable};
     use super::djb2;
     use test::Bencher;
-    use std::hash::SipHasher;
+    use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
     struct TestValue {
@@ -223,7 +223,7 @@ mod tests {
     fn bench_siphasher(bench: &mut Bencher) {
         let v = String::from("abwer");
         bench.iter(|| {
-            let mut h = SipHasher::new();
+            let mut h = DefaultHasher::new();
             h.write(v.as_bytes());
             h.finish()
         });
