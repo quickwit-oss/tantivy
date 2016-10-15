@@ -246,7 +246,7 @@ impl IndexWriter {
 		
 		let segment_updater = SegmentUpdater::new(index.clone());
 
-		let segment_update_sender = segment_updater.update_channel().expect("This should never happen"); // TODO remove expect
+		let segment_update_sender = segment_updater.update_channel();
 		
 		let segment_update_thread = segment_updater.start();
 		

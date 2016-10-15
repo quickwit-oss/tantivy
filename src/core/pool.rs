@@ -12,7 +12,8 @@ pub struct GenerationItem<T> {
 
 pub struct Pool<T> {
     queue: Arc<MsQueue<GenerationItem<T>>>,
-    generation: AtomicUsize,
+    last_published_generation: AtomicUsize,
+    next_generation: AtomicUsize,
 }
 
 impl<T> Pool<T> {
@@ -20,32 +21,37 @@ impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
         Pool {
             queue: Arc::new(MsQueue::new()),
-            generation: AtomicUsize::default(),
+            last_published_generation: AtomicUsize::default(),
+            next_generation: AtomicUsize::default(),
         }
     }
 
     pub fn publish_new_generation(&self, items: Vec<T>) {
-        let next_generation = self.generation() + 1;
+        let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst);
         for item in items {
             let gen_item = GenerationItem {
                 item: item,
-                generation: next_generation,
+                generation: next_generation + 1,
             };
-            self.queue.push(gen_item);    
+            self.queue.push(gen_item);
         }
-        self.inc_generation();
+        
+        let mut expected_current_generation = next_generation;
+        loop {
+            let current_generation = self.last_published_generation.compare_and_swap(expected_current_generation, next_generation + 1, Ordering::SeqCst);
+            if current_generation >= expected_current_generation {
+                break;
+            }
+            expected_current_generation = current_generation;
+        }
     }
-
+    
     fn generation(&self,) -> usize {
-        self.generation.load(Ordering::Acquire)
-    }
-
-    pub fn inc_generation(&self,) {
-        self.generation.fetch_add(1, Ordering::SeqCst);
+        self.last_published_generation.load(Ordering::Acquire)
     }
 
     pub fn acquire(&self,) -> LeasedItem<T> {
-        let generation = self.generation.load(Ordering::Acquire);
+        let generation = self.generation();
         loop {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {
