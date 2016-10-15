@@ -1,18 +1,16 @@
 use schema::Schema;
 use schema::Document;
 use indexer::SegmentSerializer;
+use core::SerializableSegment;
 use core::Index;
 use Directory;
-use core::SerializableSegment;
 use core::Segment;
 use std::thread::JoinHandle;
 use rustc_serialize::json;
 use indexer::SegmentWriter;
-use indexer::MergeCandidate;
 use std::clone::Clone;
 use std::io;
 use std::io::Write;
-use indexer::MergePolicy;
 use std::thread;
 use std::mem;
 use indexer::merger::IndexMerger;
@@ -23,9 +21,10 @@ use chan;
 use core::SegmentMeta;
 use core::IndexMeta;
 use core::META_FILEPATH;
+use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
 use std::time::Duration;
 use super::super::core::index::get_segment_manager;
-use super::segment_manager::{CommitState, SegmentManager, get_segment_ready_for_commit};
+use super::segment_manager::{CommitState, SegmentManager};
 use Result;
 use Error;
 
@@ -42,9 +41,6 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type DocumentSender = chan::Sender<Document>;
 type DocumentReceiver = chan::Receiver<Document>;
-
-type SegmentUpdateSender = chan::Sender<SegmentUpdate>;
-type SegmentUpdateReceiver = chan::Receiver<SegmentUpdate>;
 
 
 
@@ -98,7 +94,7 @@ pub struct IndexWriter {
 	
 	document_receiver: DocumentReceiver,
 	document_sender: DocumentSender,
-
+	
 	segment_update_sender: SegmentUpdateSender,
 	segment_update_thread: JoinHandle<()>,
 	
@@ -142,171 +138,14 @@ fn index_documents(heap: &mut Heap,
 }
 
 
-#[derive(Debug)]
-pub enum SegmentUpdate {
-    AddSegment(SegmentMeta),
-    EndMerge(Vec<SegmentId>, SegmentMeta),
-    CancelGeneration,
-    NewGeneration,
-	Terminate,
-	Commit(u64),
-}
-
-impl SegmentUpdate {
-
-	// Process a single segment update.
-	pub fn process(
-		self,
-		index: &Index,
-		segment_manager: &SegmentManager,
-		is_cancelled_generation: &mut bool) -> bool {
-		
-		info!("Segment update: {:?}", self);
-
-		match self {
-			SegmentUpdate::AddSegment(segment_meta) => {
-				if !*is_cancelled_generation {
-					segment_manager.add_segment(segment_meta);
-				}
-				else {
-					// rollback has been called and this
-					// segment actually belong to the 
-					// documents that have been dropped.
-					//
-					// Let's just remove its files.
-					index.delete_segment(segment_meta.segment_id);
-				}
-			}
-			SegmentUpdate::EndMerge(segment_ids, segment_meta) => {
-				segment_manager.end_merge(&segment_ids, &segment_meta);
-				for segment_id in segment_ids {
-					index.delete_segment(segment_id);
-				}
-			}
-			SegmentUpdate::CancelGeneration => {
-				// Called during rollback. The segment 
-				// that will arrive will be ignored
-				// until a NewGeneration is update arrives.
-				*is_cancelled_generation = true;
-			}
-			SegmentUpdate::NewGeneration => {
-				// After rollback, we can resume
-				// indexing new documents.
-				*is_cancelled_generation = false;
-			}
-			SegmentUpdate::Commit(docstamp) => {
-				segment_manager.commit(docstamp);
-			}
-			SegmentUpdate::Terminate => {
-				return true;
-			}
-		}
-		return false;
-	}
-}
-
-
-fn consider_merge_options(segment_manager: &SegmentManager, merge_policy: &MergePolicy) -> Vec<MergeCandidate> {
-	let (committed_segments, uncommitted_segments) = get_segment_ready_for_commit(segment_manager);
-	// Committed segments cannot be merged with uncommitted_segments.
-	// We therefore consider merges using these two sets of segments independantly.
-	let mut merge_candidates = merge_policy.compute_merge_candidates(&uncommitted_segments);
-	merge_candidates.extend_from_slice(&merge_policy.compute_merge_candidates(&committed_segments)[..]);
-	merge_candidates
-}
-
-
-// Consumes the `segment_update_receiver` channel
-// for segment updates and apply them.
-//
-// Using a channel ensures that all of the updates
-// happen in the same thread, and makes
-// the implementation of rollback and commit 
-// trivial.
-fn process_segment_updates(mut index: Index,
-						   segment_manager: &SegmentManager,
-						   segment_update_receiver: SegmentUpdateReceiver,
-						   segment_update_sender: SegmentUpdateSender) {
-	let mut option_segment_update_sender = Some(segment_update_sender);
-	let mut is_cancelled_generation = false;
-	let mut generation = segment_manager.generation();
-	let merge_policy = index.get_merge_policy();
-
-	for segment_update in segment_update_receiver {
-		if segment_update.process(
-			&index,
-			segment_manager,
-			&mut is_cancelled_generation) {
-			option_segment_update_sender = None;
-		};
-
-		let new_generation = segment_manager.generation();
-		
-		// we check the generation number as if it was 
-		// dirty-bit. If the value is different 
-		// to our generation, then the segment_manager has
-		// been update updated and we need to  
-		// - save meta.json
-		// - update the searchers
-		// - consider possible segment merge
-
-		if generation != new_generation {
-			generation = new_generation;
-			
-			// saving the meta file.		
-			save_metas(
-				segment_manager,
-				index.schema(),
-				index.docstamp(),
-				index.directory_mut()).expect("Could not save metas.");
-
-			// update the searchers so that they eventually will
-			// use the new segments.
-			// TODO eventually have this work through watching meta.json
-			// so that an external process stays up to date as well. 
-			index.load_searchers().expect("Could not load new searchers.");
-
-			if let Some(ref segment_update_sender) = option_segment_update_sender {
-				for MergeCandidate(segment_ids) in consider_merge_options(&segment_manager, &*merge_policy) {
-					segment_manager.start_merge(&segment_ids);
-					let index_clone = index.clone();
-					let segment_update_sender_clone = segment_update_sender.clone();
-					thread::Builder::new().name(format!("merge_thread_{:?}", segment_ids[0])).spawn(move || {
-						info!("Start merge: {:?}", segment_ids);
-						let schema = index_clone.schema();
-						let segments: Vec<Segment> = segment_ids
-							.iter()
-							.map(|&segment_id| index_clone.segment(segment_id))
-							.collect();
-						// An IndexMerger is like a "view" of our merged segments. 
-						// TODO unwrap
-						let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
-						let mut merged_segment = index_clone.new_segment();
-						// ... we just serialize this index merger in our new segment
-						// to merge the two segments.
-						let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
-						let num_docs = merger.write(segment_serializer).unwrap();
-						let segment_meta = SegmentMeta {
-							segment_id: merged_segment.id(),
-							num_docs: num_docs,
-						};
-						let segment_update = SegmentUpdate::EndMerge(segment_ids, segment_meta);
-						segment_update_sender_clone.send(segment_update);
-					}).expect("Failed to spawn merge thread");
-				}
-			}
-			
-		}
-	}
-
-}
-
 impl IndexWriter {
 	
+	
+	/// The index writer 
 	pub fn wait_merging_threads(mut self) -> Result<()> {
 
 		self.segment_update_sender.send(SegmentUpdate::Terminate);
-
+		
 		drop(self.segment_update_sender);
 
 		// this will stop the indexing thread, 
@@ -316,7 +155,12 @@ impl IndexWriter {
 		let mut v = Vec::new();
 		mem::swap(&mut v, &mut self.workers_join_handle);
 		for join_handle in v {
-			join_handle.join().expect("Indexer has failed");
+			try!(
+			  join_handle
+				.join()
+				.expect("Indexing Worker thread panicked")
+				.map_err(|e| Error::ErrorInThread(format!("Error in indexing worker thread. {:?}", e)))
+			);
 		}
 		drop(self.workers_join_handle);
 		self.segment_update_thread
@@ -333,10 +177,9 @@ impl IndexWriter {
 	fn add_indexing_worker(&mut self,) -> Result<()> {
 		let index = self.index.clone();
 		let schema = self.index.schema();
-		
 		let document_receiver_clone = self.document_receiver.clone();
 		let mut segment_update_sender = self.segment_update_sender.clone();
-
+		
 		let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
 		 
 		let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
@@ -400,16 +243,13 @@ impl IndexWriter {
 			panic!(format!("The heap size per thread needs to be at least {}.", HEAP_SIZE_LIMIT));
 		}
 		let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-		let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::sync(0);
 		
-		let segment_manager = get_segment_manager(index);
+		let segment_updater = SegmentUpdater::new(index.clone());
 
-		let index_clone = index.clone();
-		let segment_update_sender_clone = segment_update_sender.clone();
-		let segment_update_thread = try!(thread::Builder::new().name("segment_update".to_string()).spawn(move || {
-			process_segment_updates(index_clone, &*segment_manager, segment_update_receiver, segment_update_sender_clone)
-		}));
-
+		let segment_update_sender = segment_updater.update_channel().expect("This should never happen"); // TODO remove expect
+		
+		let segment_update_thread = segment_updater.start();
+		
 		let mut index_writer = IndexWriter {
 			heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
 			index: index.clone(),

@@ -10,7 +10,10 @@ use Score;
 
 // Rust heap is a max-heap and we need a min heap.
 #[derive(Clone, Copy)]
-struct GlobalScoredDoc(Score, DocAddress);
+struct GlobalScoredDoc {
+    score: Score,
+    doc_address: DocAddress
+}
 
 impl PartialOrd for GlobalScoredDoc {
     fn partial_cmp(&self, other: &GlobalScoredDoc) -> Option<Ordering> {
@@ -21,9 +24,9 @@ impl PartialOrd for GlobalScoredDoc {
 impl Ord for GlobalScoredDoc {
     #[inline]
     fn cmp(&self, other: &GlobalScoredDoc) -> Ordering {
-        other.0.partial_cmp(&self.0)
+        other.score.partial_cmp(&self.score)
         .unwrap_or(
-            other.1.cmp(&self.1)
+            other.doc_address.cmp(&self.doc_address)
         )
     }
 }
@@ -87,7 +90,7 @@ impl TopCollector {
             .collect();
         scored_docs.sort();
         scored_docs.into_iter()
-            .map(|GlobalScoredDoc(score, doc_address)| (score, doc_address))
+            .map(|GlobalScoredDoc {score, doc_address}| (score, doc_address))
             .collect()
     }
     
@@ -110,13 +113,17 @@ impl Collector for TopCollector {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
             let limit_doc: GlobalScoredDoc = *self.heap.peek().expect("Top collector with size 0 is forbidden");
-            if limit_doc.0 < scored_doc.score() {
-                let wrapped_doc = GlobalScoredDoc(scored_doc.score(), DocAddress(self.segment_id, scored_doc.doc()));
-                self.heap.replace(wrapped_doc);
+            if limit_doc.score < scored_doc.score() {
+                let mut mut_head = self.heap.peek_mut().unwrap();
+                mut_head.score = scored_doc.score();
+                mut_head.doc_address = DocAddress(self.segment_id, scored_doc.doc());               
             }
         }
         else {
-            let wrapped_doc = GlobalScoredDoc(scored_doc.score(), DocAddress(self.segment_id, scored_doc.doc()));
+            let wrapped_doc = GlobalScoredDoc {
+                score: scored_doc.score(),
+                doc_address: DocAddress(self.segment_id, scored_doc.doc())
+            };
             self.heap.push(wrapped_doc);
         }
 

@@ -198,7 +198,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
                 }
             }
             self.advance_head();
-            while let Some(&HeapItem { doc: doc, ord: ord}) = self.queue.peek() {
+            while let Some(&HeapItem {doc, ord}) = self.queue.peek() {
                 if doc == self.doc {
                     let peek_ord: usize = ord as usize;
                     let peek_tf = self.term_frequencies[peek_ord];

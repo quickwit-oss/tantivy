@@ -1,12 +1,14 @@
 mod serialize;
 mod timer;
 mod vint;
+mod living_counter_latch;
 
 pub use self::serialize::BinarySerializable;
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;
 pub use self::timer::OpenTimer;
 pub use self::vint::VInt;
+pub use self::living_counter_latch::LivingCounterLatch;
 use std::io;
 
 

@@ -11,6 +11,9 @@ use core::Index;
 use std::result;
 use directory::error::{FileError, OpenWriteError};
 
+
+
+/// A segment is a piece of the index.
 #[derive(Clone)]
 pub struct Segment {
     index: Index,

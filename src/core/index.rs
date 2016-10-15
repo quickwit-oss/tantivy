@@ -16,7 +16,6 @@ use core::SegmentReader;
 use super::pool::Pool;
 use super::pool::LeasedItem;
 use indexer::SegmentManager;
-use indexer::{MergePolicy, SimpleMergePolicy};
 use core::IndexMeta;
 use core::META_FILEPATH;
 use super::segment::create_segment;
@@ -41,9 +40,9 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     Ok(loaded_meta)
 }
 
-pub fn set_metas(index: &mut Index, docstamp: u64) {
-    index.docstamp = docstamp;
-}
+// pub fn set_metas(index: &mut Index, docstamp: u64) {
+//     index.docstamp = docstamp;
+// }
 
 /// Tantivy's Search Index
 pub struct Index {
@@ -228,12 +227,6 @@ impl Index {
         self.searcher_pool.acquire()
     }
 
-    pub fn get_merge_policy(&self,) -> Box<MergePolicy> {
-	    // TODO load that from conf.
-        Box::new(
-            SimpleMergePolicy::default()
-        )
-    }
 }
 
 
