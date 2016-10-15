@@ -1,4 +1,4 @@
-![Tantivy](http://fulmicoton.com/tantivy_500.png#h)
+![Tantivy](http://fulmicoton.com/tantivy-logo/tantivy-logo.png)
 
 [![Build Status](https://travis-ci.org/fulmicoton/tantivy.svg?branch=master)](https://travis-ci.org/fulmicoton/tantivy)
 [![Coverage Status](https://coveralls.io/repos/github/fulmicoton/tantivy/badge.svg?branch=master)](https://coveralls.io/github/fulmicoton/tantivy?branch=master)
@@ -13,11 +13,11 @@ It is strongly inspired by Lucene's design.
 # Features
 
 - configurable indexing (optional term frequency and position indexing)
-- Tf-Idf scoring
+- tf-idf scoring
 - Basic query language
 - Incremental indexing
-- Multithreaded indexing (indexing en wikipedia takes 4mn on my desktop)
-- Mmap based
+- Multithreaded indexing (indexing English Wikipedia takes 4 minutes on my desktop)
+- mmap based
 - SIMD integer compression
 - u32 fast fields (equivalent of doc values in Lucene)
 - LZ4 compressed document store
@@ -35,7 +35,7 @@ It will walk you through getting a wikipedia search engine up and running in a f
 
 Tantivy has a git submodule called `simdcomp`.
 After cloning the repository, you will need to initialize and update
-the submodules. The project can then be build using `cargo`.
+the submodules. The project can then be built using `cargo`.
 
     git clone git@github.com:fulmicoton/tantivy.git
     git submodule init

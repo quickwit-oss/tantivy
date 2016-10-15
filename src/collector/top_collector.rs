@@ -53,7 +53,7 @@ pub struct TopCollector {
 
 impl TopCollector {
 
-    /// Creates a top collector, with a number of document of "limit"
+    /// Creates a top collector, with a number of documents equal to "limit".
     ///
     /// # Panics
     /// The method panics if limit is 0
@@ -68,9 +68,9 @@ impl TopCollector {
         }
     }
     
-    /// Returns the decreasingly sorted K-best documents.
+    /// Returns K best documents sorted in decreasing order.
     /// 
-    /// Calling this method will triggers the sort.
+    /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn docs(&self) -> Vec<DocAddress> {
         self.score_docs()
@@ -79,9 +79,9 @@ impl TopCollector {
             .collect()
     }
 
-    /// Returns the decreasingly sorted K-best ScoredDocument.
+    /// Returns K best ScoredDocument sorted in decreasing order.
     /// 
-    /// Calling this method will triggers the sort.
+    /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
         let mut scored_docs: Vec<GlobalScoredDoc> = self.heap
@@ -93,9 +93,9 @@ impl TopCollector {
             .map(|GlobalScoredDoc {score, doc_address}| (score, doc_address))
             .collect()
     }
-    
-    /// Return true iff at least K document have gone through
-    /// the collector. 
+
+    /// Return true iff at least K documents have gone through
+    /// the collector.
     #[inline]
     pub fn at_capacity(&self, ) -> bool {
         self.heap.len() >= self.limit
@@ -183,8 +183,8 @@ mod tests {
                 .collect();
             assert_eq!(docs, vec!(7, 1, 5, 3));
         }
-        
-        
+
+
     }
 
     #[test]

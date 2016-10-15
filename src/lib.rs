@@ -51,6 +51,16 @@ mod macros {
     macro_rules! get(
         ($e:expr) => (match $e { Some(e) => e, None => return None })
     );
+
+    macro_rules! doc(
+        ($($field:ident => $value:expr),*) => {{
+            let mut document = Document::default();
+            $(
+                document.add(FieldValue::new($field, $value.into()));
+            )*
+            document
+        }};
+    );
 }
 
 mod core;
@@ -97,7 +107,7 @@ pub use postings::SegmentPostingsOption;
 
 
 /// u32 identifying a document within a segment.
-/// Document gets their doc id assigned incrementally,
+/// Documents have their doc id assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
 
@@ -399,5 +409,21 @@ mod tests {
             index_writer.commit().unwrap();
         }
         index.searcher();
+    }
+
+    #[test]
+    fn test_doc_macro() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let other_text_field = schema_builder.add_text_field("text2", TEXT);
+        let document = doc!(text_field => "tantivy", text_field => "some other value", other_text_field => "short");
+        assert_eq!(document.len(), 3);
+        let values = document.get_all(text_field);
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0].text(), "tantivy");
+        assert_eq!(values[1].text(), "some other value");
+        let values = document.get_all(other_text_field);
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0].text(), "short");
     }
 }

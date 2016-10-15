@@ -11,7 +11,7 @@ use directory::error::{OpenWriteError, FileError};
 use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
-/// Writer associated to the `RAMDirectory`
+/// Writer associated with the `RAMDirectory`
 /// 
 /// The Writer just writes a buffer.
 ///
@@ -140,9 +140,9 @@ impl fmt::Debug for RAMDirectory {
 }
 
 
-/// Directory storing everything in anonymous memory.
+/// A Directory storing everything in anonymous memory.
 ///
-/// It's main purpose is unit test.
+/// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
 ///
 #[derive(Clone)]
@@ -168,7 +168,7 @@ impl Directory for RAMDirectory {
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
-        // force the creation of the file to mimick the MMap directory.
+        // force the creation of the file to mimic the MMap directory.
         if try!(self.fs.write(path_buf.clone(), &Vec::new())) {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
         }

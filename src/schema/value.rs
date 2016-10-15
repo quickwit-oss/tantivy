@@ -59,6 +59,11 @@ impl From<u32> for Value {
     }
 }
 
+impl<'a> From<&'a str> for Value {
+    fn from(s: &'a str) -> Value {
+        Value::Str(s.to_string())
+    }
+}
 
 const TEXT_CODE: u8 = 0;
 const U32_CODE: u8 = 1;

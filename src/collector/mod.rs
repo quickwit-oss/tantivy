@@ -20,16 +20,16 @@ pub use self::chained_collector::chain;
 ///
 ///
 /// For instance, 
-/// - keeping track of the top 10 best documents
-/// - computing a break down over a fast field
-/// - computing the number of documents matching the query
 ///
+/// - keeping track of the top 10 best documents
+/// - computing a breakdown over a fast field
+/// - computing the number of documents matching the query
 ///
 /// Queries are in charge of pushing the `DocSet` to the collector.
 ///
-/// As they work on multiple segment, they first inform
-/// the collector of a change in segment and then 
-/// call the collect method to push document to the collector.
+/// As they work on multiple segments, they first inform
+/// the collector of a change in a segment and then 
+/// call the `collect` method to push the document to the collector.
 ///
 /// Temporally, our collector will receive calls
 /// - `.set_segment(0, segment_reader_0)`
@@ -45,10 +45,10 @@ pub use self::chained_collector::chain;
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
-    /// `set_segment` is called before starting enumerating
+    /// `set_segment` is called before beginning to enumerate 
     /// on this segment.
     fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
-    /// The query pushes scored document to the collector via this method.
+    /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, scored_doc: ScoredDoc);
 }
 
@@ -57,7 +57,7 @@ impl<'a, C: Collector> Collector for &'a mut C {
     fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
         (*self).set_segment(segment_local_id, segment)
     }
-    /// The query pushes scored document to the collector via this method.
+    /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, scored_doc: ScoredDoc) {
         (*self).collect(scored_doc);
     }
@@ -120,10 +120,10 @@ pub mod tests {
     
     
     
-    /// Collects in order all of the fast field for all of the
-    /// doc of the `DocSet`
+    /// Collects in order all of the fast fields for all of the
+    /// doc in the `DocSet`
     ///
-    /// This collector is essentially useful for tests.
+    /// This collector is mainly useful for tests.
     pub struct FastFieldTestCollector {
         vals: Vec<u32>,
         field: Field,

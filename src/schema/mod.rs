@@ -4,7 +4,7 @@
 # Schema definition
 
 Tantivy has a very strict schema.
-The schema defines information about the fields your index contains, that is for each field :
+The schema defines information about the fields your index contains, that is, for each field :
 
 * the field name (may only contain letters `[a-zA-Z]`, number `[0-9]`, and `_`)
 * the type of the field (currently only  `text` and `u32` are supported)
@@ -37,20 +37,20 @@ let schema = schema_builder.build();
 
 We can split the problem of generating a search result page into two phases :
 
-* identifying the list of 10 or so document to be displayed (Conceptually `query -> doc_ids[]`)
+* identifying the list of 10 or so documents to be displayed (Conceptually `query -> doc_ids[]`)
 * for each of these documents, retrieving the information required to generate the serp page. (`doc_ids[] -> Document[]`)
 
-In the first phase, the hability to search for documents by the given field, is determined by the [`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
+In the first phase, the ability to search for documents by the given field is determined by the [`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
 [`TextOptions`](struct.TextOptions.html).
 
-The effect of each possible settings is described more in detail [`TextIndexingOptions`](enum.TextIndexingOptions.html).
+The effect of each possible setting is described more in detail [`TextIndexingOptions`](enum.TextIndexingOptions.html).
 
 On the other hand setting the field as stored or not determines whether the field should be returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc)
 is called.
 
 ### Shortcuts
 
-For convenience, a few special value of `TextOptions` for your convenience.
+For convenience, a few special values of `TextOptions`.
 They can be composed using the `|` operator.
 The example can be rewritten :
 
@@ -82,7 +82,7 @@ Just like for Text fields (see above),
 setting the field as stored defines whether the field will be
 returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called, 
 and setting the field as indexed means that we will be able perform queries such as `num_stars:10`.
-Note that contrary to text fields, u32 can only be indexed in one way for the moment. 
+Note that unlike text fields, u32 can only be indexed in one way for the moment. 
 This may change when we will start supporting range queries.
 
 The `fast` option on the other hand is specific to u32 fields, and is only relevant 

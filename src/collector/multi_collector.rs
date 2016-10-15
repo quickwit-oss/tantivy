@@ -5,7 +5,7 @@ use SegmentReader;
 use SegmentLocalId;
 
 
-/// Multicollector makes it possible to collect on more than one collector
+/// Multicollector makes it possible to collect on more than one collector.
 /// It should only be used for use cases where the Collector types is unknown 
 /// at compile time.
 /// If the type of the collectors is known, you should prefer to use `ChainedCollector`.

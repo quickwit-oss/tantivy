@@ -8,6 +8,7 @@ mod segment_register;
 mod segment_writer;
 mod segment_manager;
 mod segment_updater;
+mod directory_lock;
 
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;
