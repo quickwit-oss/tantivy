@@ -1,5 +1,4 @@
 use std::io;
-use std::io::{SeekFrom, Seek};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -33,7 +32,7 @@ impl U32FastFieldReader {
         let min_val;
         let amplitude;
         {
-            let mut cursor = data.cursor();
+            let mut cursor = data.as_slice();
             min_val = try!(u32::deserialize(&mut cursor));
             amplitude = try!(u32::deserialize(&mut cursor));
         }
@@ -73,10 +72,15 @@ impl U32FastFieldsReader {
         let header_offset;
         let field_offsets: Vec<(Field, u32)>;
         {
-            let mut cursor = source.cursor();
-            header_offset = try!(u32::deserialize(&mut cursor));
-            try!(cursor.seek(SeekFrom::Start(header_offset as u64)));
-            field_offsets = try!(Vec::deserialize(&mut cursor));
+            let buffer = source.as_slice();
+            {
+                let mut cursor = buffer;
+                header_offset = try!(u32::deserialize(&mut cursor));
+            }
+            {
+                let mut cursor = &buffer[header_offset as usize..];
+                field_offsets = try!(Vec::deserialize(&mut cursor));    
+            }
         }
         let mut end_offsets: Vec<u32> = field_offsets
             .iter()

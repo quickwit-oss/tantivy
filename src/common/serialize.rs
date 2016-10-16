@@ -117,7 +117,6 @@ impl BinarySerializable for String {
 #[cfg(test)]
 mod test {
 
-    use std::io::Cursor;
     use common::VInt;
     use super::*;
 
@@ -131,7 +130,7 @@ mod test {
         else {
             v.serialize(&mut buffer).unwrap();
         }
-        let mut cursor = Cursor::new(&buffer[..]);
+        let mut cursor = &buffer[..];
         let deser = T::deserialize(&mut cursor).unwrap();
         assert_eq!(deser, v);
     }

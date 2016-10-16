@@ -1,22 +1,31 @@
 use schema::Schema;
 use schema::Document;
 use indexer::SegmentSerializer;
-use core::Index;
 use core::SerializableSegment;
+use core::Index;
+use Directory;
 use core::Segment;
 use std::thread::JoinHandle;
+use rustc_serialize::json;
 use indexer::SegmentWriter;
+use super::directory_lock::DirectoryLock;
 use std::clone::Clone;
 use std::io;
-use std::path::Path;
+use std::io::Write;
 use std::thread;
-use std::collections::HashSet;
+use std::mem;
 use indexer::merger::IndexMerger;
 use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
-
+use core::SegmentMeta;
+use core::IndexMeta;
+use core::META_FILEPATH;
+use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
+use std::time::Duration;
+use super::super::core::index::get_segment_manager;
+use super::segment_manager::{CommitState, SegmentManager};
 use Result;
 use Error;
 
@@ -30,14 +39,45 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 // Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-pub const LOCKFILE_NAME: &'static str = ".tantivy-indexer.lock";
 
 
 type DocumentSender = chan::Sender<Document>;
 type DocumentReceiver = chan::Receiver<Document>;
 
-type NewSegmentSender = chan::Sender<Result<(SegmentId, usize)>>;
-type NewSegmentReceiver = chan::Receiver<Result<(SegmentId, usize)>>;
+
+
+fn create_metas(segment_manager: &SegmentManager, schema: Schema, docstamp: u64) -> IndexMeta {
+    let (committed_segments, uncommitted_segments) = segment_manager.segment_metas();
+    IndexMeta {
+        committed_segments: committed_segments,
+        uncommitted_segments: uncommitted_segments,
+        schema: schema,
+        docstamp: docstamp,
+    }
+}
+
+
+/// Save the index meta file.
+/// This operation is atomic :
+/// Either
+//  - it fails, in which case an error is returned,
+/// and the `meta.json` remains untouched,
+/// - it success, and `meta.json` is written
+/// and flushed.
+///
+/// This method is not part of tantivy's public API
+pub fn save_metas(segment_manager: &SegmentManager,
+                  schema: Schema,
+                  docstamp: u64,
+                  directory: &mut Directory)
+                  -> Result<()> {
+    let metas = create_metas(segment_manager, schema, docstamp);
+    let mut w = Vec::new();
+    try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
+    directory.atomic_write(&META_FILEPATH, &w[..])
+        .map_err(From::from)
+}
+
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -46,24 +86,43 @@ type NewSegmentReceiver = chan::Receiver<Result<(SegmentId, usize)>>;
 /// Each indexing thread builds its own independant `Segment`, via
 /// a `SegmentWriter` object.
 pub struct IndexWriter {
+    
+    // the lock is just used to bind the 
+    // lifetime of the lock with that of the IndexWriter.
+    _directory_lock: DirectoryLock, 
+    
     index: Index,
     heap_size_in_bytes_per_thread: usize,
-    workers_join_handle: Vec<JoinHandle<()>>,
-    segment_ready_sender: NewSegmentSender,
-    segment_ready_receiver: NewSegmentReceiver,
+
+    workers_join_handle: Vec<JoinHandle<Result<()>>>,
+
     document_receiver: DocumentReceiver,
     document_sender: DocumentSender,
+
+    segment_update_sender: SegmentUpdateSender,
+    segment_update_thread: JoinHandle<()>,
+
+    worker_id: usize,
+
     num_threads: usize,
-    docstamp: u64,
+
+    uncommitted_docstamp: u64,
+    committed_docstamp: u64,
 }
+
+// IndexWriter cannot be sent to another thread.
+impl !Send for IndexWriter {}
+impl !Sync for IndexWriter {}
 
 
 fn index_documents(heap: &mut Heap,
                    segment: Segment,
                    schema: &Schema,
-                   document_iterator: &mut Iterator<Item = Document>)
-                   -> Result<usize> {
+                   document_iterator: &mut Iterator<Item = Document>,
+                   segment_update_sender: &mut SegmentUpdateSender)
+                   -> Result<()> {
     heap.clear();
+    let segment_id = segment.id();
     let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
@@ -73,53 +132,86 @@ fn index_documents(heap: &mut Heap,
             break;
         }
     }
-    let num_docs = segment_writer.max_doc() as usize;
+    let num_docs = segment_writer.max_doc();
+    let segment_meta = SegmentMeta {
+        segment_id: segment_id,
+        num_docs: num_docs,
+    };
+
     try!(segment_writer.finalize());
-    Ok(num_docs)
+    segment_update_sender.send(SegmentUpdate::AddSegment(segment_meta));
+    Ok(())
+
 }
 
-impl Drop for IndexWriter {
-    fn drop(&mut self) {
-        let lockfile_path = Path::new(LOCKFILE_NAME);
-        match self.index.directory_mut().delete(lockfile_path) {
-            Ok(_) | Err(_) => ()
-        }
-    }
-}
+
 impl IndexWriter {
+    /// The index writer
+    pub fn wait_merging_threads(mut self) -> Result<()> {
+
+        self.segment_update_sender.send(SegmentUpdate::Terminate);
+        
+        // this will stop the indexing thread,
+        // dropping the last reference to the segment_update_sender.
+        drop(self.document_sender);
+        
+        let mut v = Vec::new();
+        mem::swap(&mut v, &mut self.workers_join_handle);
+        for join_handle in v {
+            try!(join_handle.join()
+                .expect("Indexing Worker thread panicked")
+                .map_err(|e| {
+                    Error::ErrorInThread(format!("Error in indexing worker thread. {:?}", e))
+                }));
+        }
+        drop(self.workers_join_handle);
+        self.segment_update_thread
+            .join()
+            .map_err(|err| {
+                error!("Error in the merging thread {:?}", err);
+                Error::ErrorInThread(format!("{:?}", err))
+            })
+    }
+
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
         let index = self.index.clone();
         let schema = self.index.schema();
-        let segment_ready_sender_clone = self.segment_ready_sender.clone();
         let document_receiver_clone = self.document_receiver.clone();
-
+        let mut segment_update_sender = self.segment_update_sender.clone();
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
-        let join_handle: JoinHandle<()> = thread::spawn(move || {
-            loop {
-                let segment = index.new_segment();
-                let segment_id = segment.id();
-                let mut document_iterator = document_receiver_clone.clone()
-                    .into_iter()
-                    .peekable();
-                // the peeking here is to avoid
-                // creating a new segment's files
-                // if no document are available.
-                if document_iterator.peek().is_some() {
-                    let index_result =
-                        index_documents(&mut heap, segment, &schema, &mut document_iterator)
-                            .map(|num_docs| (segment_id, num_docs));
-                    segment_ready_sender_clone.send(index_result);
-                } else {
-                    return;
+        let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
+            .name(format!("indexing_thread_{}", self.worker_id))
+            .spawn(move || {
+                loop {
+                    let segment = index.new_segment();
+                    let mut document_iterator = document_receiver_clone.clone()
+                        .into_iter()
+                        .peekable();
+                    // the peeking here is to avoid
+                    // creating a new segment's files
+                    // if no document are available.
+                    if document_iterator.peek().is_some() {
+                        try!(index_documents(&mut heap,
+                                             segment,
+                                             &schema,
+                                             &mut document_iterator,
+                                             &mut segment_update_sender));
+                    } else {
+                        // No more documents.
+                        // Happens when there is a commit, or if the `IndexWriter`
+                        // was dropped.
+                        return Ok(());
+                    }
                 }
-            }
-        });
+            }));
+        self.worker_id += 1;
         self.workers_join_handle.push(join_handle);
         Ok(())
     }
+
 
     /// Open a new index writer. Attempts to acquire a lockfile.
     ///
@@ -139,28 +231,38 @@ impl IndexWriter {
                 num_threads: usize,
                 heap_size_in_bytes_per_thread: usize)
                 -> Result<IndexWriter> {
+
         if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
             panic!(format!("The heap size per thread needs to be at least {}.",
                            HEAP_SIZE_LIMIT));
         }
-
-        let mut cloned_index = index.clone();
-        let lockfile_path = Path::new(LOCKFILE_NAME);
-
-        try!(cloned_index.directory_mut().open_write(lockfile_path));
+        
+        let directory_lock = try!(DirectoryLock::lock(index.directory().box_clone()));
+        
         let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-        let (segment_ready_sender, segment_ready_receiver): (NewSegmentSender, NewSegmentReceiver) = chan::async();
+        
+        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone());
+        
         let mut index_writer = IndexWriter {
+            
+            _directory_lock: directory_lock,
+            
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
-            index: cloned_index,
-            segment_ready_receiver: segment_ready_receiver,
-            segment_ready_sender: segment_ready_sender,
+            index: index.clone(),
+
             document_receiver: document_receiver,
             document_sender: document_sender,
+
+            segment_update_sender: segment_update_sender,
+            segment_update_thread: segment_update_thread,
+
             workers_join_handle: Vec::new(),
             num_threads: num_threads,
-            docstamp: try!(index.docstamp()),
+
+            committed_docstamp: index.docstamp(),
+            uncommitted_docstamp: index.docstamp(),
+            worker_id: 0,
         };
         try!(index_writer.start_workers());
         Ok(index_writer)
@@ -175,14 +277,53 @@ impl IndexWriter {
 
     /// Merges a given list of segments
     pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
+
+        if segments.len() < 2 {
+            // no segments or one segment? nothing to do.
+            return Ok(());
+        }
+
+
+        let segment_manager = get_segment_manager(&self.index);
+
+        {
+            // let's check that all these segments are in the same
+            // committed/uncommited state.
+            let first_commit_state = segment_manager.is_committed(segments[0].id());
+
+            for segment in segments {
+                let commit_state = segment_manager.is_committed(segment.id());
+                if commit_state == CommitState::Missing {
+                    return Err(Error::InvalidArgument(format!("Segment {:?} is not in the index",
+                                                              segments[0].id())));
+                }
+                if commit_state != first_commit_state {
+                    return Err(Error::InvalidArgument(String::from("You may not merge segments \
+                                                                    that are heterogenously in \
+                                                                    committed and uncommited.")));
+                }
+            }
+        }
+
         let schema = self.index.schema();
+
+        // An IndexMerger is like a "view" of our merged segments.
         let merger = try!(IndexMerger::open(schema, segments));
         let mut merged_segment = self.index.new_segment();
+
+        // ... we just serialize this index merger in our new segment
+        // to merge the two segments.
         let segment_serializer = try!(SegmentSerializer::for_segment(&mut merged_segment));
-        try!(merger.write(segment_serializer));
-        let merged_segment_ids: HashSet<SegmentId> =
+        let num_docs = try!(merger.write(segment_serializer));
+        let merged_segment_ids: Vec<SegmentId> =
             segments.iter().map(|segment| segment.id()).collect();
-        try!(self.index.publish_merge_segment(merged_segment_ids, merged_segment.id()));
+        let segment_meta = SegmentMeta {
+            segment_id: merged_segment.id(),
+            num_docs: num_docs,
+        };
+
+        segment_manager.end_merge(&merged_segment_ids, &segment_meta);
+        try!(self.index.load_searchers());
         Ok(())
     }
 
@@ -194,21 +335,13 @@ impl IndexWriter {
     /// when no documents are remaining.
     ///
     /// Returns the former segment_ready channel.
-    fn recreate_channels(&mut self)
-                         -> (DocumentReceiver, chan::Receiver<Result<(SegmentId, usize)>>) {
+    fn recreate_document_channel(&mut self) -> DocumentReceiver {
         let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) =
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-        let (mut segment_ready_sender, mut segment_ready_receiver): (NewSegmentSender,
-                                                                     NewSegmentReceiver) =
-            chan::async();
         swap(&mut self.document_sender, &mut document_sender);
         swap(&mut self.document_receiver, &mut document_receiver);
-        swap(&mut self.segment_ready_sender, &mut segment_ready_sender);
-        swap(&mut self.segment_ready_receiver,
-             &mut segment_ready_receiver);
-        (document_receiver, segment_ready_receiver)
+        document_receiver
     }
-
 
     /// Rollback to the last commit
     ///
@@ -220,12 +353,14 @@ impl IndexWriter {
     /// The docstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
+        self.segment_update_sender.send(SegmentUpdate::CancelGeneration);
+
         // we cannot drop segment ready receiver yet
         // as it would block the workers.
-        let (document_receiver, mut _segment_ready_receiver) = self.recreate_channels();
+        let document_receiver = self.recreate_document_channel();
 
-        // consumes the document receiver pipeline
-        // worker don't need to index the pending documents.
+        // Drains the document receiver pipeline :
+        // Workers don't need to index the pending documents.
         for _ in document_receiver {}
 
         let mut former_workers_join_handle = Vec::new();
@@ -235,15 +370,35 @@ impl IndexWriter {
         // wait for all the worker to finish their work
         // (it should be fast since we consumed all pending documents)
         for worker_handle in former_workers_join_handle {
-            try!(worker_handle.join()
-                .map_err(|e| Error::ErrorInThread(format!("{:?}", e))));
-            // add a new worker for the next generation.
+            // we stop one worker at a time ...
+            try!(try!(worker_handle.join()
+                .map_err(|e| Error::ErrorInThread(format!("{:?}", e)))));
+            // ... and recreate a new one right away
+            // to work on the next generation.
             try!(self.add_indexing_worker());
         }
 
-        // reset the docstamp to what it was before
-        self.docstamp = try!(self.index.docstamp());
-        Ok(self.docstamp)
+        // All of our indexing workers for the rollbacked generation have
+        // been terminated.
+        // Our document receiver pipe was drained.
+        // No new document have been added in the meanwhile because `IndexWriter`
+        // is not shared by different threads.
+        //
+        // We can now open a new generation and reaccept segments
+        // from now on.
+        self.segment_update_sender.send(SegmentUpdate::NewGeneration);
+
+        let rollbacked_segments = get_segment_manager(&self.index).rollback();
+        for segment_id in rollbacked_segments {
+
+            // TODO all delete must happen after saving
+            // meta.json
+            self.index.delete_segment(segment_id);
+        }
+        
+        // reset the docstamp
+        self.uncommitted_docstamp = self.committed_docstamp;
+        Ok(self.committed_docstamp)
     }
 
 
@@ -263,33 +418,43 @@ impl IndexWriter {
     ///
     pub fn commit(&mut self) -> Result<u64> {
 
-        let (document_receiver, segment_ready_receiver) = self.recreate_channels();
-        drop(document_receiver);
+        // this will drop the current document channel
+        // and recreate a new one channels.
+        self.recreate_document_channel();
 
         // Docstamp of the last document in this commit.
-        let commit_docstamp = self.docstamp;
+        self.committed_docstamp = self.uncommitted_docstamp;
 
         let mut former_workers_join_handle = Vec::new();
         swap(&mut former_workers_join_handle,
              &mut self.workers_join_handle);
 
         for worker_handle in former_workers_join_handle {
-            try!(worker_handle.join()
+            let indexing_worker_result = try!(worker_handle.join()
                 .map_err(|e| Error::ErrorInThread(format!("{:?}", e))));
+            try!(indexing_worker_result);
             // add a new worker for the next generation.
             try!(self.add_indexing_worker());
         }
+        // here, because we join all of the worker threads,
+        // all of the segment update for this commit have been
+        // sent.
+        //
+        // No document belonging to the next generation have been
+        // pushed too, because add_document can only happen
+        // on this thread.
 
-        let segment_ids_and_size: Vec<(SegmentId, usize)> = try!(segment_ready_receiver.into_iter()
-            .collect());
+        // This will move uncommitted segments to the state of
+        // committed segments.
+        self.segment_update_sender.send(SegmentUpdate::Commit(self.committed_docstamp));
 
-        let segment_ids: Vec<SegmentId> = segment_ids_and_size.iter()
-            .map(|&(segment_id, _num_docs)| segment_id)
-            .collect();
+        // wait for the segment update thread to have processed the info
+        let segment_manager = get_segment_manager(&self.index);
+        while segment_manager.docstamp() != self.committed_docstamp {
+            thread::sleep(Duration::from_millis(100));
+        }
 
-        try!(self.index.publish_segments(&segment_ids, commit_docstamp));
-
-        Ok(commit_docstamp)
+        Ok(self.committed_docstamp)
     }
 
 
@@ -305,15 +470,14 @@ impl IndexWriter {
     /// have been added since the creation of the index.
     pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
         self.document_sender.send(doc);
-        self.docstamp += 1;
-        Ok(self.docstamp)
+        self.uncommitted_docstamp += 1;
+        Ok(self.uncommitted_docstamp)
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
+
 
     use schema::{self, Document};
     use Index;
@@ -322,10 +486,9 @@ mod tests {
 
     #[test]
     fn test_lockfile_stops_duplicates() {
-
         let schema_builder = schema::SchemaBuilder::default();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(40_000_000).unwrap();
+        let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
             Err(Error::FileAlreadyExists(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
@@ -337,11 +500,13 @@ mod tests {
         let schema_builder = schema::SchemaBuilder::default();
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let index_writer = index.writer(40_000_000).unwrap();
+            let _index_writer = index.writer(40_000_000).unwrap();
+            // the lock should be released when the 
+            // index_writer leaves the scope.
         }
-
-        let index_writer_two = index.writer(40_000_000).unwrap();
+        let _index_writer_two = index.writer(40_000_000).unwrap();
     }
+    
     #[test]
     fn test_commit_and_rollback() {
         let mut schema_builder = schema::SchemaBuilder::default();
@@ -384,5 +549,39 @@ mod tests {
         }
         index.searcher();
     }
+
+    #[test]
+    fn test_with_merges() {
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let num_docs_containing = |s: &str| {
+            let searcher = index.searcher();
+            let term_a = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term_a)
+        };
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(4, 4 * 30_000_000).unwrap();
+            // create 10 segments with 100 tiny docs
+            for _doc in 0..100 {
+                let mut doc = Document::default();
+                doc.add_text(text_field, "a");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().expect("commit failed");
+            for _doc in 0..100 {
+                let mut doc = Document::default();
+                doc.add_text(text_field, "a");
+                index_writer.add_document(doc).unwrap();
+            }
+            // this should create 8 segments and trigger a merge.
+            index_writer.commit().expect("commit failed");
+            index_writer.wait_merging_threads().expect("waiting merging thread failed");
+            assert_eq!(num_docs_containing("a"), 200);
+            assert_eq!(index.searchable_segments().len(), 1);
+        }
+    }
+
 
 }

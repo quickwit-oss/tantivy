@@ -3,13 +3,46 @@ use std::fmt;
 use rustc_serialize::{Encoder, Decoder, Encodable, Decodable};
 use core::SegmentComponent;
 use std::path::PathBuf;
+use std::cmp::{Ordering, Ord};
+
+
+#[cfg(test)]
+use std::sync::atomic;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentId(Uuid);
 
+
+#[cfg(test)]
+lazy_static! {
+    static ref AUTO_INC_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::default();
+    static ref EMPTY_ARR: [u8; 8] = [0u8; 8];
+}
+
+
+// During tests, we generate the segment id in a autoincrement manner
+// for consistency of segment id between run.
+//
+// The order of the test execution is not guaranteed, but the order 
+// of segments within a single test is guaranteed.
+#[cfg(test)]
+fn create_uuid() -> Uuid {
+    let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::SeqCst);
+    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &*EMPTY_ARR)
+}
+
+#[cfg(not(test))]
+fn create_uuid() -> Uuid {
+    Uuid::new_v4()
+}
+
 impl SegmentId {
     pub fn generate_random() -> SegmentId {
-        SegmentId(Uuid::new_v4())
+        SegmentId(create_uuid())
+    }
+    
+    pub fn short_uuid_string(&self,) -> String {
+        (&self.0.to_simple_string()[..8]).to_string()
     }
     
     pub fn uuid_string(&self,) -> String {
@@ -40,3 +73,15 @@ impl fmt::Debug for SegmentId {
     }
 }
 
+
+impl PartialOrd for SegmentId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SegmentId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.as_bytes().cmp(other.0.as_bytes())
+    }
+}

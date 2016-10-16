@@ -54,7 +54,7 @@ pub trait PostingsWriter {
     }
 }
 
-/// The SpecializedPostingsWriter is just here to remove dynamic
+/// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
 pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
     term_index: HashMap<'a, Rec>,

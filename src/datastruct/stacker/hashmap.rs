@@ -25,7 +25,7 @@ impl Default for BytesRef {
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
-/// The value_addr also points to an address in the heap.
+/// The `value_addr` also points to an address in the heap.
 ///
 /// The key and the value are actually stored contiguously.
 /// For this reason, the (start, stop) information is actually redundant
@@ -48,7 +48,7 @@ pub enum Entry {
 }
 
 
-/// Customized HashMap with string keys
+/// Customized `HashMap` with string keys
 /// 
 /// This `HashMap` takes String as keys. Keys are
 /// stored in a user defined heap.
@@ -163,7 +163,7 @@ mod tests {
     use super::super::heap::{Heap, HeapAllocable};
     use super::djb2;
     use test::Bencher;
-    use std::hash::SipHasher;
+    use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
     struct TestValue {
@@ -223,7 +223,7 @@ mod tests {
     fn bench_siphasher(bench: &mut Bencher) {
         let v = String::from("abwer");
         bench.iter(|| {
-            let mut h = SipHasher::new();
+            let mut h = DefaultHasher::new();
             h.write(v.as_bytes());
             h.finish()
         });

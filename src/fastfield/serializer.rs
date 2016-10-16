@@ -9,7 +9,7 @@ use super::compute_num_bits;
 /// `FastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
 /// 
-/// FastField are encoded using bit-packing.
+/// Fast fields are encoded using bit-packing.
 /// 
 /// `FastFieldWriter`s are in charge of pushing the data to
 /// the serializer.

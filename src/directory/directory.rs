@@ -36,6 +36,9 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// `FileError::DoesNotExist`.
     fn delete(&self, path: &Path) -> result::Result<(), FileError>;
 
+    /// Returns true iff the file exists
+    fn exists(&self, path: &Path) -> bool;
+
     /// Opens a writer for the *virtual file* associated with 
     /// a Path.
     ///

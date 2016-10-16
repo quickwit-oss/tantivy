@@ -2,9 +2,9 @@ use postings::DocSet;
 use std::cmp::Ordering;
 use DocId;
 
-// TODO Find a way to specialize IntersectionDocSet
+// TODO Find a way to specialize `IntersectionDocSet`
 
-/// Creates a DocSet that iterator through the intersection of two `DocSet`s.
+/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct IntersectionDocSet<'a> {
     left: Box<DocSet + 'a>,
     right: Box<DocSet + 'a>,

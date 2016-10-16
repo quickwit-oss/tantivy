@@ -14,7 +14,7 @@ fn main() {
     // Let's create a temporary directory for the 
     // sake of this example
     if let Ok(dir) = TempDir::new("tantivy_example_dir") {
-        run_example(&dir.path()).unwrap();
+        run_example(dir.path()).unwrap();
         dir.close().unwrap();
     }   
 }

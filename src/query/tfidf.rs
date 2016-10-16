@@ -4,9 +4,9 @@ use super::Explanation;
 use super::Similarity;
 
 
-/// TfIdf is the default pertinence score in tantivy.
+/// `TfIdf` is the default pertinence score in tantivy.
 ///
-/// See [TfIdf in the global documentation](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html) 
+/// See [Tf-Idf in the global documentation](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html) 
 #[derive(Clone)]
 pub struct TfIdf {
     coords: Vec<f32>,

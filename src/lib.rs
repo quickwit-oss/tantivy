@@ -1,7 +1,7 @@
 #![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
 
-#![feature(binary_heap_extras)]
+#![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
@@ -92,6 +92,7 @@ pub mod schema;
 pub use directory::Directory;
 pub use core::searcher::Searcher;
 
+pub use core::Segment;
 pub use core::Index;
 pub use indexer::IndexWriter;
 pub use schema::Term;
@@ -312,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn test_searcher() {
+    fn test_searcher_1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();

@@ -12,7 +12,8 @@ pub struct GenerationItem<T> {
 
 pub struct Pool<T> {
     queue: Arc<MsQueue<GenerationItem<T>>>,
-    generation: AtomicUsize,
+    freshest_generation: AtomicUsize,
+    next_generation: AtomicUsize,
 }
 
 impl<T> Pool<T> {
@@ -20,32 +21,44 @@ impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
         Pool {
             queue: Arc::new(MsQueue::new()),
-            generation: AtomicUsize::default(),
+            freshest_generation: AtomicUsize::default(),
+            next_generation: AtomicUsize::default(),
         }
     }
 
     pub fn publish_new_generation(&self, items: Vec<T>) {
-        let next_generation = self.generation() + 1;
+        let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         for item in items {
             let gen_item = GenerationItem {
                 item: item,
                 generation: next_generation,
             };
-            self.queue.push(gen_item);    
+            self.queue.push(gen_item);
         }
-        self.inc_generation();
+        self.advertise_generation(next_generation);
     }
-
+    
+    /// At the exit of this method,  
+    /// - freshest_generation has a value greater or equal than generation
+    /// - freshest_generation has a value that has been advertised
+    /// - freshest_generation has 
+    fn advertise_generation(&self, generation: usize) {
+        // not optimal at all but the easiest to read proof.       
+        loop {
+            let former_generation = self.freshest_generation.load(Ordering::Acquire);
+            if former_generation >= generation {
+                break;
+            }
+            self.freshest_generation.compare_and_swap(former_generation, generation, Ordering::SeqCst);
+        }  
+    }
+    
     fn generation(&self,) -> usize {
-        self.generation.load(Ordering::SeqCst)
-    }
-
-    pub fn inc_generation(&self,) {
-        self.generation.fetch_add(1, Ordering::SeqCst);
+        self.freshest_generation.load(Ordering::Acquire)
     }
 
     pub fn acquire(&self,) -> LeasedItem<T> {
-        let generation = self.generation.load(Ordering::SeqCst);
+        let generation = self.generation();
         loop {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {
