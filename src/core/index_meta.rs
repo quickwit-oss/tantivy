@@ -3,7 +3,7 @@ use schema::Schema;
 use core::SegmentId;
 
 
-/// MetaInformation about the `Index`.
+/// Meta information about the `Index`.
 /// 
 /// This object is serialized on disk in the `meta.json` file.
 /// It keeps information about 

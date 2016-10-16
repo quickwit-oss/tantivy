@@ -114,7 +114,7 @@ impl Collector for TopCollector {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
             let limit_doc: GlobalScoredDoc = *self.heap.peek().expect("Top collector with size 0 is forbidden");
             if limit_doc.score < scored_doc.score() {
-                let mut mut_head = self.heap.peek_mut().unwrap();
+                let mut mut_head = self.heap.peek_mut().expect("Top collector with size 0 is forbidden");
                 mut_head.score = scored_doc.score();
                 mut_head.doc_address = DocAddress(self.segment_id, scored_doc.doc());               
             }

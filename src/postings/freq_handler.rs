@@ -1,5 +1,4 @@
 use compression::SIMDBlockDecoder;
-use std::io::Cursor;
 use common::VInt;
 use common::BinarySerializable;
 use compression::CompositeDecoder;
@@ -7,7 +6,7 @@ use postings::SegmentPostingsOption;
 use compression::NUM_DOCS_PER_BLOCK;
 
 
-/// The FreqHandler object is in charge of decompressing
+/// `FreqHandler`  is in charge of decompressing
 /// frequencies and/or positions.
 pub struct FreqHandler {
     freq_decoder: SIMDBlockDecoder,
@@ -19,11 +18,9 @@ pub struct FreqHandler {
 
 fn read_positions(data: &[u8]) -> Vec<u32> {
     let mut composite_reader = CompositeDecoder::new();   
-    let mut cursor = Cursor::new(data);
-    // TODO error
-    let uncompressed_len = VInt::deserialize(&mut cursor).unwrap().0 as usize;
-    let offset_data = &data[cursor.position() as usize..];
-    composite_reader.uncompress_unsorted(offset_data, uncompressed_len);
+    let mut readable: &[u8] = data;
+    let uncompressed_len = VInt::deserialize(&mut readable).unwrap().0 as usize;
+    composite_reader.uncompress_unsorted(readable, uncompressed_len);
     composite_reader.into()
 }
 

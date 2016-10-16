@@ -12,8 +12,8 @@ use common::HasLen;
 /// as well as the list of term positions.
 /// 
 /// Its main implementation is `SegmentPostings`,
-/// but other implementations mocking SegmentPostings exist,
-/// in order to help when merging segments or for testing.
+/// but other implementations mocking `SegmentPostings` exist,
+/// for merging segments or for testing.
 pub trait Postings: DocSet {
     /// Returns the term frequency
     fn term_freq(&self,) -> u32;

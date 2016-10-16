@@ -13,9 +13,8 @@ use Score;
 /// Each `HeapItem` represents the head of
 /// a segment postings being merged.
 ///
-/// Heap(doc_id, segment_ordinal)
-/// * doc_id - is the current doc id for the given segment postings 
-/// * segment_ordinal - is the ordinal used to identify to which segment postings
+/// * `doc` - is the current doc id for the given segment postings 
+/// * `ord` - is the ordinal used to identify to which segment postings
 /// this heap item belong to.
 #[derive(Eq, PartialEq)]
 struct HeapItem {
@@ -23,7 +22,7 @@ struct HeapItem {
     ord: u32,
 }
 
-/// HeapItem are ordered by the document
+/// `HeapItem` are ordered by the document
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -185,7 +184,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DocSet for DAATMul
             self.similarity.clear();
             let mut ord_bitset = 0u64;
             match self.queue.peek() {
-                Some(ref heap_item) => {
+                Some(heap_item) => {
                     self.doc = heap_item.doc;
                     let ord: usize = heap_item.ord as usize;
                     let fieldnorm = self.get_field_norm(ord, heap_item.doc);

@@ -6,10 +6,10 @@ use std::io;
 /// associated to terms in the `.term` file.
 /// 
 /// It consists of
-/// * doc_freq : the number of document in the segment
+/// * `doc_freq` : the number of document in the segment
 /// containing this term. It is also the length of the
 /// posting list associated to this term
-/// * postings_offset: an offset in the `.idx` file 
+/// * `postings_offset` : an offset in the `.idx` file 
 /// addressing the start of the posting list associated
 /// to this term.
 #[derive(Debug,Ord,PartialOrd,Eq,PartialEq,Clone)]

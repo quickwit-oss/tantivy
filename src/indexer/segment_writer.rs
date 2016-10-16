@@ -20,7 +20,7 @@ use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
 use indexer::index_writer::MARGIN_IN_BYTES;
 
-/// A SegmentWriter is the object in charge of creating segment index from a
+/// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
 ///  
 /// They creates the postings list in anonymous memory.

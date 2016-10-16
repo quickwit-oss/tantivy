@@ -1,3 +1,5 @@
+#![allow(for_kv_map)]
+
 use chan;
 use core::Index;
 use core::Segment;
@@ -67,8 +69,13 @@ fn end_merge(
 }
 
 
-/// The segment updater is in charge of 
-/// receiving different SegmentUpdate
+/// The segment updater is in charge of processing all of the 
+/// `SegmentUpdate`s.
+///
+/// All this processing happens on a single thread
+/// consuming a common queue. 
+/// 
+/// The segment updates producers are :
 /// - indexing threads are sending new segments 
 /// - merging threads are sending merge operations
 /// - the index writer sends "terminate"

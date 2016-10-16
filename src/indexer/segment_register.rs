@@ -52,7 +52,7 @@ pub struct SegmentRegister {
 impl Debug for SegmentRegister {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         try!(write!(f, "SegmentRegister("));
-        for (ref k, ref v) in &self.segment_states {
+        for (k, v) in &self.segment_states {
             try!(write!(f, "{}:{}, ", k.short_uuid_string(), v.state.letter_code()));
         }
         try!(write!(f, ")"));
@@ -91,11 +91,10 @@ impl SegmentRegister {
     }
     
     pub fn segment_ids(&self,) -> Vec<SegmentId> {
-        let segment_ids: Vec<SegmentId> = self.segment_metas()
+        self.segment_metas()
             .into_iter()
             .map(|segment_meta| segment_meta.segment_id)
-            .collect();
-        segment_ids
+            .collect()
     }
     
     #[cfg(test)]
@@ -134,7 +133,7 @@ impl SegmentRegister {
     
     pub fn start_merge(&mut self, segment_id: &SegmentId) {
         self.segment_states
-            .get_mut(&segment_id)
+            .get_mut(segment_id)
             .expect("Received a merge notification for a segment that is not registered")
             .start_merge();
     } 
@@ -147,7 +146,7 @@ impl From<Vec<SegmentMeta>> for SegmentRegister {
     fn from(segment_metas: Vec<SegmentMeta>) -> SegmentRegister {
         let mut segment_states = HashMap::new();
         for segment_meta in segment_metas {
-            let segment_id = segment_meta.segment_id.clone();
+            let segment_id = segment_meta.segment_id;
             let segment_entry = SegmentEntry {
                 meta: segment_meta,
                 state: SegmentState::Ready,

@@ -53,7 +53,7 @@ impl Debug for SegmentManager {
 }
 
 
-/// Returns the segment_metas for (committed segment, uncommitted segments).
+/// Returns the `SegmentMeta`s for (committed segment, uncommitted segments).
 /// The result is consistent with other transactions.
 ///
 /// For instance, a segment will not appear in both committed and uncommitted 
