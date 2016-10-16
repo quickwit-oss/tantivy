@@ -1,9 +1,7 @@
 #![allow(should_implement_trait)]
 
 use std::io;
-use std::io::Seek;
 use std::io::Write;
-use std::io::Cursor;
 use fst;
 use fst::raw::Fst;
 use fst::Streamer;
@@ -92,12 +90,13 @@ impl<V: BinarySerializable> FstMap<V> {
     }
 
     pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
-        let mut cursor = Cursor::new(source.as_slice());
-        try!(cursor.seek(io::SeekFrom::End(-4)));
-        let footer_size = try!(u32::deserialize(&mut cursor)) as  usize;
-        let split_len = source.len() - 4 - footer_size;
+        let total_len = source.len();
+        let length_offset = total_len - 4;
+        let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
+        let footer_size = try!(u32::deserialize(&mut split_len_buffer)) as  usize;
+        let split_len = length_offset - footer_size;
         let fst_source = source.slice(0, split_len);
-        let values_source = source.slice(split_len, source.len() - 4);
+        let values_source = source.slice(split_len, length_offset);
         let fst_index = try!(open_fst_index(fst_source));
         Ok(FstMap {
             fst_index: fst_index,
@@ -108,7 +107,7 @@ impl<V: BinarySerializable> FstMap<V> {
 
     fn read_value(&self, offset: u64) -> V {
         let buffer = self.values_mmap.as_slice();
-        let mut cursor = Cursor::new(&buffer[(offset as usize)..]);
+        let mut cursor = &buffer[(offset as usize)..];
         V::deserialize(&mut cursor).expect("Data in FST is corrupted")
     }
 

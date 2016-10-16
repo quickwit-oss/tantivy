@@ -1,6 +1,5 @@
 use fst::raw::MmapReadOnly;
 use std::ops::Deref;
-use std::io::Cursor;
 use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
 
@@ -44,12 +43,6 @@ impl ReadOnlySource {
                 shared_vec.as_slice()
             },
         }
-    }
-
-
-    /// Creates a cursor over the data.
-    pub fn cursor(&self) -> Cursor<&[u8]> {
-        Cursor::new(&*self)
     }
 
     /// Creates a ReadOnlySource that is just a 

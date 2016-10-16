@@ -8,10 +8,7 @@ use schema::FieldValue;
 use common::BinarySerializable;
 
 use std::io::Read;
-use std::io::Cursor;
 use std::io;
-use std::io::SeekFrom;
-use std::io::Seek;
 use std::cmp::Ordering;
 use lz4;
 
@@ -29,11 +26,16 @@ impl StoreReader {
         // TODO err
         // the first offset is implicitely (0, 0)
         let mut offsets = vec!(OffsetIndex(0, 0));
-        let mut cursor = Cursor::new(data.as_slice());
-        cursor.seek(SeekFrom::End(-8)).unwrap();
-        let offset = u64::deserialize(&mut cursor).unwrap();
-        cursor.seek(SeekFrom::Start(offset)).unwrap();
-        offsets.append(&mut Vec::deserialize(&mut cursor).unwrap());
+        let buffer: &[u8] = data.as_slice();
+        
+        let offset = {
+            let mut cursor = &buffer[buffer.len() - 8..];
+            u64::deserialize(&mut cursor).unwrap() as usize
+        };
+        {
+            let mut cursor = &buffer[offset..];
+            offsets.append(&mut Vec::deserialize(&mut cursor).unwrap()); 
+        }
         offsets
     }
 
@@ -57,21 +59,21 @@ impl StoreReader {
         let mut current_block_mut = self.current_block.borrow_mut();
         current_block_mut.clear();
         let total_buffer = self.data.as_slice();
-        let mut cursor = Cursor::new(&total_buffer[block_offset..]);
+        let mut cursor = &total_buffer[block_offset..];
         let block_length = u32::deserialize(&mut cursor).unwrap();
         let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
-        let mut lz4_decoder = try!(lz4::Decoder::new(Cursor::new(block_array)));
+        let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
         lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())
     }
 
     pub fn get(&self, doc_id: DocId) -> Result<Document> {
         let OffsetIndex(first_doc_id, block_offset) = self.block_offset(doc_id);
         try!(self.read_block(block_offset as usize));
-        let mut current_block_mut = self.current_block.borrow_mut();
-        let mut cursor = Cursor::new(&mut current_block_mut[..]);
+        let current_block_mut = self.current_block.borrow_mut();
+        let mut cursor = &current_block_mut[..];
         for _ in first_doc_id..doc_id  {
             let block_length = try!(u32::deserialize(&mut cursor));
-            try!(cursor.seek(SeekFrom::Current(block_length as i64)));
+            cursor = &cursor[block_length as usize..];
         }
         try!(u32::deserialize(&mut cursor));
         let mut field_values = Vec::new();
