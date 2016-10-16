@@ -1,3 +1,4 @@
+#![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
 
@@ -150,8 +151,6 @@ impl ScoredDoc {
         self.1
     }
 }
-
-
 
 /// `DocAddress` contains all the necessary information 
 /// to identify a document given a `Searcher` object.
