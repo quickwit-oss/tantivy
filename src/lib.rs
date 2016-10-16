@@ -15,6 +15,9 @@
 //!
 //! Tantivy is a search engine library. 
 //! Think `Lucene`, but in Rust.
+//!
+//! A good place for you to get started is to check out
+//! the example code ( [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) / [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
 
 #[macro_use]
 extern crate lazy_static;
