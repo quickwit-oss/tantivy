@@ -214,7 +214,7 @@ fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 fieldnorms_writer: &U32FastFieldsWriter,
 		 segment_info: SegmentInfo,
 	  	 mut serializer: SegmentSerializer,
-		 heap: &'a Heap,) -> Result<usize> {
+		 heap: &'a Heap,) -> Result<u32> {
 		for per_field_postings_writer in per_field_postings_writers.iter() {
 			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer(), heap));
 		}
@@ -222,11 +222,11 @@ fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
 		try!(serializer.write_segment_info(&segment_info));
 		try!(serializer.close());
-		Ok(segment_info.max_doc as usize)
+		Ok(segment_info.max_doc)
 }
 
 impl<'a> SerializableSegment for SegmentWriter<'a> {
-	fn write(&self, serializer: SegmentSerializer) -> Result<usize> {
+	fn write(&self, serializer: SegmentSerializer) -> Result<u32> {
 		write(&self.per_field_postings_writers,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,

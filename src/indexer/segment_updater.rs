@@ -1,5 +1,4 @@
 use chan;
-use common::LivingCounterLatch;
 use core::Index;
 use core::Segment;
 use core::SegmentId;
@@ -13,6 +12,7 @@ use indexer::SegmentSerializer;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::Arc;
+use std::collections::HashMap;
 use super::segment_manager::{SegmentManager, get_segment_ready_for_commit};
 use super::super::core::index::get_segment_manager;
 
@@ -20,7 +20,7 @@ pub type SegmentUpdateSender = chan::Sender<SegmentUpdate>;
 pub type SegmentUpdateReceiver = chan::Receiver<SegmentUpdate>;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SegmentUpdate {
     
     /// New segment added.
@@ -30,7 +30,7 @@ pub enum SegmentUpdate {
     /// A merge is ended.
     /// Remove the merged segment and record the new 
     /// large merged segment.
-    EndMerge(Vec<SegmentId>, SegmentMeta),
+    EndMerge(usize, Vec<SegmentId>, SegmentMeta),
     
     /// Happens when rollback is called.
     /// The current generation of segments is cancelled.
@@ -55,7 +55,16 @@ pub enum SegmentUpdate {
 }
 
 
-
+fn end_merge(
+    index: &Index,
+    segment_ids: Vec<SegmentId>,
+    segment_meta: SegmentMeta) {
+    let segment_manager = get_segment_manager(index);
+    segment_manager.end_merge(&segment_ids, &segment_meta);
+    for segment_id in segment_ids {
+        index.delete_segment(segment_id);
+    }
+}
 
 
 /// The segment updater is in charge of 
@@ -66,68 +75,84 @@ pub enum SegmentUpdate {
 pub struct SegmentUpdater {
 	index: Index,
 	is_cancelled_generation: bool,
-    has_received_terminate_command: bool,
 	segment_update_receiver: SegmentUpdateReceiver,
 	segment_update_sender: SegmentUpdateSender,
     segment_manager_arc: Arc<SegmentManager>,
     merge_policy: Box<MergePolicy>,
-    living_threads: LivingCounterLatch,
+    merging_thread_id: usize,
+    merging_threads: HashMap<usize, JoinHandle<(Vec<SegmentId>, SegmentMeta)> >, 
 }
 
 
 impl SegmentUpdater {
 	
-    pub fn new(index: Index) -> SegmentUpdater {
+    
+    pub fn start_updater(index: Index) -> (SegmentUpdateSender, JoinHandle<()>) {
+        let segment_updater = SegmentUpdater::new(index);
+        (segment_updater.segment_update_sender.clone(), segment_updater.start())
+    }
+    
+    fn new(index: Index) -> SegmentUpdater {
         let segment_manager_arc = get_segment_manager(&index);
-        let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::sync(0);
+        let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::async();
 		SegmentUpdater {
 			index: index,
             is_cancelled_generation: false,
-            has_received_terminate_command: false,
             segment_update_sender: segment_update_sender,
             segment_update_receiver: segment_update_receiver,
             segment_manager_arc: segment_manager_arc,
             merge_policy: Box::new(SimpleMergePolicy::default()), // TODO make that configurable
-            living_threads: LivingCounterLatch::default(),
+            merging_thread_id: 0,
+            merging_threads: HashMap::new(), 
 		}
 	}
     
-	pub fn update_channel(&self,) -> SegmentUpdateSender {
-		self.segment_update_sender.clone()
-	}
+    fn new_merging_thread_id(&mut self,) -> usize {
+        self.merging_thread_id += 1;
+        self.merging_thread_id
+    }
     
-    fn start_merges(&self,) {
+    fn start_merges(&mut self,) {
         
         let merge_candidates = self.consider_merge_options();
         
         for MergeCandidate(segment_ids) in merge_candidates {
+            
+            let merging_thread_id = self.new_merging_thread_id();
+            
             self.segment_manager().start_merge(&segment_ids);
-            let living_threads_clone = self.living_threads.clone(); 
+
             let index_clone = self.index.clone();
             let segment_update_sender_clone = self.segment_update_sender.clone();
-            thread::Builder::new().name(format!("merge_thread_{:?}", segment_ids[0])).spawn(move || {
-                info!("Start merge: {:?}", segment_ids);
-                let schema = index_clone.schema();
-                let segments: Vec<Segment> = segment_ids
-                    .iter()
-                    .map(|&segment_id| index_clone.segment(segment_id))
-                    .collect();
-                // An IndexMerger is like a "view" of our merged segments. 
-                // TODO unwrap
-                let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
-                let mut merged_segment = index_clone.new_segment();
-                // ... we just serialize this index merger in our new segment
-                // to merge the two segments.
-                let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
-                let num_docs = merger.write(segment_serializer).unwrap();
-                let segment_meta = SegmentMeta {
-                    segment_id: merged_segment.id(),
-                    num_docs: num_docs,
-                };
-                let segment_update = SegmentUpdate::EndMerge(segment_ids, segment_meta);
-                segment_update_sender_clone.send(segment_update);
-                drop(living_threads_clone);
-            }).expect("Failed to spawn merge thread");
+            
+            let merge_thread_handle = thread::Builder::new()
+                .name(format!("merge_thread_{:?}", merging_thread_id))
+                .spawn(move || {
+                    info!("Start merge: {:?}", segment_ids);
+                    let schema = index_clone.schema();
+                    let segments: Vec<Segment> = segment_ids
+                        .iter()
+                        .map(|&segment_id| index_clone.segment(segment_id))
+                        .collect();
+                    // An IndexMerger is like a "view" of our merged segments. 
+                    // TODO unwrap
+                    let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
+                    let mut merged_segment = index_clone.new_segment();
+                    // ... we just serialize this index merger in our new segment
+                    // to merge the two segments.
+                    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
+                    let num_docs = merger.write(segment_serializer).unwrap();
+                    let segment_meta = SegmentMeta {
+                        segment_id: merged_segment.id(),
+                        num_docs: num_docs,
+                    };
+                    let segment_update = SegmentUpdate::EndMerge(merging_thread_id, segment_ids.clone(), segment_meta.clone());
+                    segment_update_sender_clone.send(segment_update.clone());
+                    (segment_ids, segment_meta)
+                })
+                .expect("Failed to spawn merge thread");
+            
+            self.merging_threads.insert(merging_thread_id, merge_thread_handle);
         }
     }
     
@@ -155,25 +180,16 @@ impl SegmentUpdater {
 		    })
             .expect("Failed to start segment updater thread.")
     }
-	
-    fn still_has_work(&self,) -> bool {
-        if self.has_received_terminate_command {
-            !self.living_threads.is_zero()
-        }
-        else {
-            true
-        }
-    }
     
 	fn process(mut self,) {
         
         let segment_manager = self.segment_manager_arc.clone();
-                
-        let mut segment_updates_it = self.segment_update_receiver.clone().into_iter();
         
-        while self.still_has_work() {
+        for segment_update in self.segment_update_receiver.clone() {
             
-            let segment_update = segment_updates_it.next().expect("");
+            if let SegmentUpdate::Terminate = segment_update {
+                break;
+            }
                 
             // we check the generation number as if it was 
             // dirty-bit. If the value is different 
@@ -199,15 +215,39 @@ impl SegmentUpdater {
                 // use the new segments.
                 // TODO eventually have this work through watching meta.json
                 // so that an external process stays up to date as well. 
-                self.index.load_searchers().expect("Could not load new searchers.");
+                match self.index.load_searchers() {
+                    Ok(()) => {
+                    }
+                    Err(e) => {
+                        error!("Failure while loading new searchers {:?}", e);
+                        panic!(format!("Failure while loading new searchers {:?}", e));
+                    }
+                }
                 
                 // - start merges if required
                 self.start_merges();
             }
         }
+        
+        for (_, merging_thread_handle) in self.merging_threads {
+            match merging_thread_handle.join() {
+                Ok((segment_ids, segment_meta)) => {
+                    end_merge(
+                        &self.index,
+                        segment_ids,
+                        segment_meta);
+                }
+                Err(e) => {
+                    error!("Error in merging thread {:?}", e);
+                    break;
+                } 
+            }
+        }     
     }
 
+    
 
+    
 	// Process a single segment update.
 	pub fn process_one(
 		&mut self,
@@ -229,11 +269,12 @@ impl SegmentUpdater {
 					self.index.delete_segment(segment_meta.segment_id);
 				}
 			}
-			SegmentUpdate::EndMerge(segment_ids, segment_meta) => {
-				self.segment_manager().end_merge(&segment_ids, &segment_meta);
-				for segment_id in segment_ids {
-					self.index.delete_segment(segment_id);
-				}
+			SegmentUpdate::EndMerge(merging_thread_id, segment_ids, segment_meta) => {
+                end_merge(
+                    &self.index,
+                    segment_ids,
+                    segment_meta);
+                self.merging_threads.remove(&merging_thread_id);
 			}
 			SegmentUpdate::CancelGeneration => {
 				// Called during rollback. The segment 
@@ -250,7 +291,7 @@ impl SegmentUpdater {
 				self.segment_manager().commit(docstamp);
 			}
 			SegmentUpdate::Terminate => {
-                self.has_received_terminate_command = true;
+                panic!("We should have left the loop before processing it.");
 			}
 		}
 	}

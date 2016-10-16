@@ -103,12 +103,14 @@ struct InnerHeap {
 
 /// initializing a long Vec<u8> is crazy slow in 
 /// debug mode.
+/// We use this unsafe trick to make unit test
+/// way faster.
 fn allocate_fast(num_bytes: usize) -> Vec<u8> {
-    let mut v = Vec::with_capacity(num_bytes);
+    let mut buffer = Vec::with_capacity(num_bytes);
     unsafe {
-        v.set_len(num_bytes);
+        buffer.set_len(num_bytes);
     }
-    v
+    buffer
 }
 
 impl InnerHeap {

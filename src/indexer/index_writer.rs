@@ -86,10 +86,11 @@ pub fn save_metas(segment_manager: &SegmentManager,
 /// Each indexing thread builds its own independant `Segment`, via
 /// a `SegmentWriter` object.
 pub struct IndexWriter {
-    // the lock is just used to bind the
+    
+    // the lock is just used to bind the 
     // lifetime of the lock with that of the IndexWriter.
-    _directory_lock: DirectoryLock,
-
+    _directory_lock: DirectoryLock, 
+    
     index: Index,
     heap_size_in_bytes_per_thread: usize,
 
@@ -131,7 +132,7 @@ fn index_documents(heap: &mut Heap,
             break;
         }
     }
-    let num_docs = segment_writer.max_doc() as usize;
+    let num_docs = segment_writer.max_doc();
     let segment_meta = SegmentMeta {
         segment_id: segment_id,
         num_docs: num_docs,
@@ -149,11 +150,11 @@ impl IndexWriter {
     pub fn wait_merging_threads(mut self) -> Result<()> {
 
         self.segment_update_sender.send(SegmentUpdate::Terminate);
-
+        
         // this will stop the indexing thread,
         // dropping the last reference to the segment_update_sender.
         drop(self.document_sender);
-
+        
         let mut v = Vec::new();
         mem::swap(&mut v, &mut self.workers_join_handle);
         for join_handle in v {
@@ -211,16 +212,6 @@ impl IndexWriter {
         Ok(())
     }
 
-    fn on_change(&mut self) -> Result<()> {
-        let segment_manager = get_segment_manager(&self.index);
-        // saving the meta file.
-        try!(save_metas(&*segment_manager,
-                        self.index.schema(),
-                        self.committed_docstamp,
-                        self.index.directory_mut()));
-        try!(self.index.load_searchers());
-        Ok(())
-    }
 
     /// Open a new index writer. Attempts to acquire a lockfile.
     ///
@@ -245,19 +236,18 @@ impl IndexWriter {
             panic!(format!("The heap size per thread needs to be at least {}.",
                            HEAP_SIZE_LIMIT));
         }
-
+        
         let directory_lock = try!(DirectoryLock::lock(index.directory().box_clone()));
-
+        
         let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-
-        let segment_updater = SegmentUpdater::new(index.clone());
-        let segment_update_sender = segment_updater.update_channel();
-        let segment_update_thread = segment_updater.start();
-
+        
+        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone());
+        
         let mut index_writer = IndexWriter {
+            
             _directory_lock: directory_lock,
-
+            
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
             index: index.clone(),
 
@@ -405,8 +395,7 @@ impl IndexWriter {
             // meta.json
             self.index.delete_segment(segment_id);
         }
-        try!(self.on_change());
-
+        
         // reset the docstamp
         self.uncommitted_docstamp = self.committed_docstamp;
         Ok(self.committed_docstamp)
@@ -462,11 +451,9 @@ impl IndexWriter {
         // wait for the segment update thread to have processed the info
         let segment_manager = get_segment_manager(&self.index);
         while segment_manager.docstamp() != self.committed_docstamp {
-            println!("wait");
             thread::sleep(Duration::from_millis(100));
         }
 
-        try!(self.on_change());
         Ok(self.committed_docstamp)
     }
 
@@ -514,12 +501,12 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let _index_writer = index.writer(40_000_000).unwrap();
-            // the lock should be released when the
+            // the lock should be released when the 
             // index_writer leaves the scope.
         }
         let _index_writer_two = index.writer(40_000_000).unwrap();
     }
-
+    
     #[test]
     fn test_commit_and_rollback() {
         let mut schema_builder = schema::SchemaBuilder::default();

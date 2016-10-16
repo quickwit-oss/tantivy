@@ -100,7 +100,12 @@ impl Segment {
 }
 
 pub trait SerializableSegment {
-    fn write(&self, serializer: SegmentSerializer) -> Result<usize>;
+    /// Writes a view of a segment by pushing information
+    /// to the `SegmentSerializer`.
+    ///
+    /// # Returns
+    /// The number of documents in the segment.
+    fn write(&self, serializer: SegmentSerializer) -> Result<u32>;
 }
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]

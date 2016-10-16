@@ -42,7 +42,7 @@ impl SegmentId {
     }
     
     pub fn short_uuid_string(&self,) -> String {
-        String::from(&self.0.to_simple_string()[..8])
+        (&self.0.to_simple_string()[..8]).to_string()
     }
     
     pub fn uuid_string(&self,) -> String {

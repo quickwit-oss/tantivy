@@ -1,6 +1,6 @@
 use Directory;
 use std::path::Path;
-use error::Result;
+use directory::error::OpenWriteError;
 
 pub const LOCKFILE_NAME: &'static str = ".tantivy-indexer.lock";
 
@@ -15,7 +15,7 @@ pub struct DirectoryLock {
 }
 
 impl DirectoryLock {
-    pub fn lock(mut directory: Box<Directory>) -> Result<DirectoryLock> {
+    pub fn lock(mut directory: Box<Directory>) -> Result<DirectoryLock, OpenWriteError> {
         let lockfile_path = Path::new(LOCKFILE_NAME);
         try!(directory.open_write(lockfile_path));
         Ok(DirectoryLock { directory: directory })

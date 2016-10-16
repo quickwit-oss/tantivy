@@ -12,7 +12,7 @@ pub struct GenerationItem<T> {
 
 pub struct Pool<T> {
     queue: Arc<MsQueue<GenerationItem<T>>>,
-    last_published_generation: AtomicUsize,
+    freshest_generation: AtomicUsize,
     next_generation: AtomicUsize,
 }
 
@@ -21,33 +21,40 @@ impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
         Pool {
             queue: Arc::new(MsQueue::new()),
-            last_published_generation: AtomicUsize::default(),
+            freshest_generation: AtomicUsize::default(),
             next_generation: AtomicUsize::default(),
         }
     }
 
     pub fn publish_new_generation(&self, items: Vec<T>) {
-        let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst);
+        let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         for item in items {
             let gen_item = GenerationItem {
                 item: item,
-                generation: next_generation + 1,
+                generation: next_generation,
             };
             self.queue.push(gen_item);
         }
-        
-        let mut expected_current_generation = next_generation;
+        self.advertise_generation(next_generation);
+    }
+    
+    /// At the exit of this method,  
+    /// - freshest_generation has a value greater or equal than generation
+    /// - freshest_generation has a value that has been advertised
+    /// - freshest_generation has 
+    fn advertise_generation(&self, generation: usize) {
+        // not optimal at all but the easiest to read proof.       
         loop {
-            let current_generation = self.last_published_generation.compare_and_swap(expected_current_generation, next_generation + 1, Ordering::SeqCst);
-            if current_generation >= expected_current_generation {
+            let former_generation = self.freshest_generation.load(Ordering::Acquire);
+            if former_generation >= generation {
                 break;
             }
-            expected_current_generation = current_generation;
-        }
+            self.freshest_generation.compare_and_swap(former_generation, generation, Ordering::SeqCst);
+        }  
     }
     
     fn generation(&self,) -> usize {
-        self.last_published_generation.load(Ordering::Acquire)
+        self.freshest_generation.load(Ordering::Acquire)
     }
 
     pub fn acquire(&self,) -> LeasedItem<T> {
