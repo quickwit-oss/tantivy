@@ -6,7 +6,7 @@ use DocId;
 use schema::Document;
 use schema::FieldValue;
 use common::BinarySerializable;
-
+use std::mem::size_of;
 use std::io::Read;
 use std::io;
 use std::cmp::Ordering;
@@ -21,23 +21,6 @@ pub struct StoreReader {
 }
 
 impl StoreReader {
-
-    fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
-        // TODO err
-        // the first offset is implicitely (0, 0)
-        let mut offsets = vec!(OffsetIndex(0, 0));
-        let buffer: &[u8] = data.as_slice();
-        
-        let offset = {
-            let mut cursor = &buffer[buffer.len() - 8..];
-            u64::deserialize(&mut cursor).unwrap() as usize
-        };
-        {
-            let mut cursor = &buffer[offset..];
-            offsets.append(&mut Vec::deserialize(&mut cursor).unwrap()); 
-        }
-        offsets
-    }
 
     fn block_offset(&self, seek: DocId) -> OffsetIndex {
         fn search(offsets: &[OffsetIndex], seek: DocId) -> OffsetIndex {
@@ -84,11 +67,33 @@ impl StoreReader {
         }
         Ok(Document::from(field_values))
     }
+}
 
-    pub fn new(data: ReadOnlySource) -> StoreReader {
-        let offsets = StoreReader::read_header(&data);
+
+fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource) {
+    let data_len = data.len();
+    let serialized_offset: ReadOnlySource = data.slice(data_len - size_of::<u64>(), data_len);
+    let mut serialized_offset_buf = serialized_offset.as_slice(); 
+    let offset = u64::deserialize(&mut serialized_offset_buf).expect("any 8-byte slice can be deserialize to u64.");
+    let offset = offset as usize;
+    (data.slice(0, offset), data.slice(offset, data_len - size_of::<u64>()))
+}
+
+fn read_header(data: &ReadOnlySource) -> Vec<OffsetIndex> {
+    // TODO err
+    // the first offset is implicitely (0, 0)
+    let mut offsets = vec!(OffsetIndex(0, 0));
+    let mut buffer: &[u8] = data.as_slice();
+    offsets.append(&mut Vec::deserialize(&mut buffer).unwrap()); 
+    offsets
+}
+
+impl From<ReadOnlySource> for StoreReader {
+    fn from(data: ReadOnlySource) -> StoreReader {
+        let (data_source, offset_index_source) = split_source(data);
+        let offsets = read_header(&offset_index_source);
         StoreReader {
-            data: data,
+            data: data_source,
             offsets: offsets,
             current_block: RefCell::new(Vec::new()),
         }
