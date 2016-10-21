@@ -21,9 +21,8 @@ pub struct SegmentSerializer {
 }
 
 impl SegmentSerializer {
-    
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer>  {
+    pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer> {
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
 
         let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));
@@ -41,39 +40,39 @@ impl SegmentSerializer {
             fieldnorms_serializer: fieldnorms_serializer,
         })
     }
-    
+
     /// Accessor to the `PostingsSerializer`.
-    pub fn get_postings_serializer(&mut self,) -> &mut PostingsSerializer {
+    pub fn get_postings_serializer(&mut self) -> &mut PostingsSerializer {
         &mut self.postings_serializer
     }
 
     /// Accessor to the `FastFieldSerializer`.
-    pub fn get_fast_field_serializer(&mut self,) -> &mut FastFieldSerializer {
+    pub fn get_fast_field_serializer(&mut self) -> &mut FastFieldSerializer {
         &mut self.fast_field_serializer
     }
-    
+
     /// Accessor to the field norm serializer.
-    pub fn get_fieldnorms_serializer(&mut self,) -> &mut FastFieldSerializer {
+    pub fn get_fieldnorms_serializer(&mut self) -> &mut FastFieldSerializer {
         &mut self.fieldnorms_serializer
     }
-    
+
     /// Accessor to the `StoreWriter`.
-    pub fn get_store_writer(&mut self,) -> &mut StoreWriter {
+    pub fn get_store_writer(&mut self) -> &mut StoreWriter {
         &mut self.store_writer
     }
-    
+
     /// Write the `SegmentInfo`
     pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> Result<()> {
         let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
         let json_data = json::encode(segment_info)
-                .expect("Encoding to segment_info to JSON failed. This should never happen");
+            .expect("Encoding to segment_info to JSON failed. This should never happen");
         try!(write.write_all(json_data.as_bytes()));
         try!(write.flush());
         Ok(())
     }
-    
+
     /// Finalize the segment serialization.
-    pub fn close(mut self,) -> Result<()> {
+    pub fn close(self) -> Result<()> {
         try!(self.fast_field_serializer.close());
         try!(self.postings_serializer.close());
         try!(self.store_writer.close());

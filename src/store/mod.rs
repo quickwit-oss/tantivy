@@ -1,12 +1,8 @@
 mod reader;
 mod writer;
-
-use DocId;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
-pub struct OffsetIndex(DocId, u64);
 
 #[cfg(test)]
 mod tests {
