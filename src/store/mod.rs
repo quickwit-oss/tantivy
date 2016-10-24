@@ -1,12 +1,8 @@
 mod reader;
 mod writer;
-
-use DocId;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
-pub struct OffsetIndex(DocId, u64);
 
 #[cfg(test)]
 mod tests {
@@ -55,7 +51,7 @@ mod tests {
         let schema = write_lorem_ipsum_store(store_file);
         let field_title = schema.get_field("title").unwrap();
         let store_source = directory.open_read(path).unwrap();
-        let store = StoreReader::new(store_source);
+        let store = StoreReader::from(store_source);
         for i in (0..10).map(|i| i * 3 / 2) {
             assert_eq!(*store.get(i).unwrap().get_first(field_title).unwrap().text(), format!("Doc {}", i));
         }
@@ -78,7 +74,7 @@ mod tests {
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap());
         let store_source = directory.open_read(path).unwrap();
-        let store = StoreReader::new(store_source);
+        let store = StoreReader::from(store_source);
         b.iter(|| {
             store.get(12).unwrap();
         });

@@ -124,7 +124,7 @@ impl SegmentReader {
         );
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_infos = try!(FstMap::from_source(source));
-        let store_reader = StoreReader::new(try!(segment.open_read(SegmentComponent::STORE)));
+        let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));

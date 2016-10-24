@@ -3,66 +3,45 @@ use DocId;
 use schema::FieldValue;
 use common::BinarySerializable;
 use std::io::Write;
-use std::io::Read;
 use std::io;
+use error::Result;
 use lz4;
+use datastruct::SkipListBuilder;
 use super::StoreReader;
-use super::OffsetIndex;
 
 const BLOCK_SIZE: usize = 16_384;
 
 pub struct StoreWriter {
     doc: DocId,
-    offsets: Vec<OffsetIndex>, // TODO have a better index.
     written: u64,
+    offset_index_writer: SkipListBuilder<u64>,
     writer: WritePtr,
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
 
-impl BinarySerializable for OffsetIndex {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let OffsetIndex(a, b) = *self;
-        Ok(try!(a.serialize(writer)) + try!(b.serialize(writer)))
-    }
-    fn deserialize(reader: &mut Read) -> io::Result<OffsetIndex> {
-        let a = try!(DocId::deserialize(reader));
-        let b = try!(u64::deserialize(reader));
-        Ok(OffsetIndex(a, b))
-    }
-}
 
 impl StoreWriter {
-
     pub fn new(writer: WritePtr) -> StoreWriter {
         StoreWriter {
             doc: 0,
             written: 0,
-            offsets: Vec::new(),
+            offset_index_writer: SkipListBuilder::new(3),
             writer: writer,
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
         }
     }
 
-    pub fn stack_reader(&mut self, reader: &StoreReader) -> io::Result<()> {
-        if !self.current_block.is_empty() {
-            try!(self.write_and_compress_block());
+    pub fn stack_reader(&mut self, reader: &StoreReader) -> Result<()> {
+        for doc_id in 0..reader.max_doc {
+            let doc = try!(reader.get(doc_id));
+            let field_values: Vec<&FieldValue> = doc.field_values()
+                .iter()
+                .collect();
+            try!(self.store(&field_values));
         }
-        match reader.offsets.last() {
-            Some(&OffsetIndex(ref num_docs, ref body_size)) => {
-                try!(self.writer.write_all(&reader.data.as_slice()[0..*body_size as usize]));
-                for &OffsetIndex(doc, offset) in &reader.offsets {
-                    self.offsets.push(OffsetIndex(self.doc + doc, self.written + offset));
-                }
-                self.written += *body_size;
-                self.doc += *num_docs;
-                Ok(())
-            },
-            None => {
-                Err(io::Error::new(io::ErrorKind::Other, "No offset for reader"))
-            }
-        }
+        Ok(())
     }
 
     pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
@@ -80,7 +59,7 @@ impl StoreWriter {
         Ok(())
     }
 
-    fn write_and_compress_block(&mut self,) -> io::Result<()> {
+    fn write_and_compress_block(&mut self) -> io::Result<()> {
         self.intermediary_buffer.clear();
         {
             let mut encoder = try!(lz4::EncoderBuilder::new().build(&mut self.intermediary_buffer));
@@ -92,19 +71,19 @@ impl StoreWriter {
         self.written += try!((compressed_block_size as u32).serialize(&mut self.writer)) as u64;
         try!(self.writer.write_all(&self.intermediary_buffer));
         self.written += compressed_block_size;
-        self.offsets.push(OffsetIndex(self.doc, self.written));
+        try!(self.offset_index_writer.insert(self.doc, &self.written));
         self.current_block.clear();
         Ok(())
     }
 
-    pub fn close(&mut self,) -> io::Result<()> {
+    pub fn close(mut self) -> io::Result<()> {
         if !self.current_block.is_empty() {
             try!(self.write_and_compress_block());
         }
         let header_offset: u64 = self.written;
-        try!(self.offsets.serialize(&mut self.writer));
+        try!(self.offset_index_writer.write::<Box<Write>>(&mut self.writer));
         try!(header_offset.serialize(&mut self.writer));
+        try!(self.doc.serialize(&mut self.writer));
         self.writer.flush()
     }
-
 }
