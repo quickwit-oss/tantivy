@@ -20,7 +20,7 @@ pub struct StoreReader {
 
 impl StoreReader {
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
-        SkipList::read(self.offset_index_source.as_slice())
+        SkipList::from(self.offset_index_source.as_slice())
             .seek(doc_id)
             .unwrap_or((0u32, 0u64))
     }
