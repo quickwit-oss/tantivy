@@ -17,3 +17,4 @@ pub use self::simple_merge_policy::SimpleMergePolicy;
 pub use self::merge_policy::{NoMergePolicy, MergeCandidate, MergePolicy};
 pub use self::segment_manager::SegmentManager;
 
+pub type DefaultMergePolicy = SimpleMergePolicy;

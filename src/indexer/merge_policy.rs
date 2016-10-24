@@ -12,8 +12,16 @@ pub trait MergePolicy: marker::Send {
 
 pub struct NoMergePolicy;
 
+impl Default for NoMergePolicy {
+    fn default() -> NoMergePolicy {
+        NoMergePolicy
+    }
+}
+
+
 impl MergePolicy for NoMergePolicy {
-    fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+    fn compute_merge_candidates(&self, _segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
         Vec::new()
     }
 }
+

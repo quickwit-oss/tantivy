@@ -6,7 +6,7 @@ use core::Segment;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SerializableSegment;
-use indexer::{MergePolicy, SimpleMergePolicy};
+use indexer::{DefaultMergePolicy, MergePolicy};
 use indexer::index_writer::save_metas;
 use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
@@ -108,7 +108,7 @@ impl SegmentUpdater {
             segment_update_sender: segment_update_sender,
             segment_update_receiver: segment_update_receiver,
             segment_manager_arc: segment_manager_arc,
-            merge_policy: Box::new(SimpleMergePolicy::default()), // TODO make that configurable
+            merge_policy: Box::new(DefaultMergePolicy::default()), // TODO make that configurable
             merging_thread_id: 0,
             merging_threads: HashMap::new(), 
 		}
