@@ -7,8 +7,9 @@ mod shared_vec_slice;
 /// Errors specific to the directory module.
 pub mod error;
 
-use std::io::{Seek, Write};
+use std::io::{Write, Seek};
 
+use std::io::BufWriter;
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
@@ -22,14 +23,14 @@ impl<T: Seek + Write> SeekableWrite for T {}
 ///
 /// `WritePtr` are required to implement both Write
 /// and Seek.
-pub type WritePtr = Box<SeekableWrite>;
+pub type WritePtr = BufWriter<Box<SeekableWrite>>;
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use std::path::Path;
-    use std::io::SeekFrom;
+    use std::path::Path;   
+    use std::io::{Write, Seek, SeekFrom};
 
     lazy_static! {
         static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");

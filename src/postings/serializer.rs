@@ -13,6 +13,7 @@ use DocId;
 use core::Segment;
 use std::io;
 use core::SegmentComponent;
+use std::io::Write;
 use common::VInt;
 use common::BinarySerializable;
 

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::io;
-use std::io::{Cursor, Write, Seek, SeekFrom};
+use std::io::{self, BufWriter, Cursor, Write, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
@@ -173,7 +172,7 @@ impl Directory for RAMDirectory {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
         }
         else {
-            Ok(Box::new(vec_writer))
+            Ok(BufWriter::new(Box::new(vec_writer)))
         }
     }
 

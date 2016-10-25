@@ -1,8 +1,7 @@
 use common::BinarySerializable;
 use directory::WritePtr;
 use schema::Field;
-use std::io;
-use std::io::{SeekFrom, Write};
+use std::io::{self, SeekFrom, Seek, Write};
 use super::compute_num_bits;
 
 
