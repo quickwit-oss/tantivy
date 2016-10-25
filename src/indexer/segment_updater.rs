@@ -5,21 +5,61 @@ use core::Index;
 use core::Segment;
 use core::SegmentId;
 use core::SegmentMeta;
+use std::mem;
 use core::SerializableSegment;
 use indexer::{DefaultMergePolicy, MergePolicy};
-use indexer::index_writer::save_metas;
 use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
 use indexer::SegmentSerializer;
 use std::thread;
+use schema::Schema;
+use directory::Directory;
 use std::thread::JoinHandle;
 use std::sync::Arc;
 use std::collections::HashMap;
+use rustc_serialize::json;
+use Result;
+use core::IndexMeta;
+use core::META_FILEPATH;
+use std::io::Write;
 use super::segment_manager::{SegmentManager, get_segment_ready_for_commit};
 use super::super::core::index::get_segment_manager;
 
 pub type SegmentUpdateSender = chan::Sender<SegmentUpdate>;
 pub type SegmentUpdateReceiver = chan::Receiver<SegmentUpdate>;
+
+
+fn create_metas(segment_manager: &SegmentManager, schema: Schema, docstamp: u64) -> IndexMeta {
+    let (committed_segments, uncommitted_segments) = segment_manager.segment_metas();
+    IndexMeta {
+        committed_segments: committed_segments,
+        uncommitted_segments: uncommitted_segments,
+        schema: schema,
+        docstamp: docstamp,
+    }
+}
+
+
+/// Save the index meta file.
+/// This operation is atomic :
+/// Either
+//  - it fails, in which case an error is returned,
+/// and the `meta.json` remains untouched,
+/// - it success, and `meta.json` is written
+/// and flushed.
+///
+/// This method is not part of tantivy's public API
+pub fn save_metas(segment_manager: &SegmentManager,
+                  schema: Schema,
+                  docstamp: u64,
+                  directory: &mut Directory)
+                  -> Result<()> {
+    let metas = create_metas(segment_manager, schema, docstamp);
+    let mut w = Vec::new();
+    try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
+    directory.atomic_write(&META_FILEPATH, &w[..])
+        .map_err(From::from)
+}
 
 
 #[derive(Debug, Clone)]
@@ -57,16 +97,7 @@ pub enum SegmentUpdate {
 }
 
 
-fn end_merge(
-    index: &Index,
-    segment_ids: Vec<SegmentId>,
-    segment_meta: SegmentMeta) {
-    let segment_manager = get_segment_manager(index);
-    segment_manager.end_merge(&segment_ids, &segment_meta);
-    for segment_id in segment_ids {
-        index.delete_segment(segment_id);
-    }
-}
+
 
 
 /// The segment updater is in charge of processing all of the 
@@ -119,6 +150,25 @@ impl SegmentUpdater {
         self.merging_thread_id
     }
     
+    
+    fn end_merge(
+        &mut self,
+        segment_ids: Vec<SegmentId>,
+        segment_meta: SegmentMeta) {
+        
+        let segment_manager = self.segment_manager_arc.clone();
+        segment_manager.end_merge(&segment_ids, &segment_meta);
+        save_metas(
+            &*segment_manager,
+            self.index.schema(),
+            self.index.docstamp(),
+            self.index.directory_mut()).expect("Could not save metas.");
+        for segment_id in segment_ids {
+            self.index.delete_segment(segment_id);
+        }
+    }
+
+
     fn start_merges(&mut self,) {
         
         let merge_candidates = self.consider_merge_options();
@@ -173,8 +223,8 @@ impl SegmentUpdater {
         merge_candidates.extend_from_slice(&committed_merge_candidates[..]);
         merge_candidates
     }
-
-		
+    
+    
 	fn segment_manager(&self,) -> &SegmentManager {
 		&*self.segment_manager_arc
 	}
@@ -236,20 +286,19 @@ impl SegmentUpdater {
             }
         }
         
-        for (_, merging_thread_handle) in self.merging_threads {
+        let mut merging_threads = HashMap::new();
+        mem::swap(&mut merging_threads, &mut self.merging_threads);
+        for (_, merging_thread_handle) in merging_threads {
             match merging_thread_handle.join() {
                 Ok((segment_ids, segment_meta)) => {
-                    end_merge(
-                        &self.index,
-                        segment_ids,
-                        segment_meta);
+                    self.end_merge(segment_ids, segment_meta);
                 }
                 Err(e) => {
                     error!("Error in merging thread {:?}", e);
                     break;
                 } 
             }
-        }     
+        }
     }
 
     
@@ -277,8 +326,7 @@ impl SegmentUpdater {
 				}
 			}
 			SegmentUpdate::EndMerge(merging_thread_id, segment_ids, segment_meta) => {
-                end_merge(
-                    &self.index,
+                self.end_merge(
                     segment_ids,
                     segment_meta);
                 self.merging_threads.remove(&merging_thread_id);

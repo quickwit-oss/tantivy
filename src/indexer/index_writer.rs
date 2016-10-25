@@ -3,15 +3,12 @@ use schema::Document;
 use indexer::SegmentSerializer;
 use core::SerializableSegment;
 use core::Index;
-use Directory;
 use core::Segment;
 use std::thread::JoinHandle;
-use rustc_serialize::json;
 use indexer::SegmentWriter;
 use super::directory_lock::DirectoryLock;
 use std::clone::Clone;
 use std::io;
-use std::io::Write;
 use std::thread;
 use std::mem;
 use indexer::merger::IndexMerger;
@@ -20,12 +17,10 @@ use datastruct::stacker::Heap;
 use std::mem::swap;
 use chan;
 use core::SegmentMeta;
-use core::IndexMeta;
-use core::META_FILEPATH;
 use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
 use std::time::Duration;
 use super::super::core::index::get_segment_manager;
-use super::segment_manager::{CommitState, SegmentManager};
+use super::segment_manager::CommitState;
 use Result;
 use Error;
 
@@ -44,39 +39,6 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 type DocumentSender = chan::Sender<Document>;
 type DocumentReceiver = chan::Receiver<Document>;
 
-
-
-fn create_metas(segment_manager: &SegmentManager, schema: Schema, docstamp: u64) -> IndexMeta {
-    let (committed_segments, uncommitted_segments) = segment_manager.segment_metas();
-    IndexMeta {
-        committed_segments: committed_segments,
-        uncommitted_segments: uncommitted_segments,
-        schema: schema,
-        docstamp: docstamp,
-    }
-}
-
-
-/// Save the index meta file.
-/// This operation is atomic :
-/// Either
-//  - it fails, in which case an error is returned,
-/// and the `meta.json` remains untouched,
-/// - it success, and `meta.json` is written
-/// and flushed.
-///
-/// This method is not part of tantivy's public API
-pub fn save_metas(segment_manager: &SegmentManager,
-                  schema: Schema,
-                  docstamp: u64,
-                  directory: &mut Directory)
-                  -> Result<()> {
-    let metas = create_metas(segment_manager, schema, docstamp);
-    let mut w = Vec::new();
-    try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
-    directory.atomic_write(&META_FILEPATH, &w[..])
-        .map_err(From::from)
-}
 
 
 /// `IndexWriter` is the user entry-point to add document to an index.
