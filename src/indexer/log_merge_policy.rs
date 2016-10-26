@@ -1,12 +1,10 @@
 extern crate itertools;
 use super::merge_policy::{MergePolicy, MergeCandidate};
 use core::SegmentMeta;
-use self::itertools::Itertools;
 
 pub struct LogMergePolicy;
 use std::f64;
 
-const PACK_LEN: usize = 8;
 const LEVEL_LOG_SIZE: f64 = 0.75;
 
 impl MergePolicy for LogMergePolicy {
@@ -37,22 +35,15 @@ impl MergePolicy for LogMergePolicy {
             levels.last_mut().unwrap().push(ind);
         }
 
-        // now levels contains vectors, each of which is one level
+        let result = levels.iter()
+            .map(|ind_vec| {
+                MergeCandidate(ind_vec.iter()
+                    .map(|&ind| {
+                        segments[ind].segment_id
+                    }).collect())
+            }).collect();
 
-
-
-
-
-        // based on log sizes, quantize into levels
-        // given quantized levels, find valid merges within each level
-
-
-        // how to find a valid merge
-
-        // quantizing into levels
-        // find the least segment within LEVEL_LOG_SIZE of the starting max size. it and everything above are the top level.
-        // next, find the max of all other segments. this is the new max size. repeat. so LEVEL_LOG_SIZE basically is what determines how big your segments are.
-        unimplemented!();
+        result
     }
 }
 
