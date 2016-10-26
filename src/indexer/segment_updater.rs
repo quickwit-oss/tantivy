@@ -193,12 +193,12 @@ impl SegmentUpdater {
                         .collect();
                     // An IndexMerger is like a "view" of our merged segments. 
                     // TODO unwrap
-                    let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).unwrap();
+                    let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).expect("Creating index merger failed");
                     let mut merged_segment = index_clone.new_segment();
                     // ... we just serialize this index merger in our new segment
                     // to merge the two segments.
-                    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).unwrap();
-                    let num_docs = merger.write(segment_serializer).unwrap();
+                    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
+                    let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
                     let segment_meta = SegmentMeta {
                         segment_id: merged_segment.id(),
                         num_docs: num_docs,

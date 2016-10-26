@@ -14,6 +14,7 @@ use lz4;
 pub struct StoreReader {
     pub data: ReadOnlySource,
     pub offset_index_source: ReadOnlySource,
+    current_block_offset: RefCell<usize>,
     current_block: RefCell<Vec<u8>>,
     pub max_doc: DocId,
 }
@@ -21,20 +22,25 @@ pub struct StoreReader {
 impl StoreReader {
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
         SkipList::from(self.offset_index_source.as_slice())
-            .seek(doc_id)
+            .seek(doc_id + 1)
             .unwrap_or((0u32, 0u64))
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {
-        let mut current_block_mut = self.current_block.borrow_mut();
-        current_block_mut.clear();
-        let total_buffer = self.data.as_slice();
-        let mut cursor = &total_buffer[block_offset..];
-        let block_length = u32::deserialize(&mut cursor).unwrap();
-        let block_array: &[u8] =
-            &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
-        let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
-        lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())
+        if block_offset != *self.current_block_offset.borrow() {
+            let mut current_block_mut = self.current_block.borrow_mut();
+            current_block_mut.clear();
+            let total_buffer = self.data.as_slice();
+            let mut cursor = &total_buffer[block_offset..];
+            let block_length = u32::deserialize(&mut cursor).unwrap();
+            let block_array: &[u8] =
+                &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
+            let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
+            *self.current_block_offset.borrow_mut() = usize::max_value();
+            try!(lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ()));
+            *self.current_block_offset.borrow_mut() = block_offset;
+        }
+        Ok(()) 
     }
 
     pub fn get(&self, doc_id: DocId) -> Result<Document> {
@@ -76,6 +82,7 @@ impl From<ReadOnlySource> for StoreReader {
         StoreReader {
             data: data_source,
             offset_index_source: offset_index_source,
+            current_block_offset: RefCell::new(usize::max_value()),
             current_block: RefCell::new(Vec::new()),
             max_doc: max_doc,
         }
