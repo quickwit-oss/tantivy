@@ -99,34 +99,29 @@ impl MmapDirectory {
 
 /// This Write wraps a File, but has the specificity of 
 /// call `sync_all` on flush.  
-struct SafeFileWriter {
-    writer: BufWriter<File>,
-}
+struct SafeFileWriter(File);
 
 impl SafeFileWriter {
     fn new(file: File) -> SafeFileWriter {
-        SafeFileWriter {
-            writer: BufWriter::new(file),
-        }
+        SafeFileWriter(file)
     }
-
 }
 
 impl Write for SafeFileWriter {
 
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf)
+        self.0.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        try!(self.writer.flush());
-        self.writer.get_ref().sync_all()
+        try!(self.0.flush());
+        self.0.sync_all()
     }
 }
 
 impl Seek for SafeFileWriter {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.writer.seek(pos)
+        self.0.seek(pos)
     }
 }
 
@@ -204,7 +199,7 @@ impl Directory for MmapDirectory {
         try!(self.sync_directory());
         
         let writer = SafeFileWriter::new(file);
-        Ok(Box::new(writer))
+        Ok(BufWriter::new(Box::new(writer)))
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
