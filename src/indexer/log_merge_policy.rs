@@ -13,14 +13,15 @@ impl MergePolicy for LogMergePolicy {
             return Vec::new();
         }
         let mut size_sorted_tuples = segments.iter()
-            .map(|x| {x.num_docs})
+            .map(|x| x.num_docs)
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
-        size_sorted_tuples.sort_by_key(|x| {x.1});
+        size_sorted_tuples.sort_by_key(|x| x.1);
 
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.iter()
-            .map(|x| {(x.0, (x.1 as f64).log2())}).collect();
+            .map(|x| (x.0, (x.1 as f64).log2()))
+            .collect();
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];
         let mut current_max_log_size = first_score;
@@ -38,10 +39,10 @@ impl MergePolicy for LogMergePolicy {
         let result = levels.iter()
             .map(|ind_vec| {
                 MergeCandidate(ind_vec.iter()
-                    .map(|&ind| {
-                        segments[ind].segment_id
-                    }).collect())
-            }).collect();
+                    .map(|&ind| segments[ind].segment_id)
+                    .collect())
+            })
+            .collect();
 
         result
     }
@@ -57,10 +58,32 @@ impl Default for LogMergePolicy {
 mod tests {
     use super::*;
     use indexer::merge_policy::MergePolicy;
+    use core::{SegmentMeta, SegmentId};
+    
     #[test]
     fn test_log_merge_policy_empty() {
         let y = Vec::new();
         let result_list = LogMergePolicy::default().compute_merge_candidates(&y);
         assert!(result_list.len() == 0);
     }
+
+    #[test]
+    fn test_log_merge_policy_pair() {
+        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 10)];
+        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
+        assert!(result_list.len() == 1);
+    }
+
+    #[test]
+    fn test_log_merge_policy_levels() {
+        // multiple levels all get merged correctly
+    }
+
+    #[test]
+    fn test_log_merge_policy_small() {
+        // deal correctly with tiny segments?
+    }
+
+    // what else... deletions? threading/concurrency?
 }
