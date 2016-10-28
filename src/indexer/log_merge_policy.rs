@@ -9,9 +9,9 @@ const LEVEL_LOG_SIZE: f64 = 0.75;
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
-        // what about when segments is empty??
-        // take log of size of each segment
-        // log2
+        if segments.is_empty() {
+            return Vec::new();
+        }
         let mut size_sorted_tuples = segments.iter()
             .map(|x| {x.num_docs})
             .enumerate()
@@ -50,5 +50,17 @@ impl MergePolicy for LogMergePolicy {
 impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
         LogMergePolicy
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indexer::merge_policy::MergePolicy;
+    #[test]
+    fn test_log_merge_policy_empty() {
+        let y = Vec::new();
+        let result_list = LogMergePolicy::default().compute_merge_candidates(&y);
+        assert!(result_list.len() == 0);
     }
 }
