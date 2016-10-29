@@ -36,10 +36,7 @@ pub trait Query {
                 let mut scorer = try!(weight.scorer(segment_reader));
                 {
                     let _collection_timer = segment_search_timer.open("collection");
-                    while scorer.advance() {
-                        let scored_doc = ScoredDoc(scorer.score(), scorer.doc());
-                        collector.collect(scored_doc);
-                    }
+                    scorer.collect(collector);
                 }
             }
         }
