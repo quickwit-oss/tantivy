@@ -107,8 +107,7 @@ impl From<Vec<Term>> for MultiTermQuery {
 }
 
 impl Query for MultiTermQuery {
-    
-    
+        
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let similitude = self.similitude(searcher);
         Ok(

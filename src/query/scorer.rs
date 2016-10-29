@@ -1,5 +1,4 @@
 use DocSet;
-use ScoredDoc;
 use collector::Collector;
 
 /// Scored `DocSet`
@@ -12,10 +11,7 @@ pub trait Scorer: DocSet {
     
     fn collect(&mut self, collector: &mut Collector) {
         while self.advance() {
-            let scored_doc = ScoredDoc(self.score(), self.doc());
-            collector.collect(scored_doc);
+            collector.collect(self.doc(), self.score());
         }
     }
 } 
-
-

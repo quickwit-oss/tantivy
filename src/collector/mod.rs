@@ -1,6 +1,7 @@
 use SegmentReader;
 use SegmentLocalId;
-use ScoredDoc;
+use DocId;
+use Score;
 use std::io;
 
 mod count_collector;
@@ -49,7 +50,7 @@ pub trait Collector {
     /// on this segment.
     fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
     /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, scored_doc: ScoredDoc);
+    fn collect(&mut self, doc: DocId, score: Score);
 }
 
 
@@ -58,8 +59,8 @@ impl<'a, C: Collector> Collector for &'a mut C {
         (*self).set_segment(segment_local_id, segment)
     }
     /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, scored_doc: ScoredDoc) {
-        (*self).collect(scored_doc);
+    fn collect(&mut self, doc: DocId, score: Score) {
+        (*self).collect(doc, score);
     }
 }
 
@@ -69,8 +70,8 @@ pub mod tests {
 
     use super::*;
     use test::Bencher;
-    use ScoredDoc;
     use DocId;
+    use Score;
     use core::SegmentReader;
     use std::io;
     use SegmentLocalId;
@@ -112,8 +113,8 @@ pub mod tests {
             Ok(())
         }
 
-        fn collect(&mut self, scored_doc: ScoredDoc) {
-            self.docs.push(scored_doc.doc() + self.offset);
+        fn collect(&mut self, doc: DocId, _score: Score) {
+            self.docs.push(doc + self.offset);
         }
     }
     
@@ -150,8 +151,8 @@ pub mod tests {
             Ok(())
         }
 
-        fn collect(&mut self, scored_doc: ScoredDoc) {
-            let val = self.ff_reader.as_ref().unwrap().get(scored_doc.doc());
+        fn collect(&mut self, doc: DocId, _score: Score) {
+            let val = self.ff_reader.as_ref().unwrap().get(doc);
             self.vals.push(val);
         }
     }
@@ -163,7 +164,7 @@ pub mod tests {
             let mut count_collector = CountCollector::default();
             let docs: Vec<u32> = (0..1_000_000).collect();
             for doc in docs {
-                count_collector.collect(ScoredDoc(1f32, doc));
+                count_collector.collect(doc, 1f32);
             }
             count_collector.count()
         });

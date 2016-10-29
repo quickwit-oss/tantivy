@@ -3,7 +3,6 @@ use collector::Collector;
 use core::searcher::Searcher;
 use common::TimerTree;
 use SegmentLocalId;
-use ScoredDoc;
 use super::Weight;
 
 

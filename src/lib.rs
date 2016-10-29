@@ -139,22 +139,6 @@ impl DocAddress {
     }
 }
 
-/// A scored doc is simply a couple `(score, doc_id)`
-#[derive(Clone, Copy)]
-pub struct ScoredDoc(Score, DocId);
-
-impl ScoredDoc {
-    
-    /// Returns the score
-    pub fn score(&self,) -> Score {
-        self.0
-    }
-    
-    /// Returns the doc
-    pub fn doc(&self,) -> DocId {
-        self.1
-    }
-}
 
 /// `DocAddress` contains all the necessary information 
 /// to identify a document given a `Searcher` object.

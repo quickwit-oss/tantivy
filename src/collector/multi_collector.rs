@@ -1,6 +1,7 @@
 use std::io;
 use super::Collector;
-use ScoredDoc;
+use DocId;
+use Score;
 use SegmentReader;
 use SegmentLocalId;
 
@@ -31,9 +32,9 @@ impl<'a> Collector for MultiCollector<'a> {
         Ok(())
     }
 
-    fn collect(&mut self, scored_doc: ScoredDoc) {
+    fn collect(&mut self, doc: DocId, score: Score) {
         for collector in &mut self.collectors {
-            collector.collect(scored_doc);
+            collector.collect(doc, score);
         }
     }
 }
@@ -44,7 +45,6 @@ impl<'a> Collector for MultiCollector<'a> {
 mod tests {
 
     use super::*;
-    use ScoredDoc;
     use collector::{Collector, CountCollector, TopCollector};
 
     #[test]
@@ -53,9 +53,9 @@ mod tests {
         let mut count_collector = CountCollector::default();
         {
             let mut collectors = MultiCollector::from(vec!(&mut top_collector, &mut count_collector));
-            collectors.collect(ScoredDoc(0.2, 1));
-            collectors.collect(ScoredDoc(0.1, 2));
-            collectors.collect(ScoredDoc(0.5, 3));
+            collectors.collect(1, 0.2);
+            collectors.collect(2, 0.1);
+            collectors.collect(3, 0.5);
         }
         assert_eq!(count_collector.count(), 3);
         assert!(top_collector.at_capacity());
