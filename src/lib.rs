@@ -2,6 +2,7 @@
 #![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
 
+#![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
 #![cfg_attr(test, feature(test))]

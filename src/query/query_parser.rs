@@ -1,14 +1,13 @@
-use Result as tantivy_Error;
+use Result as tantivy_Result;
 use combine::*;
 use collector::Collector;
+use super::Weight;
 use core::searcher::Searcher;
 use common::TimerTree;
 use query::{Query, MultiTermQuery};
 use schema::{Schema, FieldType, Term, Field};
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
-use DocAddress;
-use query::Explanation;
 use query::Occur;
 
 
@@ -168,7 +167,17 @@ impl QueryParser {
 
 
 impl Query for StandardQuery {
-    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> tantivy_Error<TimerTree> {
+    
+    
+    fn weight(&self, searcher: &Searcher) -> tantivy_Result<Box<Weight>> {
+        match *self {
+            StandardQuery::MultiTerm(ref q) => {
+                q.weight(searcher)
+            }
+        }
+    }
+    
+    fn search(&self, searcher: &Searcher, collector: &mut Collector) -> tantivy_Result<TimerTree> {
         match *self {
             StandardQuery::MultiTerm(ref q) => {
                 q.search(searcher, collector)
@@ -176,14 +185,6 @@ impl Query for StandardQuery {
         }
     }
 
-    fn explain(
-        &self,
-        searcher: &Searcher,
-        doc_address: &DocAddress) -> tantivy_Error<Explanation> {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
-        }
-    }
 }
 
 

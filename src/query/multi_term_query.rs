@@ -1,30 +1,49 @@
 use Result;
+use super::Weight;
 use Error;
 use schema::Term;
 use query::Query;
-use common::TimerTree;
-use common::OpenTimer;
 use core::searcher::Searcher;
-use collector::Collector;
-use SegmentLocalId;
 use core::SegmentReader;
-use query::SimilarityExplainer;
-use postings::SegmentPostings;
-use postings::DocSet;
 use query::TfIdf;
-use postings::SkipResult;
-use ScoredDoc;
 use query::Scorer;
-use query::MultiTermAccumulator;
-use DocAddress;
-use query::Explanation;
 use query::occur::Occur;
 use postings::SegmentPostingsOption;
 use query::DAATMultiTermScorer;
 
 
+
+struct MultiTermWeight {
+    query: MultiTermQuery,
+    similitude: TfIdf,
+}
+
+
+impl Weight for MultiTermWeight {
+    
+    
+    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+        
+        let mut postings_and_fieldnorms = Vec::with_capacity(self.query.num_terms());
+        {
+            for &(occur, ref term) in &self.query.occur_terms {
+                if let Some(postings) = reader.read_postings(term, SegmentPostingsOption::Freq) {
+                    let field = term.field();
+                    let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
+                    postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
+                }
+            }
+        }
+        if postings_and_fieldnorms.len() > 64 {
+            // TODO putting the SHOULD at the end of the list should push the limit.
+            return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
+        }
+        Ok(box DAATMultiTermScorer::new(postings_and_fieldnorms, self.similitude.clone()))
+    }
+}
+
 /// Query involving one or more terms.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, Clone, PartialEq, Debug)]
 pub struct MultiTermQuery {
     occur_terms: Vec<(Occur, Term)>,    
 }
@@ -64,32 +83,6 @@ impl MultiTermQuery {
         tfidf.set_term_names(term_names);
         tfidf
     }
-    
-    
-    /// Search the segment.
-    fn search_segment<'a, 'b, TAccumulator: MultiTermAccumulator>(
-            &'b self,
-            reader: &'b SegmentReader,
-            accumulator: TAccumulator,
-            mut timer: OpenTimer<'a>) -> Result<DAATMultiTermScorer<SegmentPostings, TAccumulator>> {
-        let mut postings_and_fieldnorms = Vec::with_capacity(self.num_terms());
-        {
-            let mut decode_timer = timer.open("decode_all");
-            for &(occur, ref term) in &self.occur_terms {
-                let _decode_one_timer = decode_timer.open("decode_one");
-                if let Some(postings) = reader.read_postings(term, SegmentPostingsOption::Freq) {
-                    let field = term.field();
-                    let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
-                    postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
-                }
-            }
-        }
-        if postings_and_fieldnorms.len() > 64 {
-            // TODO putting the SHOULD at the end of the list should push the limit.
-            return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
-        }
-        Ok(DAATMultiTermScorer::new(postings_and_fieldnorms, accumulator))
-    }
 }
 
 
@@ -114,62 +107,17 @@ impl From<Vec<Term>> for MultiTermQuery {
 }
 
 impl Query for MultiTermQuery {
-
-    fn explain(
-        &self,
-        searcher: &Searcher,
-        doc_address: &DocAddress) -> Result<Explanation> {
-            let segment_reader = searcher.segment_reader(doc_address.segment_ord() as usize);
-            let similitude = SimilarityExplainer::from(self.similitude(searcher));
-            let mut timer_tree = TimerTree::default();
-            let mut postings = try!(
-                self.search_segment(
-                    segment_reader,
-                    similitude,
-                    timer_tree.open("explain"))
-            );
-            Ok(match postings.skip_next(doc_address.doc()) {
-                SkipResult::Reached => {
-                    let scorer = postings.scorer();
-                    scorer.explain_score()
-                }
-                _ => {
-                    let mut explanation = Explanation::with_val(0f32);
-                    explanation.description(&format!("Failed to run explain: the document {:?} does not match", doc_address));
-                    explanation
-                }
-            }) 
+    
+    
+    fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
+        let similitude = self.similitude(searcher);
+        Ok(
+            Box::new(MultiTermWeight {
+                query: self.clone(),
+                similitude: similitude
+            })
+        )
     }
 
-    fn search<C: Collector>(
-        &self,
-        searcher: &Searcher,
-        collector: &mut C) -> Result<TimerTree> {
-        let mut timer_tree = TimerTree::default();        
-        {
-            let mut search_timer = timer_tree.open("search");
-            for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
-                let mut segment_search_timer = search_timer.open("segment_search");
-                {
-                    let _ = segment_search_timer.open("set_segment");
-                    try!(collector.set_segment(segment_ord as SegmentLocalId, &segment_reader));
-                }
-                let mut postings = try!(
-                    self.search_segment(
-                        segment_reader,
-                        self.similitude(searcher),
-                        segment_search_timer.open("get_postings"))
-                );
-                {
-                    let _collection_timer = segment_search_timer.open("collection");
-                    while postings.advance() {
-                        let scored_doc = ScoredDoc(postings.score(), postings.doc());
-                        collector.collect(scored_doc);
-                    }
-                }
-            }
-        }
-        Ok(timer_tree)
-    }
 }
 

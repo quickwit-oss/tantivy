@@ -14,6 +14,7 @@ mod tfidf;
 mod occur;
 mod daat_multiterm_scorer;
 mod similarity;
+mod weight;
 
 pub use self::similarity::Similarity;
 
@@ -30,3 +31,4 @@ pub use self::query_parser::QueryParser;
 pub use self::explanation::Explanation;
 pub use self::multi_term_accumulator::MultiTermAccumulator;
 pub use self::query_parser::ParsingError;
+pub use self::weight::Weight;
