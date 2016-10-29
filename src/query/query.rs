@@ -4,14 +4,17 @@ use core::searcher::Searcher;
 use common::TimerTree;
 use SegmentLocalId;
 use super::Weight;
+use std::fmt;
+use std::any::Any;
 
 
 /// Queries represent the query of the user, and are in charge
 /// of the logic defining the set of documents that should be
 /// sent to the collector, as well as the way to score the
 /// documents. 
-pub trait Query {
-
+pub trait Query: fmt::Debug {
+    
+    fn as_any(&self) -> &Any;
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>>;
         

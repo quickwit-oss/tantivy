@@ -1,5 +1,6 @@
 use Result;
 use super::Weight;
+use std::any::Any;
 use Error;
 use schema::Term;
 use query::Query;
@@ -107,7 +108,11 @@ impl From<Vec<Term>> for MultiTermQuery {
 }
 
 impl Query for MultiTermQuery {
-        
+    
+    fn as_any(&self) -> &Any {
+        self
+    }
+    
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let similitude = self.similitude(searcher);
         Ok(

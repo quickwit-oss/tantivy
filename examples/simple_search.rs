@@ -8,7 +8,6 @@ use tantivy::Index;
 use tantivy::schema::*;
 use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
-use tantivy::query::Query;
 
 fn main() {
     // Let's create a temporary directory for the 
