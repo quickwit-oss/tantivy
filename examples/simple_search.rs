@@ -160,7 +160,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which
-    // field she wants to search, tantivy will search
+    // field he wants to search, tantivy will search
     // in both title and body.
     let query_parser = QueryParser::new(index.schema(), vec!(title, body));
     
