@@ -7,6 +7,7 @@ use query::Similarity;
 use fastfield::U32FastFieldReader;
 use query::Occur;
 use std::iter;
+use query::OccurFilter;
 use super::Scorer;
 use Score;
 
@@ -35,38 +36,6 @@ impl Ord for HeapItem {
     }
 }
 
-struct Filter {
-    and_mask: u64,
-    result: u64,    
-}
-
-impl Filter {
-    fn accept(&self, ord_set: u64) -> bool {
-        (self.and_mask & ord_set) == self.result
-    }
-    
-    fn new(occurs: &[Occur]) -> Filter {
-        let mut and_mask = 0u64;
-        let mut result = 0u64;
-        for (i, occur) in occurs.iter().enumerate() {
-            let shift = 1 << i;
-            match *occur {
-                Occur::Must => {
-                    and_mask |= shift;
-                    result |= shift;
-                },
-                Occur::MustNot => {
-                    and_mask |= shift;
-                },
-                Occur::Should => {},
-            }
-        }
-        Filter {
-            and_mask: and_mask,
-            result: result
-        }
-    }
-}
 
 /// Document-At-A-Time multi term scorer.
 ///
@@ -79,7 +48,7 @@ pub struct DAATMultiTermScorer<TPostings: Postings, TAccumulator: MultiTermAccum
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
     similarity: TAccumulator,
-    filter: Filter,
+    filter: OccurFilter,
 }
 
 impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScorer<TPostings, TAccumulator> {
@@ -89,7 +58,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
         fieldnorm_readers: Vec<U32FastFieldReader>,
         postings: Vec<TPostings>,
         similarity: TAccumulator,
-        filter: Filter
+        filter: OccurFilter
     ) -> DAATMultiTermScorer<TPostings, TAccumulator> {
         let mut term_frequencies: Vec<u32> = iter::repeat(0u32).take(postings.len()).collect();
         let heap_items: Vec<HeapItem> = postings
@@ -129,7 +98,7 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
                 occurs.push(occur);
             }
         }
-        let filter = Filter::new(&occurs);
+        let filter = OccurFilter::new(&occurs);
         DAATMultiTermScorer::new_non_empty(fieldnorm_readers, postings, similarity, filter)
     }
 
