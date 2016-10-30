@@ -15,3 +15,4 @@ pub trait Scorer: DocSet {
         }
     }
 } 
+

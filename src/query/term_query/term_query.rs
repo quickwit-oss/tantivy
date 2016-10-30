@@ -24,8 +24,10 @@ impl Query for TermQuery {
         self
     }
 
-    fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
+    fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
+        let doc_freq = searcher.doc_freq(&self.term);
         Ok(box TermWeight {
+            doc_freq: doc_freq,
             term: self.term.clone()
         })
     }

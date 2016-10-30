@@ -117,7 +117,6 @@ impl<TPostings: Postings, TAccumulator: MultiTermAccumulator> DAATMultiTermScore
     /// # Panics
     /// This method will panic if the head `SegmentPostings` is not empty.
     fn advance_head(&mut self,) {
-        
         {
             let mut mutable_head = self.queue.peek_mut().unwrap();
             let cur_postings = &mut self.postings[mutable_head.ord as usize];

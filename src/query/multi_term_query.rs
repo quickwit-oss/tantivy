@@ -22,8 +22,8 @@ struct MultiTermWeight {
 
 impl Weight for MultiTermWeight {
     
-    
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+        
         
         let mut postings_and_fieldnorms = Vec::with_capacity(self.query.num_terms());
         {
