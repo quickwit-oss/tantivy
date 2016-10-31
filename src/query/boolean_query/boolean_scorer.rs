@@ -82,13 +82,20 @@ pub struct BooleanScorer<TScorer: Scorer> {
 
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
-    fn new(postings: Vec<TScorer>, filter: OccurFilter) -> BooleanScorer<TScorer> {
+    pub fn new(postings: Vec<TScorer>, filter: OccurFilter) -> BooleanScorer<TScorer> {
         let num_postings = postings.len();
         let query_coords: Vec<Score> = (0..num_postings + 1)
             .map(|i| (i as Score) / (num_postings as Score))
             .collect();
         let score_combiner = ScoreCombiner::from(query_coords);
-        let heap_items: Vec<HeapItem> = postings
+        let mut non_empty_postings: Vec<TScorer> = Vec::new();
+        for mut posting in postings {
+            let non_empty = posting.advance();
+            if non_empty {
+                non_empty_postings.push(posting);
+            }
+        }
+        let heap_items: Vec<HeapItem> = non_empty_postings
             .iter()
             .map(|posting| posting.doc())
             .enumerate()
@@ -100,7 +107,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             })
             .collect();
         BooleanScorer {
-            postings: postings,
+            postings: non_empty_postings,
             queue: BinaryHeap::from(heap_items),
             doc: 0u32,
             score_combiner: score_combiner,
@@ -170,14 +177,14 @@ impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
     }   
             
     fn doc(&self,) -> DocId {
-        panic!("a");
+        self.doc
     }
 }
 
 impl<TScorer: Scorer> Scorer for BooleanScorer<TScorer> {
     
     fn score(&self,) -> f32 {
-        panic!("");
+        self.score_combiner.score()
     }
 }
 

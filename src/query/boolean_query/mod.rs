@@ -5,3 +5,4 @@ mod boolean_weight;
 
 pub use self::boolean_query::BooleanQuery;
 pub use self::boolean_clause::BooleanClause;
+pub use self::boolean_scorer::BooleanScorer;

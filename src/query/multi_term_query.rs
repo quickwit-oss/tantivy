@@ -1,52 +1,43 @@
 use Result;
 use super::Weight;
 use std::any::Any;
-use Error;
 use schema::Term;
 use query::Query;
 use core::searcher::Searcher;
 use core::SegmentReader;
-use query::TfIdf;
 use query::Scorer;
 use query::occur::Occur;
-use postings::SegmentPostingsOption;
-use query::DAATMultiTermScorer;
-
+use query::occur_filter::OccurFilter;
+use query::term_query::{TermQuery, TermWeight, TermScorer};
+use query::boolean_query::BooleanScorer;
 
 
 struct MultiTermWeight {
-    query: MultiTermQuery,
-    similitude: TfIdf,
+    weights: Vec<TermWeight>,
+    occur_filter: OccurFilter,
 }
 
 
 impl Weight for MultiTermWeight {
     
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
-        
-        
-        let mut postings_and_fieldnorms = Vec::with_capacity(self.query.num_terms());
-        {
-            for &(occur, ref term) in &self.query.occur_terms {
-                if let Some(postings) = reader.read_postings(term, SegmentPostingsOption::Freq) {
-                    let field = term.field();
-                    let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
-                    postings_and_fieldnorms.push((occur, postings, fieldnorm_reader));
-                }
+        let mut term_scorers: Vec<TermScorer<'a>> = Vec::new();
+        for term_weight in &self.weights {
+            let term_scorer_option = try!(term_weight.specialized_scorer(reader));
+            if let Some(term_scorer) = term_scorer_option {
+                term_scorers.push(term_scorer);
             }
         }
-        if postings_and_fieldnorms.len() > 64 {
-            // TODO putting the SHOULD at the end of the list should push the limit.
-            return Err(Error::InvalidArgument(String::from("Limit of 64 terms was exceeded.")));
-        }
-        Ok(box DAATMultiTermScorer::new(postings_and_fieldnorms, self.similitude.clone()))
+        Ok(box BooleanScorer::new(term_scorers, self.occur_filter.clone())) 
     }
 }
 
 /// Query involving one or more terms.
+
 #[derive(Eq, Clone, PartialEq, Debug)]
-pub struct MultiTermQuery {
-    occur_terms: Vec<(Occur, Term)>,    
+pub struct MultiTermQuery {  
+    // TODO need a better Debug   
+    occur_terms: Vec<(Occur, Term)>
 }
 
 impl MultiTermQuery {
@@ -55,57 +46,10 @@ impl MultiTermQuery {
     pub fn num_terms(&self,) -> usize {
         self.occur_terms.len()
     }
-    
-    /// Builds the similitude object
-    fn similitude(&self, searcher: &Searcher) -> TfIdf {
-        let num_terms = self.num_terms();
-        let num_docs = searcher.num_docs() as f32;
-        let idfs: Vec<f32> = self.occur_terms
-            .iter()
-            .map(|&(_, ref term)| searcher.doc_freq(term))
-            .map(|doc_freq| {
-                if doc_freq == 0 {
-                    1.
-                }
-                else {
-                    1. + ( num_docs / (doc_freq as f32) ).ln()
-                }
-            })
-            .collect();
-        let query_coords = (0..num_terms + 1)
-            .map(|i| (i as f32) / (num_terms as f32))
-            .collect();
-        // TODO have the actual terms in these names
-        let term_names = self.occur_terms
-            .iter()
-            .map(|&(_, ref term)| format!("{:?}", &term))
-            .collect();
-        let mut tfidf = TfIdf::new(query_coords, idfs);
-        tfidf.set_term_names(term_names);
-        tfidf
-    }
+
 }
 
 
-impl From<Vec<(Occur, Term)>> for MultiTermQuery {
-    fn from(occur_terms: Vec<(Occur, Term)>) -> MultiTermQuery {
-        MultiTermQuery {
-            occur_terms: occur_terms,
-        }
-    }
-}
-
-impl From<Vec<Term>> for MultiTermQuery {
-    fn from(terms: Vec<Term>) -> MultiTermQuery {
-        let should_terms = terms
-            .into_iter()
-            .map(|term| (Occur::Should, term))
-            .collect();
-        MultiTermQuery {
-            occur_terms: should_terms,
-        }
-    }
-}
 
 impl Query for MultiTermQuery {
     
@@ -114,14 +58,42 @@ impl Query for MultiTermQuery {
     }
     
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let similitude = self.similitude(searcher);
+        let term_queries: Vec<TermQuery> = self.occur_terms
+            .iter()
+            .map(|&(_, ref term)| TermQuery::from(term.clone()))
+            .collect();
+        let occurs: Vec<Occur> = self.occur_terms
+            .iter()
+            .map(|&(occur, _) | occur.clone())
+            .collect();
+        let occur_filter = OccurFilter::new(&occurs);
+        let weights = term_queries.iter()
+            .map(|term_query| term_query.specialized_weight(searcher))
+            .collect();
         Ok(
             Box::new(MultiTermWeight {
-                query: self.clone(),
-                similitude: similitude
+                weights: weights,
+                occur_filter: occur_filter,
             })
         )
     }
-
 }
 
+
+impl From<Vec<(Occur, Term)>> for MultiTermQuery {
+    fn from(occur_terms: Vec<(Occur, Term)>) -> MultiTermQuery {
+        MultiTermQuery {
+            occur_terms: occur_terms
+        }
+    }
+}
+
+impl From<Vec<Term>> for MultiTermQuery {
+    fn from(terms: Vec<Term>) -> MultiTermQuery {
+        let should_terms: Vec<(Occur, Term)> = terms
+            .into_iter()
+            .map(|term| (Occur::Should, term))
+            .collect();
+        MultiTermQuery::from(should_terms)
+    }
+}

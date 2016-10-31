@@ -82,5 +82,4 @@ pub trait Query: fmt::Debug {
         }
         Ok(timer_tree)
     }
-        
 }

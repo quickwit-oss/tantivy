@@ -6,15 +6,15 @@ use Result;
 
 pub struct BooleanWeight {
     weights: Vec<Box<Weight>>,
-    filter: OccurFilter,
+    occur_filter: OccurFilter,
 }
 
 impl BooleanWeight {
     pub fn new(weights: Vec<Box<Weight>>, 
-           filter: OccurFilter) -> BooleanWeight {
+           occur_filter: OccurFilter) -> BooleanWeight {
         BooleanWeight {
             weights: weights,
-            filter: filter,
+            occur_filter: occur_filter,
         }
     }
 }

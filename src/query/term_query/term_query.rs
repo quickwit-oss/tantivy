@@ -11,6 +11,16 @@ pub struct TermQuery {
     term: Term,
 }
 
+impl TermQuery {
+    pub fn specialized_weight(&self, searcher: &Searcher) -> TermWeight {
+        let doc_freq = searcher.doc_freq(&self.term);
+        TermWeight {
+            doc_freq: doc_freq,
+            term: self.term.clone()
+        }
+    }
+}
+
 impl From<Term> for TermQuery {
     fn from(term: Term) -> TermQuery {
         TermQuery {
@@ -25,10 +35,7 @@ impl Query for TermQuery {
     }
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let doc_freq = searcher.doc_freq(&self.term);
-        Ok(box TermWeight {
-            doc_freq: doc_freq,
-            term: self.term.clone()
-        })
+        Ok(box self.specialized_weight(searcher))
     }
+    
 }

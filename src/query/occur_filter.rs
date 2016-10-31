@@ -1,5 +1,6 @@
 use query::Occur;
 
+#[derive(Clone)]
 pub struct OccurFilter {
     and_mask: u64,
     result: u64,    
