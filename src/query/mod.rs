@@ -13,7 +13,6 @@ mod query_parser;
 mod explanation;
 mod tfidf;
 mod occur;
-mod daat_multiterm_scorer;
 mod similarity;
 mod weight;
 mod occur_filter;
@@ -26,9 +25,6 @@ pub use self::empty_scorer::EmptyScorer;
 pub use self::occur_filter::OccurFilter;
 
 pub use self::similarity::Similarity;
-
-pub use self::daat_multiterm_scorer::DAATMultiTermScorer;
-
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur::Occur;
 pub use self::query::Query;

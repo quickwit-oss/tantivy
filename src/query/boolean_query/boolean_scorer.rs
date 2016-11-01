@@ -5,46 +5,7 @@ use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use postings::DocSet;
 use query::OccurFilter;
-
-
-struct ScoreCombiner {
-    coords: Vec<Score>,
-    num_fields: usize,
-    score: Score,
-}
-
-impl ScoreCombiner {
-    
-    fn update(&mut self, score: Score) {
-        self.score += score;
-        self.num_fields += 1;
-    }
-
-    fn clear(&mut self,) {
-        self.score = 0f32;
-        self.num_fields = 0;
-    }
-        
-    /// Compute the coord term
-    fn coord(&self,) -> f32 {
-        self.coords[self.num_fields]
-    }
-    
-    #[inline]
-    fn score(&self, ) -> Score {
-        self.score * self.coord()
-    }
-}
-
-impl From<Vec<Score>> for ScoreCombiner {
-    fn from(coords: Vec<Score>) -> ScoreCombiner {
-        ScoreCombiner {
-            coords: coords,
-            num_fields: 0,
-            score: 0f32,
-        }
-    }
-}
+use query::boolean_query::ScoreCombiner;
 
 
 /// Each `HeapItem` represents the head of
@@ -82,12 +43,13 @@ pub struct BooleanScorer<TScorer: Scorer> {
 
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
-    pub fn new(postings: Vec<TScorer>, filter: OccurFilter) -> BooleanScorer<TScorer> {
-        let num_postings = postings.len();
-        let query_coords: Vec<Score> = (0..num_postings + 1)
-            .map(|i| (i as Score) / (num_postings as Score))
-            .collect();
-        let score_combiner = ScoreCombiner::from(query_coords);
+    pub fn set_score_combiner(&mut self, score_combiner: ScoreCombiner)  {
+        self.score_combiner = score_combiner;
+    }
+    
+    pub fn new(postings: Vec<TScorer>,
+               filter: OccurFilter) -> BooleanScorer<TScorer> {
+        let score_combiner = ScoreCombiner::default_for_num_scorers(postings.len());
         let mut non_empty_postings: Vec<TScorer> = Vec::new();
         for mut posting in postings {
             let non_empty = posting.advance();
@@ -131,10 +93,9 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             let mut mutable_head = self.queue.peek_mut().unwrap();
             let cur_postings = &mut self.postings[mutable_head.ord as usize];
             if cur_postings.advance() {
-                mutable_head.doc = cur_postings.doc(); 
+                mutable_head.doc = cur_postings.doc();
                 return;
             }
-            
         }
         self.queue.pop();
     }
@@ -188,3 +149,84 @@ impl<TScorer: Scorer> Scorer for BooleanScorer<TScorer> {
     }
 }
 
+
+
+
+#[cfg(test)]
+mod tests {
+    
+    use super::*;
+    use postings::{DocSet, VecPostings};
+    use query::TfIdf;
+    use query::Scorer;
+    use query::OccurFilter;
+    use query::term_query::TermScorer;
+    use directory::Directory;
+    use directory::RAMDirectory;
+    use schema::Field;
+    use super::super::ScoreCombiner;
+    use std::path::Path;
+    use query::Occur;
+    use postings::SegmentPostingsTester;
+    use postings::Postings;
+    use fastfield::{U32FastFieldReader, U32FastFieldWriter, FastFieldSerializer};
+
+    
+   
+    fn abs_diff(left: f32, right: f32) -> f32 {
+        (right - left).abs()
+    }   
+       
+    #[test]
+    pub fn test_boolean_scorer() {
+        let occurs = vec!(Occur::Should, Occur::Should);
+        let occur_filter = OccurFilter::new(&occurs);
+        
+        let left_fieldnorms = U32FastFieldReader::from(vec!(100,200,300));
+        let left_tester = SegmentPostingsTester::from(vec!(1, 2, 3));
+        let left = left_tester.get();
+        let left_scorer = TermScorer {
+            idf: 1f32,
+            fieldnorm_reader: left_fieldnorms,
+            segment_postings: left,
+        };
+        
+        let right_fieldnorms = U32FastFieldReader::from(vec!(15,25,35));
+        let right_tester = SegmentPostingsTester::from(vec!(1, 3, 8));
+        let right = right_tester.get();  
+        let mut right_scorer = TermScorer {
+            idf: 4f32,
+            fieldnorm_reader: right_fieldnorms,
+            segment_postings: right,
+        };
+        let score_combiner = ScoreCombiner::from(vec!(0f32, 1f32, 2f32));
+        let mut boolean_scorer = BooleanScorer::new(vec!(left_scorer, right_scorer), occur_filter);
+        boolean_scorer.set_score_combiner(score_combiner);
+        assert_eq!(boolean_scorer.next(), Some(1u32));
+        assert!(abs_diff(boolean_scorer.score(), 1.7414213) < 0.001);
+        assert_eq!(boolean_scorer.next(), Some(2u32));
+        assert!(abs_diff(boolean_scorer.score(), 0.057735026) < 0.001f32);
+        assert_eq!(boolean_scorer.next(), Some(3u32));
+        assert_eq!(boolean_scorer.next(), Some(8u32));
+        assert!(abs_diff(boolean_scorer.score(), 1.0327955) < 0.001f32);
+        assert!(!boolean_scorer.advance());
+    }
+    
+    
+    #[test]
+    pub fn test_term_scorer() {
+        let left_fieldnorms = U32FastFieldReader::from(vec!(10, 4));
+        assert_eq!(left_fieldnorms.get(0), 10);
+        assert_eq!(left_fieldnorms.get(1), 4);
+        let left_tester = SegmentPostingsTester::from(vec!(1));
+        let left = left_tester.get();
+        let mut left_scorer = TermScorer {
+            idf: 0.30685282, // 1f32,
+            fieldnorm_reader: left_fieldnorms,
+            segment_postings: left,
+        };
+        left_scorer.advance();
+        assert!(abs_diff(left_scorer.score(), 0.15342641) < 0.001f32);
+    }
+
+}

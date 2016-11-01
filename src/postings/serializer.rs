@@ -66,13 +66,16 @@ pub struct PostingsSerializer {
 
 impl PostingsSerializer {
     
+    
+    
     /// Open a new `PostingsSerializer` for the given segment  
-    pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
-        let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
+    pub fn new(
+        terms_write: WritePtr,
+        postings_write: WritePtr,
+        positions_write: WritePtr,
+        schema: Schema
+    ) -> Result<PostingsSerializer> {
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
-        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
-        let positions_write = try!(segment.open_write(SegmentComponent::POSITIONS));
-        let schema = segment.schema();
         Ok(PostingsSerializer {
             terms_fst_builder: terms_fst_builder,
             postings_write: postings_write,
@@ -89,6 +92,20 @@ impl PostingsSerializer {
             text_indexing_options: TextIndexingOptions::Unindexed,
             term_open: false,
         })
+    }
+    
+    
+    /// Open a new `PostingsSerializer` for the given segment  
+    pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
+        let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
+        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
+        let positions_write = try!(segment.open_write(SegmentComponent::POSITIONS));
+        PostingsSerializer::new(
+            terms_write,
+            postings_write,
+            positions_write,
+            segment.schema()
+        )
     }
     
     fn load_indexing_options(&mut self, field: Field) {

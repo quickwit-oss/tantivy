@@ -62,7 +62,6 @@ impl<'a> SegmentPostings<'a> {
 
 
 impl<'a> DocSet for SegmentPostings<'a> {
-
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     #[inline]

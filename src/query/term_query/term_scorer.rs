@@ -27,6 +27,7 @@ impl<'a> Scorer for TermScorer<'a> {
     fn score(&self,) -> Score {
         let doc = self.segment_postings.doc();
         let field_norm = self.fieldnorm_reader.get(doc);
-        self.idf * (self.segment_postings.term_freq() as f32 / field_norm as f32).sqrt() 
+        self.idf * (self.segment_postings.term_freq() as f32 / field_norm as f32).sqrt()
     } 
 }
+

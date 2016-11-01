@@ -17,7 +17,9 @@ mod offset_postings;
 mod freq_handler;
 mod docset;
 mod segment_postings_option;
+mod segment_postings_tester;
 
+pub use self::segment_postings_tester::SegmentPostingsTester;
 pub use self::docset::{SkipResult, DocSet};
 pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
