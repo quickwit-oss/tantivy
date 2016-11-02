@@ -87,9 +87,14 @@ mod tests {
     }
 
     #[test]
-    fn test_log_merge_policy_small() {
-        // deal correctly with tiny segments?
+    fn test_log_merge_policy_within_levels() {
+        // multiple levels all get merged correctly
+        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 11),
+                              SegmentMeta::new(SegmentId::generate_random(), 12),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000)];
+        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
+        assert!(result_list.len() == 2);
     }
-
-    // what else... deletions? threading/concurrency?
 }
