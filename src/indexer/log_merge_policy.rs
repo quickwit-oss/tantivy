@@ -17,7 +17,7 @@ impl MergePolicy for LogMergePolicy {
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
-        size_sorted_tuples.sort_by_key(|x| x.1);
+        size_sorted_tuples.sort_by(|x,y| y.cmp(x));
 
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.iter()
             .map(|x| (x.0, (x.1 as f64).log2()))
@@ -59,7 +59,7 @@ mod tests {
     use super::*;
     use indexer::merge_policy::MergePolicy;
     use core::{SegmentMeta, SegmentId};
-    
+
     #[test]
     fn test_log_merge_policy_empty() {
         let y = Vec::new();
@@ -78,6 +78,12 @@ mod tests {
     #[test]
     fn test_log_merge_policy_levels() {
         // multiple levels all get merged correctly
+        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000)];
+        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
+        assert!(result_list.len() == 2);
     }
 
     #[test]
