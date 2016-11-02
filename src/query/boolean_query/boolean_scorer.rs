@@ -157,7 +157,6 @@ mod tests {
     
     use super::*;
     use postings::{DocSet, VecPostings};
-    use query::TfIdf;
     use query::Scorer;
     use query::OccurFilter;
     use query::term_query::TermScorer;
@@ -167,7 +166,7 @@ mod tests {
     use super::super::ScoreCombiner;
     use std::path::Path;
     use query::Occur;
-    use postings::SegmentPostingsTester;
+    use postings::SegmentPostingsTestFactory;
     use postings::Postings;
     use fastfield::{U32FastFieldReader, U32FastFieldWriter, FastFieldSerializer};
 
@@ -176,15 +175,18 @@ mod tests {
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
     }   
-       
+    
+    lazy_static! {
+        static ref segment_postings_test_factory: SegmentPostingsTestFactory = SegmentPostingsTestFactory::default();
+    }
+    
     #[test]
     pub fn test_boolean_scorer() {
         let occurs = vec!(Occur::Should, Occur::Should);
         let occur_filter = OccurFilter::new(&occurs);
-        
+       
         let left_fieldnorms = U32FastFieldReader::from(vec!(100,200,300));
-        let left_tester = SegmentPostingsTester::from(vec!(1, 2, 3));
-        let left = left_tester.get();
+        let left = segment_postings_test_factory.from_data(vec!(1, 2, 3));
         let left_scorer = TermScorer {
             idf: 1f32,
             fieldnorm_reader: left_fieldnorms,
@@ -192,8 +194,7 @@ mod tests {
         };
         
         let right_fieldnorms = U32FastFieldReader::from(vec!(15,25,35));
-        let right_tester = SegmentPostingsTester::from(vec!(1, 3, 8));
-        let right = right_tester.get();  
+        let right = segment_postings_test_factory.from_data(vec!(1, 3, 8));
         let mut right_scorer = TermScorer {
             idf: 4f32,
             fieldnorm_reader: right_fieldnorms,
@@ -218,8 +219,7 @@ mod tests {
         let left_fieldnorms = U32FastFieldReader::from(vec!(10, 4));
         assert_eq!(left_fieldnorms.get(0), 10);
         assert_eq!(left_fieldnorms.get(1), 4);
-        let left_tester = SegmentPostingsTester::from(vec!(1));
-        let left = left_tester.get();
+        let left = segment_postings_test_factory.from_data(vec!(1));
         let mut left_scorer = TermScorer {
             idf: 0.30685282, // 1f32,
             fieldnorm_reader: left_fieldnorms,

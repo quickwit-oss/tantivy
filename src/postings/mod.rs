@@ -17,9 +17,8 @@ mod offset_postings;
 mod freq_handler;
 mod docset;
 mod segment_postings_option;
-mod segment_postings_tester;
+mod segment_postings_test_factory;
 
-pub use self::segment_postings_tester::SegmentPostingsTester;
 pub use self::docset::{SkipResult, DocSet};
 pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
@@ -37,6 +36,10 @@ pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::intersection;
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
+
+#[cfg(test)]
+pub use self::segment_postings_test_factory::SegmentPostingsTestFactory;
+
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 

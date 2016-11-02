@@ -2,7 +2,7 @@ use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
-
+use std::borrow::Cow;
 
 
 
@@ -16,7 +16,7 @@ pub struct SegmentPostings<'a> {
     doc_offset: u32,
     block_decoder: SIMDBlockDecoder,
     freq_handler: FreqHandler,
-    remaining_data: &'a [u8],
+    remaining_data: &'a[u8],
     cur: Wrapping<usize>,
 }
 

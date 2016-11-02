@@ -65,9 +65,7 @@ pub struct PostingsSerializer {
 }
 
 impl PostingsSerializer {
-    
-    
-    
+
     /// Open a new `PostingsSerializer` for the given segment  
     pub fn new(
         terms_write: WritePtr,
