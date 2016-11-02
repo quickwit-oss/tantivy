@@ -40,14 +40,14 @@ impl TermWeight {
                     TermScorer {
                         idf: self.idf(),
                         fieldnorm_reader: fieldnorm_reader,
-                        segment_postings: segment_postings,
+                        postings: segment_postings,
                     }
                 )
                 .unwrap_or(
                     TermScorer {
                         idf: 1f32,
                         fieldnorm_reader: U32FastFieldReader::empty(),
-                        segment_postings: SegmentPostings::empty()
+                        postings: SegmentPostings::empty()
                     })
         )
     }

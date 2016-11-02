@@ -1,33 +1,14 @@
 use Result;
-use super::Weight;
+use query::Weight;
 use std::any::Any;
 use schema::Term;
+use query::MultiTermWeight;
 use query::Query;
 use core::searcher::Searcher;
-use core::SegmentReader;
-use query::Scorer;
 use query::occur::Occur;
 use query::occur_filter::OccurFilter;
-use query::term_query::{TermQuery, TermWeight, TermScorer};
-use query::boolean_query::BooleanScorer;
+use query::term_query::TermQuery;
 
-struct MultiTermWeight {
-    weights: Vec<TermWeight>,
-    occur_filter: OccurFilter,
-}
-
-
-impl Weight for MultiTermWeight {
-    
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
-        let mut term_scorers: Vec<TermScorer<_>> = Vec::new();
-        for term_weight in &self.weights {
-            let term_scorer = try!(term_weight.specialized_scorer(reader));
-            term_scorers.push(term_scorer);
-        }
-        Ok(box BooleanScorer::new(term_scorers, self.occur_filter.clone())) 
-    }
-}
 
 /// Query involving one or more terms.
 
@@ -44,17 +25,7 @@ impl MultiTermQuery {
         self.occur_terms.len()
     }
 
-}
-
-
-
-impl Query for MultiTermQuery {
-    
-    fn as_any(&self) -> &Any {
-        self
-    }
-    
-    fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
+    pub fn specialized_weight(&self, searcher: &Searcher) -> MultiTermWeight {
         let term_queries: Vec<TermQuery> = self.occur_terms
             .iter()
             .map(|&(_, ref term)| TermQuery::from(term.clone()))
@@ -67,12 +38,23 @@ impl Query for MultiTermQuery {
         let weights = term_queries.iter()
             .map(|term_query| term_query.specialized_weight(searcher))
             .collect();
-        Ok(
-            Box::new(MultiTermWeight {
-                weights: weights,
-                occur_filter: occur_filter,
-            })
-        )
+        MultiTermWeight {
+            weights: weights,
+            occur_filter: occur_filter,
+        }
+    }
+}
+
+
+
+impl Query for MultiTermQuery {
+    
+    fn as_any(&self) -> &Any {
+        self
+    }
+    
+    fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
+        Ok(box self.specialized_weight(searcher))
     }
 }
 

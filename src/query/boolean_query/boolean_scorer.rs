@@ -8,7 +8,7 @@ use query::boolean_query::ScoreCombiner;
 
 
 /// Each `HeapItem` represents the head of
-/// a segment postings being merged.
+/// one of scorer being merged.
 ///
 /// * `doc` - is the current doc id for the given segment postings 
 /// * `ord` - is the ordinal used to identify to which segment postings
@@ -42,6 +42,10 @@ pub struct BooleanScorer<TScorer: Scorer> {
 
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
+    pub fn scorers(&self) -> &[TScorer] {
+        &self.postings
+    }
+
     pub fn new(postings: Vec<TScorer>,
                occur_filter: OccurFilter) -> BooleanScorer<TScorer> {
         let score_combiner = ScoreCombiner::default_for_num_scorers(postings.len());
@@ -173,7 +177,7 @@ mod tests {
         let left_scorer = TermScorer {
             idf: 1f32,
             fieldnorm_reader: left_fieldnorms,
-            segment_postings: left,
+            postings: left,
         };
         
         let right_fieldnorms = U32FastFieldReader::from(vec!(15,25,35));
@@ -182,7 +186,7 @@ mod tests {
         let right_scorer = TermScorer {
             idf: 4f32,
             fieldnorm_reader: right_fieldnorms,
-            segment_postings: right,
+            postings: right,
         };
 
         let mut boolean_scorer = BooleanScorer::new(vec!(left_scorer, right_scorer), occur_filter);
@@ -206,7 +210,7 @@ mod tests {
         let mut left_scorer = TermScorer {
             idf: 0.30685282,
             fieldnorm_reader: left_fieldnorms,
-            segment_postings: left,
+            postings: left,
         };
         left_scorer.advance();
         assert!(abs_diff(left_scorer.score(), 0.15342641) < 0.001f32);
