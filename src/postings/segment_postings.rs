@@ -2,9 +2,9 @@ use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
-use std::borrow::Cow;
 
 
+const EMPTY_DATA: [u8; 0] = [0u8; 0];
 
 /// `SegmentPostings` represents the inverted list or postings associated to 
 /// a term in a `Segment`.
@@ -52,6 +52,18 @@ impl<'a> SegmentPostings<'a> {
         }
     }
     
+    /// Returns an empty segment postings object
+    pub fn empty() -> SegmentPostings<'static> {
+        SegmentPostings {
+            len: 0,
+            doc_offset: 0,
+            block_decoder: SIMDBlockDecoder::new(),
+            freq_handler: FreqHandler::new_without_freq(),
+            remaining_data: &EMPTY_DATA,
+            cur: Wrapping(usize::max_value()),
+        }
+    }
+
     /// Index within a block is used as an address when
     /// interacting with the `FreqHandler` 
     fn index_within_block(&self,) -> usize {

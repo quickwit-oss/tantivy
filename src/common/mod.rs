@@ -25,3 +25,4 @@ pub trait HasLen {
         self.len() == 0
     }
 }
+

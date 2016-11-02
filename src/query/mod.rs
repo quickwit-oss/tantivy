@@ -16,13 +16,8 @@ mod similarity;
 mod weight;
 mod occur_filter;
 mod term_query;
-mod empty_scorer;
-
-
-pub use self::empty_scorer::EmptyScorer;
 
 pub use self::occur_filter::OccurFilter;
-
 pub use self::similarity::Similarity;
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur::Occur;

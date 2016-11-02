@@ -1,18 +1,17 @@
 use Score;
 use DocId;
-use postings::SegmentPostings;
 use fastfield::U32FastFieldReader;
 use postings::DocSet;
 use query::Scorer;
 use postings::Postings;
 
-pub struct TermScorer<'a> {
+pub struct TermScorer<TPostings> where TPostings: Postings {
     pub idf: Score,
     pub fieldnorm_reader: U32FastFieldReader,
-    pub segment_postings: SegmentPostings<'a>,
+    pub segment_postings: TPostings,
 }
 
-impl<'a> DocSet for TermScorer<'a> {
+impl<TPostings> DocSet for TermScorer<TPostings> where TPostings: Postings {
 
     fn advance(&mut self,) -> bool {
         self.segment_postings.advance()
@@ -23,7 +22,7 @@ impl<'a> DocSet for TermScorer<'a> {
     }
 }
 
-impl<'a> Scorer for TermScorer<'a> {
+impl<TPostings> Scorer for TermScorer<TPostings> where TPostings: Postings {
     fn score(&self,) -> Score {
         let doc = self.segment_postings.doc();
         let field_norm = self.fieldnorm_reader.get(doc);

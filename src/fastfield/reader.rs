@@ -13,6 +13,14 @@ use fastfield::FastFieldSerializer;
 use fastfield::U32FastFieldsWriter;
 use super::compute_num_bits;
 
+
+lazy_static! {
+    static ref U32_FAST_FIELD_EMPTY: ReadOnlySource = {
+        let u32_fast_field = U32FastFieldReader::from(Vec::new());
+        u32_fast_field._data.clone()
+    };
+}
+
 pub struct U32FastFieldReader {
     _data: ReadOnlySource,
     data_ptr: *const u8,
@@ -23,6 +31,10 @@ pub struct U32FastFieldReader {
 }
 
 impl U32FastFieldReader {
+
+    pub fn empty() -> U32FastFieldReader {
+        U32FastFieldReader::open(U32_FAST_FIELD_EMPTY.clone()).expect("should always work.")
+    }
 
     pub fn min_val(&self,) -> u32 {
         self.min_val

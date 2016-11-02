@@ -1,8 +1,5 @@
 use std::borrow::Borrow;
 use postings::docset::DocSet;
-use common::HasLen;
-
-
 
 /// Postings (also called inverted list)
 ///
@@ -51,17 +48,3 @@ impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
 }
 
 
-
-impl<THasLen: HasLen> HasLen for Box<THasLen> {
-     fn len(&self,) -> usize {
-         let unboxed: &THasLen = self.borrow();
-        unboxed.borrow().len()
-     }
-}
-
-impl<'a> HasLen for &'a HasLen {
-    fn len(&self,) -> usize {
-        let unref: &HasLen = *self;
-        unref.len()
-    }
-}

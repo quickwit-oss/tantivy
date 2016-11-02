@@ -11,7 +11,6 @@ use query::occur_filter::OccurFilter;
 use query::term_query::{TermQuery, TermWeight, TermScorer};
 use query::boolean_query::BooleanScorer;
 
-
 struct MultiTermWeight {
     weights: Vec<TermWeight>,
     occur_filter: OccurFilter,
@@ -21,12 +20,10 @@ struct MultiTermWeight {
 impl Weight for MultiTermWeight {
     
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
-        let mut term_scorers: Vec<TermScorer<'a>> = Vec::new();
+        let mut term_scorers: Vec<TermScorer<_>> = Vec::new();
         for term_weight in &self.weights {
-            let term_scorer_option = try!(term_weight.specialized_scorer(reader));
-            if let Some(term_scorer) = term_scorer_option {
-                term_scorers.push(term_scorer);
-            }
+            let term_scorer = try!(term_weight.specialized_scorer(reader));
+            term_scorers.push(term_scorer);
         }
         Ok(box BooleanScorer::new(term_scorers, self.occur_filter.clone())) 
     }

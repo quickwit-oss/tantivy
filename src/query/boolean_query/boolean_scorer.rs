@@ -1,6 +1,5 @@
 use query::Scorer;
 use DocId;
-use Score;
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use postings::DocSet;
@@ -38,17 +37,13 @@ pub struct BooleanScorer<TScorer: Scorer> {
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
     score_combiner: ScoreCombiner,
-    filter: OccurFilter,
+    occur_filter: OccurFilter,
 }
 
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
-    pub fn set_score_combiner(&mut self, score_combiner: ScoreCombiner)  {
-        self.score_combiner = score_combiner;
-    }
-    
     pub fn new(postings: Vec<TScorer>,
-               filter: OccurFilter) -> BooleanScorer<TScorer> {
+               occur_filter: OccurFilter) -> BooleanScorer<TScorer> {
         let score_combiner = ScoreCombiner::default_for_num_scorers(postings.len());
         let mut non_empty_postings: Vec<TScorer> = Vec::new();
         for mut posting in postings {
@@ -73,7 +68,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             queue: BinaryHeap::from(heap_items),
             doc: 0u32,
             score_combiner: score_combiner,
-            filter: filter,
+            occur_filter: occur_filter,
             
         }
     }
@@ -131,7 +126,7 @@ impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
                 }
                 self.advance_head();
             } 
-            if self.filter.accept(ord_bitset) {
+            if self.occur_filter.accept(ord_bitset) {
                 return true;
             }
         }
@@ -160,33 +155,21 @@ mod tests {
     use query::Scorer;
     use query::OccurFilter;
     use query::term_query::TermScorer;
-    use directory::Directory;
-    use directory::RAMDirectory;
-    use schema::Field;
-    use super::super::ScoreCombiner;
-    use std::path::Path;
     use query::Occur;
-    use postings::SegmentPostingsTestFactory;
-    use postings::Postings;
-    use fastfield::{U32FastFieldReader, U32FastFieldWriter, FastFieldSerializer};
+    use fastfield::{U32FastFieldReader};
 
-    
-   
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
     }   
-    
-    lazy_static! {
-        static ref segment_postings_test_factory: SegmentPostingsTestFactory = SegmentPostingsTestFactory::default();
-    }
-    
+
     #[test]
     pub fn test_boolean_scorer() {
         let occurs = vec!(Occur::Should, Occur::Should);
         let occur_filter = OccurFilter::new(&occurs);
        
         let left_fieldnorms = U32FastFieldReader::from(vec!(100,200,300));
-        let left = segment_postings_test_factory.from_data(vec!(1, 2, 3));
+        
+        let left = VecPostings::from(vec!(1, 2, 3));
         let left_scorer = TermScorer {
             idf: 1f32,
             fieldnorm_reader: left_fieldnorms,
@@ -194,22 +177,22 @@ mod tests {
         };
         
         let right_fieldnorms = U32FastFieldReader::from(vec!(15,25,35));
-        let right = segment_postings_test_factory.from_data(vec!(1, 3, 8));
-        let mut right_scorer = TermScorer {
+        let right = VecPostings::from(vec!(1, 3, 8));
+        
+        let right_scorer = TermScorer {
             idf: 4f32,
             fieldnorm_reader: right_fieldnorms,
             segment_postings: right,
         };
-        let score_combiner = ScoreCombiner::from(vec!(0f32, 1f32, 2f32));
+
         let mut boolean_scorer = BooleanScorer::new(vec!(left_scorer, right_scorer), occur_filter);
-        boolean_scorer.set_score_combiner(score_combiner);
         assert_eq!(boolean_scorer.next(), Some(1u32));
-        assert!(abs_diff(boolean_scorer.score(), 1.7414213) < 0.001);
+        assert!(abs_diff(boolean_scorer.score(), 0.8707107) < 0.001);
         assert_eq!(boolean_scorer.next(), Some(2u32));
-        assert!(abs_diff(boolean_scorer.score(), 0.057735026) < 0.001f32);
+        assert!(abs_diff(boolean_scorer.score(), 0.028867513) < 0.001f32);
         assert_eq!(boolean_scorer.next(), Some(3u32));
         assert_eq!(boolean_scorer.next(), Some(8u32));
-        assert!(abs_diff(boolean_scorer.score(), 1.0327955) < 0.001f32);
+        assert!(abs_diff(boolean_scorer.score(), 0.5163978) < 0.001f32);
         assert!(!boolean_scorer.advance());
     }
     
@@ -219,9 +202,9 @@ mod tests {
         let left_fieldnorms = U32FastFieldReader::from(vec!(10, 4));
         assert_eq!(left_fieldnorms.get(0), 10);
         assert_eq!(left_fieldnorms.get(1), 4);
-        let left = segment_postings_test_factory.from_data(vec!(1));
+        let left = VecPostings::from(vec!(1));
         let mut left_scorer = TermScorer {
-            idf: 0.30685282, // 1f32,
+            idf: 0.30685282,
             fieldnorm_reader: left_fieldnorms,
             segment_postings: left,
         };

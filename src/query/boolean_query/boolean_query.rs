@@ -8,7 +8,16 @@ use query::Query;
 use query::Occur;
 use query::OccurFilter;
 
-
+/// The boolean query combines a set of queries
+///
+/// The documents matched by the boolean query are
+/// those which
+/// * match all of the sub queries associated with the 
+/// `Must` occurence
+/// * match none of the sub queries associated with the 
+/// `MustNot` occurence.
+/// * match at least one of the subqueries that is not 
+/// a `MustNot` occurence.
 #[derive(Debug)]
 pub struct BooleanQuery {
     clauses: Vec<BooleanClause>,

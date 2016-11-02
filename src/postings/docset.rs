@@ -61,7 +61,7 @@ pub trait DocSet {
 }
 
 
-impl<TDocSet: DocSet> DocSet for Box<TDocSet> {
+impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
 
     fn advance(&mut self,) -> bool {
         let unboxed: &mut TDocSet = self.borrow_mut();
