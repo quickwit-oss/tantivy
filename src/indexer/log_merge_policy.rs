@@ -6,6 +6,7 @@ pub struct LogMergePolicy;
 use std::f64;
 
 const LEVEL_LOG_SIZE: f64 = 0.75;
+const MIN_SEGMENT_SIZE: u32 = 2;
 const MIN_MERGE_SIZE: usize = 3;
 
 impl MergePolicy for LogMergePolicy {
@@ -20,8 +21,15 @@ impl MergePolicy for LogMergePolicy {
 
         size_sorted_tuples.sort_by(|x,y| y.cmp(x));
 
+        fn clip_min_size(size: u32 ) -> u32 {
+            if size <= MIN_SEGMENT_SIZE {
+                MIN_SEGMENT_SIZE
+            } else {
+                size
+            }
+        }
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.iter()
-            .map(|x| (x.0, (x.1 as f64).log2()))
+            .map(|x| (x.0, (clip_min_size(x.1) as f64).log2()))
             .collect();
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];
@@ -100,5 +108,17 @@ mod tests {
                               SegmentMeta::new(SegmentId::generate_random(), 1000)];
         let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
         assert!(result_list.len() == 2);
+    }
+    #[test]
+    fn test_log_merge_policy_small_segments() {
+        // multiple levels all get merged correctly
+        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 1),
+                              SegmentMeta::new(SegmentId::generate_random(), 1),
+                              SegmentMeta::new(SegmentId::generate_random(), 1),
+                              SegmentMeta::new(SegmentId::generate_random(), 2),
+                              SegmentMeta::new(SegmentId::generate_random(), 2),
+                              SegmentMeta::new(SegmentId::generate_random(), 2)];
+        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
+        assert!(result_list.len() == 1);
     }
 }
