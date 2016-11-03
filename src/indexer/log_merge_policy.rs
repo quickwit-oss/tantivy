@@ -6,6 +6,7 @@ pub struct LogMergePolicy;
 use std::f64;
 
 const LEVEL_LOG_SIZE: f64 = 0.75;
+const MIN_MERGE_SIZE: usize = 3;
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
@@ -25,9 +26,7 @@ impl MergePolicy for LogMergePolicy {
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];
         let mut current_max_log_size = first_score;
-        let mut levels = Vec::new();
-        levels.push(Vec::new());
-        levels.last_mut().unwrap().push(first_ind);
+        let mut levels = vec!(vec!(first_ind));
         for &(ind, score) in (&size_sorted_log_tuples).iter().skip(1) {
             if score < (current_max_log_size - LEVEL_LOG_SIZE) {
                 current_max_log_size = score;
@@ -37,6 +36,7 @@ impl MergePolicy for LogMergePolicy {
         }
 
         let result = levels.iter()
+            .filter(|level| {level.len() >= MIN_MERGE_SIZE})
             .map(|ind_vec| {
                 MergeCandidate(ind_vec.iter()
                     .map(|&ind| segments[ind].segment_id)
@@ -70,7 +70,8 @@ mod tests {
     #[test]
     fn test_log_merge_policy_pair() {
         let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 10)];
+                              SegmentMeta::new(SegmentId::generate_random(), 10),
+        SegmentMeta::new(SegmentId::generate_random(), 10)];
         let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
         assert!(result_list.len() == 1);
     }
@@ -80,6 +81,8 @@ mod tests {
         // multiple levels all get merged correctly
         let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
                               SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 10),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000)];
         let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
@@ -92,6 +95,7 @@ mod tests {
         let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
                               SegmentMeta::new(SegmentId::generate_random(), 11),
                               SegmentMeta::new(SegmentId::generate_random(), 12),
+                              SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000)];
         let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
