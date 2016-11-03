@@ -49,7 +49,7 @@ mod tests {
     use core::Index;
     use std::iter;
     use datastruct::stacker::Heap;
-    use query::{Query, TermQuery};
+    use query::TermQuery;
     
         
     #[test]

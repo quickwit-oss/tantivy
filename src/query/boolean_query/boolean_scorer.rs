@@ -77,11 +77,6 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
         }
     }
     
-    pub fn num_subscorers(&self) -> usize {
-        self.postings.len()
-    }
-    
-    
     /// Advances the head of our heap (the segment postings with the lowest doc)
     /// It will also update the new current `DocId` as well as the term frequency
     /// associated with the segment postings.

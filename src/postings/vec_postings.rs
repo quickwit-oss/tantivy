@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
 use DocId;
-use postings::{Postings, DocSet, SkipResult, HasLen};
+use postings::{Postings, DocSet, HasLen};
 use std::num::Wrapping;
-use std::cmp::Ordering;
 
 const EMPTY_ARRAY: [u32; 0] = []; 
 
@@ -34,32 +33,6 @@ impl DocSet for VecPostings {
     
     fn doc(&self,) -> DocId {
         self.doc_ids[self.cursor.0]
-    }
-    
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        let next_id: usize = (self.cursor + Wrapping(
-                if self.cursor.0 == usize::max_value() {
-                    1  
-                }
-                else {
-                    0
-                }
-        )).0;
-        for i in next_id .. self.doc_ids.len() {
-            let doc: DocId = self.doc_ids[i];
-            match doc.cmp(&target) {
-                Ordering::Equal => {
-                    self.cursor = Wrapping(i);
-                    return SkipResult::Reached;
-                }
-                Ordering::Greater => {
-                    self.cursor = Wrapping(i);
-                    return SkipResult::OverStep;
-                }
-                Ordering::Less => {}
-            }
-        }
-        SkipResult::End
     }
 }
 
@@ -102,14 +75,6 @@ pub mod tests {
         assert_eq!(postings.doc(), 300u32);
         assert_eq!(postings.skip_next(6000u32), SkipResult::End);
     }
-    
-    #[test]
-    pub fn test_vec_postings_skip_without_advance() {
-        let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e*3).collect();
-        let mut postings = VecPostings::from(doc_ids);
-        assert_eq!(postings.skip_next(300u32), SkipResult::Reached);
-        assert_eq!(postings.doc(), 300u32);
-        assert_eq!(postings.skip_next(6000u32), SkipResult::End);
-    }
+
 }
 

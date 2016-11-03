@@ -29,8 +29,14 @@ pub trait DocSet {
     /// 
     /// SkipResult expresses whether the `target value` was reached, overstepped,
     /// or if the `DocSet` was entirely consumed without finding any value
-    /// greater or equal to the `target`.  
+    /// greater or equal to the `target`.
+    ///
+    /// WARNING: Calling skip always advances the docset.
+    /// More specifically, if the docset is already positionned on the target
+    /// skipping will advance to the next position and return SkipResult::Overstep.  
+    ///
     fn skip_next(&mut self, target: DocId) -> SkipResult {
+        self.advance();
         loop {
             match self.doc().cmp(&target) {
                 Ordering::Less => {

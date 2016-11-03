@@ -1,6 +1,5 @@
 use postings::DocSet;
 use postings::SkipResult;
-use std::cmp::Ordering;
 use DocId;
 
 // TODO Find a way to specialize `IntersectionDocSet`
@@ -23,38 +22,53 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
     }
 }
 
+impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
+    pub fn docsets(&self) -> &[TDocSet] {
+        &self.docsets[..]
+    }
+}
+
 
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
-    
+
     fn advance(&mut self,) -> bool {
         if self.finished {
             return false;
         }
-
-        'outter: loop {
-            let doc_candidate = {
-                let mut first_docset = &mut self.docsets[0];
-                if !first_docset.advance() {
+        let num_docsets = self.docsets.len();
+        let mut count_matching = 1;
+        let mut doc_candidate = {
+            let mut first_docset = &mut self.docsets[0];
+            if !first_docset.advance() {
+                self.finished = true;
+                return false;
+            }
+            first_docset.doc()
+        };
+        let mut ord = 1;
+        loop {
+            let mut doc_set = &mut self.docsets[ord];
+            match doc_set.skip_next(doc_candidate) {
+                SkipResult::Reached => {
+                    count_matching += 1;
+                    if count_matching == num_docsets {
+                        self.doc = doc_candidate;
+                        return true;
+                    }
+                }
+                SkipResult::End => {
                     self.finished = true;
                     return false;
                 }
-                first_docset.doc()
-            };
-            for docset_ord in 1..self.docsets.len() {
-                let docset: &mut TDocSet = &mut self.docsets[docset_ord];
-                match docset.skip_next(doc_candidate) {
-                    SkipResult::End => {
-                        self.finished = true;
-                        return false;
-                    }
-                    SkipResult::OverStep => {
-                        continue 'outter;
-                    },
-                    SkipResult::Reached => {}
+                SkipResult::OverStep => {
+                    count_matching = 1;
+                    doc_candidate = doc_set.doc();
                 }
             }
-            self.doc = doc_candidate;
-            return true;
+            ord += 1;
+            if ord == num_docsets {
+                ord = 0;
+            }
         }
     }
     

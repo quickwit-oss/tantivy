@@ -1,9 +1,7 @@
 use schema::Term;
 use query::Query;
 use core::searcher::Searcher;
-use query::Occur;
 use super::PhraseWeight;
-use query::MultiTermQuery;
 use std::any::Any;
 use query::Weight;
 use Result;
@@ -11,7 +9,7 @@ use Result;
 
 #[derive(Debug)]
 pub struct PhraseQuery {
-    all_terms_query: MultiTermQuery,    
+    phrase_terms: Vec<Term>,    
 }
 
 impl Query for PhraseQuery {
@@ -27,21 +25,17 @@ impl Query for PhraseQuery {
     ///
     /// See [Weight](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let multi_term_weight = self.all_terms_query.specialized_weight(searcher);
-        Ok(box PhraseWeight::from(multi_term_weight))
+        Ok(box PhraseWeight::from(self.phrase_terms.clone()))
     }
 
 }
 
 
 impl From<Vec<Term>> for PhraseQuery {
-    fn from(terms: Vec<Term>) -> PhraseQuery {
-        assert!(terms.len() > 1);
-        let occur_terms: Vec<(Occur, Term)> = terms.into_iter()
-            .map(|term| (Occur::Must, term))
-            .collect();
+    fn from(phrase_terms: Vec<Term>) -> PhraseQuery {
+        assert!(phrase_terms.len() > 1);
         PhraseQuery {
-            all_terms_query: MultiTermQuery::from(occur_terms),
+            phrase_terms: phrase_terms,
         }
     }
 }

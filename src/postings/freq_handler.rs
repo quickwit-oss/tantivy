@@ -95,8 +95,6 @@ impl FreqHandler {
     pub fn positions(&self, idx: usize) -> &[u32] {
         let start = self.positions_offsets[idx];
         let stop = self.positions_offsets[idx + 1];
-        println!("{} -> {}", start, stop);
-        println!("{} {:?}", idx, &self.positions_offsets[..10]);
         &self.positions[start..stop]
     }
     

@@ -1,34 +1,34 @@
 use query::Scorer;
 use DocSet;
-use query::term_query::TermScorer;
-use query::boolean_query::BooleanScorer;
 use postings::SegmentPostings;
 use postings::Postings;
+use postings::IntersectionDocSet;
 use DocId;
 
 pub struct PhraseScorer<'a> {
-    pub all_term_scorer: BooleanScorer<TermScorer<SegmentPostings<'a>>>,
+    pub intersection_docset: IntersectionDocSet<SegmentPostings<'a>>,
     pub positions_offsets: Vec<u32>,
 }
 
 impl<'a> PhraseScorer<'a> {
     fn phrase_match(&self) -> bool {
-        println!("phrase_match");
-        let mut positions_arr: Vec<&[u32]> = self.all_term_scorer
-            .scorers()
+        let mut positions_arr: Vec<&[u32]> = self.intersection_docset
+            .docsets()
             .iter()
-            .map(|scorer| {
-                println!("{:?}", scorer.doc());
-                scorer.postings().positions()
+            .map(|posting| {
+                posting.positions()
             })
             .collect();
         println!("positions arr {:?}", positions_arr);
+        
+        
         let mut cur = 0;
         'outer: loop {
             for i in 0..positions_arr.len() {
+                println!("i {}", i);
                 let positions: &mut &[u32] = &mut positions_arr[i];
-                println!("{} {:?} {:?}", i, positions, self.positions_offsets);
                 if positions.len() == 0 {
+                    println!("NOPE");
                     return false;
                 }
                 let head_position = positions[0] + self.positions_offsets[i];
@@ -51,9 +51,10 @@ impl<'a> PhraseScorer<'a> {
 
 impl<'a> DocSet for PhraseScorer<'a> {
     fn advance(&mut self,) -> bool {
-        println!("docset advance");
-        while self.all_term_scorer.advance() {
+        while self.intersection_docset.advance() {
+            println!("doc {}", self.intersection_docset.doc());
             if self.phrase_match() {
+                println!("return {}", self.intersection_docset.doc());
                 return true;
             }
         }
@@ -61,14 +62,14 @@ impl<'a> DocSet for PhraseScorer<'a> {
     }
 
     fn doc(&self,) -> DocId {
-        self.all_term_scorer.doc()
+        self.intersection_docset.doc()
     }
 }
 
 
 impl<'a> Scorer for PhraseScorer<'a> {
     fn score(&self,) -> f32 {
-        self.all_term_scorer.score()
+        1f32
     }
     
 }
