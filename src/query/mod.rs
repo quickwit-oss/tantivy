@@ -25,6 +25,7 @@ pub use self::phrase_query::PhraseQuery;
 pub use self::multi_term_query::MultiTermQuery;
 pub use self::multi_term_query::MultiTermWeight;
 pub use self::scorer::Scorer;
+pub use self::scorer::EmptyScorer;
 pub use self::query_parser::QueryParser;
 pub use self::explanation::Explanation;
 pub use self::query_parser::ParsingError;

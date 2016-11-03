@@ -1,4 +1,6 @@
 use DocSet;
+use DocId;
+use Score;
 use collector::Collector;
 use std::ops::{Deref, DerefMut};
 
@@ -10,7 +12,7 @@ pub trait Scorer: DocSet {
     /// Returns the score.
     /// 
     /// This method will perform a bit of computation and is not cached.
-    fn score(&self,) -> f32;
+    fn score(&self,) -> Score;
     
     /// Consumes the complete `DocSet` and
     /// push the scored documents to the collector. 
@@ -23,7 +25,7 @@ pub trait Scorer: DocSet {
 
 
 impl<'a> Scorer for Box<Scorer + 'a> {
-    fn score(&self,) -> f32 {
+    fn score(&self,) -> Score {
         self.deref().score()
     }
     
@@ -32,5 +34,24 @@ impl<'a> Scorer for Box<Scorer + 'a> {
         while scorer.advance() {
             collector.collect(scorer.doc(), scorer.score());
         }
+    }
+}
+
+
+pub struct EmptyScorer;
+
+impl DocSet for EmptyScorer {
+    fn advance(&mut self,) -> bool {
+        false
+    }
+
+    fn doc(&self,) -> DocId {
+        DocId::max_value()
+    }
+}
+
+impl Scorer for EmptyScorer {
+    fn score(&self,) -> Score {
+        0f32
     }
 }

@@ -7,8 +7,8 @@ use DocId;
 
 pub struct PhraseScorer<'a> {
     pub intersection_docset: IntersectionDocSet<SegmentPostings<'a>>,
-    pub positions_offsets: Vec<u32>,
 }
+
 
 impl<'a> PhraseScorer<'a> {
     fn phrase_match(&self) -> bool {
@@ -19,32 +19,40 @@ impl<'a> PhraseScorer<'a> {
                 posting.positions()
             })
             .collect();
-        println!("positions arr {:?}", positions_arr);
         
+        let num_postings = positions_arr.len() as u32;
         
-        let mut cur = 0;
+        let mut ord = 1u32;
+        let mut pos_candidate =  positions_arr[0][0];
+        positions_arr[0] = &(positions_arr[0])[1..];
+        let mut count_matching = 1;
+        
         'outer: loop {
-            for i in 0..positions_arr.len() {
-                println!("i {}", i);
-                let positions: &mut &[u32] = &mut positions_arr[i];
-                if positions.len() == 0 {
-                    println!("NOPE");
-                    return false;
+            let target = pos_candidate + ord;
+            let positions = positions_arr[ord as usize];
+            for i in 0..positions.len() {
+                let pos_i = positions[i];
+                if pos_i < target {
+                    continue;
                 }
-                let head_position = positions[0] + self.positions_offsets[i];
-                println!("cur: {}, head_position {}", cur, head_position);
-                while head_position < cur {
-                    if positions.len() == 1 {
-                        return false;
+                if pos_i == target {
+                    count_matching += 1;
+                    if count_matching == num_postings {
+                        return true;
                     }
-                    *positions = &(*positions)[1..];
                 }
-                if head_position != cur {
-                    cur = head_position;
-                    continue 'outer;
+                else if pos_i > target {
+                    count_matching = 1;
+                    pos_candidate = positions[i] - ord;
+                    positions_arr[ord as usize] = &(positions_arr[ord as usize])[(i+1)..];
                 }
+                ord += 1;
+                if ord == num_postings {
+                    ord = 0;
+                }
+                continue 'outer;
             }
-            return true;
+            return false;
         }
     }
 }
@@ -52,9 +60,7 @@ impl<'a> PhraseScorer<'a> {
 impl<'a> DocSet for PhraseScorer<'a> {
     fn advance(&mut self,) -> bool {
         while self.intersection_docset.advance() {
-            println!("doc {}", self.intersection_docset.doc());
             if self.phrase_match() {
-                println!("return {}", self.intersection_docset.doc());
                 return true;
             }
         }

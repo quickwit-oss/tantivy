@@ -66,7 +66,6 @@ pub trait DocSet {
     } 
 }
 
-
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
 
     fn advance(&mut self,) -> bool {

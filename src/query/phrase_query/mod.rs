@@ -52,18 +52,23 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-        let mut test_collector = TestCollector::default();
-        let build_query = |texts: Vec<&str>| {
+
+        let searcher = index.searcher();
+        let test_query = |texts: Vec<&str>| {
+            let mut test_collector = TestCollector::default();
             let terms: Vec<Term> = texts
                 .iter()
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
-            PhraseQuery::from(terms)
+            let phrase_query = PhraseQuery::from(terms);
+            phrase_query.search(&*searcher, &mut test_collector).expect("search should succeed");
+            test_collector.docs()
         };
-        let phrase_query = build_query(vec!("a", "b", "c"));
-        let searcher = index.searcher();
-        phrase_query.search(&*searcher, &mut test_collector).expect("search should succeed");
-        assert_eq!(test_collector.docs(), vec!(1, 2, 4));
+        assert_eq!(test_query(vec!("a", "b", "c")), vec!(2, 4));
+        assert_eq!(test_query(vec!("a", "b")), vec!(1, 2, 3, 4));
+        assert_eq!(test_query(vec!("b", "b")), vec!(0, 1));
+        assert_eq!(test_query(vec!("g", "ewrwer")), vec!());
+        assert_eq!(test_query(vec!("g", "a")), vec!());
     }
     
 }

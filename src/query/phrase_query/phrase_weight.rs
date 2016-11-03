@@ -5,6 +5,7 @@ use postings::SegmentPostingsOption;
 use core::SegmentReader;
 use super::PhraseScorer;
 use postings::IntersectionDocSet;
+use query::EmptyScorer;
 use Result;
 
 pub struct PhraseWeight {
@@ -27,11 +28,12 @@ impl Weight for PhraseWeight {
             if let Some(term_postings) = term_postings_option {
                 term_postings_list.push(term_postings);
             }
+            else {
+                return Ok(box EmptyScorer);
+            }
         }
-        let positions_offsets: Vec<u32> = (0u32..self.phrase_terms.len() as u32).collect();
         Ok(box PhraseScorer {
             intersection_docset: IntersectionDocSet::from(term_postings_list),
-            positions_offsets: positions_offsets,
         })
     }
 }
