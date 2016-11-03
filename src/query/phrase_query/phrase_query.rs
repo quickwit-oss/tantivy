@@ -33,8 +33,9 @@ impl Query for PhraseQuery {
 
 }
 
-impl PhraseQuery {
-    pub fn new(terms: Vec<Term>) -> PhraseQuery {
+
+impl From<Vec<Term>> for PhraseQuery {
+    fn from(terms: Vec<Term>) -> PhraseQuery {
         assert!(terms.len() > 1);
         let occur_terms: Vec<(Occur, Term)> = terms.into_iter()
             .map(|term| (Occur::Must, term))

@@ -37,59 +37,29 @@ impl DocSet for VecPostings {
     }
     
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        let mut start: usize = self.cursor.0;
-        match self.doc_ids[start].cmp(&target)  {
-            Ordering::Equal => {
-                return SkipResult::Reached;
-            }
-            Ordering::Greater => {
-                if self.cursor.0 < self.doc_ids.len() {
-                    return SkipResult::OverStep;
+        let next_id: usize = (self.cursor + Wrapping(
+                if self.cursor.0 == usize::max_value() {
+                    1  
                 }
                 else {
-                    return SkipResult::End;
+                    0
                 }
-            }
-            Ordering::Less => {
-                // see below
-            }
-        }
-        
-        let mut end = self.doc_ids.len();
-        
-        while end - start > 1 {
-            // find an upper bound
-            let mut jump = 1;
-            loop {
-                let jump_dest = start + jump;
-                if jump_dest >= end {
-                    // we jump out of bounds
-                    break;
+        )).0;
+        for i in next_id .. self.doc_ids.len() {
+            let doc: DocId = self.doc_ids[i];
+            match doc.cmp(&target) {
+                Ordering::Equal => {
+                    self.cursor = Wrapping(i);
+                    return SkipResult::Reached;
                 }
-                match self.doc_ids[jump_dest].cmp(&target) {
-                    Ordering::Less => {
-                        // still below the target, let's keep jumping.
-                        start = jump_dest;
-                        jump *= 2;
-                    }
-                    Ordering::Equal => {
-                        self.cursor = Wrapping(jump_dest);
-                        return SkipResult::Reached;
-                    }
-                    Ordering::Greater => {
-                        end = jump_dest;
-                        break;
-                    }
-                }           
+                Ordering::Greater => {
+                    self.cursor = Wrapping(i);
+                    return SkipResult::OverStep;
+                }
+                Ordering::Less => {}
             }
         }
-        self.cursor = Wrapping(start + 1);
-        if self.cursor.0 < self.doc_ids.len() {
-            SkipResult::OverStep
-        }
-        else {
-            SkipResult::End
-        }
+        SkipResult::End
     }
 }
 
@@ -128,6 +98,15 @@ pub mod tests {
         assert_eq!(postings.term_freq(), 1u32);
         assert_eq!(postings.skip_next(14u32), SkipResult::OverStep);
         assert_eq!(postings.doc(), 15u32);
+        assert_eq!(postings.skip_next(300u32), SkipResult::Reached);
+        assert_eq!(postings.doc(), 300u32);
+        assert_eq!(postings.skip_next(6000u32), SkipResult::End);
+    }
+    
+    #[test]
+    pub fn test_vec_postings_skip_without_advance() {
+        let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e*3).collect();
+        let mut postings = VecPostings::from(doc_ids);
         assert_eq!(postings.skip_next(300u32), SkipResult::Reached);
         assert_eq!(postings.doc(), 300u32);
         assert_eq!(postings.skip_next(6000u32), SkipResult::End);

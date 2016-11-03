@@ -11,7 +11,8 @@ use Result;
 pub struct TermWeight {
     pub num_docs: u32,
     pub doc_freq: u32,
-    pub term: Term,     
+    pub term: Term,
+    pub segment_postings_options: SegmentPostingsOption,
 }
 
 
@@ -35,7 +36,7 @@ impl TermWeight {
         let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
         Ok(
             reader
-                .read_postings(&self.term, SegmentPostingsOption::Freq)
+                .read_postings(&self.term, self.segment_postings_options)
                 .map(|segment_postings|
                     TermScorer {
                         idf: self.idf(),

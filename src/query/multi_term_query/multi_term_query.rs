@@ -8,6 +8,7 @@ use core::searcher::Searcher;
 use query::occur::Occur;
 use query::occur_filter::OccurFilter;
 use query::term_query::TermQuery;
+use postings::SegmentPostingsOption;
 
 
 /// Query involving one or more terms.
@@ -36,7 +37,11 @@ impl MultiTermQuery {
             .collect();
         let occur_filter = OccurFilter::new(&occurs);
         let weights = term_queries.iter()
-            .map(|term_query| term_query.specialized_weight(searcher))
+            .map(|term_query| {
+                let mut term_weight = term_query.specialized_weight(searcher);
+                term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
+                term_weight
+            })
             .collect();
         MultiTermWeight {
             weights: weights,

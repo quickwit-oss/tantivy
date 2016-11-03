@@ -20,8 +20,10 @@ impl From<MultiTermWeight> for PhraseWeight {
 impl Weight for PhraseWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let all_term_scorer = try!(self.all_term_weight.specialized_scorer(reader));
+        let positions_offsets: Vec<u32> = (0u32..all_term_scorer.num_subscorers() as u32).collect(); 
         Ok(box PhraseScorer {
-            all_term_scorer:  all_term_scorer
+            all_term_scorer:  all_term_scorer,
+            positions_offsets: positions_offsets
         })
     }
 }

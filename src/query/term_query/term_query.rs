@@ -3,6 +3,7 @@ use Result;
 use super::term_weight::TermWeight;
 use query::Query;
 use query::Weight;
+use postings::SegmentPostingsOption;
 use Searcher;
 use std::any::Any;
 
@@ -31,7 +32,8 @@ impl TermQuery {
         TermWeight {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
-            term: self.term.clone()
+            term: self.term.clone(),
+            segment_postings_options: SegmentPostingsOption::NoFreq,
         }
     }
 }
