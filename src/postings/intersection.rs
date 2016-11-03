@@ -7,7 +7,7 @@ use DocId;
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct IntersectionDocSet<TDocSet: DocSet> {
     docsets: Vec<TDocSet>,
-    finished: bool, 
+    finished: bool,
     doc: DocId,
 }
 
@@ -18,11 +18,14 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
             docsets: docsets,
             finished: false,
             doc: DocId::max_value(),
-        }        
+        }
     }
 }
 
 impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
+    /// Returns an array to the underlying `DocSet`s of the intersection.
+    /// These `DocSet` are in the same position as the `IntersectionDocSet`,
+    /// so that user can access their `docfreq` and `positions`.
     pub fn docsets(&self) -> &[TDocSet] {
         &self.docsets[..]
     }
@@ -30,8 +33,7 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
 
 
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
-
-    fn advance(&mut self,) -> bool {
+    fn advance(&mut self) -> bool {
         if self.finished {
             return false;
         }
@@ -71,8 +73,8 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
             }
         }
     }
-    
-    fn doc(&self,) -> DocId {
+
+    fn doc(&self) -> DocId {
         self.doc
     }
 }

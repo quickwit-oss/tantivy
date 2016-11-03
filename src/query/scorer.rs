@@ -37,7 +37,9 @@ impl<'a> Scorer for Box<Scorer + 'a> {
     }
 }
 
-
+/// EmptyScorer is a dummy Scorer in which no document matches.
+/// 
+/// It is useful for tests and handling edge cases.
 pub struct EmptyScorer;
 
 impl DocSet for EmptyScorer {

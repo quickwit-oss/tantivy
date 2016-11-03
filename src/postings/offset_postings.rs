@@ -15,7 +15,6 @@ pub struct OffsetPostings<'a> {
 }
 
 impl<'a> OffsetPostings<'a> {
-    
     /// Constructor
     pub fn new(underlying: SegmentPostings<'a>, offset: DocId) -> OffsetPostings {
         OffsetPostings {
@@ -26,38 +25,35 @@ impl<'a> OffsetPostings<'a> {
 }
 
 impl<'a> DocSet for OffsetPostings<'a> {
-    fn advance(&mut self,) -> bool {
+    fn advance(&mut self) -> bool {
         self.underlying.advance()
     }
-    
-    fn doc(&self,) -> DocId {
+
+    fn doc(&self) -> DocId {
         self.underlying.doc() + self.offset
     }
-    
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if target >= self.offset {
             SkipResult::OverStep
-        }
-        else {
-            self.underlying.skip_next(target - self.offset)    
+        } else {
+            self.underlying.skip_next(target - self.offset)
         }
     }
 }
 
 impl<'a> HasLen for OffsetPostings<'a> {
-    fn len(&self,) -> usize {
+    fn len(&self) -> usize {
         self.underlying.len()
     }
 }
 
 impl<'a> Postings for OffsetPostings<'a> {
-    
-    fn term_freq(&self,) -> u32 {
+    fn term_freq(&self) -> u32 {
         self.underlying.term_freq()
     }
-    
+
     fn positions(&self) -> &[u32] {
         self.underlying.positions()
     }
-    
 }

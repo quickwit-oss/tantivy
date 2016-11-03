@@ -12,11 +12,11 @@ use query::OccurFilter;
 ///
 /// The documents matched by the boolean query are
 /// those which
-/// * match all of the sub queries associated with the 
+/// * match all of the sub queries associated with the
 /// `Must` occurence
-/// * match none of the sub queries associated with the 
+/// * match none of the sub queries associated with the
 /// `MustNot` occurence.
-/// * match at least one of the subqueries that is not 
+/// * match at least one of the subqueries that is not
 /// a `MustNot` occurence.
 #[derive(Debug)]
 pub struct BooleanQuery {
@@ -25,14 +25,11 @@ pub struct BooleanQuery {
 
 impl From<Vec<BooleanClause>> for BooleanQuery {
     fn from(clauses: Vec<BooleanClause>) -> BooleanQuery {
-        BooleanQuery {
-            clauses: clauses,
-        }
-    } 
+        BooleanQuery { clauses: clauses }
+    }
 }
 
 impl Query for BooleanQuery {
-    
     fn as_any(&self) -> &Any {
         self
     }
@@ -41,8 +38,7 @@ impl Query for BooleanQuery {
         let sub_weights = try!(self.clauses
             .iter()
             .map(|clause| clause.query.weight(searcher))
-            .collect()
-        );
+            .collect());
         let occurs: Vec<Occur> = self.clauses
             .iter()
             .map(|clause| clause.occur)
@@ -50,5 +46,4 @@ impl Query for BooleanQuery {
         let filter = OccurFilter::new(&occurs);
         Ok(box BooleanWeight::new(sub_weights, filter))
     }
-    
 }

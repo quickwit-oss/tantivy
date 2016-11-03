@@ -12,7 +12,7 @@ impl BooleanClause {
     pub fn new(query: Box<Query>, occur: Occur) -> BooleanClause {
         BooleanClause {
             query: query,
-            occur: occur
+            occur: occur,
         }
-    }    
+    }
 }

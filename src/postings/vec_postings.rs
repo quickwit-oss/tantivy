@@ -4,7 +4,7 @@ use DocId;
 use postings::{Postings, DocSet, HasLen};
 use std::num::Wrapping;
 
-const EMPTY_ARRAY: [u32; 0] = []; 
+const EMPTY_ARRAY: [u32; 0] = [];
 
 /// Simulate a `Postings` objects from a `VecPostings`.
 /// `VecPostings` only exist for testing purposes.
@@ -26,43 +26,43 @@ impl From<Vec<DocId>> for VecPostings {
 }
 
 impl DocSet for VecPostings {
-    fn advance(&mut self,) -> bool {
+    fn advance(&mut self) -> bool {
         self.cursor += Wrapping(1);
         self.doc_ids.len() > self.cursor.0
     }
-    
-    fn doc(&self,) -> DocId {
+
+    fn doc(&self) -> DocId {
         self.doc_ids[self.cursor.0]
     }
 }
 
 impl HasLen for VecPostings {
-    fn len(&self,) -> usize {
+    fn len(&self) -> usize {
         self.doc_ids.len()
     }
 }
 
 impl Postings for VecPostings {
-    fn term_freq(&self,) -> u32 {
+    fn term_freq(&self) -> u32 {
         1u32
     }
-    
+
     fn positions(&self) -> &[u32] {
         &EMPTY_ARRAY
-    } 
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
-    
+
     use super::*;
-    use DocId;   
-    use postings::{Postings, SkipResult, DocSet}; 
-    
-    
+    use DocId;
+    use postings::{Postings, SkipResult, DocSet};
+
+
     #[test]
     pub fn test_vec_postings() {
-        let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e*3).collect();
+        let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e * 3).collect();
         let mut postings = VecPostings::from(doc_ids);
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0u32);
@@ -77,4 +77,3 @@ pub mod tests {
     }
 
 }
-

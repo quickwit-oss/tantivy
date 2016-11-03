@@ -33,7 +33,7 @@ impl Ord for HeapItem {
 }
 
 pub struct BooleanScorer<TScorer: Scorer> {
-    postings: Vec<TScorer>,
+    scorers: Vec<TScorer>,
     queue: BinaryHeap<HeapItem>,
     doc: DocId,
     score_combiner: ScoreCombiner,
@@ -43,20 +43,20 @@ pub struct BooleanScorer<TScorer: Scorer> {
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
     pub fn scorers(&self) -> &[TScorer] {
-        &self.postings
+        &self.scorers
     }
 
-    pub fn new(postings: Vec<TScorer>,
+    pub fn new(scorers: Vec<TScorer>,
                occur_filter: OccurFilter) -> BooleanScorer<TScorer> {
-        let score_combiner = ScoreCombiner::default_for_num_scorers(postings.len());
-        let mut non_empty_postings: Vec<TScorer> = Vec::new();
-        for mut posting in postings {
+        let score_combiner = ScoreCombiner::default_for_num_scorers(scorers.len());
+        let mut non_empty_scorers: Vec<TScorer> = Vec::new();
+        for mut posting in scorers {
             let non_empty = posting.advance();
             if non_empty {
-                non_empty_postings.push(posting);
+                non_empty_scorers.push(posting);
             }
         }
-        let heap_items: Vec<HeapItem> = non_empty_postings
+        let heap_items: Vec<HeapItem> = non_empty_scorers
             .iter()
             .map(|posting| posting.doc())
             .enumerate()
@@ -68,7 +68,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             })
             .collect();
         BooleanScorer {
-            postings: non_empty_postings,
+            scorers: non_empty_scorers,
             queue: BinaryHeap::from(heap_items),
             doc: 0u32,
             score_combiner: score_combiner,
@@ -77,7 +77,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
         }
     }
     
-    /// Advances the head of our heap (the segment postings with the lowest doc)
+    /// Advances the head of our heap (the segment posting with the lowest doc)
     /// It will also update the new current `DocId` as well as the term frequency
     /// associated with the segment postings.
     /// 
@@ -89,9 +89,9 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
     fn advance_head(&mut self,) {
         {
             let mut mutable_head = self.queue.peek_mut().unwrap();
-            let cur_postings = &mut self.postings[mutable_head.ord as usize];
-            if cur_postings.advance() {
-                mutable_head.doc = cur_postings.doc();
+            let cur_scorers = &mut self.scorers[mutable_head.ord as usize];
+            if cur_scorers.advance() {
+                mutable_head.doc = cur_scorers.doc();
                 return;
             }
         }
@@ -108,7 +108,7 @@ impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
                 Some(heap_item) => {
                     let ord = heap_item.ord as usize;
                     self.doc = heap_item.doc;
-                    let score = self.postings[ord].score();
+                    let score = self.scorers[ord].score();
                     self.score_combiner.update(score);
                     ord_bitset |= 1 << ord;  
                 }
@@ -120,7 +120,7 @@ impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
             while let Some(&HeapItem {doc, ord}) = self.queue.peek() {
                 if doc == self.doc {
                     let ord = ord as usize;
-                    let score = self.postings[ord].score();
+                    let score = self.scorers[ord].score();
                     self.score_combiner.update(score);
                     ord_bitset |= 1 << ord;
                 }
