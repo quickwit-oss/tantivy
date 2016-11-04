@@ -40,7 +40,6 @@
 <span class="hljs-keyword">use</span> tantivy::schema::*;
 <span class="hljs-keyword">use</span> tantivy::collector::TopCollector;
 <span class="hljs-keyword">use</span> tantivy::query::QueryParser;
-<span class="hljs-keyword">use</span> tantivy::query::Query;
 
 <span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">main</span></span>() {</pre></div></div>
             
@@ -59,16 +58,10 @@ sake of this example</p>
             </div>
             
             <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Ok</span>(dir) = TempDir::new(<span class="hljs-string">"tantivy_example_dir"</span>) {
-        run_example(&amp;dir.path()).unwrap();
+        run_example(dir.path()).unwrap();
         dir.close().unwrap();
     }   
 }
-
-
-<span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">create_schema</span></span>() -&gt; Schema {
-
-}
-
 
 
 <span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">run_example</span></span>(index_path: &amp;Path) -&gt; tantivy::<span class="hljs-built_in">Result</span>&lt;()&gt; {</pre></div></div>
@@ -83,7 +76,7 @@ sake of this example</p>
                 <a class="pilcrow" href="#section-3">&#182;</a>
               </div>
               <h1 id="defining-the-schema">Defining the schema</h1>
-<p>Tantivy index require to have a very strict schema.
+<p>The Tantivy index requires a very strict schema.
 The schema declares which fields are in the index,
 and for each field, its type and “the way it should 
 be indexed”.</p>
@@ -124,7 +117,7 @@ along with its term frequency and term positions.</p>
 <p><code>STORED</code> means that the field will also be saved
 in a compressed, row-oriented key-value store.
 This store is useful to reconstruct the 
-document that were selected during the search phase.</p>
+documents that were selected during the search phase.</p>
 
             </div>
             
@@ -161,7 +154,7 @@ to retrieve the body after the search.</p>
               <h1 id="indexing-documents">Indexing documents</h1>
 <p>Let’s create a brand new index.</p>
 <p>This will actually just save a meta.json
-with our schema the directory.</p>
+with our schema in the directory.</p>
 
             </div>
             
@@ -177,10 +170,10 @@ with our schema the directory.</p>
                 <a class="pilcrow" href="#section-8">&#182;</a>
               </div>
               <p>To insert document we need an index writer.
-There shall be only one writer at a time.
-Besides, this single <code>IndexWriter</code> is already
+There must be only one writer at a time.
+This single <code>IndexWriter</code> is already
 multithreaded.</p>
-<p>Here we used a buffer of 1 GB. Using a bigger 
+<p>Here we use a buffer of 1 GB. Using a bigger 
 heap for the indexer can increase its throughput.
 This buffer will be split between the indexing
 threads.</p>
@@ -198,7 +191,7 @@ threads.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-9">&#182;</a>
               </div>
-              <p>Let’s now index our documents!
+              <p>Let’s index our documents!
 We first need a handle on the title and the body field.</p>
 
             </div>
@@ -213,7 +206,7 @@ We first need a handle on the title and the body field.</p>
                 <a class="pilcrow" href="#section-10">&#182;</a>
               </div>
               <h3 id="create-a-document-manually-">Create a document “manually”.</h3>
-<p>We can create a document manually, by setting adding the fields
+<p>We can create a document manually, by setting the fields
 one by one in a Document object.</p>
 
             </div>
@@ -296,7 +289,7 @@ The following document has two titles.</p>
               <p>This is an example, so we will only index 3 documents
 here. You can check out tantivy’s tutorial to index
 the English wikipedia. Tantivy’s indexing is rather fast. 
-Indexing 5 millions articles of the English wikipedia takes
+Indexing 5 million articles of the English wikipedia takes
 around 4 minutes on my computer!</p>
 
             </div>
@@ -312,9 +305,9 @@ around 4 minutes on my computer!</p>
               </div>
               <h3 id="committing">Committing</h3>
 <p>At this point our documents are not searchable.</p>
-<p>We need to call .commit() explicitely to force the
+<p>We need to call .commit() explicitly to force the
 index_writer to finish processing the documents in the queue,
-flush the current index on the disk, and advertise
+flush the current index to the disk, and advertise
 the existence of new documents.</p>
 <p>This call is blocking.</p>
 
@@ -332,10 +325,10 @@ the existence of new documents.</p>
                 <a class="pilcrow" href="#section-16">&#182;</a>
               </div>
               <p>If <code>.commit()</code> returns correctly, then all of the
-documents have been added before are guaranteed to be
+documents that have been added are guaranteed to be
 persistently indexed.</p>
 <p>In the scenario of a crash or a power failure,
-tantivy behaves as if it rollbacked to its last
+tantivy behaves as if has rolled back to its last
 commit.</p>
 
             </div>
@@ -350,10 +343,10 @@ commit.</p>
                 <a class="pilcrow" href="#section-17">&#182;</a>
               </div>
               <h1 id="searching">Searching</h1>
-<p>Let’s search our index. This starts
+<p>Let’s search our index. We start
 by creating a searcher. There can be more
 than one searcher at a time.</p>
-<p>You are supposed to acquire a search
+<p>You should create a searcher
 every time you start a “search query”.</p>
 
             </div>
@@ -371,7 +364,7 @@ every time you start a “search query”.</p>
               </div>
               <p>The query parser can interpret human queries.
 Here, if the user does not specify which
-field he wants to search, tantivy will search
+field they want to search, tantivy will search
 in both title and body.</p>
 
             </div>
@@ -389,7 +382,7 @@ in both title and body.</p>
               </div>
               <p>QueryParser may fail if the query is not in the right
 format. For user facing applications, this can be a problem.
-A ticket has been filled regarding this problem.</p>
+A ticket has been opened regarding this problem.</p>
 
             </div>
             
@@ -406,7 +399,7 @@ A ticket has been filled regarding this problem.</p>
               </div>
               <p>A query defines a set of documents, as
 well as the way they should be scored.</p>
-<p>Query created by the query parser are scoring according
+<p>A query created by the query parser is scored according
 to a metric called Tf-Idf, and will consider
 any document matching at least one of our terms.</p>
 
@@ -422,8 +415,8 @@ any document matching at least one of our terms.</p>
                 <a class="pilcrow" href="#section-21">&#182;</a>
               </div>
               <h3 id="collectors">Collectors</h3>
-<p>We are not interested in all of the document but 
-only in the top 10. Keep track of our top 10 best documents
+<p>We are not interested in all of the documents but 
+only in the top 10. Keeping track of our top 10 best documents
 is the role of the TopCollector.</p>
 
             </div>
@@ -444,7 +437,7 @@ is the role of the TopCollector.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(query.search(&amp;searcher, &amp;<span class="hljs-keyword">mut</span> top_collector));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(searcher.search(&amp;query, &amp;<span class="hljs-keyword">mut</span> top_collector)));</pre></div></div>
             
         </li>
         
@@ -455,7 +448,7 @@ is the role of the TopCollector.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-23">&#182;</a>
               </div>
-              <p>Our top collector now contains are 10 
+              <p>Our top collector now contains the 10 
 most relevant doc ids…</p>
 
             </div>
@@ -473,7 +466,7 @@ most relevant doc ids…</p>
               </div>
               <p>The actual documents still need to be 
 retrieved from Tantivy’s store.</p>
-<p>Since body was not configured as stored,
+<p>Since the body field was not configured as stored,
 the document returned will only contain
 a title.</p>
 

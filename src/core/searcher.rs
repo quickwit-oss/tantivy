@@ -59,7 +59,7 @@ impl Searcher {
     }
        
     /// Runs a query on the segment readers wrapped by the searcher
-    pub fn search<Q: Query, C: Collector>(&self, query: &Q, collector: &mut C) -> Result<TimerTree> {
+    pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<TimerTree> {
         query.search(self, collector)
     }
 }

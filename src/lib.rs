@@ -58,17 +58,13 @@ mod macros {
     );
 
     macro_rules! doc(
+        () => (Document::default()); // avoids a warning due to the useless `mut`.
         ($($field:ident => $value:expr),*) => {{
-            #[allow(unused_mut)] // avoid emitting a warning for `doc!()`
-            {
-                let mut document = Document::default();
-                $(
-                    document.add(FieldValue::new($field, $value.into()));
-                )*
-                document
-            }
-            
-            
+            let mut document = Document::default();
+            $(
+                document.add(FieldValue::new($field, $value.into()));
+            )*
+            document
         }};
     );
 }

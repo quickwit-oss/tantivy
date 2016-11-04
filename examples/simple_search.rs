@@ -185,7 +185,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     let mut top_collector = TopCollector::with_limit(10);
     
     // We can now perform our query.
-    try!(query.search(&searcher, &mut top_collector));
+    try!(searcher.search(&*query, &mut top_collector));
 
     // Our top collector now contains the 10 
     // most relevant doc ids...

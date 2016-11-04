@@ -71,7 +71,7 @@ mod tests {
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
             let mut test_collector = TestCollector::default();
-            boolean_query.search(&*searcher, &mut test_collector).unwrap();
+            searcher.search(boolean_query, &mut test_collector).unwrap();
             test_collector.docs()
         };
         {
