@@ -41,7 +41,7 @@ pub use common::HasLen;
 mod tests {
     
     use super::*;
-    use schema::{Document, TEXT, SchemaBuilder, Term};
+    use schema::{Document, TEXT, STRING, SchemaBuilder, Term};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
@@ -49,6 +49,9 @@ mod tests {
     use std::iter;
     use datastruct::stacker::Heap;
     use query::TermQuery;
+    use schema::Field;
+    use test::Bencher;
+    use rand::{XorShiftRng, Rng, SeedableRng};
     
         
     #[test]
@@ -206,5 +209,65 @@ mod tests {
             assert!(!intersection.advance());
         }
     }
-     
+    
+    
+    lazy_static! {
+        static ref TERM_A: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "a")
+        };
+        static ref TERM_B: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "b")
+        };
+        static ref INDEX: Index = {
+            let mut schema_builder = SchemaBuilder::default();
+            let text_field = schema_builder.add_text_field("text", STRING);
+            let schema = schema_builder.build();
+            
+            let seed: &[u32; 4] = &[1, 2, 3, 4];
+            let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+            
+            let index = Index::create_in_ram(schema);
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+                for _ in 0 .. 15_000_000 {
+                    let mut doc = Document::default();
+                    if rng.gen_weighted_bool(15) {
+                        doc.add_text(text_field, "a");
+                    }
+                    if rng.gen_weighted_bool(10) {
+                        doc.add_text(text_field, "b");
+                    }
+                    index_writer.add_document(doc).unwrap();
+                }
+                assert!(index_writer.commit().is_ok());
+            }
+            index
+        };
+    }
+    
+    #[bench]
+    fn bench_segment_postings(b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        
+        b.iter(|| {
+            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            while segment_postings.advance() {}
+        });
+    }    
+    
+    #[bench]
+    fn bench_segment_intersection(b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        
+        b.iter(|| {
+            let segment_postings_a = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            let segment_postings_b = segment_reader.read_postings(&*TERM_B, SegmentPostingsOption::NoFreq).unwrap();
+            let mut intersection = IntersectionDocSet::from(vec!(segment_postings_a, segment_postings_b));
+            while intersection.advance() {}
+        });
+    }    
 }
