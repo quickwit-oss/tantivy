@@ -1,14 +1,8 @@
-use Result as tantivy_Error;
 use combine::*;
-use collector::Collector;
-use core::searcher::Searcher;
-use common::TimerTree;
 use query::{Query, MultiTermQuery};
 use schema::{Schema, FieldType, Term, Field};
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
-use DocAddress;
-use query::Explanation;
 use query::Occur;
 
 
@@ -60,23 +54,6 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
 }
 
-
-/// The `QueryParser` returns a `StandardQuery`. 
-#[derive(Eq, PartialEq, Debug)]
-pub enum StandardQuery {
-    MultiTerm(MultiTermQuery),
-}
-
-impl StandardQuery {
-    /// Number of terms involved in the query.
-    pub fn num_terms(&self,) -> usize {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => {
-                q.num_terms()
-            }
-        }
-    }
-}
 
 
 impl QueryParser {
@@ -142,7 +119,7 @@ impl QueryParser {
     ///
     /// Implementing a lenient mode for this query parser is tracked 
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
-    pub fn parse_query(&self, query: &str) -> Result<StandardQuery, ParsingError> {
+    pub fn parse_query(&self, query: &str) -> Result<Box<Query>, ParsingError> {
         match parser(query_language).parse(query.trim()) {
             Ok(literals) => {
                 let mut terms_result: Vec<(Occur, Term)> = Vec::new();
@@ -154,9 +131,7 @@ impl QueryParser {
                         .map(|term| (occur, term) ));
                 }
                 Ok(
-                    StandardQuery::MultiTerm(
-                        MultiTermQuery::from(terms_result)
-                    )
+                    box MultiTermQuery::from(terms_result)
                 )
             }  
             Err(_) => {
@@ -167,24 +142,6 @@ impl QueryParser {
 }
 
 
-impl Query for StandardQuery {
-    fn search<C: Collector>(&self, searcher: &Searcher, collector: &mut C) -> tantivy_Error<TimerTree> {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => {
-                q.search(searcher, collector)
-            }
-        }
-    }
-
-    fn explain(
-        &self,
-        searcher: &Searcher,
-        doc_address: &DocAddress) -> tantivy_Error<Explanation> {
-        match *self {
-            StandardQuery::MultiTerm(ref q) => q.explain(searcher, doc_address)
-        }
-    }
-}
 
 
 fn compute_terms(field: Field, text: &str) -> Vec<Term> {
@@ -324,6 +281,10 @@ mod test {
         assert!(query_parser.parse("f:@e!e").is_err());
     }
     
+    // fn extract<T: Query>(query_parser: &QueryParser, q: &str) -> T {
+    //     query_parser.parse_query(q).unwrap().as_any().downcast_ref::<T>().unwrap(),
+    // }
+    
     #[test]
     pub fn test_query_parser() {
         let mut schema_builder = SchemaBuilder::default();
@@ -334,9 +295,9 @@ mod test {
         assert!(query_parser.parse_query("a:b").is_err());
         {
             let terms = vec!(Term::from_field_text(title_field, "abctitle"));
-            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
+            let query = MultiTermQuery::from(terms); 
             assert_eq!(
-                query_parser.parse_query("title:abctitle").unwrap(), 
+                *query_parser.parse_query("title:abctitle").unwrap().as_any().downcast_ref::<MultiTermQuery>().unwrap(), 
                 query
             );
         }
@@ -345,21 +306,21 @@ mod test {
                 Term::from_field_text(text_field, "abctitle"),
                 Term::from_field_text(author_field, "abctitle"),
             );
-            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
+            let query = MultiTermQuery::from(terms); 
             assert_eq!(
-                query_parser.parse_query("abctitle").unwrap(), 
+                *query_parser.parse_query("abctitle").unwrap().as_any().downcast_ref::<MultiTermQuery>().unwrap(),
                 query
             );
         }
         {
             let terms = vec!(Term::from_field_text(title_field, "abctitle"));
-            let query = StandardQuery::MultiTerm(MultiTermQuery::from(terms)); 
+            let query = MultiTermQuery::from(terms); 
             assert_eq!(
-                query_parser.parse_query("title:abctitle   ").unwrap(), 
+                *query_parser.parse_query("title:abctitle   ").unwrap().as_any().downcast_ref::<MultiTermQuery>().unwrap(),
                 query
             );
             assert_eq!(
-                query_parser.parse_query("    title:abctitle").unwrap(), 
+                *query_parser.parse_query("    title:abctitle").unwrap().as_any().downcast_ref::<MultiTermQuery>().unwrap(), 
                 query
             );
         }

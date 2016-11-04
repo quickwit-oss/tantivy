@@ -2,7 +2,8 @@ use collector::Collector;
 use SegmentLocalId;
 use SegmentReader;
 use std::io;
-use ScoredDoc;
+use DocId;
+use Score;
 
 
 /// Collector that does nothing.
@@ -15,7 +16,7 @@ impl Collector for DoNothingCollector {
         Ok(())
     }
     #[inline]
-    fn collect(&mut self, _: ScoredDoc) {}
+    fn collect(&mut self, _doc: DocId, _score: Score) {}
 }
 
 /// Zero-cost abstraction used to collect on multiple collectors.
@@ -43,9 +44,9 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
         Ok(())
     }
 
-    fn collect(&mut self, scored_doc: ScoredDoc) {
-        self.left.collect(scored_doc);
-        self.right.collect(scored_doc);
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.left.collect(doc, score);
+        self.right.collect(doc, score);
     }
 }
 
@@ -62,7 +63,6 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
 mod tests {
 
     use super::*;
-    use ScoredDoc;
     use collector::{Collector, CountCollector, TopCollector};
 
     #[test]
@@ -73,9 +73,9 @@ mod tests {
             let mut collectors = chain()
                 .push(&mut top_collector)
                 .push(&mut count_collector);
-            collectors.collect(ScoredDoc(0.2, 1));
-            collectors.collect(ScoredDoc(0.1, 2));
-            collectors.collect(ScoredDoc(0.5, 3));
+            collectors.collect(1, 0.2);
+            collectors.collect(2, 0.1);
+            collectors.collect(3, 0.5);
         }
         assert_eq!(count_collector.count(), 3);
         assert!(top_collector.at_capacity());
