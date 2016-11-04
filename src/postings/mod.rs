@@ -29,12 +29,11 @@ pub use self::postings::Postings;
 
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
-
 pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::SegmentPostings;
-pub use self::intersection::intersection;
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
+
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 
@@ -49,6 +48,7 @@ mod tests {
     use core::Index;
     use std::iter;
     use datastruct::stacker::Heap;
+    use query::TermQuery;
     
         
     #[test]
@@ -72,7 +72,7 @@ mod tests {
     }
     
     #[test]
-    pub fn test_position_and_fieldnorm_write_fullstack() {
+    pub fn test_position_and_fieldnorm() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -154,11 +154,42 @@ mod tests {
     }
     
     #[test]
+    pub fn test_position_and_fieldnorm2() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
+                let mut doc = Document::default();
+                doc.add_text(text_field, "g b b d c g c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let mut doc = Document::default();
+                doc.add_text(text_field, "g a b b a d c g c");
+                index_writer.add_document(doc).unwrap();
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        let term_query = TermQuery::from(Term::from_field_text(text_field, "a"));
+        let searcher = index.searcher();
+        let mut term_weight = term_query.specialized_weight(&*searcher);
+        term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
+        let segment_reader = &searcher.segment_readers()[0];
+        let mut term_scorer = term_weight.specialized_scorer(segment_reader).unwrap();
+        assert!(term_scorer.advance());
+        assert_eq!(term_scorer.doc(), 1u32);
+        assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
+    }
+    
+    #[test]
     fn test_intersection() {
         {
-            let left = Box::new(VecPostings::from(vec!(1, 3, 9)));
-            let right = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
-            let mut intersection = IntersectionDocSet::new(vec!(left, right));
+            let left = VecPostings::from(vec!(1, 3, 9));
+            let right = VecPostings::from(vec!(3, 4, 9, 18));
+            let mut intersection = IntersectionDocSet::from(vec!(left, right));
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
             assert!(intersection.advance());
@@ -166,10 +197,10 @@ mod tests {
             assert!(!intersection.advance());
         }
         {
-            let a = Box::new(VecPostings::from(vec!(1, 3, 9)));
-            let b = Box::new(VecPostings::from(vec!(3, 4, 9, 18)));
-            let c = Box::new(VecPostings::from(vec!(1, 5, 9, 111)));
-            let mut intersection = IntersectionDocSet::new(vec!(a, b, c));
+            let a = VecPostings::from(vec!(1, 3, 9));
+            let b = VecPostings::from(vec!(3, 4, 9, 18));
+            let c = VecPostings::from(vec!(1, 5, 9, 111));
+            let mut intersection = IntersectionDocSet::from(vec!(a, b, c));
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.advance());

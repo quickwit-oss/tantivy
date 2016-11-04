@@ -1,11 +1,11 @@
 use std::io;
 use super::Collector;
-use ScoredDoc;
 use SegmentReader;
 use SegmentLocalId;
 use DocAddress;
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use DocId;
 use Score;
 
 // Rust heap is a max-heap and we need a min heap.
@@ -13,6 +13,7 @@ use Score;
 struct GlobalScoredDoc {
     score: Score,
     doc_address: DocAddress
+    
 }
 
 impl PartialOrd for GlobalScoredDoc {
@@ -109,20 +110,20 @@ impl Collector for TopCollector {
         Ok(())
     }
 
-    fn collect(&mut self, scored_doc: ScoredDoc) {
+    fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
             let limit_doc: GlobalScoredDoc = *self.heap.peek().expect("Top collector with size 0 is forbidden");
-            if limit_doc.score < scored_doc.score() {
+            if limit_doc.score < score {
                 let mut mut_head = self.heap.peek_mut().expect("Top collector with size 0 is forbidden");
-                mut_head.score = scored_doc.score();
-                mut_head.doc_address = DocAddress(self.segment_id, scored_doc.doc());               
+                mut_head.score = score;
+                mut_head.doc_address = DocAddress(self.segment_id, doc);               
             }
         }
         else {
             let wrapped_doc = GlobalScoredDoc {
-                score: scored_doc.score(),
-                doc_address: DocAddress(self.segment_id, scored_doc.doc())
+                score: score,
+                doc_address: DocAddress(self.segment_id, doc)
             };
             self.heap.push(wrapped_doc);
         }
@@ -135,7 +136,6 @@ impl Collector for TopCollector {
 mod tests {
 
     use super::*;
-    use ScoredDoc;
     use DocId;
     use Score;
     use collector::Collector;
@@ -143,9 +143,9 @@ mod tests {
     #[test]
     fn test_top_collector_not_at_capacity() {
         let mut top_collector = TopCollector::with_limit(4);
-        top_collector.collect(ScoredDoc(0.8, 1));
-        top_collector.collect(ScoredDoc(0.2, 3));
-        top_collector.collect(ScoredDoc(0.3, 5));
+        top_collector.collect(1, 0.8);
+        top_collector.collect(3, 0.2);
+        top_collector.collect(5, 0.3);
         assert!(!top_collector.at_capacity());
         let score_docs: Vec<(Score, DocId)> = top_collector.score_docs()
             .into_iter()
@@ -159,11 +159,11 @@ mod tests {
     #[test]
     fn test_top_collector_at_capacity() {
         let mut top_collector = TopCollector::with_limit(4);
-        top_collector.collect(ScoredDoc(0.8, 1));
-        top_collector.collect(ScoredDoc(0.2, 3));
-        top_collector.collect(ScoredDoc(0.3, 5));
-        top_collector.collect(ScoredDoc(0.9, 7));
-        top_collector.collect(ScoredDoc(-0.2, 9));
+        top_collector.collect(1, 0.8);
+        top_collector.collect(3, 0.2);
+        top_collector.collect(5, 0.3);
+        top_collector.collect(7, 0.9);
+        top_collector.collect(9, -0.2);
         assert!(top_collector.at_capacity());
         {
             let score_docs: Vec<(Score, DocId)> = top_collector

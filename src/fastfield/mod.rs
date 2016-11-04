@@ -39,9 +39,7 @@ fn compute_num_bits(amplitude: u32) -> u8 {
 mod tests {
 
     use super::compute_num_bits;
-    use super::U32FastFieldsReader;
-    use super::U32FastFieldsWriter;
-    use super::FastFieldSerializer;
+    use super::*;
     use schema::Field;
     use std::path::Path;
     use directory::{Directory, WritePtr, RAMDirectory};
@@ -80,6 +78,17 @@ mod tests {
         let mut doc = Document::default();
         doc.add_u32(field, value);
         fast_field_writers.add_document(&doc);
+    }
+     
+    #[test]
+    pub fn test_fastfield() {
+        let test_fastfield = U32FastFieldReader::from(vec!(100,200,300));
+        println!("{}", test_fastfield.get(0));
+        println!("{}", test_fastfield.get(1));
+        println!("{}", test_fastfield.get(2));
+        assert_eq!(test_fastfield.get(0), 100);
+        assert_eq!(test_fastfield.get(1), 200);
+        assert_eq!(test_fastfield.get(2), 300); 
     }
 
     #[test]

@@ -9,7 +9,6 @@ pub use self::timer::OpenTimer;
 pub use self::vint::VInt;
 use std::io;
 
-
 pub fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
@@ -25,3 +24,4 @@ pub trait HasLen {
         self.len() == 0
     }
 }
+
