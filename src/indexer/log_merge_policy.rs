@@ -1,42 +1,60 @@
 extern crate itertools;
 use super::merge_policy::{MergePolicy, MergeCandidate};
 use core::SegmentMeta;
-
-pub struct LogMergePolicy;
+use std::cmp;
 use std::f64;
 
-const LEVEL_LOG_SIZE: f64 = 0.75;
-const MIN_SEGMENT_SIZE: u32 = 2;
-const MIN_MERGE_SIZE: usize = 3;
+const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
+const DEFAULT_MIN_SEGMENT_SIZE: u32 = 10_000;
+const DEFAULT_MIN_MERGE_SIZE: usize = 8;
+
+pub struct LogMergePolicy {
+    min_merge_size: usize,
+    min_segment_size: u32,
+    level_log_size: f64,
+}
+
+impl LogMergePolicy {
+    fn clip_min_size(&self, size: u32) -> u32 {
+        cmp::max(self.min_segment_size, size)
+    }
+    
+    pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
+        self.min_merge_size = min_merge_size;
+    }
+    
+    pub fn set_min_segment_size(&mut self, min_segment_size: u32) {
+        self.min_segment_size = min_segment_size;
+    }
+    
+    pub fn set_level_log_size(&mut self, level_log_size: f64) {
+        self.level_log_size = level_log_size;
+    }
+}
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+        
         if segments.is_empty() {
             return Vec::new();
         }
+        
         let mut size_sorted_tuples = segments.iter()
             .map(|x| x.num_docs)
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
         size_sorted_tuples.sort_by(|x,y| y.cmp(x));
-
-        fn clip_min_size(size: u32 ) -> u32 {
-            if size <= MIN_SEGMENT_SIZE {
-                MIN_SEGMENT_SIZE
-            } else {
-                size
-            }
-        }
-        let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.iter()
-            .map(|x| (x.0, (clip_min_size(x.1) as f64).log2()))
+        
+        let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.into_iter()
+            .map(|(ind, num_docs)| (ind, (self.clip_min_size(num_docs) as f64).log2()))
             .collect();
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];
         let mut current_max_log_size = first_score;
         let mut levels = vec!(vec!(first_ind));
         for &(ind, score) in (&size_sorted_log_tuples).iter().skip(1) {
-            if score < (current_max_log_size - LEVEL_LOG_SIZE) {
+            if score < (current_max_log_size - self.level_log_size) {
                 current_max_log_size = score;
                 levels.push(Vec::new());
             }
@@ -44,7 +62,7 @@ impl MergePolicy for LogMergePolicy {
         }
 
         let result = levels.iter()
-            .filter(|level| {level.len() >= MIN_MERGE_SIZE})
+            .filter(|level| {level.len() >= self.min_merge_size})
             .map(|ind_vec| {
                 MergeCandidate(ind_vec.iter()
                     .map(|&ind| segments[ind].segment_id)
@@ -58,7 +76,11 @@ impl MergePolicy for LogMergePolicy {
 
 impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
-        LogMergePolicy
+        LogMergePolicy {
+            min_merge_size: DEFAULT_MIN_MERGE_SIZE,
+            min_segment_size: DEFAULT_MIN_SEGMENT_SIZE,
+            level_log_size: DEFAULT_LEVEL_LOG_SIZE,
+        }
     }
 }
 
@@ -68,11 +90,18 @@ mod tests {
     use indexer::merge_policy::MergePolicy;
     use core::{SegmentMeta, SegmentId};
 
+    fn test_merge_policy() -> LogMergePolicy {
+        let mut log_merge_policy = LogMergePolicy::default();
+        log_merge_policy.set_min_merge_size(3);
+        log_merge_policy.set_min_segment_size(2);
+        log_merge_policy
+    }
+
     #[test]
     fn test_log_merge_policy_empty() {
         let y = Vec::new();
-        let result_list = LogMergePolicy::default().compute_merge_candidates(&y);
-        assert!(result_list.len() == 0);
+        let result_list = test_merge_policy().compute_merge_candidates(&y);
+        assert!(result_list.is_empty());
     }
 
     #[test]
@@ -80,8 +109,8 @@ mod tests {
         let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
                               SegmentMeta::new(SegmentId::generate_random(), 10),
         SegmentMeta::new(SegmentId::generate_random(), 10)];
-        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
-        assert!(result_list.len() == 1);
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        assert_eq!(result_list.len(), 1);
     }
 
     #[test]
@@ -93,8 +122,8 @@ mod tests {
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000)];
-        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
-        assert!(result_list.len() == 2);
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        assert_eq!(result_list.len(), 2);
     }
 
     #[test]
@@ -106,8 +135,8 @@ mod tests {
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000),
                               SegmentMeta::new(SegmentId::generate_random(), 1000)];
-        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
-        assert!(result_list.len() == 2);
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        assert_eq!(result_list.len(), 2);
     }
     #[test]
     fn test_log_merge_policy_small_segments() {
@@ -118,7 +147,7 @@ mod tests {
                               SegmentMeta::new(SegmentId::generate_random(), 2),
                               SegmentMeta::new(SegmentId::generate_random(), 2),
                               SegmentMeta::new(SegmentId::generate_random(), 2)];
-        let result_list = LogMergePolicy::default().compute_merge_candidates(&test_input);
-        assert!(result_list.len() == 1);
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        assert_eq!(result_list.len(), 1);
     }
 }

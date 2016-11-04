@@ -123,8 +123,7 @@ pub struct SegmentUpdater {
 
 
 impl SegmentUpdater {
-	
-    
+	    
     pub fn start_updater(index: Index) -> (SegmentUpdateSender, JoinHandle<()>) {
         let segment_updater = SegmentUpdater::new(index);
         (segment_updater.segment_update_sender.clone(), segment_updater.start())
