@@ -1,7 +1,6 @@
 use Result;
 use std::any::Any;
 use super::boolean_weight::BooleanWeight;
-use super::BooleanClause;
 use query::Weight;
 use Searcher;
 use query::Query;
@@ -20,12 +19,12 @@ use query::OccurFilter;
 /// a `MustNot` occurence.
 #[derive(Debug)]
 pub struct BooleanQuery {
-    clauses: Vec<BooleanClause>,
+    subqueries: Vec<(Occur, Box<Query>)>
 }
 
-impl From<Vec<BooleanClause>> for BooleanQuery {
-    fn from(clauses: Vec<BooleanClause>) -> BooleanQuery {
-        BooleanQuery { clauses: clauses }
+impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
+    fn from(subqueries: Vec<(Occur, Box<Query>)>) -> BooleanQuery {
+        BooleanQuery { subqueries: subqueries }
     }
 }
 
@@ -35,13 +34,13 @@ impl Query for BooleanQuery {
     }
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let sub_weights = try!(self.clauses
+        let sub_weights = try!(self.subqueries
             .iter()
-            .map(|clause| clause.query.weight(searcher))
+            .map(|&(ref _occur, ref subquery)| subquery.weight(searcher))
             .collect());
-        let occurs: Vec<Occur> = self.clauses
+        let occurs: Vec<Occur> = self.subqueries
             .iter()
-            .map(|clause| clause.occur)
+            .map(|&(ref occur, ref _subquery)| *occur)
             .collect();
         let filter = OccurFilter::new(&occurs);
         Ok(box BooleanWeight::new(sub_weights, filter))
