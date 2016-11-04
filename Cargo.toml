@@ -8,8 +8,8 @@ license = "MIT"
 description = """Tantivy is a search engine library."""
 
 documentation = "http://fulmicoton.com/tantivy/tantivy/index.html"
-homepage = "https://github.com/fulmicoton/tantivy"
-repository = "https://github.com/fulmicoton/tantivy"
+homepage = "https://github.com/tantivy-search/tantivy"
+repository = "https://github.com/tantivy-search/tantivy"
 
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
