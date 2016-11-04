@@ -59,11 +59,16 @@ mod macros {
 
     macro_rules! doc(
         ($($field:ident => $value:expr),*) => {{
-            let mut document = Document::default();
-            $(
-                document.add(FieldValue::new($field, $value.into()));
-            )*
-            document
+            #[allow(unused_mut)] // avoid emitting a warning for `doc!()`
+            {
+                let mut document = Document::default();
+                $(
+                    document.add(FieldValue::new($field, $value.into()));
+                )*
+                document
+            }
+            
+            
         }};
     );
 }
@@ -173,18 +178,15 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "af b");
+                let doc = doc!(text_field=>"af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c");
+                let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c d");
+                let doc = doc!(text_field=>"a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.commit().is_ok());
@@ -199,27 +201,22 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         {
-            let mut doc = Document::default();
-            doc.add_text(text_field, "a b c");
-            index_writer.add_document(doc).unwrap();
+            index_writer.add_document(doc!(text_field=>"a b c")).unwrap();
             index_writer.commit().unwrap();
         }
         {
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
+                let doc = doc!(text_field=>"a");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a a");
+                let doc = doc!(text_field=>"a a");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
         }
         {
-            let mut doc = Document::default();
-            doc.add_text(text_field, "c");
+            let doc = doc!(text_field=>"c");
             index_writer.add_document(doc).unwrap();
             index_writer.commit().unwrap();
         }
@@ -245,17 +242,15 @@ mod tests {
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c");
+                let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let doc = Document::default();
+                let doc = doc!();
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b");
+                let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
@@ -281,8 +276,7 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "af af af bc bc");
+                let doc = doc!(text_field=>"af af af bc bc");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
@@ -310,18 +304,15 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "af af af b");
+                let doc = doc!(text_field=>"af af af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c");
+                let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c d");
+                let doc = doc!(text_field=>"a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();
@@ -379,18 +370,15 @@ mod tests {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "af b");
+                let doc = doc!(text_field=>"af b");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c");
+                let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c d");
+                let doc = doc!(text_field=>"a b c d");
                 index_writer.add_document(doc).unwrap();
             }
             index_writer.commit().unwrap();

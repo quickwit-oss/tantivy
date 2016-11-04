@@ -13,6 +13,7 @@ mod tests {
     use super::*;
     use query::Query;
     use core::Index;
+    use schema::FieldValue;
     use schema::{Document, Term, SchemaBuilder, TEXT};
     use collector::tests::TestCollector;
 
@@ -26,28 +27,23 @@ mod tests {
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {   // 0
-                let mut doc = Document::default();
-                doc.add_text(text_field, "b b b d c g c");
+                let doc = doc!(text_field=>"b b b d c g c");
                 index_writer.add_document(doc).unwrap();
             }
             {   // 1
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b b d c g c");
+                let doc = doc!(text_field=>"a b b d c g c");
                 index_writer.add_document(doc).unwrap();
             }
             {   // 2
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b a b c");
+                let doc = doc!(text_field=>"a b a b c");
                 index_writer.add_document(doc).unwrap();
             }
             {   // 3
-                let mut doc = Document::default();
-                doc.add_text(text_field, "c a b a d ga a");
+                let doc = doc!(text_field=>"c a b a d ga a");
                 index_writer.add_document(doc).unwrap();
             }
             {   // 4
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a b c");
+                let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.commit().is_ok());
