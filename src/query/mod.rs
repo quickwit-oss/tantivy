@@ -13,7 +13,7 @@ mod occur;
 mod weight;
 mod occur_filter;
 mod term_query;
-
+mod query_parser2;
 
 pub use self::occur_filter::OccurFilter;
 pub use self::boolean_query::BooleanQuery;
