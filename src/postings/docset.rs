@@ -36,7 +36,9 @@ pub trait DocSet {
     /// skipping will advance to the next position and return SkipResult::Overstep.
     ///
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.advance();
+        if !self.advance() {
+            return SkipResult::End;
+        }
         loop {
             match self.doc().cmp(&target) {
                 Ordering::Less => {

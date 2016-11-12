@@ -231,7 +231,7 @@ mod tests {
             let index = Index::create_in_ram(schema);
             {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-                for _ in 0 .. 15_000_000 {
+                for _ in 0 .. 1_500_000 {
                     let mut doc = Document::default();
                     if rng.gen_weighted_bool(15) {
                         doc.add_text(text_field, "a");
