@@ -12,6 +12,8 @@ It is strongly inspired by Lucene's design.
 
 # Features
 
+[![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 - configurable indexing (optional term frequency and position indexing)
 - tf-idf scoring
 - Basic query language
