@@ -1,29 +1,11 @@
 use std::fmt;
 
-pub struct QueryAST {
-    root: QueryNode,
-}
-
-impl From<QueryNode> for QueryAST {
-    fn from(root: QueryNode) -> QueryAST {
-        QueryAST {
-            root: root
-        }
-    }
-}
-
-impl fmt::Debug for QueryAST {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(formatter, "{:?}", self.root)
-    }
-}
-
-pub struct QueryLiteral {
+pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String, 
 }
 
-impl fmt::Debug for QueryLiteral {
+impl fmt::Debug for UserInputLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self.field_name {
             Some(ref field_name) => {
@@ -36,27 +18,27 @@ impl fmt::Debug for QueryLiteral {
     }
 }
 
-pub enum QueryNode {
-    Clause(Vec<Box<QueryNode>>),
-    Not(Box<QueryNode>),
-    Must(Box<QueryNode>),
-    Leaf(Box<QueryLiteral>)
+pub enum UserInputAST {
+    Clause(Vec<Box<UserInputAST>>),
+    Not(Box<UserInputAST>),
+    Must(Box<UserInputAST>),
+    Leaf(Box<UserInputLiteral>)
     
 }
 
-impl From<QueryLiteral> for QueryNode {
-    fn from(literal: QueryLiteral) -> QueryNode {
-        QueryNode::Leaf(box literal)
+impl From<UserInputLiteral> for UserInputAST {
+    fn from(literal: UserInputLiteral) -> UserInputAST {
+        UserInputAST::Leaf(box literal)
     }
  }
 
-impl fmt::Debug for QueryNode {
+impl fmt::Debug for UserInputAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            QueryNode::Must(ref subquery) => {
+            UserInputAST::Must(ref subquery) => {
                 write!(formatter, "+({:?})", subquery)
             },
-            QueryNode::Clause(ref subqueries) => {
+            UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     try!(write!(formatter, "<emptyclause>"));
                 }
@@ -69,10 +51,10 @@ impl fmt::Debug for QueryNode {
                 Ok(())
                 
             },
-            QueryNode::Not(ref subquery) => {
+            UserInputAST::Not(ref subquery) => {
                 write!(formatter, "-({:?})", subquery)
             }
-            QueryNode::Leaf(ref subquery) => {
+            UserInputAST::Leaf(ref subquery) => {
                 write!(formatter, "{:?}", subquery)
             }
         }

@@ -12,3 +12,27 @@ pub enum Occur {
     /// search.
     MustNot,
 }
+
+impl Occur {
+    pub fn compose(&self, other: Occur) -> Occur {
+        match *self {
+            Occur::Should => other,
+            Occur::Must => {
+                if other == Occur::MustNot {
+                    Occur::MustNot
+                }
+                else {
+                    Occur::Must
+                }
+            }
+            Occur::MustNot => {
+                if other == Occur::MustNot {
+                    Occur::Must
+                }
+                else {
+                    Occur::MustNot
+                }
+            }  
+        }
+    }
+}
