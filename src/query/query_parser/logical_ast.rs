@@ -16,7 +16,7 @@ pub enum LogicalAST{
 
 fn occur_letter(occur: Occur) -> &'static str {
     match occur {
-        Occur::Must => "'+",        
+        Occur::Must => "+",
         Occur::MustNot => "-",
         Occur::Should => "",
     }
@@ -31,10 +31,11 @@ impl fmt::Debug for LogicalAST {
                 }
                 else {
                     let (ref occur, ref subquery) = clause[0];
-                    try!(write!(formatter, "{}{:?}", occur_letter(*occur), subquery));
+                    try!(write!(formatter, "({}{:?}", occur_letter(*occur), subquery));
                     for &(ref occur, ref subquery) in &clause[1..] {
-                        try!(write!(formatter, "{}{:?}", occur_letter(*occur), subquery));
+                        try!(write!(formatter, " {}{:?}", occur_letter(*occur), subquery));
                     }
+                    try!(formatter.write_str(")"));
                 }
                 Ok(())
             }
@@ -58,7 +59,6 @@ impl fmt::Debug for LogicalLiteral {
                 write!(formatter, "{:?}", term)
             },
             LogicalLiteral::Phrase(ref terms) => {
-                // write!(formatter, "\"{}\"", literal)
                 write!(formatter, "\"{:?}\"", terms)
             }
         }

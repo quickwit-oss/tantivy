@@ -1,7 +1,6 @@
 use combine::*;
 use combine::char::*;
 use super::user_input_ast::*;
-use schema::{Schema, Field};
 
 fn literal<I>(input: I) -> ParseResult<UserInputAST, I> 
     where I: Stream<Item = char> {
@@ -61,7 +60,6 @@ pub fn parse_to_ast<I>(input: I) -> ParseResult<UserInputAST, I>
 #[cfg(test)]
 mod test {
     
-    use combine::*;
     use super::*;
     
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {

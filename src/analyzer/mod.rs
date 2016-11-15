@@ -56,9 +56,6 @@ pub struct SimpleTokenizer;
 
 
 impl SimpleTokenizer {
-    pub fn new() -> SimpleTokenizer {
-        SimpleTokenizer
-    }
 
     pub fn tokenize<'a>(&self, text: &'a str) -> TokenIter<'a> {
         TokenIter {
@@ -71,7 +68,7 @@ impl SimpleTokenizer {
 
 #[test]
 fn test_tokenizer() {
-    let simple_tokenizer = SimpleTokenizer::new();
+    let simple_tokenizer = SimpleTokenizer;
     let mut term_reader = simple_tokenizer.tokenize("hello, happy tax payer!");
     assert_eq!(term_reader.next().unwrap(), "hello");
     assert_eq!(term_reader.next().unwrap(), "happy");
@@ -83,7 +80,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_tokenizer_empty() {
-    let simple_tokenizer = SimpleTokenizer::new();
+    let simple_tokenizer = SimpleTokenizer;
     let mut term_reader = simple_tokenizer.tokenize("");
     assert_eq!(term_reader.next(), None);
 }

@@ -4,11 +4,9 @@ use query::BooleanQuery;
 use super::logical_ast::*;
 use super::user_input_ast::*;
 use super::query_grammar::parse_to_ast;
-use super::boolean_operator::BooleanOperator;
 use query::Occur;
 use query::TermQuery;
 use query::PhraseQuery;
-use combine::ParseError;
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
 use schema::Term;
@@ -16,7 +14,7 @@ use schema::Term;
 
 
 /// Possible error that may happen when parsing a query.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QueryParserError {
     /// Error in the query syntax
     SyntaxError,
@@ -66,7 +64,7 @@ pub enum QueryParserError {
 pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
-    default_operator: BooleanOperator,
+    conjunction_by_default: bool,
     analyzer: Box<SimpleTokenizer>,
 }
 
@@ -80,11 +78,15 @@ impl QueryParser {
         QueryParser {
             schema: schema,
             default_fields: default_fields,
-            default_operator: BooleanOperator::And,
+            conjunction_by_default: false,
             analyzer: box SimpleTokenizer,
         }
     }   
     
+    pub fn set_conjunction_by_default(&mut self) {
+        self.conjunction_by_default = true;
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
@@ -96,9 +98,13 @@ impl QueryParser {
     /// Implementing a lenient mode for this query parser is tracked 
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
-        let (user_input_ast, remaining) = try!(parse_to_ast(query).map_err(|e| QueryParserError::SyntaxError));
-        let logical_ast = try!(self.compute_logical_ast(user_input_ast));
+        let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
+    }
+
+    pub fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
+        let (user_input_ast, remaining) = parse_to_ast(query).map_err(|_| QueryParserError::SyntaxError)?;
+        self.compute_logical_ast(user_input_ast)
     }
     
     fn resolve_field_name(&self, field_name: &str) -> Result<Field, QueryParserError> {
@@ -139,12 +145,28 @@ impl QueryParser {
         }
     }
     
+    fn default_occur(&self) -> Occur {
+        if self.conjunction_by_default {
+            Occur::Must
+        }
+        else {
+            Occur::Should
+        }
+    }
+    
+
     pub fn compute_logical_ast_with_occur(&self, user_input_ast: UserInputAST) -> Result<(Occur, LogicalAST), QueryParserError> {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
+                let default_occur = self.default_occur();
                 let logical_sub_queries: Vec<(Occur, LogicalAST)> = try!(sub_queries
                     .into_iter()
                     .map(|sub_query| self.compute_logical_ast_with_occur(*sub_query))
+                    .map(|res| 
+                        res.map(
+                            |(occur, sub_ast)| (default_occur.compose(occur), sub_ast)
+                        )
+                    )
                     .collect());
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
@@ -230,3 +252,50 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
     }
 }
 
+
+#[cfg(test)]
+mod test {
+    use schema::{SchemaBuilder, TEXT};
+    use super::QueryParser;
+    use super::QueryParserError;
+    use super::super::logical_ast::*;
+    
+    fn parse_query_to_logical_ast(query: &str, default_conjunction: bool) -> Result<LogicalAST, QueryParserError> {
+        let mut schema_builder = SchemaBuilder::default();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let default_fields = vec!(title, text);
+        let mut query_parser = QueryParser::new(schema, default_fields);
+        if default_conjunction {
+            query_parser.set_conjunction_by_default();
+        }
+        query_parser.parse_query_to_logical_ast(query)
+    }
+
+    fn test_parse_query_to_logical_ast_helper(query: &str, expected: &str, default_conjunction: bool) {
+        let query = parse_query_to_logical_ast(query, default_conjunction).unwrap();
+        let query_str = format!("{:?}", query);
+        assert_eq!(query_str, expected);
+    }
+
+    #[test]
+    pub fn test_parse_query_to_ast_disjunction() {
+        test_parse_query_to_logical_ast_helper("title:toto", "Term([0, 116, 111, 116, 111])", false);
+        test_parse_query_to_logical_ast_helper("+title:toto", "Term([0, 116, 111, 116, 111])", false);
+        test_parse_query_to_logical_ast_helper("+title:toto -titi", "(+Term([0, 116, 111, 116, 111]) -(Term([0, 116, 105, 116, 105]) Term([1, 116, 105, 116, 105])))", false);
+        assert_eq!(parse_query_to_logical_ast("-title:toto", false).err().unwrap(), QueryParserError::AllButQueryForbidden);
+        test_parse_query_to_logical_ast_helper("title:a b", "(Term([0, 97]) (Term([0, 98]) Term([1, 98])))", false);
+        test_parse_query_to_logical_ast_helper("title:\"a b\"", "\"[Term([0, 97]), Term([0, 98])]\"", false);
+    }
+
+    #[test]
+    pub fn test_parse_query_to_ast_conjunction() {
+        test_parse_query_to_logical_ast_helper("title:toto", "Term([0, 116, 111, 116, 111])", true);
+        test_parse_query_to_logical_ast_helper("+title:toto", "Term([0, 116, 111, 116, 111])", true);
+        test_parse_query_to_logical_ast_helper("+title:toto -titi", "(+Term([0, 116, 111, 116, 111]) -(Term([0, 116, 105, 116, 105]) Term([1, 116, 105, 116, 105])))", true);
+        assert_eq!(parse_query_to_logical_ast("-title:toto", true).err().unwrap(), QueryParserError::AllButQueryForbidden);
+        test_parse_query_to_logical_ast_helper("title:a b", "(+Term([0, 97]) +(Term([0, 98]) Term([1, 98])))", true);
+        test_parse_query_to_logical_ast_helper("title:\"a b\"", "\"[Term([0, 97]), Term([0, 98])]\"", true);
+    }
+}
