@@ -5,18 +5,15 @@
 
 mod query;
 mod boolean_query;
-mod multi_term_query;
-mod phrase_query;
 mod scorer;
 mod occur;
 mod weight;
 mod occur_filter;
 mod term_query;
 mod query_parser;
+mod phrase_query;
 
 pub use self::boolean_query::BooleanQuery;
-pub use self::multi_term_query::MultiTermQuery;
-pub use self::multi_term_query::MultiTermWeight;
 pub use self::occur_filter::OccurFilter;
 pub use self::occur::Occur;
 pub use self::phrase_query::PhraseQuery;

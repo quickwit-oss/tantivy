@@ -23,6 +23,14 @@ pub struct TermQuery {
 }
 
 impl TermQuery {
+    /// Creates a new term query.
+    pub fn new(term: Term, segment_postings_options: SegmentPostingsOption) -> TermQuery {
+        TermQuery {
+            term: term,
+            segment_postings_options: segment_postings_options,
+        }
+    }
+
     
     /// Returns a weight object.
     /// 
@@ -35,14 +43,6 @@ impl TermQuery {
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
             segment_postings_options: self.segment_postings_options,
-        }
-    }
-    
-    
-    pub fn new(term: Term, segment_postings_options: SegmentPostingsOption) -> TermQuery {
-        TermQuery {
-            term: term,
-            segment_postings_options: segment_postings_options,
         }
     }
 }

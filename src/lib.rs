@@ -157,9 +157,9 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 mod tests {
 
     use collector::tests::TestCollector;
-    use query::MultiTermQuery;
     use Index;
     use core::SegmentReader;
+    use query::BooleanQuery;
     use schema::*;
     use DocSet;
     use Postings;
@@ -316,7 +316,7 @@ mod tests {
         {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
-                let query = MultiTermQuery::from(terms);
+                let query = BooleanQuery::new_multiterms_query(terms);
                 let mut collector = TestCollector::default();
                 assert!(searcher.search(&query, &mut collector).is_ok());
                 collector.docs()

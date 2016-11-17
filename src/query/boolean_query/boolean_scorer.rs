@@ -42,10 +42,6 @@ pub struct BooleanScorer<TScorer: Scorer> {
 
 impl<TScorer: Scorer> BooleanScorer<TScorer> {
     
-    pub fn scorers(&self) -> &[TScorer] {
-        &self.scorers
-    }
-
     pub fn new(scorers: Vec<TScorer>,
                occur_filter: OccurFilter) -> BooleanScorer<TScorer> {
         let score_combiner = ScoreCombiner::default_for_num_scorers(scorers.len());
