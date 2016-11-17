@@ -30,7 +30,7 @@ impl MultiTermQuery {
     pub fn specialized_weight(&self, searcher: &Searcher) -> MultiTermWeight {
         let term_queries: Vec<TermQuery> = self.occur_terms
             .iter()
-            .map(|&(_, ref term)| TermQuery::from(term.clone()))
+            .map(|&(_, ref term)| TermQuery::new(term.clone()), SegmentPostingsOption::FreqAndPositions)
             .collect();
         let occurs: Vec<Occur> = self.occur_terms
             .iter()
@@ -38,11 +38,7 @@ impl MultiTermQuery {
             .collect();
         let occur_filter = OccurFilter::new(&occurs);
         let weights = term_queries.iter()
-            .map(|term_query| {
-                let mut term_weight = term_query.specialized_weight(searcher);
-                term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
-                term_weight
-            })
+            .map(|term_query| term_query.specialized_weight(searcher))
             .collect();
         MultiTermWeight::new(weights, occur_filter)
     }

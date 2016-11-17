@@ -176,7 +176,7 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-        let term_query = TermQuery::from(Term::from_field_text(text_field, "a"));
+        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"), SegmentPostingsOption::NoFreq);
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
         term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;

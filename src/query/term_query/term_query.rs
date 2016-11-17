@@ -19,10 +19,11 @@ use std::any::Any;
 #[derive(Debug)]
 pub struct TermQuery {
     term: Term,
+    segment_postings_options: SegmentPostingsOption,
 }
 
 impl TermQuery {
-
+    
     /// Returns a weight object.
     /// 
     /// While `.weight(...)` returns a boxed trait object,
@@ -33,15 +34,15 @@ impl TermQuery {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
-            segment_postings_options: SegmentPostingsOption::NoFreq,
+            segment_postings_options: self.segment_postings_options,
         }
     }
-}
-
-impl From<Term> for TermQuery {
-    fn from(term: Term) -> TermQuery {
+    
+    
+    pub fn new(term: Term, segment_postings_options: SegmentPostingsOption) -> TermQuery {
         TermQuery {
-            term: term
+            term: term,
+            segment_postings_options: segment_postings_options,
         }
     }
 }

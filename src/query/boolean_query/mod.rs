@@ -62,7 +62,7 @@ mod tests {
             assert!(index_writer.commit().is_ok());
         }
         let make_term_query = |text: &str| {
-            let term_query = TermQuery::from(Term::from_field_text(text_field, text));
+            let term_query = TermQuery::new(Term::from_field_text(text_field, text), SegmentPostingsOption::NoFreq);
             let query: Box<Query> = box term_query;
             query
         };

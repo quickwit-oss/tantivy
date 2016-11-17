@@ -99,7 +99,7 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(logical_ast))
+        Ok(self.convert_to_query(logical_ast))
     }
 
     pub fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
@@ -153,7 +153,36 @@ impl QueryParser {
             Occur::Should
         }
     }
+
+
+    fn convert_literal_to_query(&self, logical_literal: LogicalLiteral) -> Box<Query> {
+        match logical_literal {
+            LogicalLiteral::Term(term) => {
+                let field = term.field();
+                TODO check the schema to get the correct segment otpins
+                box TermQuery::from(term)
+            }
+            LogicalLiteral::Phrase(terms) => {
+                TODO check the schema to get the correct segment otpins
+                box PhraseQuery::from(terms)
+            }
+        }
+        
+    }    
     
+    fn convert_to_query(&self, logical_ast: LogicalAST) -> Box<Query> {
+    match logical_ast {
+        LogicalAST::Clause(clause) => {
+            let occur_subqueries = clause.into_iter()
+                .map(|(occur, subquery)| (occur, self.convert_to_query(subquery)))
+                .collect::<Vec<_>>();
+            box BooleanQuery::from(occur_subqueries)
+        }
+        LogicalAST::Leaf(logical_literal) => {
+            self.convert_literal_to_query(*logical_literal)
+        }
+    }
+}
 
     pub fn compute_logical_ast_with_occur(&self, user_input_ast: UserInputAST) -> Result<(Occur, LogicalAST), QueryParserError> {
         match user_input_ast {
@@ -226,31 +255,9 @@ impl QueryParser {
 }
 
 
-fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
-    match logical_literal {
-        LogicalLiteral::Term(term) => {
-            box TermQuery::from(term)
-        }
-        LogicalLiteral::Phrase(terms) => {
-            box PhraseQuery::from(terms)
-        }
-    }
-    
-}
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
-    match logical_ast {
-        LogicalAST::Clause(clause) => {
-            let occur_subqueries = clause.into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
-                .collect::<Vec<_>>();
-            box BooleanQuery::from(occur_subqueries)
-        }
-        LogicalAST::Leaf(logical_literal) => {
-            convert_literal_to_query(*logical_literal)
-        }
-    }
-}
+
+
 
 
 #[cfg(test)]
