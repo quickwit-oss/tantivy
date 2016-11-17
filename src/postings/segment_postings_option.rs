@@ -6,7 +6,7 @@
 /// avoid this extra cost when the information is not required.
 /// For instance, positions are useful when running phrase queries
 /// but useless in other queries.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum SegmentPostingsOption {
     /// Only the doc ids are decoded
     NoFreq,

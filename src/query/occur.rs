@@ -2,7 +2,7 @@
 /// should be present or must not be present.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Occur {
-    /// For a given document to be considered for scoring, 
+    /// For a given document to be considered for scoring,
     /// at least one of the document with the Should or the Must
     /// Occur constraint must be within the document.
     Should,

@@ -4,6 +4,9 @@ use super::boolean_weight::BooleanWeight;
 use query::Weight;
 use Searcher;
 use query::Query;
+use schema::Term;
+use query::TermQuery;
+use postings::SegmentPostingsOption;
 use query::Occur;
 use query::OccurFilter;
 
@@ -19,7 +22,7 @@ use query::OccurFilter;
 /// a `MustNot` occurence.
 #[derive(Debug)]
 pub struct BooleanQuery {
-    subqueries: Vec<(Occur, Box<Query>)>
+    subqueries: Vec<(Occur, Box<Query>)>,
 }
 
 impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
@@ -44,5 +47,19 @@ impl Query for BooleanQuery {
             .collect();
         let filter = OccurFilter::new(&occurs);
         Ok(box BooleanWeight::new(sub_weights, filter))
+    }
+}
+
+impl BooleanQuery {
+    /// Helper method to create a boolean query matching a given list of terms.
+    /// The resulting query is a disjunction of the terms.
+    pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
+        let occur_term_queries: Vec<(Occur, Box<Query>)> = terms.into_iter()
+            .map(|term| {
+                let term_query: Box<Query> = box TermQuery::new(term, SegmentPostingsOption::Freq);
+                (Occur::Should, term_query)
+            })
+            .collect();
+        BooleanQuery::from(occur_term_queries)
     }
 }

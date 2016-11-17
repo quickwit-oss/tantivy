@@ -45,8 +45,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<query::ParsingError> for Error {
-    fn from(parsing_error: query::ParsingError) -> Error {
+impl From<query::QueryParserError> for Error {
+    fn from(parsing_error: query::QueryParserError) -> Error {
         Error::InvalidArgument(format!("Query is invalid. {:?}", parsing_error))
     }
 }

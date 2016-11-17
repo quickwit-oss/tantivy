@@ -38,16 +38,9 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
             return false;
         }
         let num_docsets = self.docsets.len();
-        let mut count_matching = 1;
-        let mut doc_candidate = {
-            let mut first_docset = &mut self.docsets[0];
-            if !first_docset.advance() {
-                self.finished = true;
-                return false;
-            }
-            first_docset.doc()
-        };
-        let mut ord = 1;
+        let mut count_matching = 0;
+        let mut doc_candidate = 0;
+        let mut ord = 0;
         loop {
             let mut doc_set = &mut self.docsets[ord];
             match doc_set.skip_next(doc_candidate) {
