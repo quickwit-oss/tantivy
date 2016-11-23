@@ -1,5 +1,6 @@
 
-use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ReadBytesExt, WriteBytesExt};
+use byteorder::LittleEndian as Endianness;
 use std::fmt;
 use std::io::Write;
 use std::io::Read;
@@ -59,13 +60,13 @@ impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for
 
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u32::<NativeEndian>(*self)
+        writer.write_u32::<Endianness>(*self)
               .map(|_| 4)
               .map_err(convert_byte_order_error)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<u32> {
-        reader.read_u32::<NativeEndian>()
+        reader.read_u32::<Endianness>()
               .map_err(convert_byte_order_error)
     }
 }
@@ -73,12 +74,12 @@ impl BinarySerializable for u32 {
 
 impl BinarySerializable for u64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u64::<NativeEndian>(*self)
+        writer.write_u64::<Endianness>(*self)
               .map(|_| 8)
               .map_err(convert_byte_order_error)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u64> {
-        reader.read_u64::<NativeEndian>()
+        reader.read_u64::<Endianness>()
               .map_err(convert_byte_order_error)
     }
 }

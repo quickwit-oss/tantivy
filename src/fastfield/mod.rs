@@ -22,8 +22,6 @@ pub use self::serializer::FastFieldSerializer;
 
 #[cfg(test)]
 mod tests {
-
-    use common::compute_num_bits;
     use super::*;
     use schema::Field;
     use std::path::Path;
