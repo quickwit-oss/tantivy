@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-mod simdcomp;
-pub use self::simdcomp::{SIMDBlockEncoder, SIMDBlockDecoder};
+mod compression;
+pub use self::compression::{BlockEncoder, BlockDecoder};
 
 mod composite;
 pub use self::composite::CompositeEncoder;

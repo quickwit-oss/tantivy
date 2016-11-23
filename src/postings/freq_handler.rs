@@ -1,4 +1,4 @@
-use compression::SIMDBlockDecoder;
+use compression::BlockDecoder;
 use common::VInt;
 use common::BinarySerializable;
 use compression::CompositeDecoder;
@@ -9,7 +9,7 @@ use compression::NUM_DOCS_PER_BLOCK;
 /// `FreqHandler`  is in charge of decompressing
 /// frequencies and/or positions.
 pub struct FreqHandler {
-    freq_decoder: SIMDBlockDecoder,
+    freq_decoder: BlockDecoder,
     positions: Vec<u32>,
     option: SegmentPostingsOption,
     positions_offsets: [usize; NUM_DOCS_PER_BLOCK + 1],
@@ -30,7 +30,7 @@ impl FreqHandler {
     /// Returns a `FreqHandler` that just decodes `DocId`s.
     pub fn new_without_freq() -> FreqHandler {
         FreqHandler {
-            freq_decoder: SIMDBlockDecoder::with_val(1u32),
+            freq_decoder: BlockDecoder::with_val(1u32),
             positions: Vec::new(),
             option: SegmentPostingsOption::NoFreq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
@@ -40,7 +40,7 @@ impl FreqHandler {
     /// Returns a `FreqHandler` that decodes `DocId`s and term frequencies.
     pub fn new_with_freq() -> FreqHandler {
         FreqHandler {
-            freq_decoder: SIMDBlockDecoder::new(),
+            freq_decoder: BlockDecoder::new(),
             positions: Vec::new(),
             option: SegmentPostingsOption::Freq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
@@ -52,7 +52,7 @@ impl FreqHandler {
     pub fn new_with_freq_and_position(position_data: &[u8]) -> FreqHandler {
         let positions = read_positions(position_data);
         FreqHandler {
-            freq_decoder: SIMDBlockDecoder::new(),
+            freq_decoder: BlockDecoder::new(),
             positions: positions,
             option: SegmentPostingsOption::FreqAndPositions,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],

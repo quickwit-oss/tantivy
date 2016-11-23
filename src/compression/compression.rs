@@ -1,50 +1,99 @@
-use libc::size_t;
+
 use super::NUM_DOCS_PER_BLOCK;
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1; 
 
-extern {
-    fn compress_sorted_cpp(
-        data: *const u32,
-        output: *mut u8,
-        offset: u32) -> size_t;
-   
-    fn uncompress_sorted_cpp(
-        compressed_data: *const u8,
-        output: *mut u32,
-        offset: u32) -> size_t;
-        
-    fn compress_unsorted_cpp(
-        data: *const u32,
-        output: *mut u8) -> size_t;
-   
-    fn uncompress_unsorted_cpp(
-        compressed_data: *const u8,
-        output: *mut u32) -> size_t;
+
+#[cfg(feature="simdcompression")]
+mod compression {
+    use libc::size_t;
+    extern {
+        fn compress_sorted_cpp(
+            data: *const u32,
+            output: *mut u8,
+            offset: u32) -> size_t;
+    
+        fn uncompress_sorted_cpp(
+            compressed_data: *const u8,
+            output: *mut u32,
+            offset: u32) -> size_t;
+            
+        fn compress_unsorted_cpp(
+            data: *const u32,
+            output: *mut u8) -> size_t;
+    
+        fn uncompress_unsorted_cpp(
+            compressed_data: *const u8,
+            output: *mut u32) -> size_t;
+    }
+
+    pub fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
+        unsafe { compress_sorted_cpp(vals.as_ptr(), output.as_mut_ptr(), offset) }
+    }
+
+    pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32) -> usize {
+        unsafe { uncompress_sorted_cpp(compressed_data.as_ptr(), output.as_mut_ptr(), offset) }
+    }
+
+    pub fn compress_unsorted(vals: &[u32], output: &mut [u8]) -> usize {
+        unsafe { compress_unsorted_cpp(vals.as_ptr(), output.as_mut_ptr()) }
+    }
+
+    pub fn uncompress_unsorted(compressed_data: &[u8], output: &mut [u32]) -> usize {
+        unsafe { uncompress_unsorted_cpp(compressed_data.as_ptr(), output.as_mut_ptr()) }
+    }
 }
 
 
-pub struct SIMDBlockEncoder {
+#[cfg(not(feature="simdcompression"))]
+mod compression {
+    pub fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
+        panic!("aaa");
+    }
+
+    pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset_: u32) -> usize {
+        let len = uncompress_unsorted(compressed_data, output);
+        let mut offset = offset_;
+        for i in 0..len {
+            output[i] += offset;
+            offset = output[i];
+        }
+        len
+    }
+
+    pub fn compress_unsorted(vals: &[u32], output: &mut [u8]) -> usize {
+        // let max = vals.iter().max().expect("compress unsorted called with an empty array");
+        // let num_bits =
+        panic!("aaa"); 
+    }
+
+    pub fn uncompress_unsorted(compressed_data: &[u8], output: &mut [u32]) -> usize {
+        panic!("aaa");
+    }
+}
+
+
+pub struct BlockEncoder {
     output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
     output_len: usize,
 }
 
-impl SIMDBlockEncoder {
+impl BlockEncoder {
     
-    pub fn new() -> SIMDBlockEncoder {
-        SIMDBlockEncoder {
+    pub fn new() -> BlockEncoder {
+        BlockEncoder {
             output: [0u8; COMPRESSED_BLOCK_MAX_SIZE],
             output_len: 0,
         }    
     }
     
     pub fn compress_block_sorted(&mut self, vals: &[u32], offset: u32) -> &[u8] {
-        let compressed_size = unsafe { compress_sorted_cpp(vals.as_ptr(), self.output.as_mut_ptr(), offset) };
+        let compressed_size = compression::compress_sorted(vals, &mut self.output, offset);
         &self.output[..compressed_size]
     }
     
     pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
-        let compressed_size = unsafe { compress_unsorted_cpp(vals.as_ptr(), self.output.as_mut_ptr()) };
+        let compressed_size = compression::compress_unsorted(vals, &mut self.output);
         &self.output[..compressed_size]
     }
     
@@ -93,32 +142,32 @@ impl SIMDBlockEncoder {
     
 }
 
-pub struct SIMDBlockDecoder {
+pub struct BlockDecoder {
     output: [u32; COMPRESSED_BLOCK_MAX_SIZE],
     output_len: usize,
 }
 
 
-impl SIMDBlockDecoder {
-    pub fn new() -> SIMDBlockDecoder {
-        SIMDBlockDecoder::with_val(0u32)
+impl BlockDecoder {
+    pub fn new() -> BlockDecoder {
+        BlockDecoder::with_val(0u32)
     }
     
-    pub fn with_val(val: u32) -> SIMDBlockDecoder {
-        SIMDBlockDecoder {
+    pub fn with_val(val: u32) -> BlockDecoder {
+        BlockDecoder {
             output: [val; COMPRESSED_BLOCK_MAX_SIZE],
             output_len: 0,
         }
     }
     
     pub fn uncompress_block_sorted<'a>(&mut self, compressed_data: &'a [u8], offset: u32) -> &'a[u8] {
-        let consumed_size = unsafe { uncompress_sorted_cpp(compressed_data.as_ptr(), self.output.as_mut_ptr(), offset) };
+        let consumed_size = compression::uncompress_sorted(compressed_data, &mut self.output, offset);
         self.output_len = NUM_DOCS_PER_BLOCK;
         &compressed_data[consumed_size..]
     }
     
     pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> &'a[u8] {
-        let consumed_size = unsafe { uncompress_unsorted_cpp(compressed_data.as_ptr(), self.output.as_mut_ptr()) };
+        let consumed_size = compression::uncompress_unsorted(compressed_data, &mut self.output);
         self.output_len = NUM_DOCS_PER_BLOCK;
         &compressed_data[consumed_size..]
     }
@@ -194,9 +243,9 @@ mod tests {
     #[test]
     fn test_encode_sorted_block() {
         let vals: Vec<u32> = (0u32..128u32).map(|i| i*7).collect();
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let compressed_data = encoder.compress_block_sorted(&vals, 0);
-        let mut decoder = SIMDBlockDecoder::new();
+        let mut decoder = BlockDecoder::new();
         {
             let remaining_data = decoder.uncompress_block_sorted(compressed_data, 0);    
             assert_eq!(remaining_data.len(), 0);
@@ -209,9 +258,9 @@ mod tests {
     #[test]
     fn test_encode_sorted_block_with_offset() {
         let vals: Vec<u32> = (0u32..128u32).map(|i| 11 + i*7).collect();
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let compressed_data = encoder.compress_block_sorted(&vals, 10);
-        let mut decoder = SIMDBlockDecoder::new();
+        let mut decoder = BlockDecoder::new();
         {
             let remaining_data = decoder.uncompress_block_sorted(compressed_data, 10);    
             assert_eq!(remaining_data.len(), 0);
@@ -226,11 +275,11 @@ mod tests {
         let mut compressed: Vec<u8> = Vec::new();
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32)*7u32).collect();
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let compressed_data = encoder.compress_block_sorted(&vals, 10);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
-        let mut decoder = SIMDBlockDecoder::new();
+        let mut decoder = BlockDecoder::new();
         {
             let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);    
             assert_eq!(remaining_data.len(), 1);
@@ -246,11 +295,11 @@ mod tests {
         let mut compressed: Vec<u8> = Vec::new();
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32)*7u32 % 12).collect();
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let compressed_data = encoder.compress_block_sorted(&vals, 10);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
-        let mut decoder = SIMDBlockDecoder::new();
+        let mut decoder = BlockDecoder::new();
         {
             let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);    
             assert_eq!(remaining_data.len(), 1);
@@ -266,7 +315,7 @@ mod tests {
     fn test_encode_vint() {
         {
             let expected_length = 123;
-            let mut encoder = SIMDBlockEncoder::new();
+            let mut encoder = BlockEncoder::new();
             let input: Vec<u32> = (0u32..123u32)
                 .map(|i| 4 + i * 7 / 2)
                 .into_iter()
@@ -274,14 +323,14 @@ mod tests {
             for offset in &[0u32, 1u32, 2u32] {
                 let encoded_data = encoder.compress_vint_sorted(&input, *offset);
                 assert_eq!(encoded_data.len(), expected_length);
-                let mut decoder = SIMDBlockDecoder::new();
+                let mut decoder = BlockDecoder::new();
                 let remaining_data = decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
                 assert_eq!(0, remaining_data.len());
                 assert_eq!(input, decoder.output_array());
             }
         }
         {
-            let mut encoder = SIMDBlockEncoder::new();
+            let mut encoder = BlockEncoder::new();
             let input = vec!(3u32, 17u32, 187u32);
             let encoded_data = encoder.compress_vint_sorted(&input, 0);
             assert_eq!(encoded_data.len(), 4);
@@ -295,7 +344,7 @@ mod tests {
 
     #[bench]
     fn bench_compress(b: &mut Bencher) {
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
         b.iter(|| {
             encoder.compress_block_sorted(&data, 0u32);
@@ -304,10 +353,10 @@ mod tests {
     
     #[bench]
     fn bench_uncompress(b: &mut Bencher) {
-        let mut encoder = SIMDBlockEncoder::new();
+        let mut encoder = BlockEncoder::new();
         let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
         let compressed = encoder.compress_block_sorted(&data, 0u32);
-        let mut decoder = SIMDBlockDecoder::new(); 
+        let mut decoder = BlockDecoder::new(); 
         b.iter(|| {
             decoder.uncompress_block_sorted(compressed, 0u32);
         });

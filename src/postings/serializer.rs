@@ -8,7 +8,7 @@ use schema::FieldType;
 use schema::Schema;
 use schema::TextIndexingOptions;
 use directory::WritePtr;
-use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockEncoder, CompositeEncoder};
+use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
 use DocId;
 use core::Segment;
 use std::io;
@@ -55,7 +55,7 @@ pub struct PostingsSerializer {
     written_bytes_positions: usize,
     last_doc_id_encoded: u32,
     positions_encoder: CompositeEncoder,
-    block_encoder: SIMDBlockEncoder,
+    block_encoder: BlockEncoder,
     doc_ids: Vec<DocId>,
     term_freqs: Vec<u32>,
     position_deltas: Vec<u32>,
@@ -80,7 +80,7 @@ impl PostingsSerializer {
             written_bytes_positions: 0,
             last_doc_id_encoded: 0u32,
             positions_encoder: CompositeEncoder::new(),
-            block_encoder: SIMDBlockEncoder::new(),
+            block_encoder: BlockEncoder::new(),
             doc_ids: Vec::new(),
             term_freqs: Vec::new(),
             position_deltas: Vec::new(),

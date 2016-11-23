@@ -18,27 +18,12 @@ pub use self::writer::{U32FastFieldsWriter, U32FastFieldWriter};
 pub use self::reader::{U32FastFieldsReader, U32FastFieldReader};
 pub use self::serializer::FastFieldSerializer;
 
-fn count_leading_zeros(mut val: u32) -> u8 {
-    if val == 0 {
-        return 32;
-    }
-    let mut result = 0u8;
-    while (val & (1u32 << 31)) == 0 {
-        val <<= 1;
-        result += 1;
-    }
-    result
-}
 
-
-fn compute_num_bits(amplitude: u32) -> u8 {
-    32u8 - count_leading_zeros(amplitude)
-}
 
 #[cfg(test)]
 mod tests {
 
-    use super::compute_num_bits;
+    use common::compute_num_bits;
     use super::*;
     use schema::Field;
     use std::path::Path;
@@ -61,17 +46,6 @@ mod tests {
         static ref FIELD: Field = { 
             SCHEMA.get_field("field").unwrap()
         };
-    }
-
-    #[test]
-    fn test_compute_num_bits() {
-        assert_eq!(compute_num_bits(1), 1u8);
-        assert_eq!(compute_num_bits(0), 0u8);
-        assert_eq!(compute_num_bits(2), 2u8);
-        assert_eq!(compute_num_bits(3), 2u8);
-        assert_eq!(compute_num_bits(4), 3u8);
-        assert_eq!(compute_num_bits(255), 8u8);
-        assert_eq!(compute_num_bits(256), 9u8);
     }
 
     fn add_single_field_doc(fast_field_writers: &mut U32FastFieldsWriter, field: Field, value: u32) {

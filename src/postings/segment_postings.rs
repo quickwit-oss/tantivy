@@ -1,4 +1,4 @@
-use compression::{NUM_DOCS_PER_BLOCK, SIMDBlockDecoder};
+use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
@@ -14,7 +14,7 @@ const EMPTY_DATA: [u8; 0] = [0u8; 0];
 pub struct SegmentPostings<'a> {
     len: usize,
     doc_offset: u32,
-    block_decoder: SIMDBlockDecoder,
+    block_decoder: BlockDecoder,
     freq_handler: FreqHandler,
     remaining_data: &'a [u8],
     cur: Wrapping<usize>,
@@ -45,7 +45,7 @@ impl<'a> SegmentPostings<'a> {
         SegmentPostings {
             len: len as usize,
             doc_offset: 0,
-            block_decoder: SIMDBlockDecoder::new(),
+            block_decoder: BlockDecoder::new(),
             freq_handler: freq_handler,
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
@@ -57,7 +57,7 @@ impl<'a> SegmentPostings<'a> {
         SegmentPostings {
             len: 0,
             doc_offset: 0,
-            block_decoder: SIMDBlockDecoder::new(),
+            block_decoder: BlockDecoder::new(),
             freq_handler: FreqHandler::new_without_freq(),
             remaining_data: &EMPTY_DATA,
             cur: Wrapping(usize::max_value()),

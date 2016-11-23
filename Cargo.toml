@@ -27,7 +27,7 @@ log = "0.3"
 combine = "2.0.*"
 tempdir = "0.3"
 bincode = "0.4"
-libc = "0.2.6"
+libc = {version = "0.2.6", optional=true}
 num_cpus = "0.2"
 itertools = "0.4"
 lz4 = "1.13"
@@ -40,10 +40,15 @@ crossbeam = "0.2"
 rand = "0.3"
 
 [build-dependencies]
-gcc = "0.3"
+gcc = {version = "0.3", optional=true}
 
 [profile.release]
 opt-level = 3
 debug = false
 lto = true
 debug-assertions = false
+
+
+[features]
+default = []
+simdcompression = ["libc", "gcc"]

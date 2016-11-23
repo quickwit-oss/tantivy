@@ -37,7 +37,6 @@ extern crate atomicwrites;
 extern crate tempdir;
 extern crate bincode;
 extern crate time;
-extern crate libc;
 extern crate lz4;
 extern crate uuid;
 extern crate num_cpus;
@@ -46,7 +45,8 @@ extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
 
-
+#[cfg(feature="simdcompression")]
+extern crate libc;
 
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;

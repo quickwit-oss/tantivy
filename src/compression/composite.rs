@@ -1,9 +1,8 @@
-use compression::SIMDBlockEncoder;
-use compression::SIMDBlockDecoder;
+use compression::{BlockEncoder, BlockDecoder};
 use super::NUM_DOCS_PER_BLOCK;
 
 pub struct CompositeEncoder {
-    block_encoder: SIMDBlockEncoder,
+    block_encoder: BlockEncoder,
     output: Vec<u8>,
 }
 
@@ -11,7 +10,7 @@ impl CompositeEncoder {
     
     pub fn new() -> CompositeEncoder {
         CompositeEncoder {
-            block_encoder: SIMDBlockEncoder::new(),
+            block_encoder: BlockEncoder::new(),
             output: Vec::with_capacity(500_000),
         }
     }
@@ -47,7 +46,7 @@ impl CompositeEncoder {
 
 
 pub struct CompositeDecoder {
-    block_decoder: SIMDBlockDecoder,
+    block_decoder: BlockDecoder,
     vals: Vec<u32>,
 }
 
@@ -55,7 +54,7 @@ pub struct CompositeDecoder {
 impl CompositeDecoder {
     pub fn new() -> CompositeDecoder {
         CompositeDecoder {
-            block_decoder: SIMDBlockDecoder::new(),
+            block_decoder: BlockDecoder::new(),
             vals: Vec::with_capacity(500_000),
         }    
     }
