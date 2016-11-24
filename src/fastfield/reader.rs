@@ -11,7 +11,7 @@ use schema::FAST;
 use directory::{WritePtr, RAMDirectory, Directory};
 use fastfield::FastFieldSerializer;
 use fastfield::U32FastFieldsWriter;
-use common::compute_num_bits;
+use common::bitpacker::compute_num_bits;
 
 
 lazy_static! {

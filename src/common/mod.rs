@@ -1,7 +1,7 @@
 mod serialize;
 mod timer;
 mod vint;
-mod bitpacker;
+pub mod bitpacker;
 
 
 pub use self::serialize::BinarySerializable;
@@ -9,7 +9,6 @@ pub use self::timer::Timing;
 pub use self::timer::TimerTree;
 pub use self::timer::OpenTimer;
 pub use self::vint::VInt;
-pub use self::bitpacker::compute_num_bits;
 
 
 use std::io;

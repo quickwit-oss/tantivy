@@ -47,28 +47,69 @@ mod compression {
 
 #[cfg(not(feature="simdcompression"))]
 mod compression {
-    pub fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
-        panic!("aaa");
-    }
-
-    pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset_: u32) -> usize {
-        let len = uncompress_unsorted(compressed_data, output);
-        let mut offset = offset_;
-        for i in 0..len {
-            output[i] += offset;
-            offset = output[i];
+    
+    use compression::NUM_DOCS_PER_BLOCK;
+    use common::bitpacker::compute_num_bits;
+    use common::bitpacker::{BitPacker, BitUnpacker};
+    use std::cmp;
+    use std::io::Write;
+    
+    pub fn compress_sorted(vals: &[u32], mut output: &mut [u8], offset: u32) -> usize {
+        // TODO remove the alloc
+        let mut deltas = Vec::with_capacity(NUM_DOCS_PER_BLOCK);
+        unsafe { deltas.set_len(NUM_DOCS_PER_BLOCK  ); }
+        let mut max_delta = 0; 
+        {
+            let mut local_offset = offset;
+            for i in 0..NUM_DOCS_PER_BLOCK {
+                let val = vals[i];
+                let delta = val - local_offset;
+                max_delta = cmp::max(max_delta, delta);
+                deltas[i] = delta;
+                local_offset = val;
+            }
         }
-        len
+        let num_bits = compute_num_bits(max_delta);
+        output.write_all(&[num_bits]).unwrap();
+        let mut bit_packer = BitPacker::new(output, num_bits as usize);
+        for val in &deltas {
+            bit_packer.write(*val).unwrap();
+        }
+        let (_, written_size) = bit_packer.close().expect("packing in memory should never fail");
+        written_size + 1
     }
 
-    pub fn compress_unsorted(vals: &[u32], output: &mut [u8]) -> usize {
-        // let max = vals.iter().max().expect("compress unsorted called with an empty array");
-        // let num_bits =
-        panic!("aaa"); 
+    pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], mut offset: u32) -> usize {
+        let num_bits = compressed_data[0];
+        let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
+        for i in 0..NUM_DOCS_PER_BLOCK {
+            let delta = bit_unpacker.get(i);
+            let val = offset + delta;
+            output[i] = val;
+            offset = val;
+        }
+        1 + (num_bits as usize * NUM_DOCS_PER_BLOCK + 7) / 8
+    }
+
+    pub fn compress_unsorted(vals: &[u32], mut output: &mut [u8]) -> usize {
+        let max = vals.iter().cloned().max().expect("compress unsorted called with an empty array");
+        let num_bits = compute_num_bits(max);
+        output.write_all(&[num_bits]).unwrap();
+        let mut bit_packer = BitPacker::new(output, num_bits as usize);
+        for val in vals {
+            bit_packer.write(*val).unwrap();
+        }
+        let (_, written_size) = bit_packer.close().expect("packing in memory should never fail");
+        1 + written_size
     }
 
     pub fn uncompress_unsorted(compressed_data: &[u8], output: &mut [u32]) -> usize {
-        panic!("aaa");
+        let num_bits = compressed_data[0];
+        let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
+        for i in 0..NUM_DOCS_PER_BLOCK {
+            output[i] = bit_unpacker.get(i);
+        }
+        1 + (num_bits as usize * NUM_DOCS_PER_BLOCK + 7) / 8
     }
 }
 
@@ -296,12 +337,12 @@ mod tests {
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32)*7u32 % 12).collect();
         let mut encoder = BlockEncoder::new();
-        let compressed_data = encoder.compress_block_sorted(&vals, 10);
+        let compressed_data = encoder.compress_block_unsorted(&vals);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);    
+            let remaining_data = decoder.uncompress_block_unsorted(&compressed);    
             assert_eq!(remaining_data.len(), 1);
             assert_eq!(remaining_data[0], 173u8);
         }
