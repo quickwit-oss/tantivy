@@ -18,8 +18,6 @@ pub use self::writer::{U32FastFieldsWriter, U32FastFieldWriter};
 pub use self::reader::{U32FastFieldsReader, U32FastFieldReader};
 pub use self::serializer::FastFieldSerializer;
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,7 +77,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 26 as usize);
+            assert_eq!(source.len(), 20 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
@@ -112,7 +110,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 50 as usize);
+            assert_eq!(source.len(), 45 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
@@ -147,7 +145,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 26 as usize);
+            assert_eq!(source.len(), 18 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();

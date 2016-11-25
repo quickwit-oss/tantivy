@@ -12,6 +12,7 @@ use directory::{WritePtr, RAMDirectory, Directory};
 use fastfield::FastFieldSerializer;
 use fastfield::U32FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
+use common::bitpacker::BitUnpacker;
 
 
 lazy_static! {
@@ -23,11 +24,9 @@ lazy_static! {
 
 pub struct U32FastFieldReader {
     _data: ReadOnlySource,
-    data_ptr: *const u8,
+    bit_unpacker: BitUnpacker,
     min_val: u32,
     max_val: u32,
-    num_bits: u32,
-    mask: u32,
 }
 
 impl U32FastFieldReader {
@@ -47,34 +46,28 @@ impl U32FastFieldReader {
     pub fn open(data: ReadOnlySource) -> io::Result<U32FastFieldReader> {
         let min_val;
         let amplitude;
+        let max_val;
         {
             let mut cursor = data.as_slice();
             min_val = try!(u32::deserialize(&mut cursor));
             amplitude = try!(u32::deserialize(&mut cursor));
+            max_val = min_val + amplitude;
         }
         let num_bits = compute_num_bits(amplitude);
-        let mask = (1 << num_bits) - 1;
-        let ptr: *const u8 = &(data.deref()[8 as usize]);
+        let bit_unpacker = {
+            let data_arr = &(data.deref()[8..]);
+            BitUnpacker::new(data_arr, num_bits as usize)
+        };
         Ok(U32FastFieldReader {
             _data: data,
-            data_ptr: ptr,
+            bit_unpacker: bit_unpacker,
             min_val: min_val,
-            max_val: min_val + amplitude,
-            num_bits: num_bits as u32,
-            mask: mask,
+            max_val: max_val,
         })
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
-        if self.num_bits == 0u32 {
-            return self.min_val;
-        }
-        let addr = (doc * self.num_bits) / 8;
-        let bit_shift = (doc * self.num_bits) - addr * 8; //doc - long_addr * self.num_in_pack;
-        let val_unshifted_unmasked: u64 = unsafe { * (self.data_ptr.offset(addr as isize) as *const u64) };
-        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
-        self.min_val + (val_shifted & self.mask)
-        
+        self.min_val + self.bit_unpacker.get(doc as usize)
     }
 }
 

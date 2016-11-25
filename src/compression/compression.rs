@@ -71,12 +71,11 @@ mod compression {
         }
         let num_bits = compute_num_bits(max_delta);
         output.write_all(&[num_bits]).unwrap();
-        let mut bit_packer = BitPacker::new(output, num_bits as usize);
+        let mut bit_packer = BitPacker::new(num_bits as usize);
         for val in &deltas {
-            bit_packer.write(*val).unwrap();
+            bit_packer.write(*val, &mut output).unwrap();
         }
-        let (_, written_size) = bit_packer.close().expect("packing in memory should never fail");
-        written_size + 1
+        1 + bit_packer.close(&mut output).expect("packing in memory should never fail")
     }
 
     pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], mut offset: u32) -> usize {
@@ -95,12 +94,11 @@ mod compression {
         let max = vals.iter().cloned().max().expect("compress unsorted called with an empty array");
         let num_bits = compute_num_bits(max);
         output.write_all(&[num_bits]).unwrap();
-        let mut bit_packer = BitPacker::new(output, num_bits as usize);
+        let mut bit_packer = BitPacker::new(num_bits as usize);
         for val in vals {
-            bit_packer.write(*val).unwrap();
+            bit_packer.write(*val, &mut output).unwrap();
         }
-        let (_, written_size) = bit_packer.close().expect("packing in memory should never fail");
-        1 + written_size
+        1 + bit_packer.close(&mut output).expect("packing in memory should never fail")
     }
 
     pub fn uncompress_unsorted(compressed_data: &[u8], output: &mut [u32]) -> usize {
