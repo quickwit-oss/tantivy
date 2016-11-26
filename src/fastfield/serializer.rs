@@ -64,13 +64,6 @@ impl FastFieldSerializer {
         self.written_size += try!(amplitude.serialize(write));
         let num_bits = compute_num_bits(amplitude);
         self.bit_packer = BitPacker::new(num_bits as usize);
-        // TODO inspect whether it is required
-        // if num_bits == 0 {
-        //     // if num_bits == 0 we make sure that we still write one mini buffer
-        //     // so that the reader code does not overflows and does not
-        //     // contain a needless if statement.
-        //     self.mini_buffer_written += 1;
-        // }
         Ok(())
     }
 

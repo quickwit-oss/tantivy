@@ -33,7 +33,7 @@ It will walk you through getting a wikipedia search engine up and running in a f
 
 # Compiling 
 
-Tantivy has a git submodule called `simdcomp`.
+By default, `tantivy` uses a git submodule called `simdcomp`.
 After cloning the repository, you will need to initialize and update
 the submodules. The project can then be built using `cargo`.
 
@@ -42,6 +42,12 @@ the submodules. The project can then be built using `cargo`.
     git submodule update
     cargo build
 
+
+Alternatively, if you are trying to compile `tantivy` without simd compression,
+you can disable this functionality. In this case, this submodule is not required
+and you can compile tantivy by using the `--no-default-features` flag.
+
+    cargo build --no-default-features 
 
 
 # Contribute
