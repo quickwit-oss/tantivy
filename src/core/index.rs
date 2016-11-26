@@ -19,6 +19,7 @@ use indexer::SegmentManager;
 use core::IndexMeta;
 use core::META_FILEPATH;
 use super::segment::create_segment;
+use indexer::segment_updater::save_new_metas;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -36,10 +37,6 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     json::decode(&meta_content)
         .map_err(|e| Error::CorruptedFile(META_FILEPATH.clone(), Box::new(e)))
 }
-
-// pub fn set_metas(index: &mut Index, docstamp: u64) {
-//     index.docstamp = docstamp;
-// }
 
 /// Tantivy's Search Index
 pub struct Index {
@@ -62,11 +59,13 @@ impl Index {
     }
 
     /// Creates a new index in a given filepath.
-    ///
     /// The index will use the `MMapDirectory`.
+    ///
+    /// If a previous index was in this directory, then its meta file will be destroyed.
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
-        let directory = Box::new(try!(MmapDirectory::open(directory_path)));
-        Index::from_directory(directory, schema)
+        let mut directory = MmapDirectory::open(directory_path)?;
+        save_new_metas(schema.clone(), 0, &mut directory)?;
+        Index::from_directory(box directory, schema)
     }
 
     /// Creates a new index in a temp directory.

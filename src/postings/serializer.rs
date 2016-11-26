@@ -14,6 +14,7 @@ use core::Segment;
 use std::io;
 use core::SegmentComponent;
 use std::io::Write;
+use compression::VIntEncoder;
 use common::VInt;
 use common::BinarySerializable;
 

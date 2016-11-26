@@ -49,6 +49,25 @@ fn create_metas(segment_manager: &SegmentManager, schema: Schema, docstamp: u64)
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
+pub fn save_new_metas(schema: Schema,
+                  docstamp: u64,
+                  directory: &mut Directory)
+                  -> Result<()> {
+    let segment_manager = SegmentManager::from_segments(Vec::new());
+    save_metas(&segment_manager, schema, docstamp, directory)
+}
+
+
+
+/// Save the index meta file.
+/// This operation is atomic :
+/// Either
+//  - it fails, in which case an error is returned,
+/// and the `meta.json` remains untouched,
+/// - it success, and `meta.json` is written
+/// and flushed.
+///
+/// This method is not part of tantivy's public API
 pub fn save_metas(segment_manager: &SegmentManager,
                   schema: Schema,
                   docstamp: u64,

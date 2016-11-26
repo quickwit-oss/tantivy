@@ -7,7 +7,7 @@ mod log_merge_policy;
 mod segment_register;
 mod segment_writer;
 mod segment_manager;
-mod segment_updater;
+pub mod segment_updater;
 mod directory_lock;
 
 pub use self::segment_serializer::SegmentSerializer;

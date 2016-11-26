@@ -1,7 +1,7 @@
 use compression::BlockDecoder;
 use common::VInt;
 use common::BinarySerializable;
-use compression::CompositeDecoder;
+use compression::{CompositeDecoder, VIntDecoder};
 use postings::SegmentPostingsOption;
 use compression::NUM_DOCS_PER_BLOCK;
 

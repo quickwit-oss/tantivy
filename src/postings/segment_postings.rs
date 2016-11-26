@@ -1,4 +1,4 @@
-use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder};
+use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;

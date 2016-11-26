@@ -1,5 +1,6 @@
-use compression::{BlockEncoder, BlockDecoder};
+use super::{BlockEncoder, BlockDecoder};
 use super::NUM_DOCS_PER_BLOCK;
+use compression::{VIntEncoder, VIntDecoder};
 
 pub struct CompositeEncoder {
     block_encoder: BlockEncoder,
