@@ -163,8 +163,8 @@ impl QueryParser {
     }
 
     fn compute_logical_ast_with_occur(&self,
-                                          user_input_ast: UserInputAST)
-                                          -> Result<(Occur, LogicalAST), QueryParserError> {
+                                        user_input_ast: UserInputAST)
+                                        -> Result<(Occur, LogicalAST), QueryParserError> {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
@@ -195,24 +195,23 @@ impl QueryParser {
                     None => {
                         if self.default_fields.len() == 0 {
                             return Err(QueryParserError::NoDefaultFieldDeclared);
-                        } else if self.default_fields.len() == 1 {
-                            vec![(self.default_fields[0], literal.phrase.clone())]
                         } else {
                             self.default_fields
                                 .iter()
                                 .map(|default_field| (*default_field, literal.phrase.clone()))
-                                .collect()
+                                .collect::<Vec<(Field, String)>>()
                         }
                     }
                 };
                 let mut asts: Vec<LogicalAST> = Vec::new();
                 for (field, phrase) in term_phrases {
-                    if let Some(ast) = try!(self.compute_logical_ast_for_leaf(field, &phrase)) {
+                    if let Some(ast) = self.compute_logical_ast_for_leaf(field, &phrase)? {
                         asts.push(LogicalAST::Leaf(box ast));
                     }
                 }
                 let result_ast = if asts.len() == 0 {
-                    panic!("not working");
+                    // this should never happen
+                    return Err(QueryParserError::SyntaxError); 
                 } else if asts.len() == 1 {
                     asts[0].clone()
                 } else {
@@ -275,16 +274,22 @@ mod test {
     use super::QueryParser;
     use super::QueryParserError;
     use super::super::logical_ast::*;
-
-    fn parse_query_to_logical_ast(query: &str,
-                                  default_conjunction: bool)
-                                  -> Result<LogicalAST, QueryParserError> {
+    
+    
+    fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
-        let mut query_parser = QueryParser::new(schema, default_fields);
+        QueryParser::new(schema, default_fields)
+    }
+
+
+    fn parse_query_to_logical_ast(query: &str,
+                                  default_conjunction: bool)
+                                  -> Result<LogicalAST, QueryParserError> {
+        let mut query_parser = make_query_parser();                       
         if default_conjunction {
             query_parser.set_conjunction_by_default();
         }
@@ -298,6 +303,14 @@ mod test {
         let query_str = format!("{:?}", query);
         assert_eq!(query_str, expected);
     }
+    
+    
+    #[test]
+    pub fn test_parse_query_simple() {
+        let query_parser = make_query_parser();
+        assert!(query_parser.parse_query("toto").is_ok()); 
+    }
+    
 
     #[test]
     pub fn test_parse_query_to_ast_disjunction() {
