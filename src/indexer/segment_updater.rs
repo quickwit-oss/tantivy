@@ -2,12 +2,13 @@
 
 use chan;
 use core::Index;
+use std::sync::Mutex;
 use core::Segment;
 use core::SegmentId;
 use core::SegmentMeta;
 use std::mem;
 use core::SerializableSegment;
-use indexer::{DefaultMergePolicy, MergePolicy};
+use indexer::MergePolicy;
 use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
 use indexer::SegmentSerializer;
@@ -135,7 +136,7 @@ pub struct SegmentUpdater {
 	segment_update_receiver: SegmentUpdateReceiver,
 	segment_update_sender: SegmentUpdateSender,
     segment_manager_arc: Arc<SegmentManager>,
-    merge_policy: Box<MergePolicy>,
+    merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     merging_thread_id: usize,
     merging_threads: HashMap<usize, JoinHandle<(Vec<SegmentId>, SegmentMeta)> >, 
 }
@@ -143,12 +144,12 @@ pub struct SegmentUpdater {
 
 impl SegmentUpdater {
 	    
-    pub fn start_updater(index: Index) -> (SegmentUpdateSender, JoinHandle<()>) {
-        let segment_updater = SegmentUpdater::new(index);
+    pub fn start_updater(index: Index, merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> (SegmentUpdateSender, JoinHandle<()>) {
+        let segment_updater = SegmentUpdater::new(index, merge_policy);
         (segment_updater.segment_update_sender.clone(), segment_updater.start())
     }
     
-    fn new(index: Index) -> SegmentUpdater {
+    fn new(index: Index, merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> SegmentUpdater {
         let segment_manager_arc = get_segment_manager(&index);
         let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::async();
 		SegmentUpdater {
@@ -157,7 +158,7 @@ impl SegmentUpdater {
             segment_update_sender: segment_update_sender,
             segment_update_receiver: segment_update_receiver,
             segment_manager_arc: segment_manager_arc,
-            merge_policy: Box::new(DefaultMergePolicy::default()), // TODO make that configurable
+            merge_policy: merge_policy,
             merging_thread_id: 0,
             merging_threads: HashMap::new(), 
 		}
@@ -236,8 +237,9 @@ impl SegmentUpdater {
         let (committed_segments, uncommitted_segments) = get_segment_ready_for_commit(segment_manager);
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independantly.
-        let mut merge_candidates = self.merge_policy.compute_merge_candidates(&uncommitted_segments);
-        let committed_merge_candidates = self.merge_policy.compute_merge_candidates(&committed_segments);
+        let merge_policy_lock = self.merge_policy.lock().unwrap();
+        let mut merge_candidates = merge_policy_lock.compute_merge_candidates(&uncommitted_segments);
+        let committed_merge_candidates = merge_policy_lock.compute_merge_candidates(&committed_segments);
         merge_candidates.extend_from_slice(&committed_merge_candidates[..]);
         merge_candidates
     }

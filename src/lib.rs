@@ -112,6 +112,16 @@ pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
 
 
+
+/// Tantivy's makes it possible to personalize when 
+/// the indexer should merge its segments
+pub mod merge_policy {
+    pub use indexer::MergePolicy;
+    pub use indexer::LogMergePolicy;
+    pub use indexer::NoMergePolicy;
+    pub use indexer::DefaultMergePolicy;
+}
+
 /// u32 identifying a document within a segment.
 /// Documents have their doc id assigned incrementally,
 /// as they are added in the segment.

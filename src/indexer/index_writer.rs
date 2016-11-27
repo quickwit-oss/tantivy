@@ -5,6 +5,7 @@ use core::SerializableSegment;
 use core::Index;
 use core::Segment;
 use std::thread::JoinHandle;
+use indexer::{MergePolicy, DefaultMergePolicy};
 use indexer::SegmentWriter;
 use super::directory_lock::DirectoryLock;
 use std::clone::Clone;
@@ -15,6 +16,7 @@ use indexer::merger::IndexMerger;
 use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
+use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
 use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
@@ -52,6 +54,8 @@ pub struct IndexWriter {
     // the lock is just used to bind the 
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: DirectoryLock, 
+    
+    _merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     
     index: Index,
     heap_size_in_bytes_per_thread: usize,
@@ -204,11 +208,15 @@ impl IndexWriter {
         let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
         
-        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone());
+        let merge_policy: Arc<Mutex<Box<MergePolicy>>> = Arc::new(Mutex::new(box DefaultMergePolicy::default()));
+        
+        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone(), merge_policy.clone());
         
         let mut index_writer = IndexWriter {
             
             _directory_lock: directory_lock,
+            
+            _merge_policy: merge_policy,
             
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
             index: index.clone(),
@@ -229,7 +237,18 @@ impl IndexWriter {
         try!(index_writer.start_workers());
         Ok(index_writer)
     }
-
+    
+    
+    /// Returns a clone of the index_writer merge policy.
+    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
+        self._merge_policy.lock().unwrap().box_clone() 
+    }
+    
+    /// Set the merge policy.
+    pub fn set_merge_policy(&self, merge_policy: Box<MergePolicy>) {
+        *self._merge_policy.lock().unwrap() = merge_policy;
+    }
+    
     fn start_workers(&mut self) -> Result<()> {
         for _ in 0..self.num_threads {
             try!(self.add_indexing_worker());
@@ -445,6 +464,7 @@ mod tests {
     use Index;
     use Term;
     use Error;
+    use indexer::NoMergePolicy;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -455,6 +475,17 @@ mod tests {
             Err(Error::FileAlreadyExists(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
         }
+    }
+    
+    #[test]
+    fn test_set_merge_policy() {
+        let schema_builder = schema::SchemaBuilder::default();
+        let index = Index::create_in_ram(schema_builder.build());
+        let index_writer = index.writer(40_000_000).unwrap();
+        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
+        let merge_policy = box NoMergePolicy::default();
+        index_writer.set_merge_policy(merge_policy);
+        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "NoMergePolicy");
     }
 
     #[test]

@@ -8,6 +8,10 @@ const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_MERGE_SIZE: usize = 8;
 
+
+/// LogMergePolicy tries tries to merge segments that have a similar number of 
+/// documents.
+#[derive(Debug, Clone)]
 pub struct LogMergePolicy {
     min_merge_size: usize,
     min_layer_size: u32,
@@ -20,7 +24,7 @@ impl LogMergePolicy {
     }
 
     /// Set the minimum number of segment that may be merge together.
-    pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
+        pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
         self.min_merge_size = min_merge_size;
     }
 
@@ -29,7 +33,6 @@ impl LogMergePolicy {
     pub fn set_min_layer_size(&mut self, min_layer_size: u32) {
         self.min_layer_size = min_layer_size;
     }
-
 
     /// Set the ratio between two consecutive levels.
     ///
@@ -82,6 +85,10 @@ impl MergePolicy for LogMergePolicy {
             .collect();
 
         result
+    }
+    
+    fn box_clone(&self) -> Box<MergePolicy> {
+        box self.clone()
     }
 }
 
