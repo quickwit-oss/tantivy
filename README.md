@@ -15,10 +15,11 @@ It is strongly inspired by Lucene's design.
 - configurable indexing (optional term frequency and position indexing)
 - tf-idf scoring
 - Basic query language
+- Phrase queries
 - Incremental indexing
 - Multithreaded indexing (indexing English Wikipedia takes 4 minutes on my desktop)
 - mmap based
-- SIMD integer compression
+- optional SIMD integer compression
 - u32 fast fields (equivalent of doc values in Lucene)
 - LZ4 compressed document store
 - Cheesy logo with a horse
@@ -30,14 +31,13 @@ It is strongly inspired by Lucene's design.
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
 - [reference doc](http://fulmicoton.com/tantivy/tantivy/index.html).
 
-
 # Compiling 
 
 By default, `tantivy` uses a git submodule called `simdcomp`.
 After cloning the repository, you will need to initialize and update
 the submodules. The project can then be built using `cargo`.
 
-    git clone git@github.com:fulmicoton/tantivy.git
+    git clone git@github.com:tantivy-search/tantivy.git
     git submodule init
     git submodule update
     cargo build
