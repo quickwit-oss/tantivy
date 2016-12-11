@@ -7,7 +7,7 @@ license = "MIT"
 
 description = """Tantivy is a search engine library."""
 
-documentation = "http://fulmicoton.com/tantivy/tantivy/index.html"
+documentation = "https://tantivy-search.github.io/tantivy/tantivy/index.html"
 homepage = "https://github.com/tantivy-search/tantivy"
 repository = "https://github.com/tantivy-search/tantivy"
 

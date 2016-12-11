@@ -27,9 +27,9 @@ It is strongly inspired by Lucene's design.
 # Getting started
 
 - [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
-- [tantivy-cli and its tutorial](https://github.com/fulmicoton/tantivy-cli).
+- [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
-- [reference doc](http://fulmicoton.com/tantivy/tantivy/index.html).
+- [reference doc](https://tantivy-search.github.io/tantivy/tantivy/schema/index.html).
 
 # Compiling 
 
