@@ -110,8 +110,7 @@ pub use self::common::TimerTree;
 pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
-
-
+pub use core::TermIterator;
 
 /// Tantivy's makes it possible to personalize when 
 /// the indexer should merge its segments

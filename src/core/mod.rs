@@ -7,7 +7,7 @@ mod segment_component;
 mod segment;
 mod index_meta;
 mod pool;
-
+mod term_iterator;
 
 use std::path::PathBuf;
 
@@ -19,7 +19,7 @@ pub use self::segment::SegmentInfo;
 pub use self::segment::SerializableSegment;
 pub use self::index::Index;
 pub use self::index_meta::{IndexMeta, SegmentMeta};
-
+pub use self::term_iterator::TermIterator;
 
 lazy_static! {
     pub static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");

@@ -8,8 +8,10 @@ use super::Field;
 /// Term represents the value that the token can take.
 ///
 /// It actually wraps a `Vec<u8>`.
+/// TODO remove pub
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
+
 
 impl Term {
     
@@ -63,6 +65,14 @@ impl Term {
         Term(buffer)
     }
     
+    /// Returns the serialized value associated to the field.
+    /// If the term is a string, its value is utf-8 encoded.
+    /// If the term is a u32, its value is encoded according
+    /// to `byteorder::LittleEndian`. 
+    pub fn value(&self) -> &[u8] {
+        &self.0[1..]
+    }
+
     /// Set the texts only, keeping the field untouched. 
     pub fn set_text(&mut self, text: &str) {
         self.0.resize(1, 0u8);
