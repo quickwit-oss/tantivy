@@ -132,7 +132,7 @@ impl IndexMerger {
             max_doc += reader.max_doc();
         }
 
-        while let Some((term, segment_ords)) = merged_terms.next() {
+        while let Some(term) = merged_terms.next() {
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
             //
@@ -143,17 +143,18 @@ impl IndexMerger {
             // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc, seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
             let mut merged_postings =
-                ChainedPostings::from(segment_ords.iter()
-                                                  .flat_map(|segment_ord| {
-                                                      let offset = offsets[*segment_ord];
-                                                      self.readers[*segment_ord]
-                                                          .read_postings_all_info(&term)
-                                                          .map(|segment_postings| {
-                                                              OffsetPostings::new(segment_postings,
-                                                                                  offset)
-                                                          })
-                                                  })
-                                                  .collect::<Vec<_>>());
+                ChainedPostings::from(
+                    self.readers
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(segment_ord, reader)| {
+                            let offset = offsets[segment_ord];
+                            reader
+                                .read_postings_all_info(&term)
+                                .map(|segment_postings| OffsetPostings::new(segment_postings, offset))
+                        })
+                        .collect::<Vec<_>>()
+            );
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.

@@ -54,10 +54,13 @@ impl Searcher {
     ///
     /// This includes all of the fields from all of the segment_readers.
     /// See [TermIterator](struct.TermIterator.html).
+    ///
+    /// # Warning
+    /// This API is very likely to change in the future.
     pub fn terms<'a>(&'a self) -> TermIterator<'a> {
         TermIterator::from(self.segment_readers())
     }
-    
+
     /// Return the list of segment readers
     pub fn segment_readers(&self,) -> &[SegmentReader] {
         &self.segment_readers

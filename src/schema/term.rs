@@ -2,7 +2,7 @@ use std::fmt;
 
 use common::BinarySerializable;
 use super::Field;
-
+use std::str;
 
 
 /// Term represents the value that the token can take.
@@ -65,12 +65,24 @@ impl Term {
         Term(buffer)
     }
     
-    /// Returns the serialized value associated to the field.
+    /// Returns the serialized value of the term.
+    /// (this does not include the field.)
+    ///
     /// If the term is a string, its value is utf-8 encoded.
     /// If the term is a u32, its value is encoded according
     /// to `byteorder::LittleEndian`. 
     pub fn value(&self) -> &[u8] {
         &self.0[1..]
+    }
+
+    /// Returns the text associated with the term.
+    ///
+    /// # Panics
+    /// If the value is not valid utf-8. This may happen
+    /// if the index is corrupted or if you try to 
+    /// call this method on a non-string type.
+    pub unsafe fn text(&self) -> &str {
+        str::from_utf8_unchecked(self.value())
     }
 
     /// Set the texts only, keeping the field untouched. 

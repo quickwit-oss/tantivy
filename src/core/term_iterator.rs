@@ -2,12 +2,12 @@ use fst::Streamer;
 use std::mem;
 use std::collections::BinaryHeap;
 use fst::map::Keys;
+use schema::Field;
 use schema::Term;
 use core::SegmentReader;
 use std::cmp::Ordering;
 
 
-static EMPTY: [u8; 0] = [];
 
 #[derive(PartialEq, Eq, Debug)]
 struct HeapItem {
@@ -49,7 +49,7 @@ impl<'a> TermIterator<'a> {
         let mut term_iterator = TermIterator {
             key_streams: key_streams,
             heap: BinaryHeap::new(),
-            current_term: Term::from(&EMPTY[..]),
+            current_term: Term::from_field_text(Field(0), ""),
             current_segment_ords: vec![],
         };
         for segment_ord in 0..key_streams_len {
@@ -70,7 +70,7 @@ impl<'a> TermIterator<'a> {
 }
 
 impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
-    type Item = (&'a Term, &'a [usize]);
+    type Item = &'a Term;
 
     fn next(&'a mut self) -> Option<Self::Item> {
         self.current_segment_ords.clear();
@@ -82,26 +82,24 @@ impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
                 loop {
                     match self.heap.peek() {
                         Some(&ref next_heap_it) if next_heap_it.term == self.current_term => {}
-                        _ => {
-                            break;
-                        }
+                        _ => { break; }
                     }
-                    let next_heap_it = self.heap
-                                           .pop()
-                                           .expect("This is only reached if an element was \
-                                                    peeked beforehand.");
+                    let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
                     self.push_next_segment_el(next_heap_it.segment_ord);
                 }
-                (&self.current_term, self.current_segment_ords.as_slice())
+                &self.current_term
             })
     }
 }
 
 impl<'a> From<&'a [SegmentReader]> for TermIterator<'a> {
     fn from(segment_readers: &'a [SegmentReader]) -> TermIterator<'a> {
-        TermIterator::new(segment_readers.iter()
-                                         .map(|reader| reader.term_infos().keys())
-                                         .collect())
+        TermIterator::new(
+            segment_readers
+            .iter()
+            .map(|reader| reader.term_infos().keys())
+            .collect()
+        )
     }
 }
 
@@ -148,44 +146,13 @@ mod tests {
         }
         let searcher = index.searcher();
         let mut term_it = searcher.terms();
-        {
-
-            let (term, segments) = term_it.next().unwrap();
-            assert_eq!(term.value(), "a".as_bytes());
-            let expected_segments = [0, 1];
-            assert_eq!(segments, &expected_segments);
-
+        let mut terms = String::new();
+        while let Some(term) = term_it.next() {
+            unsafe {
+                terms.push_str(term.text());
+            }
         }
-        {
-            let (term, segments): (&Term, &[usize]) = term_it.next().unwrap();
-            assert_eq!(term.value(), "b".as_bytes());
-            let expected_segments = [0, 1];
-            assert_eq!(segments, &expected_segments);
-        }
-        {
-            let (ref term, ref segments) = term_it.next().unwrap();
-            assert_eq!(term.value(), "c".as_bytes());
-            let expected_segments = [1];
-            assert_eq!(segments, &expected_segments);
-        }
-        {
-            let (term, segments) = term_it.next().unwrap();
-            assert_eq!(term.value(), "d".as_bytes());
-            let expected_segments = [0, 1];
-            assert_eq!(segments, &expected_segments);
-        }
-        {
-            let (term, segments) = term_it.next().unwrap();
-            assert_eq!(term.value(), "e".as_bytes());
-            let expected_segments = [2];
-            assert_eq!(segments, &expected_segments);
-        }
-        {
-            let (term, segments) = term_it.next().unwrap();
-            assert_eq!(term.value(), "f".as_bytes());
-            let expected_segments = [0, 1, 2];
-            assert_eq!(segments, &expected_segments);
-        }
+        assert_eq!(terms, "abcdef");
     }
 
 }
