@@ -8,7 +8,6 @@ use core::SegmentReader;
 use std::cmp::Ordering;
 
 
-
 #[derive(PartialEq, Eq, Debug)]
 struct HeapItem {
     term: Term,
@@ -46,25 +45,22 @@ pub struct TermIterator<'a> {
 impl<'a> TermIterator<'a> {
     fn new(key_streams: Vec<Keys<'a>>) -> TermIterator<'a> {
         let key_streams_len = key_streams.len();
-        let mut term_iterator = TermIterator {
+        TermIterator {
             key_streams: key_streams,
             heap: BinaryHeap::new(),
             current_term: Term::from_field_text(Field(0), ""),
-            current_segment_ords: vec![],
-        };
-        for segment_ord in 0..key_streams_len {
-            term_iterator.push_next_segment_el(segment_ord);
+            current_segment_ords: (0..key_streams_len).collect(),
         }
-        term_iterator
     }
 
-    fn push_next_segment_el(&mut self, segment_ord: usize) {
-        self.current_segment_ords.push(segment_ord);
-        if let Some(term) = self.key_streams[segment_ord].next() {
-            self.heap.push(HeapItem {
-                term: Term::from(term),
-                segment_ord: segment_ord,
-            });
+    fn advance_segments(&mut self) {
+        for segment_ord in self.current_segment_ords.drain(..) {
+            if let Some(term) = self.key_streams[segment_ord].next() {
+                self.heap.push(HeapItem {
+                    term: Term::from(term),
+                    segment_ord: segment_ord,
+                });
+            }
         }
     }
 }
@@ -73,19 +69,19 @@ impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
     type Item = &'a Term;
 
     fn next(&'a mut self) -> Option<Self::Item> {
-        self.current_segment_ords.clear();
+        self.advance_segments();
         self.heap
             .pop()
             .map(move |mut head| {
                 mem::swap(&mut self.current_term, &mut head.term);
-                self.push_next_segment_el(head.segment_ord);
+                self.current_segment_ords.push(head.segment_ord);
                 loop {
                     match self.heap.peek() {
                         Some(&ref next_heap_it) if next_heap_it.term == self.current_term => {}
                         _ => { break; }
                     }
                     let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
-                    self.push_next_segment_el(next_heap_it.segment_ord);
+                    self.current_segment_ords.push(next_heap_it.segment_ord);
                 }
                 &self.current_term
             })
@@ -117,7 +113,6 @@ mod tests {
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
-                // writing the segment
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b d f");
@@ -126,7 +121,6 @@ mod tests {
                 index_writer.commit().unwrap();
             }
             {
-                // writing the segment
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d f");
@@ -135,7 +129,6 @@ mod tests {
                 index_writer.commit().unwrap();
             }
             {
-                // writing the segment
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "e f");
