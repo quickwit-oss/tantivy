@@ -53,6 +53,49 @@ impl<'a> TermIterator<'a> {
         }
     }
 
+    /// Advance the term iterator to the next term.
+    /// Returns true if there is indeed another term
+    /// False if there is none.
+    pub fn advance(&mut self) -> bool {
+        self.advance_segments();
+        if let Some(mut head) = self.heap.pop() {
+            mem::swap(&mut self.current_term, &mut head.term);
+            self.current_segment_ords.push(head.segment_ord);
+            loop {
+                match self.heap.peek() {
+                    Some(&ref next_heap_it) if next_heap_it.term == self.current_term => {}
+                    _ => { break; }
+                }
+                let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
+                self.current_segment_ords.push(next_heap_it.segment_ord);
+            }
+            true
+        }
+        else {
+            false
+        }
+    }
+
+
+    /// Returns the current term.
+    ///
+    /// This method may be called
+    /// iff advance() has been called before
+    /// and "true" was returned.
+    pub fn term(&self) -> &Term {
+        &self.current_term
+    }
+
+    /// Returns the sorted list of segment ordinals
+    /// that include the current term.
+    ///
+    /// This method may be called
+    /// iff advance() has been called before
+    /// and "true" was returned.
+    pub fn segment_ords(&self) -> &[usize]{
+        &self.current_segment_ords[..]
+    }
+
     fn advance_segments(&mut self) {
         for segment_ord in self.current_segment_ords.drain(..) {
             if let Some(term) = self.key_streams[segment_ord].next() {
@@ -69,22 +112,12 @@ impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
     type Item = &'a Term;
 
     fn next(&'a mut self) -> Option<Self::Item> {
-        self.advance_segments();
-        self.heap
-            .pop()
-            .map(move |mut head| {
-                mem::swap(&mut self.current_term, &mut head.term);
-                self.current_segment_ords.push(head.segment_ord);
-                loop {
-                    match self.heap.peek() {
-                        Some(&ref next_heap_it) if next_heap_it.term == self.current_term => {}
-                        _ => { break; }
-                    }
-                    let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
-                    self.current_segment_ords.push(next_heap_it.segment_ord);
-                }
-                &self.current_term
-            })
+        if self.advance() {
+            Some(&self.current_term)
+        }
+        else {
+            None
+        }
     }
 }
 

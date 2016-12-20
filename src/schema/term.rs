@@ -8,7 +8,6 @@ use std::str;
 /// Term represents the value that the token can take.
 ///
 /// It actually wraps a `Vec<u8>`.
-/// TODO remove pub
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 

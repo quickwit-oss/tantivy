@@ -8,7 +8,6 @@ use postings::PostingsSerializer;
 use postings::Postings;
 use postings::DocSet;
 use core::TermIterator;
-use fst::Streamer;
 use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
@@ -132,7 +131,7 @@ impl IndexMerger {
             max_doc += reader.max_doc();
         }
 
-        while let Some(term) = merged_terms.next() {
+        while merged_terms.advance() {
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
             //
@@ -142,14 +141,16 @@ impl IndexMerger {
             // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
             // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc, seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
+            let term = merged_terms.term();
             let mut merged_postings =
                 ChainedPostings::from(
-                    self.readers
+                    merged_terms
+                        .segment_ords()
                         .iter()
-                        .enumerate()
-                        .flat_map(|(segment_ord, reader)| {
+                        .cloned()
+                        .flat_map(|segment_ord| {
                             let offset = offsets[segment_ord];
-                            reader
+                            self.readers[segment_ord]
                                 .read_postings_all_info(&term)
                                 .map(|segment_postings| OffsetPostings::new(segment_postings, offset))
                         })
