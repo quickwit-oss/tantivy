@@ -7,7 +7,7 @@ use rustc_serialize::Encoder;
 use rustc_serialize::json;
 use rustc_serialize::json::Json;
 use std::collections::BTreeMap;
-use schema::field_entry::ValueParsingError;
+use schema::field_type::ValueParsingError;
 use std::sync::Arc;
 use super::*;
 use std::fmt;
@@ -318,7 +318,7 @@ mod tests {
     
     use schema::*;
     use rustc_serialize::json;
-    use schema::field_entry::ValueParsingError;
+    use schema::field_type::ValueParsingError;
         
     #[test]
     pub fn test_schema_serialization() {
