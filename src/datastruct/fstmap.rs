@@ -4,7 +4,6 @@ use std::io;
 use std::io::Write;
 use fst;
 use fst::raw::Fst;
-use fst::Streamer;
 
 use directory::ReadOnlySource;
 use common::BinarySerializable;
@@ -66,27 +65,10 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     }))
 }
 
-pub struct FstKeyIter<'a, V: 'static + BinarySerializable> {
-    streamer: fst::map::Stream<'a>,
-    __phantom__: PhantomData<V>
-}
-
-impl<'a, V: 'static + BinarySerializable> FstKeyIter<'a, V> {
-    pub fn next(&mut self) -> Option<(&[u8])> {
-        self.streamer
-            .next()
-            .map(|(k, _)| k)
-    }
-}
-
-
 impl<V: BinarySerializable> FstMap<V> {
 
-    pub fn keys(&self,) -> FstKeyIter<V> {
-        FstKeyIter {
-            streamer: self.fst_index.stream(),
-            __phantom__: PhantomData,
-        }
+    pub fn keys(&self,) -> fst::map::Keys {
+        self.fst_index.keys()
     }
 
     pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
@@ -123,6 +105,7 @@ mod tests {
     use super::*;
     use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
+    use fst::Streamer;
 
     #[test]
     fn test_fstmap() {
