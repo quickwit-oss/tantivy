@@ -4,6 +4,7 @@ use indexer::SegmentSerializer;
 use core::SerializableSegment;
 use core::Index;
 use core::Segment;
+use schema::Term;
 use std::thread::JoinHandle;
 use indexer::{MergePolicy, DefaultMergePolicy};
 use indexer::SegmentWriter;
@@ -19,6 +20,7 @@ use std::mem::swap;
 use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
+use super::delete_queue::DeleteQueue;
 use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
 use std::time::Duration;
 use super::super::core::index::get_segment_manager;
@@ -67,6 +69,8 @@ pub struct IndexWriter {
 
     segment_update_sender: SegmentUpdateSender,
     segment_update_thread: JoinHandle<()>,
+
+    delete_queue: DeleteQueue,
 
     worker_id: usize,
 
@@ -229,6 +233,8 @@ impl IndexWriter {
 
             workers_join_handle: Vec::new(),
             num_threads: num_threads,
+
+            delete_queue: DeleteQueue::default(),
 
             committed_docstamp: index.docstamp(),
             uncommitted_docstamp: index.docstamp(),
@@ -436,8 +442,19 @@ impl IndexWriter {
         }
 
         Ok(self.committed_docstamp)
+    }    
+
+    
+    pub fn delete_term(&mut self, term: Term) {
+        let opstamp = self.stamp();
+        self.delete_queue.push(opstamp, term);
     }
 
+    fn stamp(&mut self) -> u64 {
+        let opstamp = self.uncommitted_docstamp;
+        self.uncommitted_docstamp += 1u64;
+        opstamp
+    }
 
     /// Adds a document.
     ///
@@ -450,9 +467,9 @@ impl IndexWriter {
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
     pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
+        let opstamp = self.stamp();
         self.document_sender.send(doc);
-        self.uncommitted_docstamp += 1;
-        Ok(self.uncommitted_docstamp)
+        Ok(opstamp)
     }
 }
 
