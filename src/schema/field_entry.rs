@@ -5,7 +5,6 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
-use rustc_serialize::json::Json;
 use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
