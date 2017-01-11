@@ -27,6 +27,9 @@ extern crate lazy_static;
 extern crate log;
 
 #[macro_use]
+extern crate version;
+
+#[macro_use]
 extern crate fst;
 extern crate byteorder;
 extern crate memmap;
@@ -111,7 +114,15 @@ pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
 
+#[cfg(feature="simdcompression")]
+pub fn version() -> &'static str {
+    concat!(version!(), "-simd")  
+}
 
+#[cfg(not(feature="simdcompression"))]
+pub fn version() -> &'static str {
+    concat!(version!(), "-nosimd") 
+}
 
 /// Tantivy's makes it possible to personalize when 
 /// the indexer should merge its segments

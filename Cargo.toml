@@ -34,6 +34,7 @@ lz4 = "1.13"
 time = "0.1"
 uuid = "0.1"
 chan = "0.1"
+version = "2"
 crossbeam = "0.2"
 
 [dev-dependencies]
