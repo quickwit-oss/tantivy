@@ -3,129 +3,20 @@ use core::SegmentReader;
 use core::Segment;
 use DocId;
 use core::SerializableSegment;
-
 use indexer::SegmentSerializer;
 use postings::PostingsSerializer;
-use postings::TermInfo;
 use postings::Postings;
 use postings::DocSet;
-use std::collections::BinaryHeap;
-use datastruct::FstKeyIter;
-use schema::{Term, Schema, Field};
+use core::TermIterator;
+use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use postings::ChainedPostings;
 use postings::HasLen;
 use postings::OffsetPostings;
 use core::SegmentInfo;
-use std::cmp::{min, max, Ordering};
+use std::cmp::{min, max};
 use std::iter;
-
-
-struct PostingsMerger<'a> {
-    doc_offsets: Vec<DocId>,
-    heap: BinaryHeap<HeapItem>,
-    term_streams: Vec<FstKeyIter<'a, TermInfo>>,
-    readers: &'a [SegmentReader],
-}
-
-#[derive(PartialEq, Eq, Debug)]
-struct HeapItem {
-    term: Term,
-    segment_ord: usize,
-}
-
-impl PartialOrd for HeapItem {
-    fn partial_cmp(&self, other: &HeapItem) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for HeapItem {
-    fn cmp(&self, other: &HeapItem) -> Ordering {
-        (&other.term, &other.segment_ord).cmp(&(&self.term, &self.segment_ord))
-    }
-}
-
-impl<'a> PostingsMerger<'a> {
-    fn new(readers: &'a [SegmentReader]) -> PostingsMerger<'a> {
-        let mut doc_offsets: Vec<DocId> = Vec::new();
-        let mut max_doc = 0;
-        for reader in readers {
-            doc_offsets.push(max_doc);
-            max_doc += reader.max_doc();
-        };
-        let term_streams = readers
-            .iter()
-            .map(|reader| reader.term_infos().keys())
-            .collect();
-        let mut postings_merger = PostingsMerger {
-            heap: BinaryHeap::new(),
-            term_streams: term_streams,
-            doc_offsets: doc_offsets,
-            readers: readers,
-        };
-        for segment_ord in 0..readers.len() {
-            postings_merger.push_next_segment_el(segment_ord);
-        }
-        postings_merger
-    }
-
-    // pushes the term_reader associated with the given segment ordinal
-    // into the heap.
-    fn push_next_segment_el(&mut self, segment_ord: usize) {
-        if let Some(term) = self.term_streams[segment_ord].next() {
-            let it = HeapItem {
-                term: Term::from(term),
-                segment_ord: segment_ord,
-            };
-            self.heap.push(it);
-        }
-    }
-
-    fn append_segment(&mut self,
-                      heap_item: &HeapItem,
-                      segment_postings_list: &mut Vec<OffsetPostings<'a>>) {
-        {
-            
-            let offset = self.doc_offsets[heap_item.segment_ord];
-            let reader = &self.readers[heap_item.segment_ord];
-            if let Some(segment_postings) = reader.read_postings_all_info(&heap_item.term) {
-                let offset_postings = OffsetPostings::new(segment_postings, offset);
-                segment_postings_list.push(offset_postings);
-            }
-        }
-        self.push_next_segment_el(heap_item.segment_ord);
-    }
-
-}
-
-impl<'a> Iterator for PostingsMerger<'a> {
-    
-    type Item = (Term, ChainedPostings<'a>);
-    
-    fn next(&mut self,) -> Option<(Term, ChainedPostings<'a>)> {
-        // TODO remove the Vec<u8> allocations
-        match self.heap.pop() {
-            Some(heap_it) => {
-                let mut segment_postings_list = Vec::new();
-                self.append_segment(&heap_it, &mut segment_postings_list);
-                loop {
-                    match self.heap.peek() {
-                        Some(&ref next_heap_it) if next_heap_it.term == heap_it.term => {},
-                        _ => { break; }
-                    }
-                    let next_heap_it = self.heap.pop().expect("This is only reached if an element was peeked beforehand.");
-                    self.append_segment(&next_heap_it, &mut segment_postings_list);
-                }
-                let chained_posting = ChainedPostings::from(segment_postings_list);
-                Some((heap_it.term, chained_posting))
-            },
-            None => None
-        }
-    }
-}
-
 
 pub struct IndexMerger {
     schema: Schema,
@@ -135,17 +26,15 @@ pub struct IndexMerger {
 
 
 struct DeltaPositionComputer {
-    buffer: Vec<u32>
+    buffer: Vec<u32>,
 }
 
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
-        DeltaPositionComputer {
-            buffer: iter::repeat(0u32).take(512).collect::<Vec<u32>>(),
-        }
+        DeltaPositionComputer { buffer: iter::repeat(0u32).take(512).collect::<Vec<u32>>() }
     }
-    
-    fn compute_delta_positions(&mut self, positions: &[u32],) -> &[u32] {
+
+    fn compute_delta_positions(&mut self, positions: &[u32]) -> &[u32] {
         if positions.len() > self.buffer.len() {
             self.buffer.resize(positions.len(), 0u32);
         }
@@ -157,8 +46,6 @@ impl DeltaPositionComputer {
         &self.buffer[..positions.len()]
     }
 }
-
-
 
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &[Segment]) -> Result<IndexMerger> {
@@ -172,20 +59,19 @@ impl IndexMerger {
         Ok(IndexMerger {
             schema: schema,
             readers: readers,
-            segment_info: SegmentInfo {
-                max_doc: max_doc
-            },
+            segment_info: SegmentInfo { max_doc: max_doc },
         })
     }
 
-    
+
     fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         // TODO make sure that works even if the field is never here.
-        for field in self.schema.fields()
-             .iter()
-             .enumerate()
-             .filter(|&(_, field_entry)| field_entry.is_indexed())
-             .map(|(field_id, _)| Field(field_id as u8)) {
+        for field in self.schema
+                         .fields()
+                         .iter()
+                         .enumerate()
+                         .filter(|&(_, field_entry)| field_entry.is_indexed())
+                         .map(|(field_id, _)| Field(field_id as u8)) {
             let mut u32_readers = Vec::new();
             let mut min_val = u32::min_value();
             let mut max_val = 0;
@@ -208,11 +94,12 @@ impl IndexMerger {
     }
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
-        for field in self.schema.fields()
-             .iter()
-             .enumerate()
-             .filter(|&(_, field_entry)| field_entry.is_u32_fast())
-             .map(|(field_id, _)| Field(field_id as u8)) {
+        for field in self.schema
+                         .fields()
+                         .iter()
+                         .enumerate()
+                         .filter(|&(_, field_entry)| field_entry.is_u32_fast())
+                         .map(|(field_id, _)| Field(field_id as u8)) {
             let mut u32_readers = Vec::new();
             let mut min_val = u32::min_value();
             let mut max_val = 0;
@@ -235,16 +122,54 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
-        let postings_merger = PostingsMerger::new(&self.readers);
+        let mut merged_terms = TermIterator::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
-        for (term, mut merged_doc_ids) in postings_merger {
-            try!(postings_serializer.new_term(&term, merged_doc_ids.len() as DocId));
-            while merged_doc_ids.advance() {
-                let delta_positions: &[u32] = delta_position_computer.compute_delta_positions(merged_doc_ids.positions());
-                try!(postings_serializer.write_doc(merged_doc_ids.doc(), merged_doc_ids.term_freq(), delta_positions));
+        let mut offsets: Vec<DocId> = Vec::new();
+        let mut max_doc = 0;
+        for reader in &self.readers {
+            offsets.push(max_doc);
+            max_doc += reader.max_doc();
+        }
+
+        while merged_terms.advance() {
+            // Create the total list of doc ids
+            // by stacking the doc ids from the different segment.
+            //
+            // In the new segments, the doc id from the different
+            // segment are stacked so that :
+            // - Segment 0's doc ids become doc id [0, seg.max_doc]
+            // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
+            // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc, seg0.max_doc + seg1.max_doc + seg2.max_doc]
+            // ...
+            let term = merged_terms.term();
+            let mut merged_postings =
+                ChainedPostings::from(
+                    merged_terms
+                        .segment_ords()
+                        .iter()
+                        .cloned()
+                        .flat_map(|segment_ord| {
+                            let offset = offsets[segment_ord];
+                            self.readers[segment_ord]
+                                .read_postings_all_info(&term)
+                                .map(|segment_postings| OffsetPostings::new(segment_postings, offset))
+                        })
+                        .collect::<Vec<_>>()
+            );
+
+            // We can now serialize this postings, by pushing each document to the
+            // postings serializer.
+            try!(postings_serializer.new_term(&term, merged_postings.len() as DocId));
+            while merged_postings.advance() {
+                let delta_positions: &[u32] =
+                    delta_position_computer.compute_delta_positions(merged_postings.positions());
+                try!(postings_serializer.write_doc(merged_postings.doc(),
+                                                   merged_postings.term_freq(),
+                                                   delta_positions));
             }
             try!(postings_serializer.close_term());
         }
+
         Ok(())
     }
 
@@ -284,7 +209,9 @@ mod tests {
     #[test]
     fn test_index_merger() {
         let mut schema_builder = schema::SchemaBuilder::default();
-        let text_fieldtype = schema::TextOptions::default().set_indexing_options(TextIndexingOptions::TokenizedWithFreq).set_stored();
+        let text_fieldtype = schema::TextOptions::default()
+                                 .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+                                 .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::U32Options::default().set_fast();
         let score_field = schema_builder.add_u32_field("score", score_fieldtype);
@@ -346,22 +273,14 @@ mod tests {
                 collector.docs()
             };
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "a"))),
-                    vec!(1, 2, 4,)
-                );
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "af"))),
-                    vec!(0, 3,)
-                );
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "g"))),
-                    vec!(4,)
-                );
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"))),
-                    vec!(0, 1, 2, 3, 4,)
-                );
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                           vec!(1, 2, 4,));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                           vec!(0, 3,));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "g")]),
+                           vec!(4,));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                           vec!(0, 1, 2, 3, 4,));
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
@@ -390,10 +309,8 @@ mod tests {
                     assert!(searcher.search(&query, &mut collector).is_ok());
                     collector.vals().clone()
                 };
-                assert_eq!(
-                    get_fast_vals(vec!(Term::from_field_text(text_field, "a"))),
-                    vec!(5, 7, 13,)
-                );
+                assert_eq!(get_fast_vals(vec![Term::from_field_text(text_field, "a")]),
+                           vec!(5, 7, 13,));
             }
         }
     }

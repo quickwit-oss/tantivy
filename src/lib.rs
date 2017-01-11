@@ -48,6 +48,7 @@ extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
 
+
 #[cfg(feature="simdcompression")]
 extern crate libc;
 
@@ -113,6 +114,8 @@ pub use self::common::TimerTree;
 pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
+
+pub use core::TermIterator;
 
 #[cfg(feature="simdcompression")]
 pub fn version() -> &'static str {
