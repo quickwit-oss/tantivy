@@ -18,6 +18,7 @@ use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
+use super::delete_queue::DeleteQueueCursor;
 use indexer::index_writer::MARGIN_IN_BYTES;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
@@ -32,6 +33,7 @@ pub struct SegmentWriter<'a> {
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
+	delete_queue_cursor: DeleteQueueCursor,
 }
 
 
@@ -80,7 +82,10 @@ impl<'a> SegmentWriter<'a> {
 	/// the flushing behavior as a buffer limit
 	/// - segment: The segment being written  
 	/// - schema
-	pub fn for_segment(heap: &'a Heap, mut segment: Segment, schema: &Schema) -> Result<SegmentWriter<'a>> {
+	pub fn for_segment(heap: &'a Heap,
+					   mut segment: Segment,
+					   schema: &Schema,
+					   delete_queue_cursor: DeleteQueueCursor) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let mut per_field_postings_writers: Vec<Box<PostingsWriter + 'a>> = Vec::new();
 		for field_entry in schema.fields() {
@@ -94,6 +99,7 @@ impl<'a> SegmentWriter<'a> {
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
+			delete_queue_cursor: delete_queue_cursor,
 		})
 	}
 	

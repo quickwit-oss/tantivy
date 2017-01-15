@@ -20,7 +20,7 @@ use std::mem::swap;
 use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
-use super::delete_queue::DeleteQueue;
+use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
 use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
 use std::time::Duration;
 use super::super::core::index::get_segment_manager;
@@ -70,11 +70,11 @@ pub struct IndexWriter {
     segment_update_sender: SegmentUpdateSender,
     segment_update_thread: JoinHandle<()>,
 
-    delete_queue: DeleteQueue,
-
     worker_id: usize,
 
     num_threads: usize,
+
+    delete_queue: DeleteQueue,
 
     uncommitted_docstamp: u64,
     committed_docstamp: u64,
@@ -89,11 +89,12 @@ fn index_documents(heap: &mut Heap,
                    segment: Segment,
                    schema: &Schema,
                    document_iterator: &mut Iterator<Item = Document>,
-                   segment_update_sender: &mut SegmentUpdateSender)
+                   segment_update_sender: &mut SegmentUpdateSender,
+                   delete_cursor: DeleteQueueCursor)
                    -> Result<()> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
+    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema, delete_cursor));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
@@ -152,11 +153,17 @@ impl IndexWriter {
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_update_sender = self.segment_update_sender.clone();
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
+        
+        // TODO fix this. the cursor might be too advanced
+        // at this point.
+        let delete_cursor = self.delete_queue.cursor();
+        
         let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
             .name(format!("indexing_thread_{}", self.worker_id))
             .spawn(move || {
                 loop {
                     let segment = index.new_segment();
+
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
                         .peekable();
@@ -168,7 +175,8 @@ impl IndexWriter {
                                              segment,
                                              &schema,
                                              &mut document_iterator,
-                                             &mut segment_update_sender));
+                                             &mut segment_update_sender,
+                                             delete_cursor.clone()));
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
