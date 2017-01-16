@@ -22,6 +22,21 @@ use super::delete_queue::DeleteQueueCursor;
 use indexer::index_writer::MARGIN_IN_BYTES;
 use super::operation::{AddOperation, DeleteOperation};
 use bit_set::BitSet;
+use indexer::document_receiver::DocumentReceiver;
+
+
+struct DocumentDeleter<'a> {
+	limit_doc_id: DocId,
+	deleted_docs: &'a mut BitSet,
+}
+
+impl<'a> DocumentReceiver for DocumentDeleter<'a> {
+	fn receive(&mut self, doc: DocId) {
+		if doc < self.limit_doc_id {
+			self.deleted_docs.insert(doc as usize);
+		}
+	}
+}
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -36,7 +51,7 @@ pub struct SegmentWriter<'a> {
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
 	delete_queue_cursor: &'a mut DeleteQueueCursor,
-	docstamps: Vec<u64>,
+	doc_opstamps: Vec<u64>,
 }
 
 
@@ -103,7 +118,7 @@ impl<'a> SegmentWriter<'a> {
 			segment_serializer: segment_serializer,
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
 			delete_queue_cursor: delete_queue_cursor,
-			docstamps: Vec::with_capacity(1_000),
+			doc_opstamps: Vec::with_capacity(1_000),
 		})
 	}
 	
@@ -136,23 +151,41 @@ impl<'a> SegmentWriter<'a> {
 	pub fn is_buffer_full(&self,) -> bool {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
-	
+
+	fn compute_doc_limit(&self, opstamp: u64) -> DocId {
+		let doc_id = match self.doc_opstamps.binary_search(&opstamp) {
+			Ok(doc_id) => doc_id,
+			Err(doc_id) => doc_id,
+		};
+		doc_id as DocId
+	}
+
 	fn compute_delete_mask(&mut self) -> BitSet {
-		let delete_docs = BitSet::with_capacity(self.max_doc as usize);
-		loop {
-			if let Some(delete_operation) = self.delete_queue_cursor.peek() {
-				let delete_term = delete_operation.term;
-				let Field(field_id) = delete_term.field();
-				let postings_writer = &self.per_field_postings_writers[field_id as usize];
-				// TODO add the associated posting list with the correct cut-off.
-				self.delete_queue_cursor.consume();
+		if let Some(min_opstamp) = self.doc_opstamps.first() {
+			if !self.delete_queue_cursor.skip_to(*min_opstamp) {
+				return BitSet::new();
 			}
-			else {
-				break;
-			}
-			
 		}
-		delete_docs
+		else {
+			return BitSet::new();
+		}
+		let mut deleted_docs = BitSet::with_capacity(self.max_doc as usize);
+		while let Some(delete_operation) = self.delete_queue_cursor.consume() {
+			// We can skip computing delete operations that 
+			// are older than our oldest document.
+			//
+			// They don't belong to this document anyway.
+			let delete_term = delete_operation.term;
+			let Field(field_id) = delete_term.field();
+			let postings_writer: &Box<PostingsWriter> = &self.per_field_postings_writers[field_id as usize];
+			let limit_doc_id = self.compute_doc_limit(delete_operation.opstamp);
+			let mut document_deleter = DocumentDeleter {
+				limit_doc_id: limit_doc_id,
+				deleted_docs: &mut deleted_docs
+			};
+			postings_writer.push_documents(delete_term.value(), &mut document_deleter);
+		}
+		deleted_docs
 	}
 	
 	
@@ -162,7 +195,7 @@ impl<'a> SegmentWriter<'a> {
     pub fn add_document(&mut self, add_operation: &AddOperation, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
 		let doc = &add_operation.document;
-		self.docstamps.push(add_operation.opstamp);
+		self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
 			let field_posting_writer: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);

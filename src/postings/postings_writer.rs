@@ -7,7 +7,8 @@ use postings::Recorder;
 use analyzer::SimpleTokenizer;
 use schema::Field;
 use analyzer::StreamingIterator;
-use datastruct::stacker::{HashMap, Heap};
+use indexer::document_receiver::DocumentReceiver;
+use datastruct::stacker::{HashMap, Entry, Heap};
 
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
@@ -22,10 +23,14 @@ pub trait PostingsWriter {
     /// * heap - heap used to store the postings informations as well as the terms
     /// in the hashmap.
     fn suscribe(&mut self, doc: DocId, pos: u32, term: &Term, heap: &Heap);
-
+    
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
+
+    /// Push all documents associated with a given term to a 
+    /// given DocumentLister.
+    fn push_documents(&self, term_val: &[u8], document_listener: &mut DocumentReceiver);
 
     /// Closes all of the currently open `Recorder`'s.
     fn close(&mut self, heap: &Heap);
@@ -96,6 +101,15 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     fn close(&mut self, heap: &Heap) {
         for recorder in self.term_index.values_mut() {
             recorder.close_doc(heap);
+        }
+    }
+
+
+    fn push_documents(&self, term_val: &[u8], document_receiver: &mut DocumentReceiver) {
+        if let Entry::Occupied(addr) = self.term_index.lookup(term_val) {
+            let heap = self.term_index.heap();
+            let recorder: &Rec = heap.get_ref(addr);
+            recorder.push_documents(addr, document_receiver, heap);
         }
     }
 

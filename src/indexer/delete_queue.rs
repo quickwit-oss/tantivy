@@ -85,6 +85,24 @@ pub struct DeleteQueueCursor {
 
 impl DeleteQueueCursor {
     
+    /// Skips to the first delete operation which has 
+    /// a timestamp that is greater or equal to opstamp.
+    ///
+    /// Returns false in the DeleteQueue reaches its end before
+    /// meeting such an element.
+    pub fn skip_to(&mut self, opstamp: u64) -> bool {
+        // TODO optimize
+        while let Some(delete_operation) = self.peek() {
+            if delete_operation.opstamp >= opstamp {
+                return true;
+            }
+            else {
+                self.consume();
+            }
+        }
+        return false;
+    }
+
     pub fn peek(&mut self) -> Option<DeleteOperation> {
         if self.pos >= BLOCK_SIZE {
             self.pos = 0;
