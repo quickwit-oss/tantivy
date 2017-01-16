@@ -10,6 +10,7 @@ mod segment_manager;
 pub mod delete_queue;
 pub mod segment_updater;
 mod directory_lock;
+pub mod operation;
 
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;

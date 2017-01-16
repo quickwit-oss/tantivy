@@ -1,14 +1,8 @@
 use schema::Term;
 use std::sync::{Arc, RwLock};
+use super::operation::DeleteOperation;
 
 const BLOCK_SIZE: usize = 128;
-
-/// Timestamped Delete operation.
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct DeleteOperation {
-    pub opstamp: u64,
-    pub term: Term,
-}
 
 
 /// DeleteQueue are implemented as an unrolled linked list.

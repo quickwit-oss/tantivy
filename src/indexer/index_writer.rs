@@ -1,5 +1,6 @@
 use schema::Schema;
 use schema::Document;
+use super::operation::{DeleteOperation, AddOperation};
 use indexer::SegmentSerializer;
 use core::SerializableSegment;
 use core::Index;
@@ -40,8 +41,8 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 
 
-type DocumentSender = chan::Sender<Document>;
-type DocumentReceiver = chan::Receiver<Document>;
+type DocumentSender = chan::Sender<AddOperation>;
+type DocumentReceiver = chan::Receiver<AddOperation>;
 
 
 
@@ -88,9 +89,9 @@ impl !Sync for IndexWriter {}
 fn index_documents(heap: &mut Heap,
                    segment: Segment,
                    schema: &Schema,
-                   document_iterator: &mut Iterator<Item = Document>,
+                   document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_update_sender: &mut SegmentUpdateSender,
-                   delete_cursor: DeleteQueueCursor)
+                   delete_cursor: &mut DeleteQueueCursor)
                    -> Result<()> {
     heap.clear();
     let segment_id = segment.id();
@@ -161,6 +162,7 @@ impl IndexWriter {
         let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
             .name(format!("indexing_thread_{}", self.worker_id))
             .spawn(move || {
+                let mut delete_cursor_clone = delete_cursor.clone();
                 loop {
                     let segment = index.new_segment();
 
@@ -176,7 +178,7 @@ impl IndexWriter {
                                              &schema,
                                              &mut document_iterator,
                                              &mut segment_update_sender,
-                                             delete_cursor.clone()));
+                                             &mut delete_cursor_clone));
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
@@ -474,9 +476,13 @@ impl IndexWriter {
     ///
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
-    pub fn add_document(&mut self, doc: Document) -> io::Result<u64> {
+    pub fn add_document(&mut self, document: Document) -> io::Result<u64> {
         let opstamp = self.stamp();
-        self.document_sender.send(doc);
+        let add_operation = AddOperation {
+            opstamp: opstamp,
+            document: document,
+        };
+        self.document_sender.send(add_operation);
         Ok(opstamp)
     }
 }

@@ -20,6 +20,8 @@ use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
 use super::delete_queue::DeleteQueueCursor;
 use indexer::index_writer::MARGIN_IN_BYTES;
+use super::operation::{AddOperation, DeleteOperation};
+use bit_set::BitSet;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -33,7 +35,8 @@ pub struct SegmentWriter<'a> {
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
-	delete_queue_cursor: DeleteQueueCursor,
+	delete_queue_cursor: &'a mut DeleteQueueCursor,
+	docstamps: Vec<u64>,
 }
 
 
@@ -85,7 +88,7 @@ impl<'a> SegmentWriter<'a> {
 	pub fn for_segment(heap: &'a Heap,
 					   mut segment: Segment,
 					   schema: &Schema,
-					   delete_queue_cursor: DeleteQueueCursor) -> Result<SegmentWriter<'a>> {
+					   delete_queue_cursor: &'a mut DeleteQueueCursor) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let mut per_field_postings_writers: Vec<Box<PostingsWriter + 'a>> = Vec::new();
 		for field_entry in schema.fields() {
@@ -100,6 +103,7 @@ impl<'a> SegmentWriter<'a> {
 			segment_serializer: segment_serializer,
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
 			delete_queue_cursor: delete_queue_cursor,
+			docstamps: Vec::with_capacity(1_000),
 		})
 	}
 	
@@ -112,7 +116,8 @@ impl<'a> SegmentWriter<'a> {
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
 		}
-		try!(write(&self.per_field_postings_writers,
+		try!(write(
+			  &self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  segment_info,
@@ -132,11 +137,32 @@ impl<'a> SegmentWriter<'a> {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
 	
+	fn compute_delete_mask(&mut self) -> BitSet {
+		let delete_docs = BitSet::with_capacity(self.max_doc as usize);
+		loop {
+			if let Some(delete_operation) = self.delete_queue_cursor.peek() {
+				let delete_term = delete_operation.term;
+				let Field(field_id) = delete_term.field();
+				let postings_writer = &self.per_field_postings_writers[field_id as usize];
+				// TODO add the associated posting list with the correct cut-off.
+				self.delete_queue_cursor.consume();
+			}
+			else {
+				break;
+			}
+			
+		}
+		delete_docs
+	}
+	
+	
 	/// Indexes a new document
 	///
 	/// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
+    pub fn add_document(&mut self, add_operation: &AddOperation, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
+		let doc = &add_operation.document;
+		self.docstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
 			let field_posting_writer: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
@@ -171,7 +197,7 @@ impl<'a> SegmentWriter<'a> {
 			}
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
-		self.fast_field_writers.add_document(doc);
+		self.fast_field_writers.add_document(&doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.field_values()
 			.iter()
@@ -221,7 +247,7 @@ fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 segment_info: SegmentInfo,
 	  	 mut serializer: SegmentSerializer,
 		 heap: &'a Heap,) -> Result<u32> {
-		for per_field_postings_writer in per_field_postings_writers.iter() {
+		for per_field_postings_writer in per_field_postings_writers {
 			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer(), heap));
 		}
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));

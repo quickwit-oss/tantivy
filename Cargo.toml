@@ -24,11 +24,14 @@ rustc-serialize = "0.3"
 log = "0.3.6"
 combine = "2.2"
 tempdir = "0.3"
+
+
 bincode = "0.5"
 libc = {version = "0.2.20", optional=true}
 num_cpus = "1.2"
 itertools = "0.5.9"
 lz4 = "1.20"
+bit-set = "0.4.0"
 time = "0.1"
 uuid = { version = "0.4", features = ["v4", "rustc-serialize"] }
 chan = "0.1"

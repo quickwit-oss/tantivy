@@ -52,6 +52,7 @@ mod tests {
     use query::TermQuery;
     use schema::Field;
     use test::Bencher;
+    use indexer::operation::AddOperation;
     use rand::{XorShiftRng, Rng, SeedableRng};
     
         
@@ -83,27 +84,39 @@ mod tests {
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
         let delete_queue = DeleteQueue::default();
-        let delete_cursor = delete_queue.cursor();
+        let mut delete_cursor = delete_queue.cursor();
         let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema, delete_cursor).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema, &mut delete_cursor).unwrap();
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a b a c a d a a.");
                 doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 0u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "b a");
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 1u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             for i in 2..1000 {
                 let mut doc = Document::default();
                 let mut text = iter::repeat("e ").take(i).collect::<String>();
                 text.push_str(" a");
                 doc.add_text(text_field, &text);
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 2u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             segment_writer.finalize().unwrap();
         }
