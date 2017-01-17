@@ -1,8 +1,7 @@
 use Result;
 use DocId;
 use std::io;
-use schema::Schema;
-use schema::Document;
+use schema::Schema;	
 use schema::Term;
 use core::SegmentInfo;
 use core::Segment;
@@ -20,7 +19,7 @@ use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
 use super::delete_queue::DeleteQueueCursor;
 use indexer::index_writer::MARGIN_IN_BYTES;
-use super::operation::{AddOperation, DeleteOperation};
+use super::operation::AddOperation;
 use bit_set::BitSet;
 use indexer::document_receiver::DocumentReceiver;
 
@@ -50,7 +49,6 @@ pub struct SegmentWriter<'a> {
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
-	delete_queue_cursor: &'a mut DeleteQueueCursor,
 	doc_opstamps: Vec<u64>,
 }
 
@@ -102,8 +100,7 @@ impl<'a> SegmentWriter<'a> {
 	/// - schema
 	pub fn for_segment(heap: &'a Heap,
 					   mut segment: Segment,
-					   schema: &Schema,
-					   delete_queue_cursor: &'a mut DeleteQueueCursor) -> Result<SegmentWriter<'a>> {
+					   schema: &Schema) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let mut per_field_postings_writers: Vec<Box<PostingsWriter + 'a>> = Vec::new();
 		for field_entry in schema.fields() {
@@ -117,7 +114,6 @@ impl<'a> SegmentWriter<'a> {
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
-			delete_queue_cursor: delete_queue_cursor,
 			doc_opstamps: Vec::with_capacity(1_000),
 		})
 	}
@@ -126,7 +122,7 @@ impl<'a> SegmentWriter<'a> {
 	/// 
 	/// Finalize consumes the `SegmentWriter`, so that it cannot 
 	/// be used afterwards.
-	pub fn finalize(mut self,) -> Result<()> {
+	pub fn finalize(mut self) -> Result<()> {
 		let segment_info = self.segment_info();
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
@@ -160,9 +156,39 @@ impl<'a> SegmentWriter<'a> {
 		doc_id as DocId
 	}
 
-	fn compute_delete_mask(&mut self) -> BitSet {
+	pub fn compute_doc_mapping_after_delete(&self, mut delete_queue_cursor: DeleteQueueCursor) -> Vec<Option<DocId>> {
+		let delete_docs = self.compute_delete_mask(&mut delete_queue_cursor);
+		let max_doc: usize = self.max_doc as usize;
+		let mut doc_autoinc = 0u32;
+		(0..max_doc)
+		.map(|doc| {
+			if delete_docs.contains(doc) {
+				None
+			}
+			else {
+				let new_doc = doc_autoinc;
+				doc_autoinc += 1;
+				Some(new_doc)
+			}
+		})
+		.collect::<Vec<_>>()
+	}
+
+	pub fn first_opstamp(&self) -> u64 {
+		*(self.doc_opstamps
+			.first()
+			.expect("Last doc opstamp called on an empty segment writer"))
+	}
+
+	pub fn last_opstamp(&self) -> u64 {
+		*(self.doc_opstamps
+			.last()
+			.expect("Last doc opstamp called on an empty segment writer"))
+	}
+
+	fn compute_delete_mask(&self, delete_queue_cursor: &mut DeleteQueueCursor) -> BitSet {
 		if let Some(min_opstamp) = self.doc_opstamps.first() {
-			if !self.delete_queue_cursor.skip_to(*min_opstamp) {
+			if !delete_queue_cursor.skip_to(*min_opstamp) {
 				return BitSet::new();
 			}
 		}
@@ -170,7 +196,7 @@ impl<'a> SegmentWriter<'a> {
 			return BitSet::new();
 		}
 		let mut deleted_docs = BitSet::with_capacity(self.max_doc as usize);
-		while let Some(delete_operation) = self.delete_queue_cursor.consume() {
+		while let Some(delete_operation) =  delete_queue_cursor.consume() {
 			// We can skip computing delete operations that 
 			// are older than our oldest document.
 			//

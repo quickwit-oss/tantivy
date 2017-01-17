@@ -1,6 +1,6 @@
 use schema::Schema;
 use schema::Document;
-use super::operation::{DeleteOperation, AddOperation};
+use super::operation::AddOperation;
 use indexer::SegmentSerializer;
 use core::SerializableSegment;
 use core::Index;
@@ -95,7 +95,7 @@ fn index_documents(heap: &mut Heap,
                    -> Result<()> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema, delete_cursor));
+    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
@@ -105,10 +105,22 @@ fn index_documents(heap: &mut Heap,
         }
     }
     let num_docs = segment_writer.max_doc();
+    assert!(num_docs > 0);
+    let first_opstamp: u64 = segment_writer.first_opstamp();
+    let last_opstamp: u64 = segment_writer.last_opstamp();
+    
+    delete_cursor.skip_to(first_opstamp);
+    
+    let delete_cursor_clone = delete_cursor.clone();
+
+    let doc_mapping = segment_writer.compute_doc_mapping_after_delete(delete_cursor_clone);
+    
     let segment_meta = SegmentMeta {
         segment_id: segment_id,
         num_docs: num_docs,
     };
+
+    delete_cursor.skip_to(last_opstamp);
 
     try!(segment_writer.finalize());
     segment_update_sender.send(SegmentUpdate::AddSegment(segment_meta));
@@ -172,7 +184,11 @@ impl IndexWriter {
                     // the peeking here is to avoid
                     // creating a new segment's files
                     // if no document are available.
-                    if document_iterator.peek().is_some() {
+                    //
+                    // this is a valid guarantee as the 
+                    // peeked document now belongs to
+                    // our local iterator.
+                    if document_iterator.peek().is_some() { 
                         try!(index_documents(&mut heap,
                                              segment,
                                              &schema,

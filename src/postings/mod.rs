@@ -44,7 +44,6 @@ mod tests {
     use schema::{Document, TEXT, STRING, SchemaBuilder, Term};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
-    use indexer::delete_queue::DeleteQueue;
     use core::SegmentReader;
     use core::Index;
     use std::iter;
@@ -83,11 +82,9 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
-        let delete_queue = DeleteQueue::default();
-        let mut delete_cursor = delete_queue.cursor();
         let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema, &mut delete_cursor).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a b a c a d a a.");
