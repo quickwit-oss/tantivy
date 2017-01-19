@@ -156,25 +156,25 @@ impl<'a> SegmentWriter<'a> {
 		doc_id as DocId
 	}
 
-	pub fn compute_doc_mapping_after_delete(&self, mut delete_queue_cursor: DeleteQueueCursor) -> Vec<Option<DocId>> {
-		let delete_docs = self.compute_delete_mask(&mut delete_queue_cursor);
-		let max_doc: usize = self.max_doc as usize;
-		let mut doc_autoinc = 0u32;
-		(0..max_doc)
-		.map(|doc| {
-			if delete_docs.contains(doc) {
-				None
-			}
-			else {
-				let new_doc = doc_autoinc;
-				doc_autoinc += 1;
-				Some(new_doc)
-			}
-		})
-		.collect::<Vec<_>>()
-	}
+	// pub fn compute_doc_mapping_after_delete(&self, mut delete_queue_cursor: DeleteQueueCursor) -> Vec<Option<DocId>> {
+	// 	let delete_docs = self.compute_delete_mask(&mut delete_queue_cursor);
+	// 	let max_doc: usize = self.max_doc as usize;
+	// 	let mut doc_autoinc = 0u32;
+	// 	(0..max_doc)
+	// 	.map(|doc| {
+	// 		if delete_docs.contains(doc) {
+	// 			None
+	// 		}
+	// 		else {
+	// 			let new_doc = doc_autoinc;
+	// 			doc_autoinc += 1;
+	// 			Some(new_doc)
+	// 		}
+	// 	})
+	// 	.collect::<Vec<_>>()
+	// }
 
-	pub fn first_opstamp(&self) -> u64 {
+	fn first_opstamp(&self) -> u64 {
 		*(self.doc_opstamps
 			.first()
 			.expect("Last doc opstamp called on an empty segment writer"))
@@ -186,17 +186,21 @@ impl<'a> SegmentWriter<'a> {
 			.expect("Last doc opstamp called on an empty segment writer"))
 	}
 
-	fn compute_delete_mask(&self, delete_queue_cursor: &mut DeleteQueueCursor) -> BitSet {
-		if let Some(min_opstamp) = self.doc_opstamps.first() {
-			if !delete_queue_cursor.skip_to(*min_opstamp) {
-				return BitSet::new();
+	pub fn compute_deleted_bitset(&self, delete_queue_cursor: &mut DeleteQueueCursor) -> Option<BitSet> {
+		if let Some(first_opstamp) = self.doc_opstamps.first() {
+			if !delete_queue_cursor.skip_to(*first_opstamp) {
+				return None;
 			}
 		}
 		else {
-			return BitSet::new();
+			return None;
 		}
+		let last_opstamp = *self.doc_opstamps.last().unwrap();
 		let mut deleted_docs = BitSet::with_capacity(self.max_doc as usize);
-		while let Some(delete_operation) =  delete_queue_cursor.consume() {
+		while let Some(delete_operation) = delete_queue_cursor.peek() {
+			if delete_operation.opstamp > last_opstamp {
+				break;
+			}
 			// We can skip computing delete operations that 
 			// are older than our oldest document.
 			//
@@ -210,8 +214,9 @@ impl<'a> SegmentWriter<'a> {
 				deleted_docs: &mut deleted_docs
 			};
 			postings_writer.push_documents(delete_term.value(), &mut document_deleter);
+			delete_queue_cursor.consume();
 		}
-		deleted_docs
+		Some(deleted_docs)
 	}
 	
 	

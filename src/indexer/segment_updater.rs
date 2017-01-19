@@ -221,6 +221,7 @@ impl SegmentUpdater {
                     let segment_meta = SegmentMeta {
                         segment_id: merged_segment.id(),
                         num_docs: num_docs,
+                        num_deleted_docs: 0u32,
                     };
                     let segment_update = SegmentUpdate::EndMerge(merging_thread_id, segment_ids.clone(), segment_meta.clone());
                     segment_update_sender_clone.send(segment_update.clone());

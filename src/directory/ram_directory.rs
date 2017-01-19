@@ -130,6 +130,20 @@ impl InnerDirectory {
             .contains_key(path)
     }
 
+    fn ls_starting_with(&self, prefix: &str) -> Vec<PathBuf> {
+        self.0
+            .read()
+            .expect("Failed to get read lock directory.")
+            .keys()
+            .filter(|path: &&PathBuf|
+                path.to_str()
+                    .map(|p: &str| p.starts_with(prefix))
+                    .unwrap_or(false)
+            )
+            .cloned()
+            .collect()
+    }
+
 }
 
 impl fmt::Debug for RAMDirectory {
@@ -196,6 +210,11 @@ impl Directory for RAMDirectory {
 
     fn box_clone(&self,) -> Box<Directory> {
         Box::new(self.clone())
+    }
+
+
+    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>> {
+        Ok(self.fs.ls_starting_with(prefix))
     }
 
 }

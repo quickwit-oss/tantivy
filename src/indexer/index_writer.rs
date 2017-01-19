@@ -9,9 +9,11 @@ use schema::Term;
 use std::thread::JoinHandle;
 use indexer::{MergePolicy, DefaultMergePolicy};
 use indexer::SegmentWriter;
+use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
 use std::clone::Clone;
 use std::io;
+use fastfield::delete;
 use std::thread;
 use std::mem;
 use indexer::merger::IndexMerger;
@@ -87,7 +89,7 @@ impl !Sync for IndexWriter {}
 
 
 fn index_documents(heap: &mut Heap,
-                   segment: Segment,
+                   mut segment: Segment,
                    schema: &Schema,
                    document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_update_sender: &mut SegmentUpdateSender,
@@ -95,7 +97,7 @@ fn index_documents(heap: &mut Heap,
                    -> Result<()> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
+    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment.clone(), &schema));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
@@ -105,22 +107,28 @@ fn index_documents(heap: &mut Heap,
         }
     }
     let num_docs = segment_writer.max_doc();
-    assert!(num_docs > 0);
-    let first_opstamp: u64 = segment_writer.first_opstamp();
-    let last_opstamp: u64 = segment_writer.last_opstamp();
-    
-    delete_cursor.skip_to(first_opstamp);
-    
-    let delete_cursor_clone = delete_cursor.clone();
+    assert!(num_docs > 0);    
 
-    let doc_mapping = segment_writer.compute_doc_mapping_after_delete(delete_cursor_clone);
-    
+    let deleted_docset_opt = segment_writer.compute_deleted_bitset(delete_cursor);
+
+    let last_opstamp = segment_writer.last_opstamp();
+
+    let num_deleted_docs;
+
+    if let Some(deleted_docset) = deleted_docset_opt {
+        let mut delete_write = segment.open_write(SegmentComponent::DELETE(last_opstamp))?;
+        delete::write_delete_bitset(&deleted_docset, &mut delete_write)?;
+        num_deleted_docs = deleted_docset.len();
+    }
+    else {
+        num_deleted_docs = 0;
+    }
+
     let segment_meta = SegmentMeta {
         segment_id: segment_id,
         num_docs: num_docs,
+        num_deleted_docs: num_deleted_docs as u32,
     };
-
-    delete_cursor.skip_to(last_opstamp);
 
     try!(segment_writer.finalize());
     segment_update_sender.send(SegmentUpdate::AddSegment(segment_meta));
@@ -330,9 +338,11 @@ impl IndexWriter {
         let num_docs = try!(merger.write(segment_serializer));
         let merged_segment_ids: Vec<SegmentId> =
             segments.iter().map(|segment| segment.id()).collect();
+        
         let segment_meta = SegmentMeta {
             segment_id: merged_segment.id(),
             num_docs: num_docs,
+            num_deleted_docs: 0,
         };
 
         segment_manager.end_merge(&merged_segment_ids, &segment_meta);

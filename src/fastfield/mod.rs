@@ -13,6 +13,7 @@
 mod reader;
 mod writer;
 mod serializer;
+pub mod delete;
 
 pub use self::writer::{U32FastFieldsWriter, U32FastFieldWriter};
 pub use self::reader::{U32FastFieldsReader, U32FastFieldReader};

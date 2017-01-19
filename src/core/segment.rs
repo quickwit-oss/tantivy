@@ -65,11 +65,18 @@ impl Segment {
     /// # Disclaimer
     /// If deletion of a file fails (e.g. a file 
     /// was read-only.), the method does not
-    /// fail and just logs an error
-    pub fn delete(&self,) {
-        for component in SegmentComponent::values() {
-            let rel_path = self.relative_path(component);
-            if let Err(err) = self.index.directory().delete(&rel_path) {
+    /// fail and just logs an error when it fails.
+    pub fn delete(&self) {
+        info!("Deleting segment {:?}", self.segment_id);
+        let segment_filepaths_res = self.index.directory().ls_starting_with(
+            &*self.segment_id.uuid_string()
+        );
+        if segment_filepaths_res.is_err() {
+            error!("Failed to list files of segment {:?} for deletion.", self.segment_id.uuid_string());
+            return;
+        }
+        for segment_filepath in &segment_filepaths_res.unwrap() {
+            if let Err(err) = self.index.directory().delete(&segment_filepath) {
                 match err {
                     FileError::FileDoesNotExist(_) => {
                         // this is normal behavior.

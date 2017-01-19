@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry as HashMapEntry;
 use fst::raw::MmapReadOnly;
 use std::fs::File;
+use std::fs::ReadDir;
 use atomicwrites;
 use std::sync::RwLock;
 use std::fmt;
@@ -128,8 +129,6 @@ impl Seek for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     
-    
-
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
@@ -203,7 +202,7 @@ impl Directory for MmapDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
-        debug!("Delete {:?}", path);
+        debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
@@ -239,4 +238,23 @@ impl Directory for MmapDirectory {
         Box::new(self.clone())
     }
     
+    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>> {
+        fs::read_dir(&self.root_path)
+        .map(|paths: ReadDir| {
+            paths
+            .filter_map(|dir_entry_res|
+                dir_entry_res
+                    .ok()
+                    .map(|dir_entry| dir_entry.path())
+            )
+            .filter(|path| 
+                path.to_str()
+                    .map(|filepath| filepath.starts_with(prefix))
+                    .unwrap_or(false)
+            )
+            .map(PathBuf::from)
+            .collect()
+        })
+          
+    }
 }

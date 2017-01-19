@@ -50,7 +50,7 @@ impl SegmentId {
     }
 
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let filename = self.uuid_string() + component.path_suffix();
+        let filename = self.uuid_string() + &*component.path_suffix();
         PathBuf::from(filename)
     }
 }
