@@ -4,13 +4,11 @@ version = "0.2.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 build = "build.rs"
 license = "MIT"
-
+categories = ["database-implementations", "data-structures"]
 description = """Tantivy is a search engine library."""
-
 documentation = "https://tantivy-search.github.io/tantivy/tantivy/index.html"
 homepage = "https://github.com/tantivy-search/tantivy"
 repository = "https://github.com/tantivy-search/tantivy"
-
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 
@@ -53,3 +51,7 @@ debug-assertions = false
 [features]
 default = ["simdcompression"]
 simdcompression = ["libc", "gcc"]
+
+
+[badges]
+travis-ci = { repository = "tantivy-search/tantivy" }
