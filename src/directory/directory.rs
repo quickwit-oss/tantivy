@@ -7,7 +7,8 @@ use std::result;
 use std::io;
 use std::marker::Sync;
 
-/// Write-once read many (WORM) abstraction for where tantivy's index should be stored. 
+/// Write-once read many (WORM) abstraction for where
+/// tantivy's data should be stored. 
 ///
 /// There are currently two implementations of `Directory`
 /// 

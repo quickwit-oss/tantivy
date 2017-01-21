@@ -7,6 +7,7 @@ mod segment_component;
 mod segment;
 mod index_meta;
 mod pool;
+mod segment_meta;
 mod term_iterator;
 
 use std::path::PathBuf;
@@ -18,7 +19,8 @@ pub use self::segment::Segment;
 pub use self::segment::SegmentInfo;
 pub use self::segment::SerializableSegment;
 pub use self::index::Index;
-pub use self::index_meta::{IndexMeta, SegmentMeta};
+pub use self::segment_meta::SegmentMeta;
+pub use self::index_meta::IndexMeta;
 pub use self::term_iterator::TermIterator;
 
 lazy_static! {
