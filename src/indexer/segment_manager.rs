@@ -2,6 +2,8 @@ use super::segment_register::SegmentRegister;
 use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
+use indexer::SegmentEntry;
+use indexer::delete_queue::DeleteQueueCursor;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -84,12 +86,13 @@ impl SegmentManager {
         self.read().docstamp
     }
 
-    pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
+
+    pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
                 docstamp: 0u64, // TODO put the actual value
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::from(segment_metas),
+                committed: SegmentRegister::new(segment_metas, delete_cursor),
             }),
             generation: AtomicUsize::default(),
         }
@@ -130,11 +133,6 @@ impl SegmentManager {
         registers_lock.uncommitted.clear();    
     }
     
-    pub fn add_segment(&self, segment_meta: SegmentMeta) {
-        let mut registers_lock = self.write();
-        registers_lock.uncommitted.add_segment(segment_meta);
-    }
-    
     pub fn start_merge(&self, segment_ids: &[SegmentId]) {
         let mut registers_lock = self.write();
         if registers_lock.uncommitted.contains_all(segment_ids) {
@@ -148,20 +146,25 @@ impl SegmentManager {
             }
         }
     }
+
+    pub fn add_segment(&self, segment_entry: SegmentEntry) {
+        let mut registers_lock = self.write();
+        registers_lock.uncommitted.add_segment_entry(segment_entry);
+    }
     
-    pub fn end_merge(&self, merged_segment_ids: &[SegmentId], merged_segment_meta: &SegmentMeta) {
+    pub fn end_merge(&self, merged_segment_ids: &[SegmentId], merged_segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
         if registers_lock.uncommitted.contains_all(merged_segment_ids) {
             for segment_id in merged_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);
             }
-            registers_lock.uncommitted.add_segment(merged_segment_meta.clone());
+            registers_lock.uncommitted.add_segment_entry(merged_segment_entry);
         }
         else if registers_lock.committed.contains_all(merged_segment_ids) {
             for segment_id in merged_segment_ids {
                 registers_lock.committed.remove_segment(segment_id);
             }
-            registers_lock.committed.add_segment(merged_segment_meta.clone());
+            registers_lock.committed.add_segment_entry(merged_segment_entry);
         } else {
             warn!("couldn't find segment in SegmentManager");
         }
@@ -178,3 +181,16 @@ impl SegmentManager {
     }
 }
 
+
+impl Default for SegmentManager {
+    fn default() -> SegmentManager {
+        SegmentManager {
+            registers: RwLock::new( SegmentRegisters {
+                docstamp: 0u64, // TODO put the actual value
+                uncommitted: SegmentRegister::default(),
+                committed: SegmentRegister::default(),
+            }),
+            generation: AtomicUsize::default(),
+        }
+    }
+}

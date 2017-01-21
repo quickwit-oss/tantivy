@@ -6,9 +6,11 @@ use core::SerializableSegment;
 use core::Index;
 use core::Segment;
 use schema::Term;
+use indexer::SegmentEntry;
 use std::thread::JoinHandle;
 use indexer::{MergePolicy, DefaultMergePolicy};
 use indexer::SegmentWriter;
+use indexer::SegmentManager;
 use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
 use std::clone::Clone;
@@ -26,7 +28,6 @@ use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
 use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
 use std::time::Duration;
-use super::super::core::index::get_segment_manager;
 use super::segment_manager::CommitState;
 use Result;
 use Error;
@@ -63,6 +64,8 @@ pub struct IndexWriter {
     _merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     
     index: Index,
+    segment_manager: Arc<SegmentManager>,
+
     heap_size_in_bytes_per_thread: usize,
 
     workers_join_handle: Vec<JoinHandle<Result<()>>>,
@@ -130,8 +133,10 @@ fn index_documents(heap: &mut Heap,
         num_deleted_docs: num_deleted_docs as u32,
     };
 
+    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
+
     try!(segment_writer.finalize());
-    segment_update_sender.send(SegmentUpdate::AddSegment(segment_meta));
+    segment_update_sender.send(SegmentUpdate::AddSegment(segment_entry));
     Ok(())
 
 }
@@ -247,8 +252,14 @@ impl IndexWriter {
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
         
         let merge_policy: Arc<Mutex<Box<MergePolicy>>> = Arc::new(Mutex::new(box DefaultMergePolicy::default()));
+
+        let delete_queue = DeleteQueue::default();
+
+        let committed_segments = index.committed_segments()?;
         
-        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone(), merge_policy.clone());
+        let segment_manager = Arc::new(SegmentManager::from_segments(committed_segments, delete_queue.cursor()));
+    
+        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone(), segment_manager.clone(), merge_policy.clone());
         
         let mut index_writer = IndexWriter {
             
@@ -258,6 +269,7 @@ impl IndexWriter {
             
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
             index: index.clone(),
+            segment_manager: segment_manager,
 
             document_receiver: document_receiver,
             document_sender: document_sender,
@@ -268,7 +280,7 @@ impl IndexWriter {
             workers_join_handle: Vec::new(),
             num_threads: num_threads,
 
-            delete_queue: DeleteQueue::default(),
+            delete_queue: delete_queue,
 
             committed_docstamp: index.docstamp(),
             uncommitted_docstamp: index.docstamp(),
@@ -304,9 +316,7 @@ impl IndexWriter {
             return Ok(());
         }
 
-
-        let segment_manager = get_segment_manager(&self.index);
-
+        let ref segment_manager = self.segment_manager;
         {
             // let's check that all these segments are in the same
             // committed/uncommited state.
@@ -345,7 +355,13 @@ impl IndexWriter {
             num_deleted_docs: 0,
         };
 
-        segment_manager.end_merge(&merged_segment_ids, &segment_meta);
+        // TODO fix this!!!
+        let delete_queue = DeleteQueue::default();
+        let delete_cursor = delete_queue.cursor();
+
+        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor);
+
+        segment_manager.end_merge(&merged_segment_ids, segment_entry);
         try!(self.index.load_searchers());
         Ok(())
     }
@@ -411,7 +427,7 @@ impl IndexWriter {
         // from now on.
         self.segment_update_sender.send(SegmentUpdate::NewGeneration);
 
-        let rollbacked_segments = get_segment_manager(&self.index).rollback();
+        let rollbacked_segments = self.segment_manager.rollback();
         for segment_id in rollbacked_segments {
 
             // TODO all delete must happen after saving
@@ -472,8 +488,8 @@ impl IndexWriter {
         self.segment_update_sender.send(SegmentUpdate::Commit(self.committed_docstamp));
 
         // wait for the segment update thread to have processed the info
-        let segment_manager = get_segment_manager(&self.index);
-        while segment_manager.docstamp() != self.committed_docstamp {
+        
+        while self.segment_manager.docstamp() != self.committed_docstamp {
             thread::sleep(Duration::from_millis(100));
         }
 
@@ -629,7 +645,7 @@ mod tests {
             index_writer.commit().expect("commit failed");
             index_writer.wait_merging_threads().expect("waiting merging thread failed");
             assert_eq!(num_docs_containing("a"), 200);
-            assert_eq!(index.searchable_segments().len(), 1);
+            assert_eq!(index.searchable_segments().unwrap().len(), 1);
         }
     }
 

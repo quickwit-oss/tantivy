@@ -13,6 +13,7 @@ mod directory_lock;
 pub mod document_receiver;
 pub mod operation;
 
+pub use self::segment_register::SegmentEntry;
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;
 pub use self::index_writer::IndexWriter;

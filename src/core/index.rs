@@ -13,9 +13,9 @@ use num_cpus;
 use super::segment::Segment;
 use core::SegmentReader;
 use super::pool::Pool;
+use core::SegmentMeta;
 use super::pool::LeasedItem;
 use std::path::Path;
-use indexer::SegmentManager;
 use core::IndexMeta;
 use core::META_FILEPATH;
 use super::segment::create_segment;
@@ -23,12 +23,6 @@ use indexer::segment_updater::save_new_metas;
 
 const NUM_SEARCHERS: usize = 12;
 
-/// Accessor to the index segment manager
-///
-/// This method is not part of tantivy's public API
-pub fn get_segment_manager(index: &Index) -> Arc<SegmentManager> {
-    index.segment_manager.clone()
-}
 
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
@@ -40,8 +34,6 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 
 /// Tantivy's Search Index
 pub struct Index {
-    segment_manager: Arc<SegmentManager>,
-
     directory: Box<Directory>,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
@@ -85,10 +77,8 @@ impl Index {
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
         let docstamp = metas.docstamp;
-        let committed_segments = metas.committed_segments;
         // TODO log somethings is uncommitted is not empty.
         let index = Index {
-            segment_manager: Arc::new(SegmentManager::from_segments(committed_segments)),
             directory: directory,
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
@@ -151,11 +141,11 @@ impl Index {
     }
 
     /// Returns the list of segments that are searchable
-    pub fn searchable_segments(&self) -> Vec<Segment> {
-        self.searchable_segment_ids()
+    pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
+        Ok(self.searchable_segment_ids()?
             .into_iter()
             .map(|segment_id| self.segment(segment_id))
-            .collect()
+            .collect())
     }
 
     /// Remove all of the file associated with the segment.
@@ -184,9 +174,21 @@ impl Index {
         &mut *self.directory
     }
 
+    pub fn committed_segments(&self) -> Result<Vec<SegmentMeta>> {
+        Ok(load_metas(self.directory())?
+            .committed_segments)
+    }
+
     /// Returns the list of segment ids that are searchable.
-    fn searchable_segment_ids(&self) -> Vec<SegmentId> {
-        self.segment_manager.committed_segments()
+    pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
+        self.committed_segments()
+            .map(|commited_segments| {
+                commited_segments
+                .iter()
+                .map(|segment_meta| segment_meta.segment_id)
+                .collect()
+            })
+            
     }
 
     /// Creates a new segment.
@@ -200,7 +202,7 @@ impl Index {
     /// This needs to be called when a new segment has been
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
-        let searchable_segments = self.searchable_segments();
+        let searchable_segments = self.searchable_segments()?;
         let mut searchers = Vec::new();
         for _ in 0..NUM_SEARCHERS {
             let searchable_segments_clone = searchable_segments.clone();
@@ -239,8 +241,6 @@ impl fmt::Debug for Index {
 impl Clone for Index {
     fn clone(&self) -> Index {
         Index {
-            segment_manager: self.segment_manager.clone(),
-
             directory: self.directory.box_clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
