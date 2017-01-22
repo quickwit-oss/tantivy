@@ -62,12 +62,14 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
+
         let make_term_query = |text: &str| {
             let term_query = TermQuery::new(Term::from_field_text(text_field, text), SegmentPostingsOption::NoFreq);
             let query: Box<Query> = box term_query;
             query
         };
 
+        index.load_searchers().unwrap();
 
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();

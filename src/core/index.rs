@@ -2,6 +2,7 @@ use Result;
 use Error;
 use schema::Schema;
 use std::sync::Arc;
+use std::borrow::BorrowMut;
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
@@ -55,8 +56,7 @@ impl Index {
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
-        let mut directory = MmapDirectory::open(directory_path)?;
-        save_new_metas(schema.clone(), 0, &mut directory)?;
+        let directory = MmapDirectory::open(directory_path)?;
         Index::from_directory(box directory, schema)
     }
 
@@ -88,8 +88,9 @@ impl Index {
         Ok(index)
     }
 
-    /// Opens a new directory from a directory.
-    pub fn from_directory(directory: Box<Directory>, schema: Schema) -> Result<Index> {
+    /// Create a new index from a directory.
+    pub fn from_directory(mut directory: Box<Directory>, schema: Schema) -> Result<Index> {
+        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
         Index::create_from_metas(directory, IndexMeta::with_schema(schema))
     }
 
@@ -142,7 +143,8 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self.searchable_segment_ids()?
+        let searchable_segment_ids = self.searchable_segment_ids()?;
+        Ok(searchable_segment_ids
             .into_iter()
             .map(|segment_id| self.segment(segment_id))
             .collect())

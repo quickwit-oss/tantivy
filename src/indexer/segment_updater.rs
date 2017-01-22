@@ -82,7 +82,6 @@ pub fn save_metas(segment_manager: &SegmentManager,
         .map_err(From::from)
 }
 
-
 #[derive(Clone, Debug)]
 pub enum SegmentUpdate {
     
@@ -93,7 +92,7 @@ pub enum SegmentUpdate {
     /// A merge is ended.
     /// Remove the merged segment and record the new 
     /// large merged segment.
-    EndMerge(usize, Vec<SegmentId>, SegmentEntry),
+    EndMerge(Option<usize>, Vec<SegmentId>, SegmentEntry),
     
     /// Happens when rollback is called.
     /// The current generation of segments is cancelled.
@@ -179,7 +178,6 @@ impl SegmentUpdater {
         &mut self,
         segment_ids: Vec<SegmentId>,
         segment_entry: SegmentEntry) {
-        
         let segment_manager = self.segment_manager.clone();
         segment_manager.end_merge(&segment_ids, segment_entry);
         save_metas(
@@ -187,13 +185,15 @@ impl SegmentUpdater {
             self.index.schema(),
             self.index.docstamp(),
             self.index.directory_mut()).expect("Could not save metas.");
+        
         for segment_id in segment_ids {
             self.index.delete_segment(segment_id);
         }
+        
+        self.index.load_searchers().unwrap();
     }
 
-
-    fn start_merges(&mut self,) {
+    fn start_merges(&mut self) {
         
         let merge_candidates = self.consider_merge_options();
         
@@ -235,7 +235,7 @@ impl SegmentUpdater {
                     
                     let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
 
-                    let segment_update = SegmentUpdate::EndMerge(merging_thread_id, segment_ids.clone(), segment_entry.clone());
+                    let segment_update = SegmentUpdate::EndMerge(Some(merging_thread_id), segment_ids.clone(), segment_entry.clone());
                     segment_update_sender_clone.send(segment_update.clone());
                     (segment_ids, segment_entry)
                 })
@@ -262,7 +262,7 @@ impl SegmentUpdater {
 		&*self.segment_manager
 	}
     
-    pub fn start(self,) -> JoinHandle<()> {
+    pub fn start(self) -> JoinHandle<()> {
 		thread::Builder::new()
             .name("segment_update".to_string())
             .spawn(move || {
@@ -358,11 +358,13 @@ impl SegmentUpdater {
 					self.index.delete_segment(segment_entry.segment_id());
 				}
 			}
-			SegmentUpdate::EndMerge(merging_thread_id, segment_ids, segment_entry) => {
+			SegmentUpdate::EndMerge(merging_thread_id_opt, segment_ids, segment_entry) => {
                 self.end_merge(
                     segment_ids,
                     segment_entry);
-                self.merging_threads.remove(&merging_thread_id);
+                if let Some(merging_thread_id) = merging_thread_id_opt {
+                    self.merging_threads.remove(&merging_thread_id);
+                }
 			}
 			SegmentUpdate::CancelGeneration => {
 				// Called during rollback. The segment 

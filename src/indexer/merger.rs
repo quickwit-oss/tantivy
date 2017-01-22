@@ -256,13 +256,14 @@ mod tests {
                     doc.add_u32(score_field, 13);
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.commit().unwrap();
+                index_writer.commit().expect("Commit failed");
             }
         }
         {
-            let segments = index.searchable_segments().unwrap();
+            let segments = index.searchable_segments().expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            index_writer.merge(&segments).unwrap();
+            index_writer.merge(&segments).expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
         }
         {
             let searcher = index.searcher();

@@ -19,7 +19,6 @@ use fastfield::delete;
 use std::thread;
 use std::mem;
 use indexer::merger::IndexMerger;
-use core::SegmentId;
 use datastruct::stacker::Heap;
 use std::mem::swap;
 use std::sync::{Arc, Mutex};
@@ -346,8 +345,10 @@ impl IndexWriter {
         // to merge the two segments.
         let segment_serializer = try!(SegmentSerializer::for_segment(&mut merged_segment));
         let num_docs = try!(merger.write(segment_serializer));
-        let merged_segment_ids: Vec<SegmentId> =
-            segments.iter().map(|segment| segment.id()).collect();
+        let merged_segment_ids = segments
+            .iter()
+            .map(|segment| segment.id())
+            .collect::<Vec<_>>();
         
         let segment_meta = SegmentMeta {
             segment_id: merged_segment.id(),
@@ -360,9 +361,18 @@ impl IndexWriter {
         let delete_cursor = delete_queue.cursor();
 
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor);
+        
+        let segment_update = SegmentUpdate::EndMerge(
+            None,
+            merged_segment_ids,
+            segment_entry
+        );
+        
+        self.segment_update_sender.send(segment_update);
 
-        segment_manager.end_merge(&merged_segment_ids, segment_entry);
-        try!(self.index.load_searchers());
+        // self.segment_updater.(segment_ids, segment_entry);
+        //segment_manager.end_merge(&merged_segment_ids, segment_entry);
+        
         Ok(())
     }
 
@@ -488,10 +498,8 @@ impl IndexWriter {
         self.segment_update_sender.send(SegmentUpdate::Commit(self.committed_docstamp));
 
         // wait for the segment update thread to have processed the info
+        // TODO no guarantee that it has been written on disk.
         
-        while self.segment_manager.docstamp() != self.committed_docstamp {
-            thread::sleep(Duration::from_millis(100));
-        }
 
         Ok(self.committed_docstamp)
     }    
@@ -528,6 +536,9 @@ impl IndexWriter {
         Ok(opstamp)
     }
 }
+
+
+
 
 #[cfg(test)]
 mod tests {

@@ -71,21 +71,25 @@ impl Segment {
         let segment_filepaths_res = self.index.directory().ls_starting_with(
             &*self.segment_id.uuid_string()
         );
-        if segment_filepaths_res.is_err() {
-            error!("Failed to list files of segment {:?} for deletion.", self.segment_id.uuid_string());
-            return;
-        }
-        for segment_filepath in &segment_filepaths_res.unwrap() {
-            if let Err(err) = self.index.directory().delete(&segment_filepath) {
-                match err {
-                    FileError::FileDoesNotExist(_) => {
-                        // this is normal behavior.
-                        // the position file for instance may not exists.
-                    }
-                    FileError::IOError(err) => {
-                		error!("Failed to remove {:?} : {:?}", self.segment_id, err);
+
+        match segment_filepaths_res {
+            Ok(segment_filepaths) => {
+                for segment_filepath in &segment_filepaths {
+                    if let Err(err) = self.index.directory().delete(&segment_filepath) {
+                        match err {
+                            FileError::FileDoesNotExist(_) => {
+                                // this is normal behavior.
+                                // the position file for instance may not exists.
+                            }
+                            FileError::IOError(err) => {
+                                error!("Failed to remove {:?} : {:?}", self.segment_id, err);
+                            }
+                        }
                     }
                 }
+            }
+            Err(_) => {
+                error!("Failed to list files of segment {:?} for deletion.", self.segment_id.uuid_string());
             }
         }
     }

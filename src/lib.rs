@@ -48,6 +48,7 @@ extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
 extern crate bit_set;
+extern crate notify;
 
 #[cfg(feature="simdcompression")]
 extern crate libc;

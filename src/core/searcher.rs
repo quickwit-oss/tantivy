@@ -8,6 +8,7 @@ use DocId;
 use DocAddress;
 use schema::Term;
 use core::TermIterator;
+use std::fmt;
 
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -15,13 +16,23 @@ use core::TermIterator;
 /// It guarantees that the `Segment` will not be removed before  
 /// the destruction of the `Searcher`.
 /// 
-#[derive(Debug)]
 pub struct Searcher {
     segment_readers: Vec<SegmentReader>,
 }
 
+impl fmt::Debug for Searcher {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let segment_ids = self.segment_readers
+            .iter()
+            .map(|segment_reader| segment_reader.segment_id())
+            .collect::<Vec<_>>();
+        write!(f, "Searcher({:?})", segment_ids);
+        Ok(())
+    }
+}
+
 impl Searcher {
-      
+
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the
