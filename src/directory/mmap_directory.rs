@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry as HashMapEntry;
 use fst::raw::MmapReadOnly;
 use std::fs::File;
+use std::io::Read;
 use std::fs::ReadDir;
 use atomicwrites;
 use std::sync::RwLock;
@@ -128,7 +129,7 @@ impl Seek for SafeFileWriter {
 
 
 impl Directory for MmapDirectory {
-    
+
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
@@ -222,6 +223,13 @@ impl Directory for MmapDirectory {
     fn exists(&self, path: &Path) -> bool {
         let full_path = self.resolve_path(path);
         full_path.exists()
+    }
+
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+        let full_path = self.resolve_path(path);
+        let mut buffer = Vec::new();
+        File::open(&full_path)?.read_to_end(&mut buffer)?;
+        Ok(buffer)
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

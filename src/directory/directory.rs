@@ -28,6 +28,8 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// have no effect on the returned `ReadOnlySource` object. 
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError>;
     
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
+
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual

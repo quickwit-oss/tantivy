@@ -199,6 +199,12 @@ impl Directory for RAMDirectory {
         self.fs.exists(path)
     }
 
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+        let read = self.open_read(path)?;
+        Ok(read.as_slice()
+               .to_owned())
+    }
+
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         let path_buf = PathBuf::from(path);
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());

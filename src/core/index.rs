@@ -27,9 +27,9 @@ const NUM_SEARCHERS: usize = 12;
 
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
-    let meta_file = try!(directory.open_read(&META_FILEPATH));
-    let meta_content = String::from_utf8_lossy(meta_file.as_slice());
-    json::decode(&meta_content)
+    let meta_data = directory.atomic_read(&META_FILEPATH)?;
+    let meta_string = String::from_utf8_lossy(&meta_data);
+    json::decode(&meta_string)
         .map_err(|e| Error::CorruptedFile(META_FILEPATH.clone(), Box::new(e)))
 }
 

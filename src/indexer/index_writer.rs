@@ -13,6 +13,7 @@ use indexer::SegmentWriter;
 use indexer::SegmentManager;
 use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
+use eventual::Async;
 use std::clone::Clone;
 use std::io;
 use fastfield::delete;
@@ -25,8 +26,7 @@ use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
-use super::segment_updater::{SegmentUpdater, SegmentUpdate, SegmentUpdateSender};
-use std::time::Duration;
+use super::segment_updater::{SegmentUpdate, SegmentUpdateManager};
 use super::segment_manager::CommitState;
 use Result;
 use Error;
@@ -72,8 +72,7 @@ pub struct IndexWriter {
     document_receiver: DocumentReceiver,
     document_sender: DocumentSender,
 
-    segment_update_sender: SegmentUpdateSender,
-    segment_update_thread: JoinHandle<()>,
+    segment_update_manager: SegmentUpdateManager,
 
     worker_id: usize,
 
@@ -94,7 +93,7 @@ fn index_documents(heap: &mut Heap,
                    mut segment: Segment,
                    schema: &Schema,
                    document_iterator: &mut Iterator<Item=AddOperation>,
-                   segment_update_sender: &mut SegmentUpdateSender,
+                   segment_update_manager: &mut SegmentUpdateManager,
                    delete_cursor: &mut DeleteQueueCursor)
                    -> Result<()> {
     heap.clear();
@@ -135,7 +134,7 @@ fn index_documents(heap: &mut Heap,
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
 
     try!(segment_writer.finalize());
-    segment_update_sender.send(SegmentUpdate::AddSegment(segment_entry));
+    let future = segment_update_manager.send(SegmentUpdate::AddSegment(segment_entry));
     Ok(())
 
 }
@@ -145,10 +144,10 @@ impl IndexWriter {
     /// The index writer
     pub fn wait_merging_threads(mut self) -> Result<()> {
 
-        self.segment_update_sender.send(SegmentUpdate::Terminate);
+        let future = self.segment_update_manager.send(SegmentUpdate::Terminate);
         
         // this will stop the indexing thread,
-        // dropping the last reference to the segment_update_sender.
+        // dropping the last reference to the segment_update_manager.
         drop(self.document_sender);
         
         let mut v = Vec::new();
@@ -161,12 +160,9 @@ impl IndexWriter {
                 }));
         }
         drop(self.workers_join_handle);
-        self.segment_update_thread
-            .join()
-            .map_err(|err| {
-                error!("Error in the merging thread {:?}", err);
-                Error::ErrorInThread(format!("{:?}", err))
-            })
+
+        future.await().unwrap(); // TODO do something with the result.
+        Ok(())
     }
 
     /// Spawns a new worker thread for indexing.
@@ -176,7 +172,7 @@ impl IndexWriter {
         let index = self.index.clone();
         let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
-        let mut segment_update_sender = self.segment_update_sender.clone();
+        let mut segment_update_manager = self.segment_update_manager.clone();
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
         
         // TODO fix this. the cursor might be too advanced
@@ -205,7 +201,7 @@ impl IndexWriter {
                                              segment,
                                              &schema,
                                              &mut document_iterator,
-                                             &mut segment_update_sender,
+                                             &mut segment_update_manager,
                                              &mut delete_cursor_clone));
                     } else {
                         // No more documents.
@@ -258,7 +254,7 @@ impl IndexWriter {
         
         let segment_manager = Arc::new(SegmentManager::from_segments(committed_segments, delete_queue.cursor()));
     
-        let (segment_update_sender, segment_update_thread) = SegmentUpdater::start_updater(index.clone(), segment_manager.clone(), merge_policy.clone());
+        let segment_update_manager = SegmentUpdateManager::new(index.clone(), segment_manager.clone(), merge_policy.clone());
         
         let mut index_writer = IndexWriter {
             
@@ -273,8 +269,7 @@ impl IndexWriter {
             document_receiver: document_receiver,
             document_sender: document_sender,
 
-            segment_update_sender: segment_update_sender,
-            segment_update_thread: segment_update_thread,
+            segment_update_manager: segment_update_manager,
 
             workers_join_handle: Vec::new(),
             num_threads: num_threads,
@@ -367,8 +362,8 @@ impl IndexWriter {
             merged_segment_ids,
             segment_entry
         );
-        
-        self.segment_update_sender.send(segment_update);
+
+        self.segment_update_manager.send(segment_update);
 
         // self.segment_updater.(segment_ids, segment_entry);
         //segment_manager.end_merge(&merged_segment_ids, segment_entry);
@@ -402,7 +397,7 @@ impl IndexWriter {
     /// The docstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
-        self.segment_update_sender.send(SegmentUpdate::CancelGeneration);
+        self.segment_update_manager.send(SegmentUpdate::CancelGeneration);
 
         // we cannot drop segment ready receiver yet
         // as it would block the workers.
@@ -435,7 +430,7 @@ impl IndexWriter {
         //
         // We can now open a new generation and reaccept segments
         // from now on.
-        self.segment_update_sender.send(SegmentUpdate::NewGeneration);
+        self.segment_update_manager.send(SegmentUpdate::NewGeneration);
 
         let rollbacked_segments = self.segment_manager.rollback();
         for segment_id in rollbacked_segments {
@@ -477,7 +472,7 @@ impl IndexWriter {
         let mut former_workers_join_handle = Vec::new();
         swap(&mut former_workers_join_handle,
              &mut self.workers_join_handle);
-
+             
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = try!(worker_handle.join()
                 .map_err(|e| Error::ErrorInThread(format!("{:?}", e))));
@@ -495,11 +490,11 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-        self.segment_update_sender.send(SegmentUpdate::Commit(self.committed_docstamp));
+        let future = self.segment_update_manager.send(SegmentUpdate::Commit(self.committed_docstamp));
 
         // wait for the segment update thread to have processed the info
-        // TODO no guarantee that it has been written on disk.
-        
+        // TODO remove unwrap
+        future.await().unwrap();
 
         Ok(self.committed_docstamp)
     }    

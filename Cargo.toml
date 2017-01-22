@@ -37,6 +37,7 @@ uuid = { version = "0.4", features = ["v4", "rustc-serialize"] }
 chan = "0.1"
 version = "2"
 crossbeam = "0.2"
+eventual = "0.1.7"
 
 [dev-dependencies]
 rand = "0.3"

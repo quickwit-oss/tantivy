@@ -25,10 +25,11 @@ use Result;
 use core::IndexMeta;
 use core::META_FILEPATH;
 use std::io::Write;
+use eventual::*;
 use super::segment_manager::{SegmentManager, get_segment_ready_for_commit};
 
-pub type SegmentUpdateSender = chan::Sender<SegmentUpdate>;
-pub type SegmentUpdateReceiver = chan::Receiver<SegmentUpdate>;
+type SegmentUpdateSender = chan::Sender<(Complete<(), &'static str>, SegmentUpdate)>;
+type SegmentUpdateReceiver = chan::Receiver<(Complete<(), &'static str>, SegmentUpdate)>;
 
 
 fn create_metas(segment_manager: &SegmentManager, schema: Schema, docstamp: u64) -> IndexMeta {
@@ -78,8 +79,10 @@ pub fn save_metas(segment_manager: &SegmentManager,
     let metas = create_metas(segment_manager, schema, docstamp);
     let mut w = Vec::new();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
-    directory.atomic_write(&META_FILEPATH, &w[..])
+    directory
+        .atomic_write(&META_FILEPATH, &w[..])
         .map_err(From::from)
+    
 }
 
 #[derive(Clone, Debug)]
@@ -119,6 +122,41 @@ pub enum SegmentUpdate {
 
 
 
+// TODO Rename
+#[derive(Clone)]
+pub struct SegmentUpdateManager {
+    channel: SegmentUpdateSender,
+}
+
+
+impl SegmentUpdateManager {
+
+    pub fn new(
+            index: Index,
+            segment_manager: Arc<SegmentManager>,
+            merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> SegmentUpdateManager {
+        let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::async();
+        let segment_update_manager = SegmentUpdateManager {
+            channel: segment_update_sender,
+        };
+        let segment_updater = SegmentUpdater::new(
+            index,
+            segment_manager,
+            merge_policy,
+            segment_update_manager.clone(),
+            segment_update_receiver);
+        segment_updater.start();
+        segment_update_manager
+    }
+
+    pub fn send(&self, segment_update: SegmentUpdate) -> Future<(), &'static str> {
+        let (fullfiller, future) = Future::<(), &'static str>::pair();
+        self.channel.send((fullfiller, segment_update));
+        future
+    }
+
+}
+
 
 /// The segment updater is in charge of processing all of the 
 /// `SegmentUpdate`s.
@@ -134,32 +172,24 @@ pub struct SegmentUpdater {
 	index: Index,
 	is_cancelled_generation: bool,
 	segment_update_receiver: SegmentUpdateReceiver,
-	segment_update_sender: SegmentUpdateSender,
+	segment_update_manager: SegmentUpdateManager,
     segment_manager: Arc<SegmentManager>,
     merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     merging_thread_id: usize,
     merging_threads: HashMap<usize, JoinHandle<(Vec<SegmentId>, SegmentEntry)> >, 
 }
 
-
 impl SegmentUpdater {
-	    
-    pub fn start_updater(
-            index: Index,
-            segment_manager: Arc<SegmentManager>,
-            merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> (SegmentUpdateSender, JoinHandle<()>) {
-        let segment_updater = SegmentUpdater::new(index, segment_manager, merge_policy);
-        (segment_updater.segment_update_sender.clone(), segment_updater.start())
-    }
-    
+	
     fn new(index: Index,
            segment_manager: Arc<SegmentManager>,
-           merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> SegmentUpdater {
-        let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::async();
-		SegmentUpdater {
+           merge_policy: Arc<Mutex<Box<MergePolicy>>>,
+           segment_update_manager: SegmentUpdateManager,
+           segment_update_receiver: SegmentUpdateReceiver) -> SegmentUpdater {
+        SegmentUpdater {
 			index: index,
             is_cancelled_generation: false,
-            segment_update_sender: segment_update_sender,
+            segment_update_manager: segment_update_manager,
             segment_update_receiver: segment_update_receiver,
             segment_manager: segment_manager,
             merge_policy: merge_policy,
@@ -204,7 +234,7 @@ impl SegmentUpdater {
             self.segment_manager().start_merge(&segment_ids);
 
             let index_clone = self.index.clone();
-            let segment_update_sender_clone = self.segment_update_sender.clone();
+            let segment_update_manager_clone = self.segment_update_manager.clone();
             
             let merge_thread_handle = thread::Builder::new()
                 .name(format!("merge_thread_{:?}", merging_thread_id))
@@ -236,7 +266,7 @@ impl SegmentUpdater {
                     let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
 
                     let segment_update = SegmentUpdate::EndMerge(Some(merging_thread_id), segment_ids.clone(), segment_entry.clone());
-                    segment_update_sender_clone.send(segment_update.clone());
+                    segment_update_manager_clone.send(segment_update.clone());
                     (segment_ids, segment_entry)
                 })
                 .expect("Failed to spawn merge thread");
@@ -271,16 +301,20 @@ impl SegmentUpdater {
             .expect("Failed to start segment updater thread.")
     }
     
-	fn process(mut self,) {
+	fn process(mut self) {
         
         let segment_manager = self.segment_manager.clone();
-        
-        for segment_update in self.segment_update_receiver.clone() {
+
+        let mut complete_option = None;
+
+        for (complete, segment_update) in self.segment_update_receiver.clone() {
             
             if let SegmentUpdate::Terminate = segment_update {
+                complete_option = Some(complete);
                 break;
             }
-                
+            
+
             // we check the generation number as if it was 
             // dirty-bit. If the value is different 
             // to our generation, then the segment_manager has
@@ -317,6 +351,9 @@ impl SegmentUpdater {
                 // - start merges if required
                 self.start_merges();
             }
+            
+            complete.complete(());
+
         }
         
         let mut merging_threads = HashMap::new();
@@ -331,6 +368,10 @@ impl SegmentUpdater {
                     break;
                 } 
             }
+        }
+
+        if let Some(complete) = complete_option {
+            complete.complete(());
         }
     }
 
