@@ -238,6 +238,7 @@ impl SegmentReader {
         self.term_infos.get(term.as_slice())
     }
 
+    /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
     }

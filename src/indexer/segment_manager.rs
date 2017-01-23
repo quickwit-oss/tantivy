@@ -82,11 +82,6 @@ impl SegmentManager {
         }
     }
     
-    pub fn docstamp(&self,) -> u64 {
-        self.read().docstamp
-    }
-
-
     pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
@@ -169,12 +164,7 @@ impl SegmentManager {
             warn!("couldn't find segment in SegmentManager");
         }
     }
-    
-    pub fn committed_segments(&self,) -> Vec<SegmentId> {
-        let registers_lock = self.read();
-        registers_lock.committed.segment_ids()
-    }
-    
+
     pub fn segment_metas(&self,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
         let registers_lock = self.read();
         (registers_lock.committed.segment_metas(), registers_lock.uncommitted.segment_metas())

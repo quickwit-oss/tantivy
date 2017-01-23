@@ -176,11 +176,12 @@ impl Index {
         &mut *self.directory
     }
 
+    /// Reads the meta.json and returns the list of
+    /// committed segments.
     pub fn committed_segments(&self) -> Result<Vec<SegmentMeta>> {
-        Ok(load_metas(self.directory())?
-            .committed_segments)
+        Ok(load_metas(self.directory())?.committed_segments)
     }
-
+    
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
         self.committed_segments()

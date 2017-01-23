@@ -134,7 +134,7 @@ fn index_documents(heap: &mut Heap,
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
 
     try!(segment_writer.finalize());
-    let future = segment_update_manager.send(SegmentUpdate::AddSegment(segment_entry));
+    segment_update_manager.send(SegmentUpdate::AddSegment(segment_entry));
     Ok(())
 
 }

@@ -20,16 +20,6 @@ pub struct Searcher {
     segment_readers: Vec<SegmentReader>,
 }
 
-impl fmt::Debug for Searcher {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let segment_ids = self.segment_readers
-            .iter()
-            .map(|segment_reader| segment_reader.segment_id())
-            .collect::<Vec<_>>();
-        write!(f, "Searcher({:?})", segment_ids);
-        Ok(())
-    }
-}
 
 impl Searcher {
 
@@ -93,5 +83,15 @@ impl From<Vec<SegmentReader>> for Searcher {
         Searcher {
             segment_readers: segment_readers,
         }
+    }
+}
+
+impl fmt::Debug for Searcher {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let segment_ids = self.segment_readers
+            .iter()
+            .map(|segment_reader| segment_reader.segment_id())
+            .collect::<Vec<_>>();
+        write!(f, "Searcher({:?})", segment_ids)
     }
 }
