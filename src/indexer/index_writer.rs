@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
-use super::segment_updater::{SegmentUpdate, SegmentUpdateManager};
+use super::segment_updater::{SegmentUpdate, SegmentUpdater};
 use super::segment_manager::CommitState;
 use Result;
 use Error;
@@ -72,7 +72,7 @@ pub struct IndexWriter {
     document_receiver: DocumentReceiver,
     document_sender: DocumentSender,
 
-    segment_update_manager: SegmentUpdateManager,
+    segment_update_manager: SegmentUpdater,
 
     worker_id: usize,
 
@@ -93,7 +93,7 @@ fn index_documents(heap: &mut Heap,
                    mut segment: Segment,
                    schema: &Schema,
                    document_iterator: &mut Iterator<Item=AddOperation>,
-                   segment_update_manager: &mut SegmentUpdateManager,
+                   segment_update_manager: &mut SegmentUpdater,
                    delete_cursor: &mut DeleteQueueCursor)
                    -> Result<()> {
     heap.clear();
@@ -254,7 +254,7 @@ impl IndexWriter {
         
         let segment_manager = Arc::new(SegmentManager::from_segments(committed_segments, delete_queue.cursor()));
     
-        let segment_update_manager = SegmentUpdateManager::new(index.clone(), segment_manager.clone(), merge_policy.clone());
+        let segment_update_manager = SegmentUpdater::new(index.clone(), segment_manager.clone(), merge_policy.clone());
         
         let mut index_writer = IndexWriter {
             

@@ -123,19 +123,19 @@ pub enum SegmentUpdate {
 
 // TODO Rename
 #[derive(Clone)]
-pub struct SegmentUpdateManager {
+pub struct SegmentUpdater {
     channel: SegmentUpdateSender,
 }
 
 
-impl SegmentUpdateManager {
+impl SegmentUpdater {
 
     pub fn new(
             index: Index,
             segment_manager: Arc<SegmentManager>,
-            merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> SegmentUpdateManager {
+            merge_policy: Arc<Mutex<Box<MergePolicy>>>) -> SegmentUpdater {
         let (segment_update_sender, segment_update_receiver): (SegmentUpdateSender, SegmentUpdateReceiver) = chan::async();
-        let segment_update_manager = SegmentUpdateManager {
+        let segment_update_manager = SegmentUpdater {
             channel: segment_update_sender,
         };
         SegmentUpdateRunner::new(
@@ -170,7 +170,7 @@ pub struct SegmentUpdateRunner {
 	index: Index,
 	is_cancelled_generation: bool,
 	segment_update_receiver: SegmentUpdateReceiver,
-	segment_update_manager: SegmentUpdateManager,
+	segment_update_manager: SegmentUpdater,
     segment_manager: Arc<SegmentManager>,
     merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     merging_thread_id: usize,
@@ -182,7 +182,7 @@ impl SegmentUpdateRunner {
     fn new(index: Index,
            segment_manager: Arc<SegmentManager>,
            merge_policy: Arc<Mutex<Box<MergePolicy>>>,
-           segment_update_manager: SegmentUpdateManager,
+           segment_update_manager: SegmentUpdater,
            segment_update_receiver: SegmentUpdateReceiver) -> SegmentUpdateRunner {
         SegmentUpdateRunner {
 			index: index,
