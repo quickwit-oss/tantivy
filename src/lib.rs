@@ -50,6 +50,8 @@ extern crate crossbeam;
 extern crate bit_set;
 extern crate notify;
 extern crate eventual;
+extern crate futures;
+extern crate futures_cpupool;
 
 #[cfg(feature="simdcompression")]
 extern crate libc;

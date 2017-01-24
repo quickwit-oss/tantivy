@@ -1,6 +1,7 @@
 use Result;
 use core::SegmentReader;
 use core::Segment;
+use core::SegmentId;
 use DocId;
 use core::SerializableSegment;
 use indexer::SegmentSerializer;
@@ -205,6 +206,7 @@ mod tests {
     use collector::tests::TestCollector;
     use query::BooleanQuery;
     use schema::TextIndexingOptions;
+    use eventual::Async;
 
     #[test]
     fn test_index_merger() {
@@ -260,9 +262,11 @@ mod tests {
             }
         }
         {
-            let segments = index.searchable_segments().expect("Searchable segments failed.");
+            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            index_writer.merge(&segments).expect("Merging failed");
+            index_writer.merge(&segment_ids)
+                        .await()
+                        .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
         }
         {

@@ -5,6 +5,7 @@ use indexer::SegmentSerializer;
 use core::SerializableSegment;
 use core::Index;
 use core::Segment;
+use core::SegmentId;
 use schema::Term;
 use indexer::SegmentEntry;
 use std::thread::JoinHandle;
@@ -63,7 +64,6 @@ pub struct IndexWriter {
     _merge_policy: Arc<Mutex<Box<MergePolicy>>>,
     
     index: Index,
-    segment_manager: Arc<SegmentManager>,
 
     heap_size_in_bytes_per_thread: usize,
 
@@ -72,7 +72,7 @@ pub struct IndexWriter {
     document_receiver: DocumentReceiver,
     document_sender: DocumentSender,
 
-    segment_update_manager: SegmentUpdater,
+    segment_updater: SegmentUpdater,
 
     worker_id: usize,
 
@@ -93,7 +93,7 @@ fn index_documents(heap: &mut Heap,
                    mut segment: Segment,
                    schema: &Schema,
                    document_iterator: &mut Iterator<Item=AddOperation>,
-                   segment_update_manager: &mut SegmentUpdater,
+                   segment_updater: &mut SegmentUpdater,
                    delete_cursor: &mut DeleteQueueCursor)
                    -> Result<()> {
     heap.clear();
@@ -134,7 +134,7 @@ fn index_documents(heap: &mut Heap,
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
 
     try!(segment_writer.finalize());
-    segment_update_manager.send(SegmentUpdate::AddSegment(segment_entry));
+    segment_updater.add_segment(segment_entry);
     Ok(())
 
 }
@@ -144,10 +144,10 @@ impl IndexWriter {
     /// The index writer
     pub fn wait_merging_threads(mut self) -> Result<()> {
 
-        let future = self.segment_update_manager.send(SegmentUpdate::Terminate);
+        let future = self.segment_updater.terminate();
         
         // this will stop the indexing thread,
-        // dropping the last reference to the segment_update_manager.
+        // dropping the last reference to the segment_updater.
         drop(self.document_sender);
         
         let mut v = Vec::new();
@@ -172,7 +172,7 @@ impl IndexWriter {
         let index = self.index.clone();
         let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
-        let mut segment_update_manager = self.segment_update_manager.clone();
+        let mut segment_updater = self.segment_updater.clone();
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
         
         // TODO fix this. the cursor might be too advanced
@@ -201,7 +201,7 @@ impl IndexWriter {
                                              segment,
                                              &schema,
                                              &mut document_iterator,
-                                             &mut segment_update_manager,
+                                             &mut segment_updater,
                                              &mut delete_cursor_clone));
                     } else {
                         // No more documents.
@@ -250,11 +250,8 @@ impl IndexWriter {
 
         let delete_queue = DeleteQueue::default();
 
-        let committed_segments = index.committed_segments()?;
         
-        let segment_manager = Arc::new(SegmentManager::from_segments(committed_segments, delete_queue.cursor()));
-    
-        let segment_update_manager = SegmentUpdater::new(index.clone(), segment_manager.clone(), merge_policy.clone());
+        let segment_updater = SegmentUpdater::create(index.clone(), delete_queue.cursor(), merge_policy.clone())?;
         
         let mut index_writer = IndexWriter {
             
@@ -264,12 +261,11 @@ impl IndexWriter {
             
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
             index: index.clone(),
-            segment_manager: segment_manager,
 
             document_receiver: document_receiver,
             document_sender: document_sender,
 
-            segment_update_manager: segment_update_manager,
+            segment_updater: segment_updater,
 
             workers_join_handle: Vec::new(),
             num_threads: num_threads,
@@ -303,72 +299,8 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segments: &[Segment]) -> Result<()> {
-
-        if segments.len() < 2 {
-            // no segments or one segment? nothing to do.
-            return Ok(());
-        }
-
-        let ref segment_manager = self.segment_manager;
-        {
-            // let's check that all these segments are in the same
-            // committed/uncommited state.
-            let first_commit_state = segment_manager.is_committed(segments[0].id());
-
-            for segment in segments {
-                let commit_state = segment_manager.is_committed(segment.id());
-                if commit_state == CommitState::Missing {
-                    return Err(Error::InvalidArgument(format!("Segment {:?} is not in the index",
-                                                              segments[0].id())));
-                }
-                if commit_state != first_commit_state {
-                    return Err(Error::InvalidArgument(String::from("You may not merge segments \
-                                                                    that are heterogenously in \
-                                                                    committed and uncommited.")));
-                }
-            }
-        }
-
-        let schema = self.index.schema();
-
-        // An IndexMerger is like a "view" of our merged segments.
-        let merger = try!(IndexMerger::open(schema, segments));
-        let mut merged_segment = self.index.new_segment();
-
-        // ... we just serialize this index merger in our new segment
-        // to merge the two segments.
-        let segment_serializer = try!(SegmentSerializer::for_segment(&mut merged_segment));
-        let num_docs = try!(merger.write(segment_serializer));
-        let merged_segment_ids = segments
-            .iter()
-            .map(|segment| segment.id())
-            .collect::<Vec<_>>();
-        
-        let segment_meta = SegmentMeta {
-            segment_id: merged_segment.id(),
-            num_docs: num_docs,
-            num_deleted_docs: 0,
-        };
-
-        // TODO fix this!!!
-        let delete_queue = DeleteQueue::default();
-        let delete_cursor = delete_queue.cursor();
-
-        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor);
-        
-        let segment_update = SegmentUpdate::EndMerge(
-            None,
-            merged_segment_ids,
-            segment_entry
-        );
-
-        self.segment_update_manager.send(segment_update);
-
-        // self.segment_updater.(segment_ids, segment_entry);
-        //segment_manager.end_merge(&merged_segment_ids, segment_entry);
-        
-        Ok(())
+    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Async<Value=(), Error=&'static str> {
+        self.segment_updater.start_merge(segments.to_vec())
     }
 
     /// Closes the current document channel send.
@@ -397,7 +329,7 @@ impl IndexWriter {
     /// The docstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
-        self.segment_update_manager.send(SegmentUpdate::CancelGeneration);
+        self.segment_updater.cancel_generation();
 
         // we cannot drop segment ready receiver yet
         // as it would block the workers.
@@ -430,15 +362,20 @@ impl IndexWriter {
         //
         // We can now open a new generation and reaccept segments
         // from now on.
-        self.segment_update_manager.send(SegmentUpdate::NewGeneration);
+        self.segment_updater.new_generation();
+        
+        
+        // TODO Send rollback.
+        //let rollbacked_segments = self.segment_manager.rollback();
 
-        let rollbacked_segments = self.segment_manager.rollback();
-        for segment_id in rollbacked_segments {
+        // for segment_id in rollbacked_segments {
+        //     // TODO all delete must happen after saving
+        //     // meta.json
+        //     self.index.delete_segment(segment_id);
+        // }
 
-            // TODO all delete must happen after saving
-            // meta.json
-            self.index.delete_segment(segment_id);
-        }
+        panic!("aaaa");
+
         
         // reset the docstamp
         self.uncommitted_docstamp = self.committed_docstamp;
@@ -490,7 +427,7 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-        let future = self.segment_update_manager.send(SegmentUpdate::Commit(self.committed_docstamp));
+        let future = self.segment_updater.commit(self.committed_docstamp);
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
