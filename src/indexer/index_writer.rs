@@ -14,7 +14,7 @@ use indexer::SegmentWriter;
 use indexer::SegmentManager;
 use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
-use eventual::Async;
+use futures::Future;
 use std::clone::Clone;
 use std::io;
 use fastfield::delete;
@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
-use super::segment_updater::{SegmentUpdate, SegmentUpdater};
+use super::segment_updater::SegmentUpdater;
 use super::segment_manager::CommitState;
 use Result;
 use Error;
@@ -61,8 +61,6 @@ pub struct IndexWriter {
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: DirectoryLock, 
     
-    _merge_policy: Arc<Mutex<Box<MergePolicy>>>,
-    
     index: Index,
 
     heap_size_in_bytes_per_thread: usize,
@@ -78,6 +76,8 @@ pub struct IndexWriter {
 
     num_threads: usize,
 
+    generation: usize,
+
     delete_queue: DeleteQueue,
 
     uncommitted_docstamp: u64,
@@ -92,6 +92,7 @@ impl !Sync for IndexWriter {}
 fn index_documents(heap: &mut Heap,
                    mut segment: Segment,
                    schema: &Schema,
+                   generation: usize,
                    document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_updater: &mut SegmentUpdater,
                    delete_cursor: &mut DeleteQueueCursor)
@@ -134,7 +135,7 @@ fn index_documents(heap: &mut Heap,
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
 
     try!(segment_writer.finalize());
-    segment_updater.add_segment(segment_entry);
+    segment_updater.add_segment(generation, segment_entry);
     Ok(())
 
 }
@@ -161,7 +162,7 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        future.await().unwrap(); // TODO do something with the result.
+        future.wait().unwrap(); // TODO do something with the result.
         Ok(())
     }
 
@@ -179,9 +180,12 @@ impl IndexWriter {
         // at this point.
         let delete_cursor = self.delete_queue.cursor();
         
+        let generation = self.generation;
+
         let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
-            .name(format!("indexing_thread_{}", self.worker_id))
+            .name(format!("indexing thread {} for gen {}", self.worker_id, generation))
             .spawn(move || {
+                
                 let mut delete_cursor_clone = delete_cursor.clone();
                 loop {
                     let segment = index.new_segment();
@@ -200,6 +204,7 @@ impl IndexWriter {
                         try!(index_documents(&mut heap,
                                              segment,
                                              &schema,
+                                             generation,
                                              &mut document_iterator,
                                              &mut segment_updater,
                                              &mut delete_cursor_clone));
@@ -245,19 +250,16 @@ impl IndexWriter {
         
         let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-        
-        let merge_policy: Arc<Mutex<Box<MergePolicy>>> = Arc::new(Mutex::new(box DefaultMergePolicy::default()));
+
 
         let delete_queue = DeleteQueue::default();
-
         
-        let segment_updater = SegmentUpdater::create(index.clone(), delete_queue.cursor(), merge_policy.clone())?;
+        let merge_policy = box DefaultMergePolicy::default();
+        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor(), merge_policy)?;
         
         let mut index_writer = IndexWriter {
             
             _directory_lock: directory_lock,
-            
-            _merge_policy: merge_policy,
             
             heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
             index: index.clone(),
@@ -274,21 +276,18 @@ impl IndexWriter {
 
             committed_docstamp: index.docstamp(),
             uncommitted_docstamp: index.docstamp(),
+
+            generation: 0,
+
             worker_id: 0,
         };
         try!(index_writer.start_workers());
         Ok(index_writer)
     }
     
-    
-    /// Returns a clone of the index_writer merge policy.
-    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
-        self._merge_policy.lock().unwrap().box_clone() 
-    }
-    
     /// Set the merge policy.
     pub fn set_merge_policy(&self, merge_policy: Box<MergePolicy>) {
-        *self._merge_policy.lock().unwrap() = merge_policy;
+        // *self._merge_policy.lock().unwrap() = merge_policy;
     }
     
     fn start_workers(&mut self) -> Result<()> {
@@ -299,7 +298,7 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Async<Value=(), Error=&'static str> {
+    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Future<Item=(), Error=&'static str> {
         self.segment_updater.start_merge(segments.to_vec())
     }
 
@@ -431,7 +430,7 @@ impl IndexWriter {
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
-        future.await().unwrap();
+        future.wait().unwrap();
 
         Ok(self.committed_docstamp)
     }    
@@ -498,10 +497,10 @@ mod tests {
         let schema_builder = schema::SchemaBuilder::default();
         let index = Index::create_in_ram(schema_builder.build());
         let index_writer = index.writer(40_000_000).unwrap();
-        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
-        let merge_policy = box NoMergePolicy::default();
-        index_writer.set_merge_policy(merge_policy);
-        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "NoMergePolicy");
+        // assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
+        // let merge_policy = box NoMergePolicy::default();
+        // index_writer.set_merge_policy(merge_policy);
+        // assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "NoMergePolicy");
     }
 
     #[test]

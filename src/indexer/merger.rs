@@ -14,6 +14,7 @@ use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use postings::ChainedPostings;
 use postings::HasLen;
+use futures::Future;
 use postings::OffsetPostings;
 use core::SegmentInfo;
 use std::cmp::{min, max};
@@ -207,6 +208,7 @@ mod tests {
     use query::BooleanQuery;
     use schema::TextIndexingOptions;
     use eventual::Async;
+    use futures::Future;
 
     #[test]
     fn test_index_merger() {
@@ -265,7 +267,7 @@ mod tests {
             let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer.merge(&segment_ids)
-                        .await()
+                        .wait()
                         .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
         }

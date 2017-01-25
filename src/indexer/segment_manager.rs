@@ -39,12 +39,6 @@ impl Default for SegmentRegisters {
 /// changes (merges especially)
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
-    // generation  is an ever increasing counter that 
-    // is incremented whenever we modify 
-    // the segment manager. It can be useful for debugging
-    // purposes, and it also acts as a "dirty" marker,
-    // to detect when the `meta.json` should be written.
-    generation: AtomicUsize, 
 }
 
 impl Debug for SegmentManager {
@@ -89,7 +83,6 @@ impl SegmentManager {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),
             }),
-            generation: AtomicUsize::default(),
         }
     }
 
@@ -101,12 +94,7 @@ impl SegmentManager {
     }
 
     fn write(&self,) -> RwLockWriteGuard<SegmentRegisters> {
-        self.generation.fetch_add(1, Ordering::Release);
         self.registers.write().expect("Failed to acquire write lock on SegmentManager.")
-    }
-
-    pub fn generation(&self,) -> usize {
-        self.generation.load(Ordering::Acquire)
     }
 
     /// Removes all of the uncommitted segments
@@ -180,7 +168,6 @@ impl Default for SegmentManager {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::default(),
             }),
-            generation: AtomicUsize::default(),
         }
     }
 }
