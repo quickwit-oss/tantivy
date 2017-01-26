@@ -1,0 +1,9 @@
+Upcoming
+  - added missing include
+  - improved portability (MSVC)
+  - implemented C89 compatibility
+Version 0.0.3 (19 May 2014)
+  - improved documentation
+Version 0.0.2 (6 February 2014)
+  - added go demo
+Version 0.0.1  (5 February 2014)

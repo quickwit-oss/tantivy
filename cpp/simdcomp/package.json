@@ -1,0 +1,16 @@
+{
+  "name": "simdcomp",
+  "version": "0.0.3",
+  "repo": "lemire/simdcomp",
+  "description": "A simple C library for compressing lists of integers",
+  "license": "BSD-3-Clause",
+  "src": [
+    "src/simdbitpacking.c",
+    "src/simdcomputil.c",
+    "src/simdintegratedbitpacking.c",
+    "include/simdbitpacking.h",
+    "include/simdcomp.h",
+    "include/simdcomputil.h",
+    "include/simdintegratedbitpacking.h"
+  ]
+}
