@@ -40,8 +40,6 @@ the submodules. The project can then be built using `cargo`.
 
     git clone git@github.com:tantivy-search/tantivy.git
     cd tantivy
-    git submodule init
-    git submodule update
     cargo build
 
 

@@ -1,11 +1,6 @@
 language: rust
 rust:
   - nightly
-git:
-  submodules: false
-before_install:
-  - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
-  - git submodule update --init --recursive
 env:
   global:
     - CC=gcc-4.8
