@@ -1,17 +1,14 @@
 use schema::Schema;
 use schema::Document;
 use super::operation::AddOperation;
-use indexer::SegmentSerializer;
-use core::SerializableSegment;
 use core::Index;
 use core::Segment;
 use core::SegmentId;
 use schema::Term;
 use indexer::SegmentEntry;
 use std::thread::JoinHandle;
-use indexer::{MergePolicy, DefaultMergePolicy};
+use indexer::MergePolicy;
 use indexer::SegmentWriter;
-use indexer::SegmentManager;
 use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
 use futures::Future;
@@ -19,16 +16,14 @@ use std::clone::Clone;
 use std::io;
 use fastfield::delete;
 use std::thread;
+use futures::Canceled;
 use std::mem;
-use indexer::merger::IndexMerger;
 use datastruct::stacker::Heap;
 use std::mem::swap;
-use std::sync::{Arc, Mutex};
 use chan;
 use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
 use super::segment_updater::SegmentUpdater;
-use super::segment_manager::CommitState;
 use Result;
 use Error;
 
@@ -96,7 +91,7 @@ fn index_documents(heap: &mut Heap,
                    document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_updater: &mut SegmentUpdater,
                    delete_cursor: &mut DeleteQueueCursor)
-                   -> Result<()> {
+                   -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
     let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment.clone(), &schema));
@@ -133,10 +128,13 @@ fn index_documents(heap: &mut Heap,
     };
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
-
+    
     try!(segment_writer.finalize());
-    segment_updater.add_segment(generation, segment_entry);
-    Ok(())
+    
+    segment_updater
+        .add_segment(generation, segment_entry)
+        .wait()
+        .map_err(|_| Error::ErrorInThread("Could not add segment.".to_string()))
 
 }
 
@@ -145,7 +143,7 @@ impl IndexWriter {
     /// The index writer
     pub fn wait_merging_threads(mut self) -> Result<()> {
 
-        let future = self.segment_updater.terminate();
+        // let future = self.segment_updater.terminate();
         
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
@@ -162,7 +160,12 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        future.wait().unwrap(); // TODO do something with the result.
+        self.segment_updater
+            .wait_merging_thread()
+            .map_err(|_| 
+                Error::ErrorInThread("Failed to join merging thread.".to_string())
+            )?;
+        // future.wait().unwrap(); // TODO do something with the result.
         Ok(())
     }
 
@@ -201,13 +204,16 @@ impl IndexWriter {
                     // peeked document now belongs to
                     // our local iterator.
                     if document_iterator.peek().is_some() { 
-                        try!(index_documents(&mut heap,
+                        let valid_generation = try!(index_documents(&mut heap,
                                              segment,
                                              &schema,
                                              generation,
                                              &mut document_iterator,
                                              &mut segment_updater,
                                              &mut delete_cursor_clone));
+                        if valid_generation {
+                            return Ok(());
+                        }
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
@@ -254,8 +260,7 @@ impl IndexWriter {
 
         let delete_queue = DeleteQueue::default();
         
-        let merge_policy = box DefaultMergePolicy::default();
-        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor(), merge_policy)?;
+        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor())?;
         
         let mut index_writer = IndexWriter {
             
@@ -285,9 +290,14 @@ impl IndexWriter {
         Ok(index_writer)
     }
     
+
+    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
+        self.segment_updater.get_merge_policy()
+    }
+
     /// Set the merge policy.
     pub fn set_merge_policy(&self, merge_policy: Box<MergePolicy>) {
-        // *self._merge_policy.lock().unwrap() = merge_policy;
+        self.segment_updater.set_merge_policy(merge_policy);
     }
     
     fn start_workers(&mut self) -> Result<()> {
@@ -298,7 +308,7 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Future<Item=(), Error=&'static str> {
+    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Future<Item=SegmentEntry, Error=Canceled> {
         self.segment_updater.start_merge(segments.to_vec())
     }
 
@@ -328,8 +338,11 @@ impl IndexWriter {
     /// The docstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
-        self.segment_updater.cancel_generation();
-
+        // by updating the generation in the segment updater,
+        // pending add segment commands will be dismissed.
+        self.generation += 1;
+        let rollback_future = self.segment_updater.new_generation(self.generation);
+        
         // we cannot drop segment ready receiver yet
         // as it would block the workers.
         let document_receiver = self.recreate_document_channel();
@@ -341,7 +354,7 @@ impl IndexWriter {
         let mut former_workers_join_handle = Vec::new();
         swap(&mut former_workers_join_handle,
              &mut self.workers_join_handle);
-
+        
         // wait for all the worker to finish their work
         // (it should be fast since we consumed all pending documents)
         for worker_handle in former_workers_join_handle {
@@ -355,27 +368,15 @@ impl IndexWriter {
 
         // All of our indexing workers for the rollbacked generation have
         // been terminated.
+        // 
         // Our document receiver pipe was drained.
         // No new document have been added in the meanwhile because `IndexWriter`
         // is not shared by different threads.
-        //
-        // We can now open a new generation and reaccept segments
-        // from now on.
-        self.segment_updater.new_generation();
         
-        
-        // TODO Send rollback.
-        //let rollbacked_segments = self.segment_manager.rollback();
+        rollback_future.wait().map_err(|_|
+            Error::ErrorInThread("Error while waiting for rollback.".to_string())
+        )?;
 
-        // for segment_id in rollbacked_segments {
-        //     // TODO all delete must happen after saving
-        //     // meta.json
-        //     self.index.delete_segment(segment_id);
-        // }
-
-        panic!("aaaa");
-
-        
         // reset the docstamp
         self.uncommitted_docstamp = self.committed_docstamp;
         Ok(self.committed_docstamp)
@@ -474,12 +475,11 @@ impl IndexWriter {
 #[cfg(test)]
 mod tests {
 
-
+    use indexer::NoMergePolicy;
     use schema::{self, Document};
     use Index;
     use Term;
     use Error;
-    use indexer::NoMergePolicy;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -497,10 +497,10 @@ mod tests {
         let schema_builder = schema::SchemaBuilder::default();
         let index = Index::create_in_ram(schema_builder.build());
         let index_writer = index.writer(40_000_000).unwrap();
-        // assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
-        // let merge_policy = box NoMergePolicy::default();
-        // index_writer.set_merge_policy(merge_policy);
-        // assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "NoMergePolicy");
+        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
+        let merge_policy = box NoMergePolicy::default();
+        index_writer.set_merge_policy(merge_policy);
+        assert_eq!(format!("{:?}", index_writer.get_merge_policy()), "NoMergePolicy");
     }
 
     #[test]
@@ -520,7 +520,6 @@ mod tests {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-
 
         let num_docs_containing = |s: &str| {
             let searcher = index.searcher();
@@ -550,11 +549,12 @@ mod tests {
                 index_writer.add_document(doc).unwrap();
             }
             assert_eq!(index_writer.commit().unwrap(), 2u64);
-
+            index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
             assert_eq!(num_docs_containing("c"), 1);
         }
+        index.load_searchers().unwrap();
         index.searcher();
     }
 
@@ -586,6 +586,7 @@ mod tests {
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
             index_writer.wait_merging_threads().expect("waiting merging thread failed");
+            index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 200);
             assert_eq!(index.searchable_segments().unwrap().len(), 1);
         }

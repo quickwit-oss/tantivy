@@ -170,6 +170,7 @@ mod tests {
                 index_writer.commit().unwrap();
             }
         }
+        index.load_searchers().unwrap();
         let searcher = index.searcher();
         let mut term_it = searcher.terms();
         let mut terms = String::new();

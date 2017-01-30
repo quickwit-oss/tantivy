@@ -6,19 +6,11 @@ use indexer::SegmentEntry;
 use indexer::delete_queue::DeleteQueueCursor;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct SegmentRegisters {
     docstamp: u64,
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
-}
-
-#[derive(Eq, PartialEq)]
-pub enum CommitState {
-    Committed,
-    Uncommitted,
-    Missing,
 }
 
 impl Default for SegmentRegisters {
@@ -54,27 +46,13 @@ impl Debug for SegmentManager {
 ///
 /// For instance, a segment will not appear in both committed and uncommitted 
 /// segments
-pub fn get_segment_ready_for_commit(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+pub fn get_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
-    (registers_lock.committed.get_segment_ready_for_commit(),
-     registers_lock.uncommitted.get_segment_ready_for_commit())
+    (registers_lock.committed.get_segments(),
+     registers_lock.uncommitted.get_segments())
 }
 
 impl SegmentManager {
-    
-    /// Returns whether a segment is committed, uncommitted or missing.
-    pub fn is_committed(&self, segment_id: SegmentId) -> CommitState {
-        let lock = self.read();
-        if lock.uncommitted.contains(segment_id) {
-            CommitState::Uncommitted
-        }
-        else if lock.committed.contains(segment_id) {
-            CommitState::Committed
-        }
-        else {
-            CommitState::Missing
-        }
-    }
     
     pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentManager {
         SegmentManager {

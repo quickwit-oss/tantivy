@@ -1,7 +1,6 @@
 use Result;
 use core::SegmentReader;
 use core::Segment;
-use core::SegmentId;
 use DocId;
 use core::SerializableSegment;
 use indexer::SegmentSerializer;
@@ -14,7 +13,6 @@ use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use postings::ChainedPostings;
 use postings::HasLen;
-use futures::Future;
 use postings::OffsetPostings;
 use core::SegmentInfo;
 use std::cmp::{min, max};
@@ -207,7 +205,6 @@ mod tests {
     use collector::tests::TestCollector;
     use query::BooleanQuery;
     use schema::TextIndexingOptions;
-    use eventual::Async;
     use futures::Future;
 
     #[test]
@@ -243,7 +240,7 @@ mod tests {
                     doc.add_u32(score_field, 7);
                     index_writer.add_document(doc).unwrap();
                 }
-                index_writer.commit().unwrap();
+                index_writer.commit().expect("committed");
             }
 
             {
@@ -272,6 +269,7 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let mut collector = TestCollector::default();

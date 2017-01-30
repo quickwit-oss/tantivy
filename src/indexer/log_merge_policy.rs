@@ -48,7 +48,6 @@ impl LogMergePolicy {
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
-
         if segments.is_empty() {
             return Vec::new();
         }
@@ -75,16 +74,15 @@ impl MergePolicy for LogMergePolicy {
             levels.last_mut().unwrap().push(ind);
         }
 
-        let result = levels.iter()
+        levels
+            .iter()
             .filter(|level| level.len() >= self.min_merge_size)
             .map(|ind_vec| {
                 MergeCandidate(ind_vec.iter()
                     .map(|&ind| segments[ind].segment_id)
                     .collect())
             })
-            .collect();
-
-        result
+            .collect()
     }
     
     fn box_clone(&self) -> Box<MergePolicy> {

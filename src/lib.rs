@@ -49,7 +49,6 @@ extern crate chan;
 extern crate crossbeam;
 extern crate bit_set;
 extern crate notify;
-extern crate eventual;
 extern crate futures;
 extern crate futures_cpupool;
 
@@ -245,6 +244,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, "a");
             assert_eq!(searcher.doc_freq(&term_a), 3);
@@ -280,7 +280,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let segment_reader: &SegmentReader = searcher.segment_reader(0);
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
@@ -306,6 +306,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
@@ -342,6 +343,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);

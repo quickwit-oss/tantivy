@@ -189,6 +189,7 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
+        index.load_searchers().unwrap();
         let term_query = TermQuery::new(Term::from_field_text(text_field, "a"), SegmentPostingsOption::NoFreq);
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
@@ -256,6 +257,7 @@ mod tests {
                 }
                 assert!(index_writer.commit().is_ok());
             }
+            index.load_searchers().unwrap();
             index
         };
     }
@@ -275,7 +277,6 @@ mod tests {
     fn bench_segment_intersection(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
-        
         b.iter(|| {
             let segment_postings_a = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
             let segment_postings_b = segment_reader.read_postings(&*TERM_B, SegmentPostingsOption::NoFreq).unwrap();

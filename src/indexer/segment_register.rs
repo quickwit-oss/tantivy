@@ -89,7 +89,7 @@ impl SegmentRegister {
         self.segment_states.clear();
     }
     
-    pub fn get_segment_ready_for_commit(&self,) -> Vec<SegmentMeta> {
+    pub fn get_segments(&self,) -> Vec<SegmentMeta> {
         self.segment_states
             .values()
             .filter(|segment_entry| segment_entry.is_ready())
@@ -126,12 +126,7 @@ impl SegmentRegister {
             .get(&segment_id)
             .map(|segment_entry| segment_entry.clone())
     }
-
-    pub fn contains(&self, segment_id: SegmentId) -> bool {
-        self.segment_states.contains_key(&segment_id)
-    }
-
-
+    
     pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
         segment_ids
             .iter()
