@@ -14,7 +14,7 @@ pub struct IndexMeta {
     pub committed_segments: Vec<SegmentMeta>,
     pub uncommitted_segments: Vec<SegmentMeta>,
     pub schema: Schema,
-    pub docstamp: u64,
+    pub opstamp: u64,
 }
 
 impl IndexMeta {
@@ -23,7 +23,7 @@ impl IndexMeta {
             committed_segments: Vec::new(),
             uncommitted_segments: Vec::new(),
             schema: schema,
-            docstamp: 0u64,
+            opstamp: 0u64,
         }
     }
 }

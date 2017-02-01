@@ -125,6 +125,7 @@ fn index_documents(heap: &mut Heap,
         segment_id: segment_id,
         num_docs: num_docs,
         num_deleted_docs: num_deleted_docs as u32,
+        opstamp: last_opstamp,
     };
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
@@ -185,14 +186,13 @@ impl IndexWriter {
         
         let generation = self.generation;
 
-        let join_handle: JoinHandle<Result<()>> = try!(thread::Builder::new()
+        let join_handle: JoinHandle<Result<()>> =
+            thread::Builder::new()
             .name(format!("indexing thread {} for gen {}", self.worker_id, generation))
             .spawn(move || {
                 
                 let mut delete_cursor_clone = delete_cursor.clone();
                 loop {
-                    let segment = index.new_segment();
-
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
                         .peekable();
@@ -203,25 +203,28 @@ impl IndexWriter {
                     // this is a valid guarantee as the 
                     // peeked document now belongs to
                     // our local iterator.
-                    if document_iterator.peek().is_some() { 
-                        let valid_generation = try!(index_documents(&mut heap,
-                                             segment,
-                                             &schema,
-                                             generation,
-                                             &mut document_iterator,
-                                             &mut segment_updater,
-                                             &mut delete_cursor_clone));
-                        if valid_generation {
-                            return Ok(());
-                        }
-                    } else {
+                    let opstamp: u64;
+                    if let Some(operation) = document_iterator.peek() {
+                        opstamp = operation.opstamp;
+                    }
+                    else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
                         // was dropped.
-                        return Ok(());
+                        opstamp = 0u64;
+                        return Ok(())
                     }
+ 
+                    let segment = index.new_segment(opstamp);
+                    let valid_generation = index_documents(&mut heap,
+                                            segment,
+                                            &schema,
+                                            generation,
+                                            &mut document_iterator,
+                                            &mut segment_updater,
+                                            &mut delete_cursor_clone)?;
                 }
-            }));
+            })?;
         self.worker_id += 1;
         self.workers_join_handle.push(join_handle);
         Ok(())
@@ -308,8 +311,8 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segments: &[SegmentId]) -> impl Future<Item=SegmentEntry, Error=Canceled> {
-        self.segment_updater.start_merge(segments.to_vec())
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentEntry, Error=Canceled> {
+        self.segment_updater.start_merge(segment_ids)
     }
 
     /// Closes the current document channel send.

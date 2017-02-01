@@ -63,6 +63,14 @@ impl SegmentManager {
             }),
         }
     }
+    
+    pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
+        let registers = self.read();
+        registers
+            .committed
+            .segment_entry(segment_id)
+            .or_else(|| registers.uncommitted.segment_entry(segment_id))        
+    }
 
     // Lock poisoning should never happen :
     // The lock is acquired and released within this class,
@@ -113,16 +121,17 @@ impl SegmentManager {
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
     
-    pub fn end_merge(&self, merged_segment_ids: &[SegmentId], merged_segment_entry: SegmentEntry) {
+    pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
-        if registers_lock.uncommitted.contains_all(merged_segment_ids) {
-            for segment_id in merged_segment_ids {
+        let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.segment_id).collect();
+        if registers_lock.uncommitted.contains_all(&merged_segment_ids) {
+            for segment_id in &merged_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);
             }
             registers_lock.uncommitted.add_segment_entry(merged_segment_entry);
         }
-        else if registers_lock.committed.contains_all(merged_segment_ids) {
-            for segment_id in merged_segment_ids {
+        else if registers_lock.committed.contains_all(&merged_segment_ids) {
+            for segment_id in &merged_segment_ids {
                 registers_lock.committed.remove_segment(segment_id);
             }
             registers_lock.committed.add_segment_entry(merged_segment_entry);

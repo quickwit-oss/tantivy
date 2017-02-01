@@ -32,7 +32,7 @@ pub enum Error {
     /// The data within is corrupted.
     ///
     /// For instance, it contains invalid JSON.
-    CorruptedFile(PathBuf, Box<error::Error + Send>),
+    CorruptedFile(PathBuf, Box<error::Error + Send + Sync>),
     /// Invalid argument was passed by the user.
     InvalidArgument(String),
     /// An Error happened in one of the thread

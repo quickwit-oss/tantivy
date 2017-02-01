@@ -5,6 +5,7 @@ pub struct SegmentMeta {
     pub segment_id: SegmentId,
     pub num_docs: u32,
     pub num_deleted_docs: u32,
+    pub opstamp: u64,
 }
 
 #[cfg(test)]
@@ -14,6 +15,7 @@ impl SegmentMeta {
             segment_id: segment_id,
             num_docs: num_docs,
             num_deleted_docs: 0,
+            opstamp: 0u64,
         }
     }
 }

@@ -11,13 +11,12 @@ use core::Index;
 use std::result;
 use directory::error::{FileError, OpenWriteError};
 
-
-
 /// A segment is a piece of the index.
 #[derive(Clone)]
 pub struct Segment {
     index: Index,
     segment_id: SegmentId,
+    commit_opstamp: u64,
 }
 
 impl fmt::Debug for Segment {
@@ -30,10 +29,11 @@ impl fmt::Debug for Segment {
 /// Creates a new segment given an `Index` and a `SegmentId`
 /// 
 /// The function is here to make it private outside `tantivy`. 
-pub fn create_segment(index: Index, segment_id: SegmentId) -> Segment {
+pub fn create_segment(index: Index, segment_id: SegmentId, commit_opstamp: u64) -> Segment {
     Segment {
         index: index,
         segment_id: segment_id,
+        commit_opstamp: commit_opstamp,
     }
 }
 
@@ -58,42 +58,6 @@ impl Segment {
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.segment_id.relative_path(component)
     }
-
-    /// Deletes all of the document of the segment.
-    /// This is called when there is a merge or a rollback.
-    ///
-    /// # Disclaimer
-    /// If deletion of a file fails (e.g. a file 
-    /// was read-only.), the method does not
-    /// fail and just logs an error when it fails.
-    pub fn delete(&self) {
-        info!("Deleting segment {:?}", self.segment_id);
-        let segment_filepaths_res = self.index.directory().ls_starting_with(
-            &*self.segment_id.uuid_string()
-        );
-
-        match segment_filepaths_res {
-            Ok(segment_filepaths) => {
-                for segment_filepath in &segment_filepaths {
-                    if let Err(err) = self.index.directory().delete(&segment_filepath) {
-                        match err {
-                            FileError::FileDoesNotExist(_) => {
-                                // this is normal behavior.
-                                // the position file for instance may not exists.
-                            }
-                            FileError::IOError(err) => {
-                                error!("Failed to remove {:?} : {:?}", self.segment_id, err);
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                error!("Failed to list files of segment {:?} for deletion.", self.segment_id.uuid_string());
-            }
-        }
-    }
-
 
     /// Open one of the component file for read.
     pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, FileError> {

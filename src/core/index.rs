@@ -21,6 +21,7 @@ use core::IndexMeta;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
+use directory::error::{FileError, OpenWriteError};
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -40,6 +41,45 @@ pub struct Index {
     searcher_pool: Arc<Pool<Searcher>>,
     docstamp: u64,
 }
+
+
+
+
+/// Deletes all of the document of the segment.
+/// This is called when there is a merge or a rollback.
+///
+/// # Disclaimer
+/// If deletion of a file fails (e.g. a file 
+/// was read-only.), the method does not
+/// fail and just logs an error when it fails.
+pub fn delete_segment(directory: &Directory, segment_id: SegmentId) {
+    info!("Deleting segment {:?}", segment_id);
+    let segment_filepaths_res = directory.ls_starting_with(
+        &*segment_id.uuid_string()
+    );
+
+    match segment_filepaths_res {
+        Ok(segment_filepaths) => {
+            for segment_filepath in &segment_filepaths {
+                if let Err(err) = directory.delete(&segment_filepath) {
+                    match err {
+                        FileError::FileDoesNotExist(_) => {
+                            // this is normal behavior.
+                            // the position file for instance may not exists.
+                        }
+                        FileError::IOError(err) => {
+                            error!("Failed to remove {:?} : {:?}", segment_id, err);
+                        }
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            error!("Failed to list files of segment {:?} for deletion.", segment_id.uuid_string());
+        }
+    }
+}
+
 
 impl Index {
     /// Creates a new index using the `RAMDirectory`.
@@ -76,7 +116,7 @@ impl Index {
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
-        let docstamp = metas.docstamp;
+        let docstamp = metas.opstamp;
         // TODO log somethings is uncommitted is not empty.
         let index = Index {
             directory: directory,
@@ -143,27 +183,33 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        let searchable_segment_ids = self.searchable_segment_ids()?;
+        let metas = load_metas(self.directory())?; 
+        let searchable_segment_ids = metas
+            .committed_segments
+            .iter()
+            .map(|segment_meta| segment_meta.segment_id)
+            .collect::<Vec<_>>();
+        let commit_opstamp = metas.opstamp;
         Ok(searchable_segment_ids
             .into_iter()
-            .map(|segment_id| self.segment(segment_id))
+            .map(|segment_id| self.segment(segment_id, commit_opstamp))
             .collect())
     }
-
+    
     /// Remove all of the file associated with the segment.
     ///
     /// This method cannot fail. If a problem occurs,
     /// some files may end up never being removed.
     /// The error will only be logged.
     pub fn delete_segment(&self, segment_id: SegmentId) {
-        self.segment(segment_id).delete();
+        delete_segment(self.directory(), segment_id); 
     }
 
     /// Return a segment object given a `segment_id`
     ///
     /// The segment may or may not exist.
-    pub fn segment(&self, segment_id: SegmentId) -> Segment {
-        create_segment(self.clone(), segment_id)
+    pub fn segment(&self, segment_id: SegmentId, commit_opstamp: u64) -> Segment {
+        create_segment(self.clone(), segment_id, commit_opstamp)
     }
 
     /// Return a reference to the index directory.
@@ -179,24 +225,22 @@ impl Index {
     /// Reads the meta.json and returns the list of
     /// committed segments.
     pub fn committed_segments(&self) -> Result<Vec<SegmentMeta>> {
+        
         Ok(load_metas(self.directory())?.committed_segments)
     }
     
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        self.committed_segments()
-            .map(|commited_segments| {
-                commited_segments
-                .iter()
-                .map(|segment_meta| segment_meta.segment_id)
-                .collect()
-            })
-            
+        Ok(load_metas(self.directory())?
+            .committed_segments
+            .iter()
+            .map(|segment_meta| segment_meta.segment_id)
+            .collect())           
     }
 
     /// Creates a new segment.
-    pub fn new_segment(&self) -> Segment {
-        self.segment(SegmentId::generate_random())
+    pub fn new_segment(&self, opstamp: u64) -> Segment {
+        self.segment(SegmentId::generate_random(), opstamp)
     }
 
     /// Creates a new generation of searchers after

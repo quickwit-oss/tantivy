@@ -32,6 +32,10 @@ impl SegmentEntry {
     pub fn segment_id(&self) -> SegmentId {
         self.meta.segment_id
     }
+    
+    pub fn meta(&self) -> &SegmentMeta {
+        &self.meta
+    }
 
     fn start_merge(&mut self,) {
         self.state = SegmentState::InMerge;
@@ -120,7 +124,6 @@ impl SegmentRegister {
             .collect()
     }
     
-    #[cfg(test)]
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         self.segment_states
             .get(&segment_id)
