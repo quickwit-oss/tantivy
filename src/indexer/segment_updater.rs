@@ -57,11 +57,11 @@ fn create_metas(segment_manager: &SegmentManager, schema: Schema, opstamp: u64) 
 ///
 /// This method is not part of tantivy's public API
 pub fn save_new_metas(schema: Schema,
-                  docstamp: u64,
+                  opstamp: u64,
                   directory: &mut Directory)
                   -> Result<()> {
     let segment_manager = SegmentManager::default();
-    save_metas(&segment_manager, schema, docstamp, directory)
+    save_metas(&segment_manager, schema, opstamp, directory)
 }
 
 
@@ -77,10 +77,10 @@ pub fn save_new_metas(schema: Schema,
 /// This method is not part of tantivy's public API
 pub fn save_metas(segment_manager: &SegmentManager,
                   schema: Schema,
-                  docstamp: u64,
+                  opstamp: u64,
                   directory: &mut Directory)
                   -> Result<()> {
-    let metas = create_metas(segment_manager, schema, docstamp);
+    let metas = create_metas(segment_manager, schema, opstamp);
     let mut w = Vec::new();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
     Ok(directory
@@ -178,7 +178,7 @@ impl SegmentUpdater {
             save_metas(
                     &segment_updater.0.segment_manager,
                     segment_updater.0.index.schema(),
-                    segment_updater.0.index.docstamp(),
+                    opstamp,
                     directory.borrow_mut()).expect("Could not save metas.");
             segment_updater.consider_merge_options();
         })
@@ -284,7 +284,7 @@ impl SegmentUpdater {
             save_metas(
                 &segment_updater.0.segment_manager,
                 segment_updater.0.index.schema(),
-                segment_updater.0.index.docstamp(),
+                segment_updater.0.index.opstamp(),
                 directory.borrow_mut()).expect("Could not save metas.");
             for segment_meta in merged_segment_metas {
                 segment_updater.0.index.delete_segment(segment_meta.segment_id);

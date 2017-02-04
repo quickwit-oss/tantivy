@@ -4,6 +4,7 @@ use std::io::Write;
 use std::io;
 use directory::ReadOnlySource;
 use DocId;
+use common::HasLen;
 
 pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {
     let max_doc = delete_bitset.capacity();
@@ -28,23 +29,54 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
     writer.flush()
 }
 
-pub struct DeleteBitSet(ReadOnlySource);
+#[derive(Clone)]
+pub struct DeleteBitSet {
+    data: ReadOnlySource,
+    len: usize,  
+}
 
 impl DeleteBitSet {
 
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
-        DeleteBitSet(data)
+        let num_deleted: usize = data
+            .as_slice()
+            .iter()
+            .map(|b| b.count_ones() as usize)
+            .sum();
+        DeleteBitSet {
+            data: data,
+            len: num_deleted,
+        }
+    }
+
+    pub fn empty() -> DeleteBitSet {
+        DeleteBitSet {
+            data: ReadOnlySource::empty(),
+            len: 0,
+        }
     }
 
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        let byte_offset = doc / 8u32;
-        let b: u8 = (*self.0)[byte_offset as usize];
-        let shift = (doc & 7u32) as u8;
-        b & (1u8 << shift) != 0
+        if self.len == 0 {
+            false
+        }
+        else {
+            let byte_offset = doc / 8u32;
+            let b: u8 = (*self.data)[byte_offset as usize];
+            let shift = (doc & 7u32) as u8;
+            b & (1u8 << shift) != 0    
+        }
     }
+
 }
 
 
+impl HasLen for DeleteBitSet {
+
+    fn len(&self) -> usize {
+        self.len
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -67,6 +99,7 @@ mod tests {
             for doc in 0..n {
                 assert_eq!(bitset.contains(doc), delete_bitset.is_deleted(doc as DocId));
             }
+            assert_eq!(delete_bitset.len(), bitset.len());
         }
     }
 

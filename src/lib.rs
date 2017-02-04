@@ -290,6 +290,65 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn test_delete_postings() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let doc = doc!(text_field=>" a c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let doc = doc!(text_field=>" b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let doc = doc!(text_field=>" b d");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            {
+                index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            }
+            {
+                let doc = doc!(text_field=>" b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                let doc = doc!(text_field=>" a");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+            assert!(postings.advance());
+            assert_eq!(postings.doc(), 2);
+            assert!(postings.advance());
+            assert_eq!(postings.doc(), 3);
+            assert!(postings.advance());
+            assert_eq!(postings.doc(), 5);
+            assert!(!postings.advance());
+        }
+    }
+
+
     #[test]
     fn test_termfreq() {
         let mut schema_builder = SchemaBuilder::default();

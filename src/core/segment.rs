@@ -25,7 +25,6 @@ impl fmt::Debug for Segment {
     }
 }
 
-
 /// Creates a new segment given an `Index` and a `SegmentId`
 /// 
 /// The function is here to make it private outside `tantivy`. 
@@ -38,18 +37,20 @@ pub fn create_segment(index: Index, segment_id: SegmentId, commit_opstamp: u64) 
 }
 
 impl Segment {
-
-
+    
     /// Returns our index's schema.
     pub fn schema(&self,) -> Schema {
         self.index.schema()
+    }
+
+    pub fn commit_opstamp(&self) -> u64 {
+        self.commit_opstamp
     }
 
     /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
         self.segment_id
     }
-    
 
     /// Returns the relative path of a component of our segment.
     ///  

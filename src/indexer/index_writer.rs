@@ -75,8 +75,8 @@ pub struct IndexWriter {
 
     delete_queue: DeleteQueue,
 
-    uncommitted_docstamp: u64,
-    committed_docstamp: u64,
+    uncommitted_opstamp: u64,
+    committed_opstamp: u64,
 }
 
 // IndexWriter cannot be sent to another thread.
@@ -211,7 +211,6 @@ impl IndexWriter {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
                         // was dropped.
-                        opstamp = 0u64;
                         return Ok(())
                     }
  
@@ -282,8 +281,8 @@ impl IndexWriter {
 
             delete_queue: delete_queue,
 
-            committed_docstamp: index.docstamp(),
-            uncommitted_docstamp: index.docstamp(),
+            committed_opstamp: index.opstamp(),
+            uncommitted_opstamp: index.opstamp(),
 
             generation: 0,
 
@@ -338,7 +337,7 @@ impl IndexWriter {
     /// After calling rollback, the index is in the same
     /// state as it was after the last commit.
     ///
-    /// The docstamp at the last commit is returned.
+    /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
         // by updating the generation in the segment updater,
@@ -380,9 +379,9 @@ impl IndexWriter {
             Error::ErrorInThread("Error while waiting for rollback.".to_string())
         )?;
 
-        // reset the docstamp
-        self.uncommitted_docstamp = self.committed_docstamp;
-        Ok(self.committed_docstamp)
+        // reset the opstamp
+        self.uncommitted_opstamp = self.committed_opstamp;
+        Ok(self.committed_opstamp)
     }
 
 
@@ -397,7 +396,7 @@ impl IndexWriter {
     /// long as the hard disk is spared), it will be possible
     /// to resume indexing from this point.
     ///
-    /// Commit returns the `docstamp` of the last document
+    /// Commit returns the `opstamp` of the last document
     /// that made it in the commit.
     ///
     pub fn commit(&mut self) -> Result<u64> {
@@ -405,9 +404,6 @@ impl IndexWriter {
         // this will drop the current document channel
         // and recreate a new one channels.
         self.recreate_document_channel();
-
-        // Docstamp of the last document in this commit.
-        self.committed_docstamp = self.uncommitted_docstamp;
 
         let mut former_workers_join_handle = Vec::new();
         swap(&mut former_workers_join_handle,
@@ -430,13 +426,15 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-        let future = self.segment_updater.commit(self.committed_docstamp);
+
+        self.committed_opstamp = self.stamp();
+        let future = self.segment_updater.commit(self.committed_opstamp);
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
         future.wait().unwrap();
 
-        Ok(self.committed_docstamp)
+        Ok(self.committed_opstamp)
     }    
 
     
@@ -446,8 +444,8 @@ impl IndexWriter {
     }
 
     fn stamp(&mut self) -> u64 {
-        let opstamp = self.uncommitted_docstamp;
-        self.uncommitted_docstamp += 1u64;
+        let opstamp = self.uncommitted_opstamp;
+        self.uncommitted_opstamp += 1u64;
         opstamp
     }
 
@@ -455,7 +453,7 @@ impl IndexWriter {
     ///
     /// If the indexing pipeline is full, this call may block.
     ///
-    /// The docstamp is an increasing `u64` that can
+    /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
     ///

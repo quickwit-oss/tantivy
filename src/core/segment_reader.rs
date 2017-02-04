@@ -3,9 +3,13 @@ use core::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
+use bit_set::BitSet;
+use common::HasLen;
+use fastfield::delete::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
+use directory::error::FileError;
 use DocId;
 use std::io;
 use std::str;
@@ -44,6 +48,7 @@ pub struct SegmentReader {
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
     fieldnorms_reader: U32FastFieldsReader,
+    delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
 }
@@ -63,9 +68,13 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_info.max_doc
+        self.segment_info.max_doc - self.num_deleted_docs()
     }
     
+    pub fn num_deleted_docs(&self) -> DocId {
+        self.delete_bitset.len() as DocId
+    }
+
     /// Accessor to a segment's fast field reader given a field.
     pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
@@ -137,6 +146,15 @@ impl SegmentReader {
             .open_read(SegmentComponent::POSITIONS)
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
+        // TODO 0u64
+        let delete_data_res = segment.open_read(SegmentComponent::DELETE(segment.commit_opstamp()));
+        let delete_bitset;
+        if let Err(FileError::FileDoesNotExist(_)) = delete_data_res {
+            delete_bitset = DeleteBitSet::empty();
+        }
+        else {
+            delete_bitset = DeleteBitSet::open(delete_data_res?);
+        }
         let schema = segment.schema();
         Ok(SegmentReader {
             segment_info: segment_info,
@@ -146,6 +164,7 @@ impl SegmentReader {
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
             fieldnorms_reader: fieldnorms_reader,
+            delete_bitset: delete_bitset,
             positions_data: positions_data,
             schema: schema,
         })
@@ -214,9 +233,10 @@ impl SegmentReader {
                 FreqHandler::new_without_freq()
             }
         };
-        Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, freq_handler))
+        Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, &self.delete_bitset, freq_handler))
     }
-        
+    
+
     /// Returns the posting list associated with a term.
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());

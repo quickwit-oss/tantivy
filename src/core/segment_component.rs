@@ -23,7 +23,9 @@ impl SegmentComponent {
             SegmentComponent::STORE => ".store".to_string(),
             SegmentComponent::FASTFIELDS => ".fast".to_string(),
             SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
-            SegmentComponent::DELETE(opstamp) => format!("{}.del", opstamp)
+            SegmentComponent::DELETE(opstamp) => {
+                format!(".{}.del", opstamp)
+            }
         }
     }
 }

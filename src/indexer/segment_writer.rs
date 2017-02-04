@@ -22,7 +22,39 @@ use indexer::index_writer::MARGIN_IN_BYTES;
 use super::operation::AddOperation;
 use bit_set::BitSet;
 use indexer::document_receiver::DocumentReceiver;
+use core::SegmentReader;
+use postings::SegmentPostingsOption;
+use postings::DocSet;
 
+
+
+fn update_deleted_bitset(
+	segment_reader: &SegmentReader,
+	bitset: &mut BitSet,
+	delete_cursor: &mut DeleteQueueCursor,
+	limit_opstamp_opt: Option<u64>) -> bool {
+	let mut has_changed = false;
+	let limit_opstamp = limit_opstamp_opt.unwrap_or(u64::max_value());
+	loop {
+		if let Some(delete_op) = delete_cursor.peek() {
+			if delete_op.opstamp > limit_opstamp {
+				break;
+			}
+			if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+				while docset.advance() {
+					has_changed = true;
+					let deleted_doc = docset.doc();
+					bitset.insert(deleted_doc as usize);
+				}
+			}
+		}
+		else {
+			break;
+		}
+		delete_cursor.consume();
+	}
+	has_changed
+}
 
 struct DocumentDeleter<'a> {
 	limit_doc_id: DocId,
@@ -180,6 +212,7 @@ impl<'a> SegmentWriter<'a> {
 			.expect("Last doc opstamp called on an empty segment writer"))
 	}
 
+	/// TODO compute the bitset using the segment reader directly.
 	pub fn compute_deleted_bitset(&self, delete_queue_cursor: &mut DeleteQueueCursor) -> Option<BitSet> {
 		if let Some(first_opstamp) = self.doc_opstamps.first() {
 			if !delete_queue_cursor.skip_to(*first_opstamp) {
