@@ -97,7 +97,7 @@ impl DeleteQueueCursor {
                 return true;
             }
             else {
-                self.consume();
+                self.next();
             }
         }
         return false;
@@ -128,15 +128,17 @@ impl DeleteQueueCursor {
         }
     }
     
+}
+
+impl Iterator for DeleteQueueCursor {
+    type Item = DeleteOperation;
+
     /// Returns a delete operation if an operation is available,
     /// None if the queue is empty.
     ///
-    /// (We are voluntarily not using the `Iterator` trait
-    /// as a call to `consume` may return None once, and return
-    /// `Some(...)` ulteriorily. While this is officially
-    /// compatible with the `Iterator` specification, we judge
-    /// this confusing.)
-    pub fn consume(&mut self) -> Option<DeleteOperation> {
+    /// This iterator may return None once, and return
+    /// `Some(...)` ulteriorily.
+    fn next(&mut self) -> Option<DeleteOperation> {
         let delete_position = self.peek();
         if delete_position.is_some() {
             self.pos += 1;
@@ -197,7 +199,7 @@ mod tests {
         let mut delete_cursor_3 = delete_queue.cursor();
         let mut delete_cursor_3_b = delete_cursor_3.clone();
         
-        assert!(delete_cursor_3.consume().is_none());
+        assert!(delete_cursor_3.next().is_none());
         assert!(delete_cursor_3.peek().is_none());
         
         delete_queue.push_op(make_op(3));
@@ -206,24 +208,24 @@ mod tests {
         assert_eq!(delete_cursor_3_b.peek(), Some(make_op(3)));
         let mut delete_cursor_3_c = delete_cursor_3_b.clone();
         
-        assert_eq!(delete_cursor_3_b.consume(), Some(make_op(3)));
+        assert_eq!(delete_cursor_3_b.next(), Some(make_op(3)));
         let mut delete_cursor_4 = delete_cursor_3_b.clone();
         
         assert_eq!(delete_cursor_3_b.peek(), Some(make_op(4)));
-        assert_eq!(delete_cursor_3_b.consume(), Some(make_op(4)));
+        assert_eq!(delete_cursor_3_b.next(), Some(make_op(4)));
         
-        assert_eq!(delete_cursor_3_c.consume(), Some(make_op(3)));
+        assert_eq!(delete_cursor_3_c.next(), Some(make_op(3)));
         
-        assert!(delete_cursor_3_b.consume().is_none());
-        assert_eq!(delete_cursor_3_c.consume(), Some(make_op(4)));
-        assert!(delete_cursor_3_c.consume().is_none());
+        assert!(delete_cursor_3_b.next().is_none());
+        assert_eq!(delete_cursor_3_c.next(), Some(make_op(4)));
+        assert!(delete_cursor_3_c.next().is_none());
         
         assert_eq!(delete_cursor_3.peek(), Some(make_op(3)));
-        assert_eq!(delete_cursor_3.consume(), Some(make_op(3)));
-        assert!(delete_cursor_3_b.consume().is_none());
+        assert_eq!(delete_cursor_3.next(), Some(make_op(3)));
+        assert!(delete_cursor_3_b.next().is_none());
         
-        assert_eq!(delete_cursor_4.consume(), Some(make_op(4)));
-        assert!(delete_cursor_4.consume().is_none());
+        assert_eq!(delete_cursor_4.next(), Some(make_op(4)));
+        assert!(delete_cursor_4.next().is_none());
         
         
     }

@@ -300,19 +300,19 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
+            {   // 0
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc).unwrap();
             }
-            {
+            {   // 1
                 let doc = doc!(text_field=>" a c");
                 index_writer.add_document(doc).unwrap();
             }
-            {
+            {   // 2
                 let doc = doc!(text_field=>" b c");
                 index_writer.add_document(doc).unwrap();
             }
-            {
+            {   // 3
                 let doc = doc!(text_field=>" b d");
                 index_writer.add_document(doc).unwrap();
             }
@@ -322,11 +322,11 @@ mod tests {
             {
                 index_writer.delete_term(Term::from_field_text(text_field, "a"));
             }
-            {
+            {   // 4
                 let doc = doc!(text_field=>" b c");
                 index_writer.add_document(doc).unwrap();
             }
-            {
+            {   // 5
                 let doc = doc!(text_field=>" a");
                 index_writer.add_document(doc).unwrap();
             }
@@ -337,14 +337,20 @@ mod tests {
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
-            let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
-            assert!(postings.advance());
-            assert_eq!(postings.doc(), 2);
-            assert!(postings.advance());
-            assert_eq!(postings.doc(), 3);
-            assert!(postings.advance());
-            assert_eq!(postings.doc(), 5);
-            assert!(!postings.advance());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 5);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
         }
     }
 

@@ -17,57 +17,9 @@ use postings::SpecializedPostingsWriter;
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
-use super::delete_queue::DeleteQueueCursor;
 use indexer::index_writer::MARGIN_IN_BYTES;
 use super::operation::AddOperation;
-use bit_set::BitSet;
-use indexer::document_receiver::DocumentReceiver;
-use core::SegmentReader;
-use postings::SegmentPostingsOption;
-use postings::DocSet;
 
-
-
-fn update_deleted_bitset(
-	segment_reader: &SegmentReader,
-	bitset: &mut BitSet,
-	delete_cursor: &mut DeleteQueueCursor,
-	limit_opstamp_opt: Option<u64>) -> bool {
-	let mut has_changed = false;
-	let limit_opstamp = limit_opstamp_opt.unwrap_or(u64::max_value());
-	loop {
-		if let Some(delete_op) = delete_cursor.peek() {
-			if delete_op.opstamp > limit_opstamp {
-				break;
-			}
-			if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
-				while docset.advance() {
-					has_changed = true;
-					let deleted_doc = docset.doc();
-					bitset.insert(deleted_doc as usize);
-				}
-			}
-		}
-		else {
-			break;
-		}
-		delete_cursor.consume();
-	}
-	has_changed
-}
-
-struct DocumentDeleter<'a> {
-	limit_doc_id: DocId,
-	deleted_docs: &'a mut BitSet,
-}
-
-impl<'a> DocumentReceiver for DocumentDeleter<'a> {
-	fn receive(&mut self, doc: DocId) {
-		if doc < self.limit_doc_id {
-			self.deleted_docs.insert(doc as usize);
-		}
-	}
-}
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -154,19 +106,18 @@ impl<'a> SegmentWriter<'a> {
 	/// 
 	/// Finalize consumes the `SegmentWriter`, so that it cannot 
 	/// be used afterwards.
-	pub fn finalize(mut self) -> Result<()> {
+	pub fn finalize(mut self) -> Result<Vec<u64>> {
 		let segment_info = self.segment_info();
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
 		}
-		try!(write(
-			  &self.per_field_postings_writers,
+		write(&self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
 			  segment_info,
 			  self.segment_serializer,
-			  self.heap));
-		Ok(())
+			  self.heap)?;
+		Ok(self.doc_opstamps)
 	}
 	
 	/// Returns true iff the segment writer's buffer has reached capacity.
@@ -178,14 +129,6 @@ impl<'a> SegmentWriter<'a> {
 	/// exceeds the heap size.  
 	pub fn is_buffer_full(&self,) -> bool {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
-	}
-
-	fn compute_doc_limit(&self, opstamp: u64) -> DocId {
-		let doc_id = match self.doc_opstamps.binary_search(&opstamp) {
-			Ok(doc_id) => doc_id,
-			Err(doc_id) => doc_id,
-		};
-		doc_id as DocId
 	}
 
 	// pub fn compute_doc_mapping_after_delete(&self, mut delete_queue_cursor: DeleteQueueCursor) -> Vec<Option<DocId>> {
@@ -211,41 +154,6 @@ impl<'a> SegmentWriter<'a> {
 			.last()
 			.expect("Last doc opstamp called on an empty segment writer"))
 	}
-
-	/// TODO compute the bitset using the segment reader directly.
-	pub fn compute_deleted_bitset(&self, delete_queue_cursor: &mut DeleteQueueCursor) -> Option<BitSet> {
-		if let Some(first_opstamp) = self.doc_opstamps.first() {
-			if !delete_queue_cursor.skip_to(*first_opstamp) {
-				return None;
-			}
-		}
-		else {
-			return None;
-		}
-		let last_opstamp = *self.doc_opstamps.last().unwrap();
-		let mut deleted_docs = BitSet::with_capacity(self.max_doc as usize);
-		while let Some(delete_operation) = delete_queue_cursor.peek() {
-			if delete_operation.opstamp > last_opstamp {
-				break;
-			}
-			// We can skip computing delete operations that 
-			// are older than our oldest document.
-			//
-			// They don't belong to this document anyway.
-			let delete_term = delete_operation.term;
-			let Field(field_id) = delete_term.field();
-			let postings_writer: &Box<PostingsWriter> = &self.per_field_postings_writers[field_id as usize];
-			let limit_doc_id = self.compute_doc_limit(delete_operation.opstamp);
-			let mut document_deleter = DocumentDeleter {
-				limit_doc_id: limit_doc_id,
-				deleted_docs: &mut deleted_docs
-			};
-			postings_writer.push_documents(delete_term.value(), &mut document_deleter);
-			delete_queue_cursor.consume();
-		}
-		Some(deleted_docs)
-	}
-	
 	
 	/// Indexes a new document
 	///

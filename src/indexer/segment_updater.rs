@@ -10,9 +10,11 @@ use std::mem;
 use std::sync::atomic::Ordering;
 use std::ops::DerefMut;
 use futures::{Future, future};
+use fastfield::delete::write_delete_bitset;
 use futures::oneshot;
 use futures::Canceled;
 use std::thread;
+use core::SegmentComponent;
 use std::sync::atomic::AtomicUsize;
 use std::sync::RwLock;
 use core::SerializableSegment;
@@ -22,6 +24,7 @@ use std::borrow::BorrowMut;
 use indexer::SegmentSerializer;
 use indexer::SegmentEntry;
 use schema::Schema;
+use indexer::index_writer::{advance_deletes, DocToOpstampMapping};
 use directory::Directory;
 use std::thread::JoinHandle;
 use std::sync::Arc;
@@ -171,8 +174,26 @@ impl SegmentUpdater {
         }
     }
 
+    fn purge_deletes(&self, target_opstamp: u64) -> Result<()> {
+        let uncommitted = self.0.segment_manager.segment_entries();
+        for mut segment_entry in uncommitted {
+            let mut segment = self.0.index.segment(segment_entry.meta().segment_id, segment_entry.meta().opstamp); 
+            let (_, deleted_docset) = advance_deletes(
+                 &segment,
+                 segment_entry.delete_cursor(),
+                 DocToOpstampMapping::None).unwrap();
+            {
+                let mut delete_file = segment.with_opstamp(target_opstamp).open_write(SegmentComponent::DELETE)?;
+                write_delete_bitset(&deleted_docset, &mut delete_file)?;
+            }
+            
+        }
+        Ok(())
+    }
+
     pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
         self.run_async(move |segment_updater| {
+            segment_updater.purge_deletes(opstamp).expect("Failed purge deletes");
             segment_updater.0.segment_manager.commit(opstamp);
             let mut directory = segment_updater.0.index.directory().box_clone();
             save_metas(

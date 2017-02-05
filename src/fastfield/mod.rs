@@ -54,9 +54,6 @@ mod tests {
     #[test]
     pub fn test_fastfield() {
         let test_fastfield = U32FastFieldReader::from(vec!(100,200,300));
-        println!("{}", test_fastfield.get(0));
-        println!("{}", test_fastfield.get(1));
-        println!("{}", test_fastfield.get(2));
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300); 

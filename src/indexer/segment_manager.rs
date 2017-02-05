@@ -8,7 +8,6 @@ use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 
 struct SegmentRegisters {
-    docstamp: u64,
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
 }
@@ -16,7 +15,6 @@ struct SegmentRegisters {
 impl Default for SegmentRegisters {
     fn default() -> SegmentRegisters {
         SegmentRegisters {
-            docstamp: 0u64,
             uncommitted: SegmentRegister::default(),
             committed: SegmentRegister::default()
         }
@@ -57,11 +55,22 @@ impl SegmentManager {
     pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
-                docstamp: 0u64, // TODO put the actual value
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),
             }),
         }
+    }
+
+    pub fn segment_entries(&self,) -> Vec<SegmentEntry> {
+        let mut segment_entries = self.read()
+            .uncommitted
+            .segment_entries();
+        segment_entries.extend(
+            self.read()
+            .committed
+            .segment_entries()
+        );
+        segment_entries
     }
     
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
@@ -98,7 +107,6 @@ impl SegmentManager {
         for segment_entry in segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
-        registers_lock.docstamp = docstamp;
         registers_lock.uncommitted.clear();    
     }
     
@@ -151,7 +159,6 @@ impl Default for SegmentManager {
     fn default() -> SegmentManager {
         SegmentManager {
             registers: RwLock::new( SegmentRegisters {
-                docstamp: 0u64, // TODO put the actual value
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::default(),
             }),

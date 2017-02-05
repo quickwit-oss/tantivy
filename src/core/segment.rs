@@ -16,7 +16,7 @@ use directory::error::{FileError, OpenWriteError};
 pub struct Segment {
     index: Index,
     segment_id: SegmentId,
-    commit_opstamp: u64,
+    opstamp: u64,
 }
 
 impl fmt::Debug for Segment {
@@ -28,11 +28,11 @@ impl fmt::Debug for Segment {
 /// Creates a new segment given an `Index` and a `SegmentId`
 /// 
 /// The function is here to make it private outside `tantivy`. 
-pub fn create_segment(index: Index, segment_id: SegmentId, commit_opstamp: u64) -> Segment {
+pub fn create_segment(index: Index, segment_id: SegmentId, opstamp: u64) -> Segment {
     Segment {
         index: index,
         segment_id: segment_id,
-        commit_opstamp: commit_opstamp,
+        opstamp: opstamp,
     }
 }
 
@@ -43,8 +43,8 @@ impl Segment {
         self.index.schema()
     }
 
-    pub fn commit_opstamp(&self) -> u64 {
-        self.commit_opstamp
+    pub fn opstamp(&self) -> u64 {
+        self.opstamp
     }
 
     /// Returns the segment's id.
@@ -52,12 +52,21 @@ impl Segment {
         self.segment_id
     }
 
+    pub fn with_opstamp(&self, opstamp: u64) -> Segment {
+        Segment {
+            index: self.index.clone(),
+            segment_id: self.segment_id.clone(),
+            opstamp: opstamp,
+        }
+    }
+
     /// Returns the relative path of a component of our segment.
     ///  
     /// It just joins the segment id with the extension 
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        self.segment_id.relative_path(component)
+        let path_suffix = component.path_suffix(self.opstamp);
+        PathBuf::from(self.segment_id.uuid_string() + &*path_suffix)
     }
 
     /// Open one of the component file for read.

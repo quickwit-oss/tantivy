@@ -48,11 +48,6 @@ impl SegmentId {
     pub fn uuid_string(&self,) -> String {
         self.0.simple().to_string()
     }
-
-    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let filename = self.uuid_string() + &*component.path_suffix();
-        PathBuf::from(filename)
-    }
 }
 
 impl Encodable for SegmentId {

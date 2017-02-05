@@ -147,7 +147,7 @@ impl SegmentReader {
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
         // TODO 0u64
-        let delete_data_res = segment.open_read(SegmentComponent::DELETE(segment.commit_opstamp()));
+        let delete_data_res = segment.open_read(SegmentComponent::DELETE);
         let delete_bitset;
         if let Err(FileError::FileDoesNotExist(_)) = delete_data_res {
             delete_bitset = DeleteBitSet::empty();
@@ -261,6 +261,10 @@ impl SegmentReader {
     /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
+    }
+
+    pub fn is_deleted(&self, doc: DocId) -> bool {
+        self.delete_bitset.is_deleted(doc)
     }
 }
 

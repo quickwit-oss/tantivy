@@ -32,6 +32,10 @@ impl SegmentEntry {
     pub fn segment_id(&self) -> SegmentId {
         self.meta.segment_id
     }
+
+    pub fn delete_cursor(&mut self) -> &mut DeleteQueueCursor {
+        &mut self.delete_cursor
+    }
     
     pub fn meta(&self) -> &SegmentMeta {
         &self.meta

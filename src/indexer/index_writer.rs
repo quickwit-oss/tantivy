@@ -9,6 +9,11 @@ use indexer::SegmentEntry;
 use std::thread::JoinHandle;
 use indexer::MergePolicy;
 use indexer::SegmentWriter;
+use DocId;
+use bit_set::BitSet;
+use fastfield::delete::write_delete_bitset;
+use postings::SegmentPostingsOption;
+use postings::DocSet;
 use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
 use futures::Future;
@@ -19,6 +24,7 @@ use std::thread;
 use futures::Canceled;
 use std::mem;
 use datastruct::stacker::Heap;
+use core::SegmentReader;
 use std::mem::swap;
 use chan;
 use core::SegmentMeta;
@@ -84,6 +90,64 @@ impl !Send for IndexWriter {}
 impl !Sync for IndexWriter {}
 
 
+pub enum DocToOpstampMapping {
+    WithMap(Vec<u64>),
+    None
+}
+
+impl DocToOpstampMapping { 
+    fn compute_doc_limit(&self, opstamp: u64) -> DocId {
+        match *self {
+            DocToOpstampMapping::WithMap(ref doc_opstamps) => {
+                match doc_opstamps.binary_search(&opstamp) {
+                    Ok(doc_id) => doc_id as DocId,
+                    Err(doc_id) => doc_id as DocId,
+                }
+            }
+            DocToOpstampMapping::None => DocId::max_value(),
+        }
+    }
+}
+
+
+
+/// TODO
+/// work on SegmentMeta
+pub fn advance_deletes(
+    segment: &Segment,
+    delete_cursor: &mut DeleteQueueCursor,
+    doc_opstamps: DocToOpstampMapping) -> Result<(u64, BitSet)> {
+        let segment_reader = SegmentReader::open(segment.clone())?;
+        let mut delete_bitset = BitSet::new();
+        for doc in 0u32..segment_reader.max_doc() {
+            if segment_reader.is_deleted(doc) {
+                delete_bitset.insert(doc as usize);
+            }
+        }
+        let mut has_changed = false;
+        let mut last_opstamp = segment.opstamp();//segment
+        for delete_op in delete_cursor {
+            // A delete operation should only affect
+            // document that were inserted after it.
+            // 
+            // Limit doc helps identify the first document
+            // that may be affected by the delete operation.
+            let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+            if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+                while docset.advance() {
+                    has_changed = true;
+                    let deleted_doc = docset.doc();
+                    if deleted_doc < limit_doc {
+                        has_changed = true;
+                        delete_bitset.insert(deleted_doc as usize);
+                    }
+                }
+            }
+            last_opstamp = delete_op.opstamp;
+        }
+        Ok((last_opstamp, delete_bitset))
+}
+
 fn index_documents(heap: &mut Heap,
                    mut segment: Segment,
                    schema: &Schema,
@@ -106,32 +170,28 @@ fn index_documents(heap: &mut Heap,
     let num_docs = segment_writer.max_doc();
     assert!(num_docs > 0);    
 
-    let deleted_docset_opt = segment_writer.compute_deleted_bitset(delete_cursor);
 
     let last_opstamp = segment_writer.last_opstamp();
+    
+    let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let num_deleted_docs;
+    let (last_opstamp_after_deletes, deleted_docset) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))?; 
 
-    if let Some(deleted_docset) = deleted_docset_opt {
-        let mut delete_write = segment.open_write(SegmentComponent::DELETE(last_opstamp))?;
-        delete::write_delete_bitset(&deleted_docset, &mut delete_write)?;
-        num_deleted_docs = deleted_docset.len();
+    {
+        let mut delete_file = segment.with_opstamp(last_opstamp_after_deletes).open_write(SegmentComponent::DELETE)?;
+        write_delete_bitset(&deleted_docset, &mut delete_file)?;
     }
-    else {
-        num_deleted_docs = 0;
-    }
+    let num_deleted_docs = deleted_docset.len() as DocId;
 
     let segment_meta = SegmentMeta {
         segment_id: segment_id,
         num_docs: num_docs,
-        num_deleted_docs: num_deleted_docs as u32,
-        opstamp: last_opstamp,
+        num_deleted_docs: num_deleted_docs,
+        opstamp: last_opstamp_after_deletes,
     };
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
-    
-    try!(segment_writer.finalize());
-    
+
     segment_updater
         .add_segment(generation, segment_entry)
         .wait()
@@ -143,8 +203,6 @@ fn index_documents(heap: &mut Heap,
 impl IndexWriter {
     /// The index writer
     pub fn wait_merging_threads(mut self) -> Result<()> {
-
-        // let future = self.segment_updater.terminate();
         
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
@@ -165,9 +223,7 @@ impl IndexWriter {
             .wait_merging_thread()
             .map_err(|_| 
                 Error::ErrorInThread("Failed to join merging thread.".to_string())
-            )?;
-        // future.wait().unwrap(); // TODO do something with the result.
-        Ok(())
+            )
     }
 
     /// Spawns a new worker thread for indexing.
@@ -384,7 +440,6 @@ impl IndexWriter {
         Ok(self.committed_opstamp)
     }
 
-
     /// Commits all of the pending changes
     ///
     /// A call to commit blocks.
@@ -408,7 +463,7 @@ impl IndexWriter {
         let mut former_workers_join_handle = Vec::new();
         swap(&mut former_workers_join_handle,
              &mut self.workers_join_handle);
-             
+        
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = try!(worker_handle.join()
                 .map_err(|e| Error::ErrorInThread(format!("{:?}", e))));
@@ -416,6 +471,7 @@ impl IndexWriter {
             // add a new worker for the next generation.
             try!(self.add_indexing_worker());
         }
+
         // here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -426,8 +482,8 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-
         self.committed_opstamp = self.stamp();
+
         let future = self.segment_updater.commit(self.committed_opstamp);
 
         // wait for the segment update thread to have processed the info

@@ -208,8 +208,8 @@ impl Index {
     /// Return a segment object given a `segment_id`
     ///
     /// The segment may or may not exist.
-    pub fn segment(&self, segment_id: SegmentId, commit_opstamp: u64) -> Segment {
-        create_segment(self.clone(), segment_id, commit_opstamp)
+    pub fn segment(&self, segment_id: SegmentId, opstamp: u64) -> Segment {
+        create_segment(self.clone(), segment_id, opstamp)
     }
 
     /// Return a reference to the index directory.

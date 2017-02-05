@@ -2,7 +2,6 @@ use DocId;
 use std::io;
 use postings::PostingsSerializer;
 use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
-use indexer::document_receiver::DocumentReceiver;
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 4294967295;
@@ -29,11 +28,6 @@ pub trait Recorder: HeapAllocable {
     fn close_doc(&mut self, heap: &Heap);
     /// Returns the number of document that have been seen so far
     fn doc_freq(&self) -> u32;
-    /// Push all documents to a given DocumentLister.
-    fn push_documents(&self,
-            self_addr: u32,
-            document_receiver: &mut DocumentReceiver,
-            heap: &Heap);
     /// Pushes the postings information to the serializer.
     fn serialize(&self,
                  self_addr: u32,
@@ -77,15 +71,6 @@ impl Recorder for NothingRecorder {
 
     fn doc_freq(&self) -> u32 {
         self.doc_freq
-    }
-
-    fn push_documents(&self, 
-        self_addr: u32,
-        document_receiver: &mut DocumentReceiver,
-        heap: &Heap) {
-        for doc in self.stack.iter(self_addr, heap) {
-            document_receiver.receive(doc);
-        }
     }
 
     fn serialize(&self,
@@ -143,17 +128,6 @@ impl Recorder for TermFrequencyRecorder {
 
     fn doc_freq(&self) -> u32 {
         self.doc_freq
-    }
-
-    fn push_documents(&self, 
-        self_addr: u32,
-        document_receiver: &mut DocumentReceiver,
-        heap: &Heap) {
-        let mut doc_iter = self.stack.iter(self_addr, heap);
-        while let Some(doc) = doc_iter.next() {
-            doc_iter.next().expect("Panicked while trying to read a frequency");
-            document_receiver.receive(doc);
-        }
     }
 
     fn serialize(&self,
@@ -214,22 +188,6 @@ impl Recorder for TFAndPositionRecorder {
 
     fn doc_freq(&self) -> u32 {
         self.doc_freq
-    }
-
-    fn push_documents(&self, 
-        self_addr: u32,
-        document_receiver: &mut DocumentReceiver,
-        heap: &Heap) {
-        let mut positions_iter = self.stack.iter(self_addr, heap);
-        while let Some(doc) = positions_iter.next() {
-            document_receiver.receive(doc);
-            loop {
-                let position = positions_iter.next().expect("This should never happen. Pleasee report the bug.");
-                if position == POSITION_END {
-                    break;
-                }
-            }
-        }
     }
 
     fn serialize(&self,
