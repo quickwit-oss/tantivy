@@ -184,15 +184,10 @@ impl Index {
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
         let metas = load_metas(self.directory())?; 
-        let searchable_segment_ids = metas
+        Ok(metas
             .committed_segments
             .iter()
-            .map(|segment_meta| segment_meta.segment_id)
-            .collect::<Vec<_>>();
-        let commit_opstamp = metas.opstamp;
-        Ok(searchable_segment_ids
-            .into_iter()
-            .map(|segment_id| self.segment(segment_id, commit_opstamp))
+            .map(|segment_meta| self.segment(segment_meta))
             .collect())
     }
     
@@ -208,8 +203,17 @@ impl Index {
     /// Return a segment object given a `segment_id`
     ///
     /// The segment may or may not exist.
-    pub fn segment(&self, segment_id: SegmentId, opstamp: u64) -> Segment {
-        create_segment(self.clone(), segment_id, opstamp)
+    // pub fn segment(&self, segment_id: SegmentId, opstamp: u64) -> Segment {
+    //     (self.clone(), segment_id, opstamp)
+    // }
+
+    pub fn segment(&self, segment_meta: &SegmentMeta) -> Segment {
+        create_segment(self.clone(), segment_meta.segment_id, segment_meta.opstamp)
+    }
+
+    /// Creates a new segment.
+    pub fn new_segment(&self, opstamp: u64) -> Segment {
+        create_segment(self.clone(), SegmentId::generate_random(), opstamp)
     }
 
     /// Return a reference to the index directory.
@@ -225,7 +229,6 @@ impl Index {
     /// Reads the meta.json and returns the list of
     /// committed segments.
     pub fn committed_segments(&self) -> Result<Vec<SegmentMeta>> {
-        
         Ok(load_metas(self.directory())?.committed_segments)
     }
     
@@ -236,11 +239,6 @@ impl Index {
             .iter()
             .map(|segment_meta| segment_meta.segment_id)
             .collect())           
-    }
-
-    /// Creates a new segment.
-    pub fn new_segment(&self, opstamp: u64) -> Segment {
-        self.segment(SegmentId::generate_random(), opstamp)
     }
 
     /// Creates a new generation of searchers after

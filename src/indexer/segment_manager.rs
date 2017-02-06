@@ -101,7 +101,7 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self, docstamp: u64) {
+    pub fn commit(&self) {
         let mut registers_lock = self.write();
         let segment_entries = registers_lock.uncommitted.segment_entries();
         for segment_entry in segment_entries {

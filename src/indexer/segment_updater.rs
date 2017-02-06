@@ -177,7 +177,7 @@ impl SegmentUpdater {
     fn purge_deletes(&self, target_opstamp: u64) -> Result<()> {
         let uncommitted = self.0.segment_manager.segment_entries();
         for mut segment_entry in uncommitted {
-            let mut segment = self.0.index.segment(segment_entry.meta().segment_id, segment_entry.meta().opstamp); 
+            let mut segment = self.0.index.segment(segment_entry.meta()); 
             let (_, deleted_docset) = advance_deletes(
                  &segment,
                  segment_entry.delete_cursor(),
@@ -186,7 +186,6 @@ impl SegmentUpdater {
                 let mut delete_file = segment.with_opstamp(target_opstamp).open_write(SegmentComponent::DELETE)?;
                 write_delete_bitset(&deleted_docset, &mut delete_file)?;
             }
-            
         }
         Ok(())
     }
@@ -194,7 +193,7 @@ impl SegmentUpdater {
     pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
         self.run_async(move |segment_updater| {
             segment_updater.purge_deletes(opstamp).expect("Failed purge deletes");
-            segment_updater.0.segment_manager.commit(opstamp);
+            segment_updater.0.segment_manager.commit();
             let mut directory = segment_updater.0.index.directory().box_clone();
             save_metas(
                     &segment_updater.0.segment_manager,
@@ -238,7 +237,7 @@ impl SegmentUpdater {
             
             let segments: Vec<Segment> = segment_metas
                 .iter()
-                .map(|ref segment_metas| index.segment(segment_metas.segment_id, segment_metas.opstamp))
+                .map(|ref segment_meta| index.segment(segment_meta))
                 .collect();
             
             // An IndexMerger is like a "view" of our merged segments. 

@@ -157,14 +157,15 @@ impl SegmentRegister {
     } 
     
     pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentRegister {
-        let mut segment_states = HashMap::new();
-        for segment_meta in segment_metas {
-            let segment_id = segment_meta.segment_id;
-            let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
-            segment_states.insert(segment_id, segment_entry);
-        }
         SegmentRegister {
-            segment_states: segment_states,
+            segment_states: segment_metas
+                .into_iter()
+                .map(|segment_meta| {
+                    let segment_id = segment_meta.segment_id;
+                    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
+                    (segment_id, segment_entry)
+                })
+                .collect(),
         }
     }
 }
