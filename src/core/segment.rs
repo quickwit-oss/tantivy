@@ -65,8 +65,19 @@ impl Segment {
     /// It just joins the segment id with the extension 
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let path_suffix = component.path_suffix(self.opstamp);
-        PathBuf::from(self.segment_id.uuid_string() + &*path_suffix)
+        use self::SegmentComponent::*;
+        let mut path = self.segment_id.uuid_string();
+        path.push_str(&*match component {
+            POSITIONS => ".pos".to_string(),
+            INFO => ".info".to_string(),
+            POSTINGS => ".idx".to_string(),
+            TERMS => ".term".to_string(),
+            STORE => ".store".to_string(),
+            FASTFIELDS => ".fast".to_string(),
+            FIELDNORMS => ".fieldnorm".to_string(),
+            DELETE => {format!(".{}.del", self.opstamp)},
+        });
+        PathBuf::from(path)
     }
 
     /// Open one of the component file for read.
