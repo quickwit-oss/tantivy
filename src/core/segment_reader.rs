@@ -148,7 +148,7 @@ impl SegmentReader {
         
         // TODO 0u64
         let delete_bitset =
-            if segment.meta().delete_opstamp.is_some() {
+            if segment.meta().has_deletes() {
                 let delete_data = segment.open_read(SegmentComponent::DELETE)?;
                 DeleteBitSet::open(delete_data)
             }

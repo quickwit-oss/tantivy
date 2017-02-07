@@ -53,7 +53,7 @@ impl MergePolicy for LogMergePolicy {
         }
 
         let mut size_sorted_tuples = segments.iter()
-            .map(|x| x.num_docs)
+            .map(|x| x.num_docs())
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
@@ -121,12 +121,9 @@ mod tests {
     }
 
     fn seg_meta(num_docs: u32) -> SegmentMeta {
-        SegmentMeta {
-            segment_id: SegmentId::generate_random(),
-            num_docs: num_docs,
-            num_deleted_docs: 0u32,
-            delete_opstamp: None,
-        }
+        let mut segment_metas = SegmentMeta::new(SegmentId::generate_random());
+        segment_metas.set_num_docs(num_docs);
+        segment_metas
     }
 
     #[test]

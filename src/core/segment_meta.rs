@@ -1,14 +1,17 @@
 use core::SegmentId;
 
 
-// TODO Option<DeleteMeta>
+#[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
+struct DeleteMeta {
+    num_deleted_docs: u32,
+    opstamp: u64,
+}
 
 #[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
 pub struct SegmentMeta {
     pub segment_id: SegmentId,
-    pub num_docs: u32,
-    pub num_deleted_docs: u32,
-    pub delete_opstamp: Option<u64>,
+    num_docs: u32,
+    deletes: Option<DeleteMeta>, 
 }
 
 impl SegmentMeta {
@@ -16,8 +19,36 @@ impl SegmentMeta {
         SegmentMeta {
             segment_id: segment_id,
             num_docs: 0,
-            num_deleted_docs: 0,
-            delete_opstamp: None,
+            deletes: None,
         }
+    }
+
+    pub fn id(&self) -> SegmentId {
+        self.segment_id
+    }
+
+    pub fn num_docs(&self) -> u32 {
+        self.num_docs
+    } 
+
+    pub fn delete_opstamp(&self) -> Option<u64> {
+        self.deletes
+            .as_ref()
+            .map(|delete_meta| delete_meta.opstamp)
+    }
+
+    pub fn has_deletes(&self) -> bool {
+        self.deletes.is_some()
+    }
+
+    pub fn set_num_docs(&mut self, num_docs: u32) {
+        self.num_docs = num_docs;
+    }
+
+    pub fn set_deletes(&mut self, num_deleted_docs: u32, opstamp: u64) {
+        self.deletes = Some(DeleteMeta {
+            num_deleted_docs: num_deleted_docs,
+            opstamp: opstamp,
+        });
     }
 }

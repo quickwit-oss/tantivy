@@ -172,34 +172,27 @@ fn index_documents(heap: &mut Heap,
         }
     }
     let num_docs = segment_writer.max_doc();
+    
+    // this is ensured by the call to peek before starting
+    // the worker thread.
     assert!(num_docs > 0);    
-
+    
+    segment
+        .meta_mut()
+        .set_num_docs(num_docs);
 
     let last_opstamp = segment_writer.last_opstamp();
     
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let segment_meta =
-        if let Some((last_opstamp_after_deletes, deleted_docset)) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))? {
-            let mut delete_file = segment.with_delete_opstamp(last_opstamp_after_deletes).open_write(SegmentComponent::DELETE)?;
-            write_delete_bitset(&deleted_docset, &mut delete_file)?;
-            SegmentMeta {
-                segment_id: segment_id,
-                num_docs: num_docs,
-                num_deleted_docs: deleted_docset.len() as DocId,
-                delete_opstamp: Some(last_opstamp_after_deletes),
-            }
-        }
-        else {
-            SegmentMeta {
-                segment_id: segment_id,
-                num_docs: num_docs,
-                num_deleted_docs: 0,
-                delete_opstamp: None,
-            }
-        };
+    if let Some((last_opstamp_after_deletes, deleted_docset)) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))? {
+        let num_deleted_docs = deleted_docset.len();
+        segment.meta_mut().set_deletes(num_deleted_docs as u32, last_opstamp_after_deletes);
+        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
+        write_delete_bitset(&deleted_docset, &mut delete_file)?;
+    }
 
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
+    let segment_entry = SegmentEntry::new(segment.meta().clone(), delete_cursor.clone());
 
     segment_updater
         .add_segment(generation, segment_entry)

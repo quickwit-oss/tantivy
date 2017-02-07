@@ -183,7 +183,11 @@ impl SegmentUpdater {
                  segment_entry.delete_cursor(),
                  DocToOpstampMapping::None).unwrap()
             {   
-                let mut delete_file = segment.with_delete_opstamp(target_opstamp).open_write(SegmentComponent::DELETE)?;
+                let num_deleted_docs = deleted_docset.len();
+                // TODO previous mask?
+                // TODO save the resulting segment_entry
+                segment.meta_mut().set_deletes(num_deleted_docs as u32, target_opstamp);
+                let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
                 write_delete_bitset(&deleted_docset, &mut delete_file)?;
             }
         }
@@ -252,12 +256,8 @@ impl SegmentUpdater {
             // to merge the two segments.
             let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
-            let segment_meta = SegmentMeta {
-                segment_id: merged_segment.id(),
-                num_docs: num_docs,
-                num_deleted_docs: 0u32,
-                delete_opstamp: None, // TODO fix delete_opstamp
-            };
+            let mut segment_meta = SegmentMeta::new(merged_segment.id());
+            segment_meta.set_num_docs(num_docs);
             
             // TODO fix delete cursor
             let delete_queue = DeleteQueue::default();

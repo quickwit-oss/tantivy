@@ -41,23 +41,18 @@ impl Segment {
     pub fn schema(&self,) -> Schema {
         self.index.schema()
     }
-
+    
     pub fn meta(&self,) -> &SegmentMeta {
         &self.meta
+    }
+
+    pub fn meta_mut(&mut self,) -> &mut SegmentMeta {
+        &mut self.meta
     }
 
     /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
         self.meta.segment_id
-    }
-
-    pub fn with_delete_opstamp(self, opstamp: u64) -> Segment {
-        let mut meta = self.meta;
-        meta.delete_opstamp = Some(opstamp);
-        Segment {
-            index: self.index,
-            meta: meta,
-        }
     }
 
     /// Returns the relative path of a component of our segment.
@@ -75,7 +70,7 @@ impl Segment {
             STORE => ".store".to_string(),
             FASTFIELDS => ".fast".to_string(),
             FIELDNORMS => ".fieldnorm".to_string(),
-            DELETE => {format!(".{}.del", self.meta.delete_opstamp.unwrap_or(0))},
+            DELETE => {format!(".{}.del", self.meta.delete_opstamp().unwrap_or(0))},
         });
         PathBuf::from(path)
     }
