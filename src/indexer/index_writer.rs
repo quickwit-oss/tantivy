@@ -116,16 +116,11 @@ impl DocToOpstampMapping {
 pub fn advance_deletes(
     segment: &Segment,
     delete_cursor: &mut DeleteQueueCursor,
-    doc_opstamps: DocToOpstampMapping) -> Result<(u64, BitSet)> {
+    doc_opstamps: DocToOpstampMapping) -> Result<Option<(u64, BitSet)>> {
         let segment_reader = SegmentReader::open(segment.clone())?;
-        let mut delete_bitset = BitSet::new();
-        for doc in 0u32..segment_reader.max_doc() {
-            if segment_reader.is_deleted(doc) {
-                delete_bitset.insert(doc as usize);
-            }
-        }
-        let mut has_changed = false;
-        let mut last_opstamp = segment.opstamp();//segment
+        let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
+
+        let mut last_opstamp_opt: Option<u64> = None;
         for delete_op in delete_cursor {
             // A delete operation should only affect
             // document that were inserted after it.
@@ -135,17 +130,26 @@ pub fn advance_deletes(
             let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
             if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
                 while docset.advance() {
-                    has_changed = true;
                     let deleted_doc = docset.doc();
                     if deleted_doc < limit_doc {
-                        has_changed = true;
                         delete_bitset.insert(deleted_doc as usize);
                     }
                 }
+                last_opstamp_opt = Some(delete_op.opstamp);
             }
-            last_opstamp = delete_op.opstamp;
         }
-        Ok((last_opstamp, delete_bitset))
+
+        if let Some(last_opstamp) = last_opstamp_opt {
+            for doc in 0u32..segment_reader.max_doc() {
+                if segment_reader.is_deleted(doc) {
+                    delete_bitset.insert(doc as usize);
+                }
+            }
+            Ok(Some((last_opstamp, delete_bitset)))
+        }
+        else {
+            Ok(None)
+        }
 }
 
 fn index_documents(heap: &mut Heap,
@@ -175,20 +179,25 @@ fn index_documents(heap: &mut Heap,
     
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let (last_opstamp_after_deletes, deleted_docset) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))?; 
-
-    {
-        let mut delete_file = segment.with_opstamp(last_opstamp_after_deletes).open_write(SegmentComponent::DELETE)?;
-        write_delete_bitset(&deleted_docset, &mut delete_file)?;
-    }
-    let num_deleted_docs = deleted_docset.len() as DocId;
-
-    let segment_meta = SegmentMeta {
-        segment_id: segment_id,
-        num_docs: num_docs,
-        num_deleted_docs: num_deleted_docs,
-        opstamp: last_opstamp_after_deletes,
-    };
+    let segment_meta =
+        if let Some((last_opstamp_after_deletes, deleted_docset)) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))? {
+            let mut delete_file = segment.with_delete_opstamp(last_opstamp_after_deletes).open_write(SegmentComponent::DELETE)?;
+            write_delete_bitset(&deleted_docset, &mut delete_file)?;
+            SegmentMeta {
+                segment_id: segment_id,
+                num_docs: num_docs,
+                num_deleted_docs: deleted_docset.len() as DocId,
+                delete_opstamp: Some(last_opstamp_after_deletes),
+            }
+        }
+        else {
+            SegmentMeta {
+                segment_id: segment_id,
+                num_docs: num_docs,
+                num_deleted_docs: 0,
+                delete_opstamp: None,
+            }
+        };
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
 
@@ -252,6 +261,7 @@ impl IndexWriter {
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
                         .peekable();
+
                     // the peeking here is to avoid
                     // creating a new segment's files
                     // if no document are available.
@@ -269,8 +279,8 @@ impl IndexWriter {
                         // was dropped.
                         return Ok(())
                     }
- 
-                    let segment = index.new_segment(opstamp);
+
+                    let segment = index.new_segment();
                     let valid_generation = index_documents(&mut heap,
                                             segment,
                                             &schema,

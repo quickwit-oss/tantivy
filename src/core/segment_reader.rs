@@ -147,14 +147,15 @@ impl SegmentReader {
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
         // TODO 0u64
-        let delete_data_res = segment.open_read(SegmentComponent::DELETE);
-        let delete_bitset;
-        if let Err(FileError::FileDoesNotExist(_)) = delete_data_res {
-            delete_bitset = DeleteBitSet::empty();
-        }
-        else {
-            delete_bitset = DeleteBitSet::open(delete_data_res?);
-        }
+        let delete_bitset =
+            if segment.meta().delete_opstamp.is_some() {
+                let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+                DeleteBitSet::open(delete_data)
+            }
+            else {
+                DeleteBitSet::empty()
+            };
+        
         let schema = segment.schema();
         Ok(SegmentReader {
             segment_info: segment_info,

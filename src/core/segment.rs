@@ -9,30 +9,29 @@ use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
 use std::result;
+use core::SegmentMeta;
 use directory::error::{FileError, OpenWriteError};
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
 pub struct Segment {
     index: Index,
-    segment_id: SegmentId,
-    opstamp: u64,
+    meta: SegmentMeta,
 }
 
 impl fmt::Debug for Segment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Segment({:?})", self.segment_id.uuid_string())
+        write!(f, "Segment({:?})", self.id().uuid_string())
     }
 }
 
 /// Creates a new segment given an `Index` and a `SegmentId`
 /// 
 /// The function is here to make it private outside `tantivy`. 
-pub fn create_segment(index: Index, segment_id: SegmentId, opstamp: u64) -> Segment {
+pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
     Segment {
         index: index,
-        segment_id: segment_id,
-        opstamp: opstamp,
+        meta: meta,
     }
 }
 
@@ -43,20 +42,21 @@ impl Segment {
         self.index.schema()
     }
 
-    pub fn opstamp(&self) -> u64 {
-        self.opstamp
+    pub fn meta(&self,) -> &SegmentMeta {
+        &self.meta
     }
 
     /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
-        self.segment_id
+        self.meta.segment_id
     }
 
-    pub fn with_opstamp(&self, opstamp: u64) -> Segment {
+    pub fn with_delete_opstamp(self, opstamp: u64) -> Segment {
+        let mut meta = self.meta;
+        meta.delete_opstamp = Some(opstamp);
         Segment {
-            index: self.index.clone(),
-            segment_id: self.segment_id.clone(),
-            opstamp: opstamp,
+            index: self.index,
+            meta: meta,
         }
     }
 
@@ -66,7 +66,7 @@ impl Segment {
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         use self::SegmentComponent::*;
-        let mut path = self.segment_id.uuid_string();
+        let mut path = self.id().uuid_string();
         path.push_str(&*match component {
             POSITIONS => ".pos".to_string(),
             INFO => ".info".to_string(),
@@ -75,7 +75,7 @@ impl Segment {
             STORE => ".store".to_string(),
             FASTFIELDS => ".fast".to_string(),
             FIELDNORMS => ".fieldnorm".to_string(),
-            DELETE => {format!(".{}.del", self.opstamp)},
+            DELETE => {format!(".{}.del", self.meta.delete_opstamp.unwrap_or(0))},
         });
         PathBuf::from(path)
     }

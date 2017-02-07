@@ -186,7 +186,7 @@ impl Index {
         let metas = load_metas(self.directory())?; 
         Ok(metas
             .committed_segments
-            .iter()
+            .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
     }
@@ -200,20 +200,14 @@ impl Index {
         delete_segment(self.directory(), segment_id); 
     }
 
-    /// Return a segment object given a `segment_id`
-    ///
-    /// The segment may or may not exist.
-    // pub fn segment(&self, segment_id: SegmentId, opstamp: u64) -> Segment {
-    //     (self.clone(), segment_id, opstamp)
-    // }
-
-    pub fn segment(&self, segment_meta: &SegmentMeta) -> Segment {
-        create_segment(self.clone(), segment_meta.segment_id, segment_meta.opstamp)
+    pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
+        create_segment(self.clone(), segment_meta)
     }
 
     /// Creates a new segment.
-    pub fn new_segment(&self, opstamp: u64) -> Segment {
-        create_segment(self.clone(), SegmentId::generate_random(), opstamp)
+    pub fn new_segment(&self) -> Segment {
+        let segment_meta = SegmentMeta::new(SegmentId::generate_random());
+        create_segment(self.clone(), segment_meta)
     }
 
     /// Return a reference to the index directory.

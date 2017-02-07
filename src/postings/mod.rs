@@ -61,7 +61,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut segment = index.new_segment(0u64);
+        let mut segment = index.new_segment();
         let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
         let term = Term::from_field_text(text_field, "abc");
         posting_serializer.new_term(&term, 3).unwrap();
@@ -81,7 +81,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
-        let segment = index.new_segment(0u64);
+        let segment = index.new_segment();
         let heap = Heap::with_capacity(10_000_000);
         {
             let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();

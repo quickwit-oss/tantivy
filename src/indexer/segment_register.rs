@@ -195,14 +195,14 @@ mod tests {
         let segment_id_merged = SegmentId::generate_random();
         
         {
-            let segment_meta = SegmentMeta::new(segment_id_a, 10);
+            let segment_meta = SegmentMeta::new(segment_id_a);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::Ready);
         assert_eq!(segment_register.segment_ids(), vec!(segment_id_a));
         {
-            let segment_meta = SegmentMeta::new(segment_id_b, 20);
+            let segment_meta = SegmentMeta::new(segment_id_b);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
             segment_register.add_segment_entry(segment_entry);
         }
@@ -214,7 +214,7 @@ mod tests {
         segment_register.remove_segment(&segment_id_a);
         segment_register.remove_segment(&segment_id_b);
         {
-            let segment_meta_merged = SegmentMeta::new(segment_id_merged, 10 + 20);
+            let segment_meta_merged = SegmentMeta::new(segment_id_merged);
             let segment_entry = SegmentEntry::new(segment_meta_merged, delete_queue.cursor());
             segment_register.add_segment_entry(segment_entry);        
         }

@@ -177,13 +177,13 @@ impl SegmentUpdater {
     fn purge_deletes(&self, target_opstamp: u64) -> Result<()> {
         let uncommitted = self.0.segment_manager.segment_entries();
         for mut segment_entry in uncommitted {
-            let mut segment = self.0.index.segment(segment_entry.meta()); 
-            let (_, deleted_docset) = advance_deletes(
+            let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
+            if let Some((_, deleted_docset)) = advance_deletes(
                  &segment,
                  segment_entry.delete_cursor(),
-                 DocToOpstampMapping::None).unwrap();
-            {
-                let mut delete_file = segment.with_opstamp(target_opstamp).open_write(SegmentComponent::DELETE)?;
+                 DocToOpstampMapping::None).unwrap()
+            {   
+                let mut delete_file = segment.with_delete_opstamp(target_opstamp).open_write(SegmentComponent::DELETE)?;
                 write_delete_bitset(&deleted_docset, &mut delete_file)?;
             }
         }
@@ -237,20 +237,16 @@ impl SegmentUpdater {
             
             let segments: Vec<Segment> = segment_metas
                 .iter()
-                .map(|ref segment_meta| index.segment(segment_meta))
+                .cloned()
+                .map(|segment_meta| index.segment(segment_meta))
                 .collect();
             
             // An IndexMerger is like a "view" of our merged segments. 
             // TODO unwrap
             let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).expect("Creating index merger failed");
             
-            let opstamp = segment_metas
-                .iter()
-                .map(|meta| meta.opstamp)
-                .max()
-                .unwrap();
             
-            let mut merged_segment = index.new_segment(opstamp); 
+            let mut merged_segment = index.new_segment(); 
             
             // ... we just serialize this index merger in our new segment
             // to merge the two segments.
@@ -260,7 +256,7 @@ impl SegmentUpdater {
                 segment_id: merged_segment.id(),
                 num_docs: num_docs,
                 num_deleted_docs: 0u32,
-                opstamp: opstamp,
+                delete_opstamp: None, // TODO fix delete_opstamp
             };
             
             // TODO fix delete cursor

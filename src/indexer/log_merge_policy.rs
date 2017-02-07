@@ -120,11 +120,20 @@ mod tests {
         assert!(result_list.is_empty());
     }
 
+    fn seg_meta(num_docs: u32) -> SegmentMeta {
+        SegmentMeta {
+            segment_id: SegmentId::generate_random(),
+            num_docs: num_docs,
+            num_deleted_docs: 0u32,
+            delete_opstamp: None,
+        }
+    }
+
     #[test]
     fn test_log_merge_policy_pair() {
-        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 10)];
+        let test_input = vec![seg_meta(10),
+                              seg_meta(10),
+                              seg_meta(10)];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);
     }
@@ -132,12 +141,12 @@ mod tests {
     #[test]
     fn test_log_merge_policy_levels() {
         // multiple levels all get merged correctly
-        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000)];
+        let test_input = vec![seg_meta(10),
+                              seg_meta(10),
+                              seg_meta(10),
+                              seg_meta(1000),
+                              seg_meta(1000),
+                              seg_meta(1000)];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
     }
@@ -145,24 +154,24 @@ mod tests {
     #[test]
     fn test_log_merge_policy_within_levels() {
         // multiple levels all get merged correctly
-        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 10),
-                              SegmentMeta::new(SegmentId::generate_random(), 11),
-                              SegmentMeta::new(SegmentId::generate_random(), 12),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000),
-                              SegmentMeta::new(SegmentId::generate_random(), 1000)];
+        let test_input = vec![seg_meta(10),
+                              seg_meta(11),
+                              seg_meta(12),
+                              seg_meta(1000),
+                              seg_meta(1000),
+                              seg_meta(1000)];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
     }
     #[test]
     fn test_log_merge_policy_small_segments() {
         // multiple levels all get merged correctly
-        let test_input = vec![SegmentMeta::new(SegmentId::generate_random(), 1),
-                              SegmentMeta::new(SegmentId::generate_random(), 1),
-                              SegmentMeta::new(SegmentId::generate_random(), 1),
-                              SegmentMeta::new(SegmentId::generate_random(), 2),
-                              SegmentMeta::new(SegmentId::generate_random(), 2),
-                              SegmentMeta::new(SegmentId::generate_random(), 2)];
+        let test_input = vec![seg_meta(1),
+                              seg_meta(1),
+                              seg_meta(1),
+                              seg_meta(2),
+                              seg_meta(2),
+                              seg_meta(2)];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);
     }
