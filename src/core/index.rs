@@ -21,7 +21,7 @@ use core::IndexMeta;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
-use directory::error::{FileError, OpenWriteError};
+use directory::error::FileError;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -185,7 +185,7 @@ impl Index {
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
         let metas = load_metas(self.directory())?; 
         Ok(metas
-            .committed_segments
+            .segments
             .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
@@ -221,15 +221,15 @@ impl Index {
     }
 
     /// Reads the meta.json and returns the list of
-    /// committed segments.
-    pub fn committed_segments(&self) -> Result<Vec<SegmentMeta>> {
-        Ok(load_metas(self.directory())?.committed_segments)
+    /// segments in the last commit.
+    pub fn segments(&self) -> Result<Vec<SegmentMeta>> {
+        Ok(load_metas(self.directory())?.segments)
     }
     
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
         Ok(load_metas(self.directory())?
-            .committed_segments
+            .segments
             .iter()
             .map(|segment_meta| segment_meta.segment_id)
             .collect())           

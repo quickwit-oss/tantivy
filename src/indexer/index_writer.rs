@@ -19,7 +19,6 @@ use super::directory_lock::DirectoryLock;
 use futures::Future;
 use std::clone::Clone;
 use std::io;
-use fastfield::delete;
 use std::thread;
 use futures::Canceled;
 use std::mem;
@@ -27,7 +26,6 @@ use datastruct::stacker::Heap;
 use core::SegmentReader;
 use std::mem::swap;
 use chan;
-use core::SegmentMeta;
 use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
 use super::segment_updater::SegmentUpdater;
 use Result;
@@ -110,18 +108,17 @@ impl DocToOpstampMapping {
 }
 
 
-
 /// TODO
 /// work on SegmentMeta
 pub fn advance_deletes(
-    segment: &Segment,
+    segment: &mut Segment,
     delete_cursor: &mut DeleteQueueCursor,
-    doc_opstamps: DocToOpstampMapping) -> Result<Option<(u64, BitSet)>> {
+    doc_opstamps: DocToOpstampMapping) -> Result<SegmentEntry> {
         let segment_reader = SegmentReader::open(segment.clone())?;
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
 
         let mut last_opstamp_opt: Option<u64> = None;
-        for delete_op in delete_cursor {
+        while let Some(delete_op) = delete_cursor.next() {
             // A delete operation should only affect
             // document that were inserted after it.
             // 
@@ -145,11 +142,14 @@ pub fn advance_deletes(
                     delete_bitset.insert(doc as usize);
                 }
             }
-            Ok(Some((last_opstamp, delete_bitset)))
+            let num_deleted_docs = delete_bitset.len();
+            segment.meta_mut().set_deletes(num_deleted_docs as u32, last_opstamp);
+            let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
+            write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
-        else {
-            Ok(None)
-        }
+
+        Ok(SegmentEntry::new(segment.meta().clone(), delete_cursor.clone()))
+
 }
 
 fn index_documents(heap: &mut Heap,
@@ -161,7 +161,6 @@ fn index_documents(heap: &mut Heap,
                    delete_cursor: &mut DeleteQueueCursor)
                    -> Result<bool> {
     heap.clear();
-    let segment_id = segment.id();
     let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment.clone(), &schema));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
@@ -180,19 +179,10 @@ fn index_documents(heap: &mut Heap,
     segment
         .meta_mut()
         .set_num_docs(num_docs);
-
-    let last_opstamp = segment_writer.last_opstamp();
     
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    if let Some((last_opstamp_after_deletes, deleted_docset)) = advance_deletes(&segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))? {
-        let num_deleted_docs = deleted_docset.len();
-        segment.meta_mut().set_deletes(num_deleted_docs as u32, last_opstamp_after_deletes);
-        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
-        write_delete_bitset(&deleted_docset, &mut delete_file)?;
-    }
-
-    let segment_entry = SegmentEntry::new(segment.meta().clone(), delete_cursor.clone());
+    let segment_entry = advance_deletes(&mut segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))?;
 
     segment_updater
         .add_segment(generation, segment_entry)
@@ -262,9 +252,15 @@ impl IndexWriter {
                     // this is a valid guarantee as the 
                     // peeked document now belongs to
                     // our local iterator.
-                    let opstamp: u64;
-                    if let Some(operation) = document_iterator.peek() {
-                        opstamp = operation.opstamp;
+                    if document_iterator.peek().is_some() {
+                        let segment = index.new_segment();
+                        index_documents(&mut heap,
+                                        segment,
+                                        &schema,
+                                        generation,
+                                        &mut document_iterator,
+                                        &mut segment_updater,
+                                        &mut delete_cursor_clone)?;
                     }
                     else {
                         // No more documents.
@@ -273,14 +269,7 @@ impl IndexWriter {
                         return Ok(())
                     }
 
-                    let segment = index.new_segment();
-                    let valid_generation = index_documents(&mut heap,
-                                            segment,
-                                            &schema,
-                                            generation,
-                                            &mut document_iterator,
-                                            &mut segment_updater,
-                                            &mut delete_cursor_clone)?;
+                    
                 }
             })?;
         self.worker_id += 1;
@@ -402,7 +391,9 @@ impl IndexWriter {
         // by updating the generation in the segment updater,
         // pending add segment commands will be dismissed.
         self.generation += 1;
-        let rollback_future = self.segment_updater.new_generation(self.generation);
+
+        // TODO requires a new delete queue...
+        let rollback_future = self.segment_updater.rollback(self.generation);
         
         // we cannot drop segment ready receiver yet
         // as it would block the workers.
@@ -487,12 +478,15 @@ impl IndexWriter {
         // committed segments.
         self.committed_opstamp = self.stamp();
 
-        let future = self.segment_updater.commit(self.committed_opstamp);
+        let new_delete_queue = DeleteQueue::default();
+
+        let future = self.segment_updater.commit(self.committed_opstamp, new_delete_queue.cursor());
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
         future.wait().unwrap();
 
+        self.delete_queue = new_delete_queue;
         Ok(self.committed_opstamp)
     }    
 

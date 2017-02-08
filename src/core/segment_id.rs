@@ -1,10 +1,7 @@
 use uuid::Uuid;
 use std::fmt;
 use rustc_serialize::{Encoder, Decoder, Encodable, Decodable};
-use core::SegmentComponent;
-use std::path::PathBuf;
 use std::cmp::{Ordering, Ord};
-
 
 #[cfg(test)]
 use std::sync::atomic;

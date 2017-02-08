@@ -105,7 +105,7 @@ impl SegmentRegister {
             .collect()
     }
     
-    pub fn segment_entries(&self,) -> Vec<SegmentEntry>{
+    pub fn segment_entries(&self,) -> Vec<SegmentEntry> {
         self.segment_states
             .values()
             .cloned()

@@ -11,8 +11,7 @@ use core::SegmentMeta;
 ///
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct IndexMeta {
-    pub committed_segments: Vec<SegmentMeta>,
-    pub uncommitted_segments: Vec<SegmentMeta>,
+    pub segments: Vec<SegmentMeta>,
     pub schema: Schema,
     pub opstamp: u64,
 }
@@ -20,8 +19,7 @@ pub struct IndexMeta {
 impl IndexMeta {
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
-            committed_segments: Vec::new(),
-            uncommitted_segments: Vec::new(),
+            segments: vec!(),
             schema: schema,
             opstamp: 0u64,
         }

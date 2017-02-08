@@ -148,12 +148,7 @@ impl<'a> SegmentWriter<'a> {
 	// 	})
 	// 	.collect::<Vec<_>>()
 	// }
-
-	pub fn last_opstamp(&self) -> u64 {
-		*(self.doc_opstamps
-			.last()
-			.expect("Last doc opstamp called on an empty segment writer"))
-	}
+	
 	
 	/// Indexes a new document
 	///

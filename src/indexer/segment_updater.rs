@@ -10,11 +10,9 @@ use std::mem;
 use std::sync::atomic::Ordering;
 use std::ops::DerefMut;
 use futures::{Future, future};
-use fastfield::delete::write_delete_bitset;
 use futures::oneshot;
 use futures::Canceled;
 use std::thread;
-use core::SegmentComponent;
 use std::sync::atomic::AtomicUsize;
 use std::sync::RwLock;
 use core::SerializableSegment;
@@ -39,11 +37,9 @@ use std::io::Write;
 use super::segment_manager::{SegmentManager, get_segments};
 
 
-fn create_metas(segment_manager: &SegmentManager, schema: Schema, opstamp: u64) -> IndexMeta {
-    let (committed_segments, uncommitted_segments) = segment_manager.segment_metas();
+fn create_metas(metas: Vec<SegmentMeta>, schema: Schema, opstamp: u64) -> IndexMeta {
     IndexMeta {
-        committed_segments: committed_segments,
-        uncommitted_segments: uncommitted_segments,
+        segments: metas,
         schema: schema,
         opstamp: opstamp,
     }
@@ -63,8 +59,7 @@ pub fn save_new_metas(schema: Schema,
                   opstamp: u64,
                   directory: &mut Directory)
                   -> Result<()> {
-    let segment_manager = SegmentManager::default();
-    save_metas(&segment_manager, schema, opstamp, directory)
+    save_metas(vec!(), schema, opstamp, directory)
 }
 
 
@@ -78,12 +73,12 @@ pub fn save_new_metas(schema: Schema,
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-pub fn save_metas(segment_manager: &SegmentManager,
+pub fn save_metas(segment_metas: Vec<SegmentMeta>,
                   schema: Schema,
                   opstamp: u64,
                   directory: &mut Directory)
                   -> Result<()> {
-    let metas = create_metas(segment_manager, schema, opstamp);
+    let metas = create_metas(segment_metas, schema, opstamp);
     let mut w = Vec::new();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
     Ok(directory
@@ -119,8 +114,8 @@ impl SegmentUpdater {
             delete_cursor: DeleteQueueCursor)
             -> Result<SegmentUpdater>
     {   
-        let committed_segments = index.committed_segments()?;
-        let segment_manager = SegmentManager::from_segments(committed_segments, delete_cursor);
+        let segments = index.segments()?;
+        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         Ok(
             SegmentUpdater(Arc::new(InnerSegmentUpdater {
                 pool: CpuPool::new(1),
@@ -174,33 +169,31 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self, target_opstamp: u64) -> Result<()> {
-        let uncommitted = self.0.segment_manager.segment_entries();
-        for mut segment_entry in uncommitted {
-            let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-            if let Some((_, deleted_docset)) = advance_deletes(
-                 &segment,
-                 segment_entry.delete_cursor(),
-                 DocToOpstampMapping::None).unwrap()
-            {   
-                let num_deleted_docs = deleted_docset.len();
-                // TODO previous mask?
-                // TODO save the resulting segment_entry
-                segment.meta_mut().set_deletes(num_deleted_docs as u32, target_opstamp);
-                let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
-                write_delete_bitset(&deleted_docset, &mut delete_file)?;
-            }
-        }
-        Ok(())
+    fn purge_deletes(&self) -> Result<Vec<SegmentMeta>> {
+        let segment_entries = self.0.segment_manager.segment_entries();
+        segment_entries
+            .into_iter()
+            .map(|mut segment_entry| {
+                let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
+                advance_deletes(&mut segment, segment_entry.delete_cursor(), DocToOpstampMapping::None)
+                    .map(|entry| entry.meta().clone())
+            })
+            .collect()
     }
 
-    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
+    pub fn commit(&self, opstamp: u64, new_delete_queue: DeleteQueueCursor) -> impl Future<Item=(), Error=&'static str> {
         self.run_async(move |segment_updater| {
-            segment_updater.purge_deletes(opstamp).expect("Failed purge deletes");
-            segment_updater.0.segment_manager.commit();
+            let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
+            
+            let segment_entries = segment_metas.into_iter()
+                .map(|segment_meta| 
+                    SegmentEntry::new(segment_meta, new_delete_queue.clone())
+                )
+                .collect::<Vec<_>>();
+            segment_updater.0.segment_manager.commit(segment_entries);
             let mut directory = segment_updater.0.index.directory().box_clone();
             save_metas(
-                    &segment_updater.0.segment_manager,
+                    segment_updater.0.segment_manager.committed_segment_metas(),
                     segment_updater.0.index.schema(),
                     opstamp,
                     directory.borrow_mut()).expect("Could not save metas.");
@@ -297,8 +290,9 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             segment_updater.0.segment_manager.end_merge(&merged_segment_metas, resulting_segment_entry);
             let mut directory = segment_updater.0.index.directory().box_clone();
+            let segment_metas = segment_updater.0.segment_manager.committed_segment_metas();
             save_metas(
-                &segment_updater.0.segment_manager,
+                segment_metas,
                 segment_updater.0.index.schema(),
                 segment_updater.0.index.opstamp(),
                 directory.borrow_mut()).expect("Could not save metas.");

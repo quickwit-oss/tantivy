@@ -101,13 +101,13 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self) {
+    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
-        let segment_entries = registers_lock.uncommitted.segment_entries();
+        registers_lock.committed.clear();
+        registers_lock.uncommitted.clear();
         for segment_entry in segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
-        registers_lock.uncommitted.clear();    
     }
     
     pub fn start_merge(&self, segment_ids: &[SegmentId]) {
@@ -148,9 +148,9 @@ impl SegmentManager {
         }
     }
 
-    pub fn segment_metas(&self,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+    pub fn committed_segment_metas(&self,) -> Vec<SegmentMeta> {
         let registers_lock = self.read();
-        (registers_lock.committed.segment_metas(), registers_lock.uncommitted.segment_metas())
+        registers_lock.committed.segment_metas()
     }
 }
 
