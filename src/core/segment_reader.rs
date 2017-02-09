@@ -237,6 +237,10 @@ impl SegmentReader {
     
 
     /// Returns the posting list associated with a term.
+    ///
+    /// If the term is not found, return None.
+    /// Even when non-null, because of deletes, the posting object 
+    /// returned by this method may contain no documents.
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());
         let segment_posting_option = match *field_entry.field_type() {

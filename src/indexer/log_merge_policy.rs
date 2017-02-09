@@ -79,7 +79,7 @@ impl MergePolicy for LogMergePolicy {
             .filter(|level| level.len() >= self.min_merge_size)
             .map(|ind_vec| {
                 MergeCandidate(ind_vec.iter()
-                    .map(|&ind| segments[ind].segment_id)
+                    .map(|&ind| segments[ind].id())
                     .collect())
             })
             .collect()

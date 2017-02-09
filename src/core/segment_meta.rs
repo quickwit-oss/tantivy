@@ -9,7 +9,7 @@ struct DeleteMeta {
 
 #[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
 pub struct SegmentMeta {
-    pub segment_id: SegmentId,
+    segment_id: SegmentId,
     num_docs: u32,
     deletes: Option<DeleteMeta>, 
 }

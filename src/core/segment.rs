@@ -52,7 +52,7 @@ impl Segment {
 
     /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
-        self.meta.segment_id
+        self.meta.id()
     }
 
     /// Returns the relative path of a component of our segment.

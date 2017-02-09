@@ -3,7 +3,10 @@ use schema::Document;
 use super::operation::AddOperation;
 use core::Index;
 use core::Segment;
+use core::SegmentMeta;
+use std::sync::Arc;
 use core::SegmentId;
+use indexer::operation::DeleteOperation;
 use schema::Term;
 use indexer::SegmentEntry;
 use std::thread::JoinHandle;
@@ -18,15 +21,15 @@ use core::SegmentComponent;
 use super::directory_lock::DirectoryLock;
 use futures::Future;
 use std::clone::Clone;
+use indexer::delete_queue::DeleteQueue;
 use std::io;
 use std::thread;
 use futures::Canceled;
 use std::mem;
 use datastruct::stacker::Heap;
 use core::SegmentReader;
-use std::mem::swap;
+use std::mem::swap; 
 use chan;
-use super::delete_queue::{DeleteQueue, DeleteQueueCursor};
 use super::segment_updater::SegmentUpdater;
 use Result;
 use Error;
@@ -88,9 +91,17 @@ impl !Send for IndexWriter {}
 impl !Sync for IndexWriter {}
 
 
+// TODO move doc to opstamp mapping to its own file
+#[derive(Clone)]
 pub enum DocToOpstampMapping {
-    WithMap(Vec<u64>),
+    WithMap(Arc<Vec<u64>>),
     None
+}
+
+impl From<Vec<u64>> for DocToOpstampMapping {
+    fn from(opstamps: Vec<u64>) -> DocToOpstampMapping {
+        DocToOpstampMapping::WithMap(Arc::new(opstamps))
+    }
 }
 
 impl DocToOpstampMapping { 
@@ -112,13 +123,14 @@ impl DocToOpstampMapping {
 /// work on SegmentMeta
 pub fn advance_deletes(
     segment: &mut Segment,
-    delete_cursor: &mut DeleteQueueCursor,
-    doc_opstamps: DocToOpstampMapping) -> Result<SegmentEntry> {
+    delete_queue: &DeleteQueue,
+    doc_opstamps: &DocToOpstampMapping) -> Result<SegmentEntry> {
         let segment_reader = SegmentReader::open(segment.clone())?;
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
-
+        
         let mut last_opstamp_opt: Option<u64> = None;
-        while let Some(delete_op) = delete_cursor.next() {
+
+        for delete_op in delete_queue.operations() {
             // A delete operation should only affect
             // document that were inserted after it.
             // 
@@ -147,9 +159,7 @@ pub fn advance_deletes(
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
-
-        Ok(SegmentEntry::new(segment.meta().clone(), delete_cursor.clone()))
-
+        Ok(SegmentEntry::new(segment.meta().clone()))
 }
 
 fn index_documents(heap: &mut Heap,
@@ -157,8 +167,7 @@ fn index_documents(heap: &mut Heap,
                    schema: &Schema,
                    generation: usize,
                    document_iterator: &mut Iterator<Item=AddOperation>,
-                   segment_updater: &mut SegmentUpdater,
-                   delete_cursor: &mut DeleteQueueCursor)
+                   segment_updater: &mut SegmentUpdater)
                    -> Result<bool> {
     heap.clear();
     let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment.clone(), &schema));
@@ -182,7 +191,10 @@ fn index_documents(heap: &mut Heap,
     
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let segment_entry = advance_deletes(&mut segment, delete_cursor, DocToOpstampMapping::WithMap(doc_opstamps))?;
+    // let segment_entry = advance_deletes(&mut segment, delete_queue, delete_position, )?;
+
+    let mut segment_entry = SegmentEntry::new(SegmentMeta::new(segment.id()));
+    segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
 
     segment_updater
         .add_segment(generation, segment_entry)
@@ -230,8 +242,6 @@ impl IndexWriter {
         
         // TODO fix this. the cursor might be too advanced
         // at this point.
-        let delete_cursor = self.delete_queue.cursor();
-        
         let generation = self.generation;
 
         let join_handle: JoinHandle<Result<()>> =
@@ -239,7 +249,6 @@ impl IndexWriter {
             .name(format!("indexing thread {} for gen {}", self.worker_id, generation))
             .spawn(move || {
                 
-                let mut delete_cursor_clone = delete_cursor.clone();
                 loop {
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
@@ -259,8 +268,7 @@ impl IndexWriter {
                                         &schema,
                                         generation,
                                         &mut document_iterator,
-                                        &mut segment_updater,
-                                        &mut delete_cursor_clone)?;
+                                        &mut segment_updater)?;
                     }
                     else {
                         // No more documents.
@@ -308,9 +316,9 @@ impl IndexWriter {
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 
 
-        let delete_queue = DeleteQueue::default();
+        let delete_queue = DeleteQueue::new();
         
-        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor())?;
+        let segment_updater = SegmentUpdater::new(index.clone())?;
         
         let mut index_writer = IndexWriter {
             
@@ -429,6 +437,8 @@ impl IndexWriter {
             Error::ErrorInThread("Error while waiting for rollback.".to_string())
         )?;
 
+        self.delete_queue = DeleteQueue::new();
+
         // reset the opstamp
         self.uncommitted_opstamp = self.committed_opstamp;
         Ok(self.committed_opstamp)
@@ -478,9 +488,10 @@ impl IndexWriter {
         // committed segments.
         self.committed_opstamp = self.stamp();
 
-        let new_delete_queue = DeleteQueue::default();
+        let new_delete_queue = DeleteQueue::new();
 
-        let future = self.segment_updater.commit(self.committed_opstamp, new_delete_queue.cursor());
+        // TODO remove clone
+        let future = self.segment_updater.commit(self.delete_queue.clone(), self.committed_opstamp);
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
@@ -493,7 +504,11 @@ impl IndexWriter {
     
     pub fn delete_term(&mut self, term: Term) {
         let opstamp = self.stamp();
-        self.delete_queue.push(opstamp, term);
+        let delete_operation = DeleteOperation {
+            opstamp: opstamp,
+            term: term,
+        };
+        self.delete_queue.push_op(delete_operation);
     }
 
     fn stamp(&mut self) -> u64 {

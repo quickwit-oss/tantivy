@@ -1,9 +1,10 @@
 use core::SegmentId;
 use std::collections::HashMap;
 use core::SegmentMeta;
+use indexer::index_writer::DocToOpstampMapping;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use indexer::delete_queue::DeleteQueueCursor;
+
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum SegmentState {
@@ -24,17 +25,29 @@ impl SegmentState {
 pub struct SegmentEntry {
     meta: SegmentMeta,
     state: SegmentState,
-    delete_cursor: DeleteQueueCursor,
+    doc_to_opstamp: DocToOpstampMapping,
 }
 
 impl SegmentEntry {
 
-    pub fn segment_id(&self) -> SegmentId {
-        self.meta.segment_id
+    pub fn new(segment_meta: SegmentMeta) -> SegmentEntry {
+        SegmentEntry {
+            meta: segment_meta,
+            state: SegmentState::Ready,
+            doc_to_opstamp: DocToOpstampMapping::None,
+        }
     }
 
-    pub fn delete_cursor(&mut self) -> &mut DeleteQueueCursor {
-        &mut self.delete_cursor
+    pub fn doc_to_opstamp(&self) -> &DocToOpstampMapping {
+        &self.doc_to_opstamp
+    }
+
+    pub fn set_doc_to_opstamp(&mut self, doc_to_opstamp: DocToOpstampMapping) {
+        self.doc_to_opstamp = doc_to_opstamp;
+    }
+
+    pub fn segment_id(&self) -> SegmentId {
+        self.meta.id()
     }
     
     pub fn meta(&self) -> &SegmentMeta {
@@ -47,15 +60,6 @@ impl SegmentEntry {
 
     fn is_ready(&self,) -> bool {
         self.state == SegmentState::Ready
-    }
-
-    pub fn new(segment_meta: SegmentMeta,
-              delete_cursor: DeleteQueueCursor) -> SegmentEntry {
-        SegmentEntry {
-            meta: segment_meta,
-            state: SegmentState::Ready,
-            delete_cursor: delete_cursor,
-        }
     }
 }
 
@@ -117,14 +121,14 @@ impl SegmentRegister {
             .values()
             .map(|segment_entry| segment_entry.meta.clone())
             .collect();
-        segment_ids.sort_by_key(|meta| meta.segment_id);
+        segment_ids.sort_by_key(|meta| meta.id());
         segment_ids
     }
     
     pub fn segment_ids(&self,) -> Vec<SegmentId> {
         self.segment_metas()
             .into_iter()
-            .map(|segment_meta| segment_meta.segment_id)
+            .map(|segment_meta| segment_meta.id())
             .collect()
     }
     
@@ -141,7 +145,7 @@ impl SegmentRegister {
     }
     
     pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
-        let segment_id = segment_entry.meta.segment_id;
+        let segment_id = segment_entry.meta.id();
         self.segment_states.insert(segment_id, segment_entry);
     }
     
@@ -156,13 +160,13 @@ impl SegmentRegister {
             .start_merge();
     } 
     
-    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentRegister {
+    pub fn new(segment_metas: Vec<SegmentMeta>) -> SegmentRegister {
         SegmentRegister {
             segment_states: segment_metas
                 .into_iter()
                 .map(|segment_meta| {
-                    let segment_id = segment_meta.segment_id;
-                    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
+                    let segment_id = segment_meta.id();
+                    let segment_entry = SegmentEntry::new(segment_meta  );
                     (segment_id, segment_entry)
                 })
                 .collect(),
@@ -180,15 +184,12 @@ impl Default for SegmentRegister {
 
 #[cfg(test)]
 mod tests {
-    
     use core::SegmentId;
     use core::SegmentMeta;
-    use indexer::delete_queue::DeleteQueue;
     use super::*;
     
     #[test]
     fn test_segment_register() {
-        let delete_queue = DeleteQueue::default();
         let mut segment_register = SegmentRegister::default();
         let segment_id_a = SegmentId::generate_random();
         let segment_id_b = SegmentId::generate_random();
@@ -196,14 +197,14 @@ mod tests {
         
         {
             let segment_meta = SegmentMeta::new(segment_id_a);
-            let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta);
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::Ready);
         assert_eq!(segment_register.segment_ids(), vec!(segment_id_a));
         {
             let segment_meta = SegmentMeta::new(segment_id_b);
-            let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta);
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state, SegmentState::Ready);
@@ -215,7 +216,7 @@ mod tests {
         segment_register.remove_segment(&segment_id_b);
         {
             let segment_meta_merged = SegmentMeta::new(segment_id_merged);
-            let segment_entry = SegmentEntry::new(segment_meta_merged, delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta_merged);
             segment_register.add_segment_entry(segment_entry);        
         }
         assert_eq!(segment_register.segment_ids(), vec!(segment_id_merged));        

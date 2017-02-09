@@ -231,7 +231,7 @@ impl Index {
         Ok(load_metas(self.directory())?
             .segments
             .iter()
-            .map(|segment_meta| segment_meta.segment_id)
+            .map(|segment_meta| segment_meta.id())
             .collect())           
     }
 

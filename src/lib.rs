@@ -352,6 +352,78 @@ mod tests {
                 assert!(!postings.advance());
             }
         }
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {   // 0
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 1
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            index_writer.rollback().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 5);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+        }
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            { 
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            index_writer.rollback().unwrap();
+            {   
+                index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            }
+            index_writer.commit().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "c")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+        }
     }
 
 

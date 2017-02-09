@@ -22,13 +22,13 @@ use std::borrow::BorrowMut;
 use indexer::SegmentSerializer;
 use indexer::SegmentEntry;
 use schema::Schema;
-use indexer::index_writer::{advance_deletes, DocToOpstampMapping};
+use indexer::index_writer::advance_deletes;
 use directory::Directory;
 use std::thread::JoinHandle;
 use std::sync::Arc;
 use std::collections::HashMap;
 use rustc_serialize::json;
-use indexer::delete_queue::{DeleteQueueCursor, DeleteQueue};
+use indexer::delete_queue::DeleteQueue;
 use Result;
 use futures_cpupool::CpuPool;
 use core::IndexMeta;
@@ -37,13 +37,6 @@ use std::io::Write;
 use super::segment_manager::{SegmentManager, get_segments};
 
 
-fn create_metas(metas: Vec<SegmentMeta>, schema: Schema, opstamp: u64) -> IndexMeta {
-    IndexMeta {
-        segments: metas,
-        schema: schema,
-        opstamp: opstamp,
-    }
-}
 
 
 /// Save the index meta file.
@@ -78,7 +71,11 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
                   opstamp: u64,
                   directory: &mut Directory)
                   -> Result<()> {
-    let metas = create_metas(segment_metas, schema, opstamp);
+    let metas = IndexMeta {
+        segments: segment_metas,
+        schema: schema,
+        opstamp: opstamp,
+    };
     let mut w = Vec::new();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
     Ok(directory
@@ -109,13 +106,10 @@ struct InnerSegmentUpdater {
 
 impl SegmentUpdater {
 
-    pub fn new(
-            index: Index,
-            delete_cursor: DeleteQueueCursor)
-            -> Result<SegmentUpdater>
+    pub fn new(index: Index) -> Result<SegmentUpdater>
     {   
         let segments = index.segments()?;
-        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
+        let segment_manager = SegmentManager::from_segments(segments);
         Ok(
             SegmentUpdater(Arc::new(InnerSegmentUpdater {
                 pool: CpuPool::new(1),
@@ -149,7 +143,7 @@ impl SegmentUpdater {
         })
     }
 
-    pub fn new_generation(&mut self, generation: usize) -> impl Future<Item=(), Error=&'static str> {
+    pub fn rollback(&mut self, generation: usize) -> impl Future<Item=(), Error=&'static str> {
         self.0.generation.store(generation, Ordering::Release);
         self.run_async(|segment_updater| {
             segment_updater.0.segment_manager.rollback();
@@ -169,26 +163,24 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self) -> Result<Vec<SegmentMeta>> {
-        let segment_entries = self.0.segment_manager.segment_entries();
-        segment_entries
+    fn purge_deletes(&self, delete_queue: &DeleteQueue) -> Result<Vec<SegmentMeta>> {
+        self.0.segment_manager
+            .segment_entries()
             .into_iter()
-            .map(|mut segment_entry| {
+            .map(|segment_entry| {
                 let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-                advance_deletes(&mut segment, segment_entry.delete_cursor(), DocToOpstampMapping::None)
+                advance_deletes(&mut segment, delete_queue, segment_entry.doc_to_opstamp())
                     .map(|entry| entry.meta().clone())
             })
             .collect()
     }
 
-    pub fn commit(&self, opstamp: u64, new_delete_queue: DeleteQueueCursor) -> impl Future<Item=(), Error=&'static str> {
+    pub fn commit(&self, delete_queue: DeleteQueue, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
         self.run_async(move |segment_updater| {
-            let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
-            
-            let segment_entries = segment_metas.into_iter()
-                .map(|segment_meta| 
-                    SegmentEntry::new(segment_meta, new_delete_queue.clone())
-                )
+            let segment_metas = segment_updater.purge_deletes(&delete_queue).expect("Failed purge deletes");
+            let segment_entries = segment_metas
+                .into_iter()
+                .map(SegmentEntry::new)
                 .collect::<Vec<_>>();
             segment_updater.0.segment_manager.commit(segment_entries);
             let mut directory = segment_updater.0.index.directory().box_clone();
@@ -241,8 +233,6 @@ impl SegmentUpdater {
             // An IndexMerger is like a "view" of our merged segments. 
             // TODO unwrap
             let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).expect("Creating index merger failed");
-            
-            
             let mut merged_segment = index.new_segment(); 
             
             // ... we just serialize this index merger in our new segment
@@ -252,10 +242,7 @@ impl SegmentUpdater {
             let mut segment_meta = SegmentMeta::new(merged_segment.id());
             segment_meta.set_num_docs(num_docs);
             
-            // TODO fix delete cursor
-            let delete_queue = DeleteQueue::default();
-            
-            let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta);
             segment_updater_clone
                 .end_merge(segment_metas.clone(), segment_entry.clone())
                 .wait()
@@ -297,7 +284,7 @@ impl SegmentUpdater {
                 segment_updater.0.index.opstamp(),
                 directory.borrow_mut()).expect("Could not save metas.");
             for segment_meta in merged_segment_metas {
-                segment_updater.0.index.delete_segment(segment_meta.segment_id);
+                segment_updater.0.index.delete_segment(segment_meta.id());
             }
         })
         

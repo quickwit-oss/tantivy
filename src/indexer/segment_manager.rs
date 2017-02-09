@@ -3,7 +3,6 @@ use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
 use indexer::SegmentEntry;
-use indexer::delete_queue::DeleteQueueCursor;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 
@@ -52,11 +51,11 @@ pub fn get_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec
 
 impl SegmentManager {
     
-    pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteQueueCursor) -> SegmentManager {
+    pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
         SegmentManager {
-            registers: RwLock::new( SegmentRegisters {
+            registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas, delete_cursor),
+                committed: SegmentRegister::new(segment_metas),
             }),
         }
     }
@@ -131,7 +130,7 @@ impl SegmentManager {
     
     pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
-        let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.segment_id).collect();
+        let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.id()).collect();
         if registers_lock.uncommitted.contains_all(&merged_segment_ids) {
             for segment_id in &merged_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);
