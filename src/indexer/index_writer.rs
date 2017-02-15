@@ -130,7 +130,8 @@ pub fn advance_deletes(
         
         let mut last_opstamp_opt: Option<u64> = None;
 
-        for delete_op in delete_queue.operations() {
+        let delete_operations = delete_queue.operations();
+        for delete_op in delete_operations.iter() {
             // A delete operation should only affect
             // document that were inserted after it.
             // 
@@ -316,7 +317,7 @@ impl IndexWriter {
             chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 
 
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
         
         let segment_updater = SegmentUpdater::new(index.clone())?;
         
@@ -437,7 +438,7 @@ impl IndexWriter {
             Error::ErrorInThread("Error while waiting for rollback.".to_string())
         )?;
 
-        self.delete_queue = DeleteQueue::new();
+        self.delete_queue = DeleteQueue::default();
 
         // reset the opstamp
         self.uncommitted_opstamp = self.committed_opstamp;
@@ -488,7 +489,7 @@ impl IndexWriter {
         // committed segments.
         self.committed_opstamp = self.stamp();
 
-        let new_delete_queue = DeleteQueue::new();
+        let new_delete_queue = DeleteQueue::default();
 
         // TODO remove clone
         let future = self.segment_updater.commit(self.delete_queue.clone(), self.committed_opstamp);
@@ -508,7 +509,7 @@ impl IndexWriter {
             opstamp: opstamp,
             term: term,
         };
-        self.delete_queue.push_op(delete_operation);
+        self.delete_queue.push(delete_operation);
     }
 
     fn stamp(&mut self) -> u64 {

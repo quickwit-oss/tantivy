@@ -1,30 +1,58 @@
 use super::operation::DeleteOperation;
+use std::sync::{Arc, RwLock};
+use std::mem;
 
-// TODO remove clone
-#[derive(Clone)]
-pub struct DeleteQueue {
-    delete_operations: Vec<DeleteOperation>,
+/// This implementation assumes that we
+/// have a lot more write operation than read operations.
+
+#[derive(Default)]
+struct InnerDeleteQueue {
+    ro_chunks: ReadOnlyDeletes,
+    last_chunk: Vec<DeleteOperation>,
 }
+
+impl InnerDeleteQueue {
+    pub fn push(&mut self, delete_operation: DeleteOperation) {
+        self.last_chunk.push(delete_operation);
+    }
+
+    pub fn operations(&mut self,) -> ReadOnlyDeletes {
+        if self.last_chunk.len() > 0 {
+            let new_operations = vec!();
+            let new_ro_chunk = mem::replace(&mut self.last_chunk, new_operations);
+            self.ro_chunks.push(new_ro_chunk)
+        }
+        self.ro_chunks.clone()
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct ReadOnlyDeletes(Vec<Arc<Vec<DeleteOperation>>>);
+
+impl ReadOnlyDeletes {
+    fn push(&mut self, operations: Vec<DeleteOperation>) {
+        self.0.push(Arc::new(operations));
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a DeleteOperation> {
+        self.0
+            .iter()
+            .flat_map(|chunk| chunk.iter())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct DeleteQueue(Arc<RwLock<InnerDeleteQueue>>);
 
 impl DeleteQueue {
-
-    pub fn new() -> DeleteQueue {
-        DeleteQueue {
-            delete_operations: vec!(),
-        }
-    }
-    
-    pub fn push_op(&mut self, delete_operation: DeleteOperation) {
-        self.delete_operations.push(delete_operation);
+    pub fn push(&self, delete_operation: DeleteOperation) {
+        self.0.write().unwrap().push(delete_operation);
     }
 
-    pub fn operations(&self,) -> impl Iterator<Item=DeleteOperation> {
-        // TODO fix iterator
-        self.delete_operations.clone().into_iter()
+    pub fn operations(&self) -> ReadOnlyDeletes {
+        self.0.write().unwrap().operations()
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -34,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_deletequeue() {
-        let mut delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
         
         let make_op = |i: usize| {
             let field = Field(1u8);
@@ -44,8 +72,8 @@ mod tests {
             }
         };
 
-        delete_queue.push_op(make_op(1));
-        delete_queue.push_op(make_op(2));
+        delete_queue.push(make_op(1));
+        delete_queue.push(make_op(2));
         
         // TODO unit tests
 
