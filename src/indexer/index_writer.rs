@@ -130,7 +130,7 @@ pub fn advance_deletes(
         
         let mut last_opstamp_opt: Option<u64> = None;
 
-        let delete_operations = delete_queue.operations();
+        let delete_operations = delete_queue.snapshot();
         for delete_op in delete_operations.iter() {
             // A delete operation should only affect
             // document that were inserted after it.
@@ -319,7 +319,7 @@ impl IndexWriter {
 
         let delete_queue = DeleteQueue::default();
         
-        let segment_updater = SegmentUpdater::new(index.clone())?;
+        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.clone())?;
         
         let mut index_writer = IndexWriter {
             
@@ -438,7 +438,7 @@ impl IndexWriter {
             Error::ErrorInThread("Error while waiting for rollback.".to_string())
         )?;
 
-        self.delete_queue = DeleteQueue::default();
+        self.delete_queue.clear();
 
         // reset the opstamp
         self.uncommitted_opstamp = self.committed_opstamp;
@@ -489,16 +489,14 @@ impl IndexWriter {
         // committed segments.
         self.committed_opstamp = self.stamp();
 
-        let new_delete_queue = DeleteQueue::default();
-
         // TODO remove clone
-        let future = self.segment_updater.commit(self.delete_queue.clone(), self.committed_opstamp);
+        let future = self.segment_updater.commit(self.committed_opstamp);
 
         // wait for the segment update thread to have processed the info
         // TODO remove unwrap
         future.wait().unwrap();
 
-        self.delete_queue = new_delete_queue;
+        self.delete_queue.clear();
         Ok(self.committed_opstamp)
     }    
 

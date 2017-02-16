@@ -102,11 +102,12 @@ struct InnerSegmentUpdater {
     merging_thread_id: AtomicUsize,
     merging_threads: RwLock<HashMap<usize, JoinHandle<Result<SegmentEntry>>>>,
     generation: AtomicUsize,
+    delete_queue: DeleteQueue,
 }
 
 impl SegmentUpdater {
 
-    pub fn new(index: Index) -> Result<SegmentUpdater>
+    pub fn new(index: Index, delete_queue: DeleteQueue) -> Result<SegmentUpdater>
     {   
         let segments = index.segments()?;
         let segment_manager = SegmentManager::from_segments(segments);
@@ -119,6 +120,7 @@ impl SegmentUpdater {
                 merging_thread_id: AtomicUsize::default(),
                 merging_threads: RwLock::new(HashMap::new()),
                 generation: AtomicUsize::default(),
+                delete_queue: delete_queue,
             }))
         )
     }
@@ -163,21 +165,21 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self, delete_queue: &DeleteQueue) -> Result<Vec<SegmentMeta>> {
+    fn purge_deletes(&self) -> Result<Vec<SegmentMeta>> {
         self.0.segment_manager
             .segment_entries()
             .into_iter()
             .map(|segment_entry| {
                 let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-                advance_deletes(&mut segment, delete_queue, segment_entry.doc_to_opstamp())
+                advance_deletes(&mut segment, &self.0.delete_queue, segment_entry.doc_to_opstamp())
                     .map(|entry| entry.meta().clone())
             })
             .collect()
     }
 
-    pub fn commit(&self, delete_queue: DeleteQueue, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
+    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
         self.run_async(move |segment_updater| {
-            let segment_metas = segment_updater.purge_deletes(&delete_queue).expect("Failed purge deletes");
+            let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
             let segment_entries = segment_metas
                 .into_iter()
                 .map(SegmentEntry::new)
@@ -210,6 +212,8 @@ impl SegmentUpdater {
         
         let merging_join_handle = thread::spawn(move || {
             
+
+            // first we need to apply deletes to our segment.
             info!("Start merge: {:?}", segment_ids_vec);
             
             let ref index = segment_updater_clone.0.index;

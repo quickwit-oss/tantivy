@@ -16,13 +16,18 @@ impl InnerDeleteQueue {
         self.last_chunk.push(delete_operation);
     }
 
-    pub fn operations(&mut self,) -> ReadOnlyDeletes {
+    pub fn snapshot(&mut self,) -> ReadOnlyDeletes {
         if self.last_chunk.len() > 0 {
             let new_operations = vec!();
             let new_ro_chunk = mem::replace(&mut self.last_chunk, new_operations);
             self.ro_chunks.push(new_ro_chunk)
         }
         self.ro_chunks.clone()
+    }
+
+    pub fn clear(&mut self) {
+        self.ro_chunks.clear();
+        self.last_chunk.clear();
     }
 }
 
@@ -39,6 +44,10 @@ impl ReadOnlyDeletes {
             .iter()
             .flat_map(|chunk| chunk.iter())
     }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 #[derive(Clone, Default)]
@@ -49,8 +58,12 @@ impl DeleteQueue {
         self.0.write().unwrap().push(delete_operation);
     }
 
-    pub fn operations(&self) -> ReadOnlyDeletes {
-        self.0.write().unwrap().operations()
+    pub fn snapshot(&self) -> ReadOnlyDeletes {
+        self.0.write().unwrap().snapshot()
+    }
+
+    pub fn clear(&self) {
+        self.0.write().unwrap().clear();
     }
 }
 
@@ -74,40 +87,35 @@ mod tests {
 
         delete_queue.push(make_op(1));
         delete_queue.push(make_op(2));
-        
-        // TODO unit tests
 
-        // let mut delete_cursor_3 = delete_queue.cursor();
-        // let mut delete_cursor_3_b = delete_cursor_3.clone();
-        
-        // assert!(delete_cursor_3.next().is_none());
-        // assert!(delete_cursor_3.peek().is_none());
-        
-        // delete_queue.push_op(make_op(3));
-        // delete_queue.push_op(make_op(4));
-                
-        // assert_eq!(delete_cursor_3_b.peek(), Some(make_op(3)));
-        // let mut delete_cursor_3_c = delete_cursor_3_b.clone();
-        
-        // assert_eq!(delete_cursor_3_b.next(), Some(make_op(3)));
-        // let mut delete_cursor_4 = delete_cursor_3_b.clone();
-        
-        // assert_eq!(delete_cursor_3_b.peek(), Some(make_op(4)));
-        // assert_eq!(delete_cursor_3_b.next(), Some(make_op(4)));
-        
-        // assert_eq!(delete_cursor_3_c.next(), Some(make_op(3)));
-        
-        // assert!(delete_cursor_3_b.next().is_none());
-        // assert_eq!(delete_cursor_3_c.next(), Some(make_op(4)));
-        // assert!(delete_cursor_3_c.next().is_none());
-        
-        // assert_eq!(delete_cursor_3.peek(), Some(make_op(3)));
-        // assert_eq!(delete_cursor_3.next(), Some(make_op(3)));
-        // assert!(delete_cursor_3_b.next().is_none());
-        
-        // assert_eq!(delete_cursor_4.next(), Some(make_op(4)));
-        // assert!(delete_cursor_4.next().is_none());
-        
-        
+        let snapshot = delete_queue.snapshot();
+        {
+            let mut operations_it = snapshot.iter();
+            assert_eq!(operations_it.next().unwrap().opstamp, 1);
+            assert_eq!(operations_it.next().unwrap().opstamp, 2);
+            assert!(operations_it.next().is_none());
+        }
+        {   // iterating does not consume results.
+            let mut operations_it = snapshot.iter();
+            assert_eq!(operations_it.next().unwrap().opstamp, 1);
+            assert_eq!(operations_it.next().unwrap().opstamp, 2);
+            assert!(operations_it.next().is_none());
+        }
+        // operations does not own a lock on the queue.
+        delete_queue.push(make_op(3));
+        let snapshot2 = delete_queue.snapshot();
+        {
+            // operations is not affected by
+            // the push that occurs after.
+            let mut operations_it = snapshot.iter();
+            let mut operations2_it = snapshot2.iter();
+            assert_eq!(operations_it.next().unwrap().opstamp, 1);
+            assert_eq!(operations2_it.next().unwrap().opstamp, 1);
+            assert_eq!(operations_it.next().unwrap().opstamp, 2);
+            assert_eq!(operations2_it.next().unwrap().opstamp, 2);
+            assert!(operations_it.next().is_none());
+            assert_eq!(operations2_it.next().unwrap().opstamp, 3);
+            assert!(operations2_it.next().is_none());
+        }
     }
 }
