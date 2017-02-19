@@ -46,7 +46,6 @@ extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
 extern crate bit_set;
-extern crate notify;
 extern crate futures;
 extern crate futures_cpupool;
 
