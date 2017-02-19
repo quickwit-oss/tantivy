@@ -3,6 +3,7 @@ use core::SegmentReader;
 use core::Segment;
 use DocId;
 use core::SerializableSegment;
+use schema::FieldValue;
 use indexer::SegmentSerializer;
 use postings::PostingsSerializer;
 use fastfield::U32FastFieldReader;
@@ -170,7 +171,6 @@ impl IndexMerger {
         let mut merged_terms = TermIterator::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
         
-        
         let mut max_doc = 0;
 
         // map from segment doc ids to the resulting merged segment doc id.
@@ -252,7 +252,15 @@ impl IndexMerger {
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
-            try!(store_writer.stack_reader(store_reader));
+            for doc_id in 0..reader.max_doc() {
+                if !reader.is_deleted(doc_id) {
+                    let doc = try!(store_reader.get(doc_id));
+                    let field_values: Vec<&FieldValue> = doc.field_values()
+                        .iter()
+                        .collect();
+                    try!(store_writer.store(&field_values));
+                }
+            }   
         }
         Ok(())
     }

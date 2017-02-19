@@ -9,17 +9,14 @@ mod recorder;
 mod serializer;
 mod postings_writer;
 mod term_info;
-mod chained_postings;
 mod vec_postings;
 mod segment_postings;
 mod intersection;
-mod offset_postings;
 mod freq_handler;
 mod docset;
 mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
-pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
 pub use self::postings_writer::PostingsWriter;
@@ -29,11 +26,9 @@ pub use self::postings::Postings;
 
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
-pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
-
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 

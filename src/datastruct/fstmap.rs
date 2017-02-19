@@ -31,6 +31,12 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
     }
 
     /// Horribly unsafe, nobody should ever do that... except me :)
+    /// 
+    /// If used, it must be used by systematically alternating calls
+    /// to insert_key and insert_value.
+    ///
+    /// TODO see if I can bend Rust typesystem to enforce that
+    /// in a nice way.
     pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)

@@ -22,11 +22,6 @@ pub struct TermInfo {
     pub positions_offset: u32,
 }
 
-impl TermInfo {
-    pub fn inc_doc_freq(&mut self) {
-        self.doc_freq += 1;
-    }
-}
 
 impl BinarySerializable for TermInfo {
     fn serialize(&self, writer: &mut io::Write) -> io::Result<usize> {

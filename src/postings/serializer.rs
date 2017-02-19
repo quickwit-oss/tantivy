@@ -206,7 +206,7 @@ impl PostingsSerializer {
                      term_freq: u32,
                      position_deltas: &[u32])
                      -> io::Result<()> {
-        self.current_term_info.inc_doc_freq();
+        self.current_term_info.doc_freq += 1;
         self.doc_ids.push(doc_id);
         if self.text_indexing_options.is_termfreq_enabled() {
             self.term_freqs.push(term_freq as u32);
