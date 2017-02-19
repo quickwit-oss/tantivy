@@ -30,7 +30,21 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         })
     }
 
-    pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
+    /// Horribly unsafe, nobody should ever do that... except me :)
+    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
+        try!(self.fst_builder
+            .insert(key, self.data.len() as u64)
+            .map_err(convert_fst_error));
+        Ok(())
+    }
+
+    /// Horribly unsafe, nobody should ever do that... except me :)
+    pub fn insert_value(&mut self, value: &V) -> io::Result<()> {
+        try!(value.serialize(&mut self.data));
+        Ok(())
+    }
+
+    pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)
             .map_err(convert_fst_error));

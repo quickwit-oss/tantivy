@@ -56,6 +56,10 @@ impl DeleteBitSet {
         }
     }
 
+    pub fn has_deletes(&self) -> bool {
+        self.len() > 0
+    }
+
     pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false
@@ -72,7 +76,6 @@ impl DeleteBitSet {
 
 
 impl HasLen for DeleteBitSet {
-
     fn len(&self) -> usize {
         self.len
     }

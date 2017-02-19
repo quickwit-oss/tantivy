@@ -120,6 +120,7 @@ impl Default for SegmentRegister {
 
 #[cfg(test)]
 mod tests {
+    use indexer::SegmentState;
     use core::SegmentId;
     use core::SegmentMeta;
     use super::*;

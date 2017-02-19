@@ -9,6 +9,7 @@ use core::SegmentReader;
 use datastruct::stacker::Heap;
 use Error;
 use fastfield::delete::write_delete_bitset;
+use indexer::delete_queue::ReadOnlyDeletes;
 use futures::Canceled;
 use futures::Future;
 use indexer::delete_queue::DeleteQueue;
@@ -84,18 +85,22 @@ pub struct IndexWriter {
 impl !Send for IndexWriter {}
 impl !Sync for IndexWriter {}
 
-/// TODO
-/// work on SegmentMeta
+
+// TODO put delete bitset in segment entry
+// rather than DocToOpstamp.
+
+// TODO skip delete operation before teh 
+// last delete opstamp
+
 pub fn advance_deletes(
     segment: &mut Segment,
-    delete_queue: &DeleteQueue,
-    doc_opstamps: &DocToOpstampMapping) -> Result<SegmentEntry> {
+    delete_operations: &ReadOnlyDeletes,
+    doc_opstamps: &DocToOpstampMapping) -> Result<SegmentMeta> {
         let segment_reader = SegmentReader::open(segment.clone())?;
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
         
         let mut last_opstamp_opt: Option<u64> = None;
 
-        let delete_operations = delete_queue.snapshot();
         for delete_op in delete_operations.iter() {
             // A delete operation should only affect
             // document that were inserted after it.
@@ -125,7 +130,7 @@ pub fn advance_deletes(
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
-        Ok(SegmentEntry::new(segment.meta().clone()))
+        Ok(segment.meta().clone())
 }
 
 fn index_documents(heap: &mut Heap,

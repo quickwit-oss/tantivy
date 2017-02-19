@@ -266,6 +266,10 @@ impl SegmentReader {
         self.segment_id
     }
 
+    pub fn delete_bitset(&self) -> &DeleteBitSet {
+        &self.delete_bitset
+    }
+
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.delete_bitset.is_deleted(doc)
     }

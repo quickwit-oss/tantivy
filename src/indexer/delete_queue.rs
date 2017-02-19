@@ -32,6 +32,8 @@ impl InnerDeleteQueue {
 }
 
 
+
+// TODO Rename to DeleteQueueSnapshot
 #[derive(Default, Clone)]
 pub struct ReadOnlyDeletes(Vec<Arc<Vec<DeleteOperation>>>);
 

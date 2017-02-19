@@ -1,42 +1,40 @@
 #![allow(for_kv_map)]
 
 use core::Index;
-use Error;
-use core::Segment;
-use indexer::{MergePolicy, DefaultMergePolicy};
-use core::SegmentId;
-use core::SegmentMeta;
-use std::mem;
-use std::sync::atomic::Ordering;
-use std::ops::DerefMut;
-use futures::{Future, future};
-use futures::oneshot;
-use futures::Canceled;
-use std::thread;
-use std::sync::atomic::AtomicUsize;
-use std::sync::RwLock;
-use core::SerializableSegment;
-use indexer::MergeCandidate;
-use indexer::merger::IndexMerger;
-use std::borrow::BorrowMut;
-use indexer::SegmentSerializer;
-use indexer::SegmentEntry;
-use schema::Schema;
-use indexer::index_writer::advance_deletes;
-use directory::Directory;
-use std::thread::JoinHandle;
-use std::sync::Arc;
-use std::collections::HashMap;
-use rustc_serialize::json;
-use indexer::delete_queue::DeleteQueue;
-use Result;
-use futures_cpupool::CpuPool;
 use core::IndexMeta;
 use core::META_FILEPATH;
+use core::Segment;
+use core::SegmentId;
+use core::SegmentMeta;
+use core::SerializableSegment;
+use directory::Directory;
+use Error;
+use futures_cpupool::CpuPool;
+use futures::{Future, future};
+use futures::Canceled;
+use futures::oneshot;
+use indexer::{MergePolicy, DefaultMergePolicy};
+use indexer::delete_queue::DeleteQueue;
+use indexer::index_writer::advance_deletes;
+use indexer::MergeCandidate;
+use indexer::merger::IndexMerger;
+use indexer::SegmentEntry;
+use indexer::SegmentSerializer;
+use Result;
+use rustc_serialize::json;
+use schema::Schema;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
 use std::io::Write;
+use std::mem;
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::RwLock;
+use std::thread;
+use std::thread::JoinHandle;
 use super::segment_manager::{SegmentManager, get_segments};
-
-
 
 
 /// Save the index meta file.
@@ -171,8 +169,7 @@ impl SegmentUpdater {
             .into_iter()
             .map(|segment_entry| {
                 let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-                advance_deletes(&mut segment, &self.0.delete_queue, segment_entry.doc_to_opstamp())
-                    .map(|entry| entry.meta().clone())
+                advance_deletes(&mut segment, &self.0.delete_queue.snapshot(), segment_entry.doc_to_opstamp())
             })
             .collect()
     }
@@ -206,27 +203,37 @@ impl SegmentUpdater {
         let merging_thread_id = self.get_merging_thread_id();
         let (merging_future_send, merging_future_recv) = oneshot();
         
+        let delete_operations = self.0.delete_queue.snapshot();
+
         if segment_ids.is_empty() {
             return merging_future_recv;
         }
         
         let merging_join_handle = thread::spawn(move || {
             
-
             // first we need to apply deletes to our segment.
             info!("Start merge: {:?}", segment_ids_vec);
             
             let ref index = segment_updater_clone.0.index;
             let schema = index.schema();
-            let segment_metas: Vec<SegmentMeta> = segment_ids_vec
-                .iter()
-                .map(|segment_id| 
-                    segment_updater_clone.0.segment_manager
-                        .segment_entry(segment_id)
-                        .map(|segment_entry| segment_entry.meta().clone())
-                        .ok_or(Error::InvalidArgument(format!("Segment({:?}) does not exist anymore", segment_id)))
-                )
-                .collect::<Result<_>>()?;
+
+            let mut segment_metas = vec!();
+            for segment_id in &segment_ids_vec {
+                if let Some(segment_entry) = segment_updater_clone.0
+                    .segment_manager
+                    .segment_entry(segment_id) {
+                    let mut segment = index.segment(segment_entry.meta().clone());
+                    let segment_meta = advance_deletes(
+                         &mut segment,
+                         &delete_operations,
+                         segment_entry.doc_to_opstamp())?;
+                    segment_metas.push(segment_meta);
+                }
+                else {
+                    error!("Error, had to abort merge as some of the segment is not managed anymore.a");
+                    return Err(Error::InvalidArgument(format!("Segment {:?} requested for merge is not managed.", segment_id)));
+                }
+            }
             
             let segments: Vec<Segment> = segment_metas
                 .iter()
@@ -251,6 +258,7 @@ impl SegmentUpdater {
                 .end_merge(segment_metas.clone(), segment_entry.clone())
                 .wait()
                 .unwrap();
+            
             merging_future_send.complete(segment_entry.clone());
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(segment_entry)

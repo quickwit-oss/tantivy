@@ -122,7 +122,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         for (term_bytes, (addr, recorder)) in term_offsets {
             // TODO remove copy
             term.set_content(term_bytes);
-            try!(serializer.new_term(&term, recorder.doc_freq()));
+            try!(serializer.new_term(&term));
             try!(recorder.serialize(addr, serializer, heap));
             try!(serializer.close_term());
         }
