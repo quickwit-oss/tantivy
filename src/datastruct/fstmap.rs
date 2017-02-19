@@ -20,7 +20,7 @@ pub struct FstMapBuilder<W: Write, V: BinarySerializable> {
 }
 
 impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
-
+    
     pub fn new(w: W) -> io::Result<FstMapBuilder<W, V>> {
         let fst_builder = try!(fst::MapBuilder::new(w).map_err(convert_fst_error));
         Ok(FstMapBuilder {
@@ -50,6 +50,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)
@@ -146,7 +147,6 @@ mod tests {
         assert_eq!(keys.next().unwrap(), "abc".as_bytes());
         assert_eq!(keys.next().unwrap(), "abcd".as_bytes());
         assert_eq!(keys.next(), None);
- 
     }
 
 }
