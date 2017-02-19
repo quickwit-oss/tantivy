@@ -1,73 +1,9 @@
 use core::SegmentId;
 use std::collections::HashMap;
 use core::SegmentMeta;
-use indexer::index_writer::DocToOpstampMapping;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum SegmentState {
-    Ready,
-    InMerge,    
-}
-
-impl SegmentState {
-    fn letter_code(&self,) -> char {
-        match *self {
-            SegmentState::InMerge => 'M',
-            SegmentState::Ready => 'R',
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct SegmentEntry {
-    meta: SegmentMeta,
-    state: SegmentState,
-    doc_to_opstamp: DocToOpstampMapping,
-}
-
-impl SegmentEntry {
-
-    pub fn new(segment_meta: SegmentMeta) -> SegmentEntry {
-        SegmentEntry {
-            meta: segment_meta,
-            state: SegmentState::Ready,
-            doc_to_opstamp: DocToOpstampMapping::None,
-        }
-    }
-
-    pub fn doc_to_opstamp(&self) -> &DocToOpstampMapping {
-        &self.doc_to_opstamp
-    }
-
-    pub fn set_doc_to_opstamp(&mut self, doc_to_opstamp: DocToOpstampMapping) {
-        self.doc_to_opstamp = doc_to_opstamp;
-    }
-
-    pub fn segment_id(&self) -> SegmentId {
-        self.meta.id()
-    }
-    
-    pub fn meta(&self) -> &SegmentMeta {
-        &self.meta
-    }
-
-    fn start_merge(&mut self,) {
-        self.state = SegmentState::InMerge;
-    }
-
-    fn is_ready(&self,) -> bool {
-        self.state == SegmentState::Ready
-    }
-}
-
-impl Debug for SegmentEntry {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "SegmentEntry({:?}, {:?})", self.meta, self.state)
-    }
-}
+use indexer::segment_entry::SegmentEntry;
 
 
 
@@ -88,7 +24,7 @@ impl Debug for SegmentRegister {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         try!(write!(f, "SegmentRegister("));
         for (k, v) in &self.segment_states {
-            try!(write!(f, "{}:{}, ", k.short_uuid_string(), v.state.letter_code()));
+            try!(write!(f, "{}:{}, ", k.short_uuid_string(), v.state().letter_code()));
         }
         try!(write!(f, ")"));
         Ok(())
@@ -105,7 +41,7 @@ impl SegmentRegister {
         self.segment_states
             .values()
             .filter(|segment_entry| segment_entry.is_ready())
-            .map(|segment_entry| segment_entry.meta.clone())
+            .map(|segment_entry| segment_entry.meta().clone())
             .collect()
     }
     
@@ -119,7 +55,7 @@ impl SegmentRegister {
     pub fn segment_metas(&self,) -> Vec<SegmentMeta> {
         let mut segment_ids: Vec<SegmentMeta> = self.segment_states
             .values()
-            .map(|segment_entry| segment_entry.meta.clone())
+            .map(|segment_entry| segment_entry.meta().clone())
             .collect();
         segment_ids.sort_by_key(|meta| meta.id());
         segment_ids
@@ -145,7 +81,7 @@ impl SegmentRegister {
     }
     
     pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
-        let segment_id = segment_entry.meta.id();
+        let segment_id = segment_entry.segment_id();
         self.segment_states.insert(segment_id, segment_entry);
     }
     
@@ -200,18 +136,18 @@ mod tests {
             let segment_entry = SegmentEntry::new(segment_meta);
             segment_register.add_segment_entry(segment_entry);
         }
-        assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::Ready);
+        assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state(), SegmentState::Ready);
         assert_eq!(segment_register.segment_ids(), vec!(segment_id_a));
         {
             let segment_meta = SegmentMeta::new(segment_id_b);
             let segment_entry = SegmentEntry::new(segment_meta);
             segment_register.add_segment_entry(segment_entry);
         }
-        assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state, SegmentState::Ready);
+        assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state(), SegmentState::Ready);
         segment_register.start_merge(&segment_id_a);
         segment_register.start_merge(&segment_id_b);
-        assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state, SegmentState::InMerge);
-        assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state, SegmentState::InMerge);
+        assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state(), SegmentState::InMerge);
+        assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state(), SegmentState::InMerge);
         segment_register.remove_segment(&segment_id_a);
         segment_register.remove_segment(&segment_id_b);
         {

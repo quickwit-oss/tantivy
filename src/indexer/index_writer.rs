@@ -1,38 +1,36 @@
-use schema::Schema;
-use schema::Document;
-use super::operation::AddOperation;
+use bit_set::BitSet;
+use chan;
 use core::Index;
 use core::Segment;
-use core::SegmentMeta;
-use std::sync::Arc;
-use core::SegmentId;
-use indexer::operation::DeleteOperation;
-use schema::Term;
-use indexer::SegmentEntry;
-use std::thread::JoinHandle;
-use indexer::MergePolicy;
-use indexer::SegmentWriter;
-use DocId;
-use bit_set::BitSet;
-use fastfield::delete::write_delete_bitset;
-use postings::SegmentPostingsOption;
-use postings::DocSet;
 use core::SegmentComponent;
-use super::directory_lock::DirectoryLock;
-use futures::Future;
-use std::clone::Clone;
-use indexer::delete_queue::DeleteQueue;
-use std::io;
-use std::thread;
-use futures::Canceled;
-use std::mem;
-use datastruct::stacker::Heap;
+use core::SegmentId;
+use core::SegmentMeta;
 use core::SegmentReader;
-use std::mem::swap; 
-use chan;
-use super::segment_updater::SegmentUpdater;
-use Result;
+use datastruct::stacker::Heap;
 use Error;
+use fastfield::delete::write_delete_bitset;
+use futures::Canceled;
+use futures::Future;
+use indexer::delete_queue::DeleteQueue;
+use indexer::doc_opstamp_mapping::DocToOpstampMapping;
+use indexer::MergePolicy;
+use indexer::operation::DeleteOperation;
+use indexer::SegmentEntry;
+use indexer::SegmentWriter;
+use postings::DocSet;
+use postings::SegmentPostingsOption;
+use Result;
+use schema::Document;
+use schema::Schema;
+use schema::Term;
+use std::io;
+use std::mem;
+use std::mem::swap; 
+use std::thread;
+use std::thread::JoinHandle;
+use super::directory_lock::DirectoryLock;
+use super::operation::AddOperation;
+use super::segment_updater::SegmentUpdater;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -44,12 +42,8 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 // Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-
-
 type DocumentSender = chan::Sender<AddOperation>;
 type DocumentReceiver = chan::Receiver<AddOperation>;
-
-
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -89,35 +83,6 @@ pub struct IndexWriter {
 // IndexWriter cannot be sent to another thread.
 impl !Send for IndexWriter {}
 impl !Sync for IndexWriter {}
-
-
-// TODO move doc to opstamp mapping to its own file
-#[derive(Clone)]
-pub enum DocToOpstampMapping {
-    WithMap(Arc<Vec<u64>>),
-    None
-}
-
-impl From<Vec<u64>> for DocToOpstampMapping {
-    fn from(opstamps: Vec<u64>) -> DocToOpstampMapping {
-        DocToOpstampMapping::WithMap(Arc::new(opstamps))
-    }
-}
-
-impl DocToOpstampMapping { 
-    fn compute_doc_limit(&self, opstamp: u64) -> DocId {
-        match *self {
-            DocToOpstampMapping::WithMap(ref doc_opstamps) => {
-                match doc_opstamps.binary_search(&opstamp) {
-                    Ok(doc_id) => doc_id as DocId,
-                    Err(doc_id) => doc_id as DocId,
-                }
-            }
-            DocToOpstampMapping::None => DocId::max_value(),
-        }
-    }
-}
-
 
 /// TODO
 /// work on SegmentMeta
