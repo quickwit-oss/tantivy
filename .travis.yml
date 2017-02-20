@@ -32,4 +32,4 @@ after_success:
   - bash ./script/build-doc.sh
   - travis-cargo doc-upload
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then travis-cargo coveralls --no-sudo --verify; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./kcov/build/src/kcov --verify --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/tantivy-*; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./kcov/build/src/kcov --verify --coveralls-id=$TRAVIS_JOB_ID --include-path=`pwd`/src --exclude-path=`pwd`/cpp --exclude-pattern=/.cargo target/kcov target/debug/tantivy-*; fi
