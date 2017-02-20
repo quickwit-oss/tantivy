@@ -59,21 +59,38 @@ pub struct CacheInfo {
     pub mmapped: Vec<PathBuf>,
 }
 
-#[derive(Default)]
 struct MmapCache {
     counters: CacheCounters,
     cache: HashMap<PathBuf, Weak<Mmap>>,
+    purge_weak_limit: usize,
 }
+
+const STARTING_PURGE_WEAK_LIMIT: usize = 1_000;
+
+impl Default for MmapCache {
+    fn default() -> MmapCache {
+        MmapCache {
+            counters: CacheCounters::default(),
+            cache: HashMap::new(),
+            purge_weak_limit: STARTING_PURGE_WEAK_LIMIT,
+        }
+    }
+}
+
 
 impl MmapCache {
 
    fn cleanup(&mut self) {
+        let previous_cache_size = self.cache.len();
         let mut new_cache = HashMap::new();
         mem::swap(&mut new_cache, &mut self.cache);
         self.cache = new_cache
             .into_iter()
             .filter(|&(_, ref weak_ref)| weak_ref.upgrade().is_some())
             .collect();
+        if self.cache.len() == previous_cache_size {
+            self.purge_weak_limit *= 2;
+        }
     }
 
     fn get_info(&mut self) -> CacheInfo {
@@ -88,7 +105,9 @@ impl MmapCache {
     }
 
     fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, FileError> {
-        if self.cache.len() > 100 {
+        // if we exceed this limit, then we go through the weak
+        // and remove those that are obsolete.
+        if self.cache.len() > self.purge_weak_limit {
             self.cleanup();
         }
         Ok(match self.cache.entry(full_path.clone()) {
@@ -350,8 +369,6 @@ mod tests {
 
     #[test]
     fn test_cache() {
-
-        
         let content = "abc".as_bytes();
 
         // here we test if the cache releases
