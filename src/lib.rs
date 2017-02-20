@@ -28,8 +28,6 @@ extern crate log;
 
 #[macro_use]
 extern crate version;
-
-#[macro_use]
 extern crate fst;
 extern crate byteorder;
 extern crate memmap;
