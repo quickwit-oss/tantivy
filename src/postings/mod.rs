@@ -229,14 +229,23 @@ mod tests {
             let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
             
             let index = Index::create_in_ram(schema);
+            let mut count_a = 0;
+            let mut count_b = 0;
+            let posting_list_size = 100_000;
             {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-                for _ in 0 .. 1_500_000 {
+                for _ in 0 .. {
+                    if count_a >= posting_list_size &&
+                       count_b >= posting_list_size {
+                        break;
+                    }
                     let mut doc = Document::default();
-                    if rng.gen_weighted_bool(15) {
+                    if count_a < posting_list_size &&  rng.gen_weighted_bool(15) {
+                        count_a += 1;
                         doc.add_text(text_field, "a");
                     }
-                    if rng.gen_weighted_bool(10) {
+                    if count_b < posting_list_size && rng.gen_weighted_bool(10) {
+                        count_b += 1;
                         doc.add_text(text_field, "b");
                     }
                     index_writer.add_document(doc).unwrap();
