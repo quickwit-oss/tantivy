@@ -74,7 +74,6 @@ impl BinarySerializable for u64 {
 
 impl BinarySerializable for u8 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        // TODO error
         try!(writer.write_u8(*self));
         Ok(1)
     }

@@ -18,7 +18,7 @@ use store::StoreWriter;
 use core::SegmentInfo;
 use std::cmp::{min, max};
 use std::iter;
-use std::io;
+
 
 pub struct IndexMerger {
     schema: Schema,
@@ -70,11 +70,11 @@ fn compute_min_max_val(u32_reader: &U32FastFieldReader, max_doc: DocId, delete_b
     }
 }
 
-fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> io::Result<U32FastFieldReader> {
-    segment_reader.get_fieldnorms_reader(field)
+fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Result<U32FastFieldReader> {
+    Ok(segment_reader.get_fieldnorms_reader(field)?)
 }
 
-fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> io::Result<U32FastFieldReader> {
+fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Result<U32FastFieldReader> {
     segment_reader.get_fast_field_reader(field)
 }
 
@@ -121,7 +121,7 @@ impl IndexMerger {
     // used both to merge field norms and regular u32 fast fields.
     fn generic_write_fast_field(&self,
         fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> io::Result<U32FastFieldReader>,
+        field_reader_extractor: &Fn(&SegmentReader, Field) -> Result<U32FastFieldReader>,
         fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         
         for field in fields {
@@ -509,14 +509,6 @@ mod tests {
             index_writer.merge(&segment_ids)
                         .wait()
                         .expect("Merging failed");
-            index_writer.wait_merging_threads().unwrap();
-        
-            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            index_writer.merge(&segment_ids)
-                        .wait()
-                        .expect("Merging failed");
-            index_writer.wait_merging_threads().unwrap();
             index.load_searchers().unwrap();
             let ref searcher = *index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -534,6 +526,65 @@ mod tests {
             assert_eq!(score_field_reader.min_val(), 3);
             assert_eq!(score_field_reader.max_val(), 7000);
         }
+        {   
+            // test a commit with only deletes
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            index_writer.commit().unwrap();
+        
+            index.load_searchers().unwrap();
+            let ref searcher = *index.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            assert_eq!(searcher.num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
+            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_val(), 3);
+            assert_eq!(score_field_reader.max_val(), 7000);
+        }
+        {   // Test merging a single segment in order to remove deletes.
+            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
+            index_writer.merge(&segment_ids)
+                        .wait()
+                        .expect("Merging failed");
+            index.load_searchers().unwrap();
+
+            let ref searcher = *index.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            assert_eq!(searcher.num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 2);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
+            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_val(), 6000);
+            assert_eq!(score_field_reader.max_val(), 7000);
+        }
+
+        {   // Test removing all docs
+            index_writer.delete_term(Term::from_field_text(text_field, "g"));
+            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
+            index_writer.merge(&segment_ids)
+                        .wait()
+                        .expect("Merging failed");
+            index.load_searchers().unwrap();
+
+            let ref searcher = *index.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            assert_eq!(searcher.num_docs(), 0);
+        }
+        
         
     }
 }

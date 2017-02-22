@@ -26,7 +26,6 @@ use directory::error::FileError;
 const NUM_SEARCHERS: usize = 12;
 
 
-
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
@@ -117,7 +116,6 @@ impl Index {
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
         let opstamp = metas.opstamp;
-        // TODO log somethings is uncommitted is not empty.
         let index = Index {
             directory: directory,
             schema: schema,
@@ -137,7 +135,7 @@ impl Index {
     /// Opens a new directory from an index path.
     pub fn open(directory_path: &Path) -> Result<Index> {
         let directory = try!(MmapDirectory::open(directory_path));
-        let metas = try!(load_metas(&directory)); //< TODO does the directory already exists?
+        let metas = try!(load_metas(&directory));
         Index::create_from_metas(directory.box_clone(), metas)
     }
 

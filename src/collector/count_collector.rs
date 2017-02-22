@@ -1,7 +1,7 @@
-use std::io;
 use super::Collector;
 use DocId;
 use Score;
+use Result;
 use SegmentReader;
 use SegmentLocalId;
 
@@ -28,7 +28,7 @@ impl Default for CountCollector {
 
 impl Collector for CountCollector {
 
-    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
+    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         Ok(())
     }
 

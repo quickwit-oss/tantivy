@@ -74,16 +74,19 @@ impl SegmentReader {
     }
 
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fast_field_reader(&self, field: Field) -> Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match *field_entry.field_type() {
-            FieldType::Str(_) => {
-                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+        match field_entry.field_type() {
+            &FieldType::Str(_) => {
+                Err(Error::InvalidArgument(format!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name())))
             },
-            FieldType::U32(_) => {
-                // TODO check that the schema allows that
-                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
-                self.fast_fields_reader.get_field(field)
+            &FieldType::U32(ref u32_options) => {
+                if u32_options.is_fast() {
+                    Ok(self.fast_fields_reader.get_field(field)?)
+                }
+                else {
+                    Err(Error::InvalidArgument(format!("Field <{}> is not defined as a fast field.", field_entry.name())))
+                }
             },
         }
     }

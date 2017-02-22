@@ -117,14 +117,16 @@ pub use postings::SegmentPostingsOption;
 
 pub use core::TermIterator;
 
-#[cfg(feature="simdcompression")]
-pub fn version() -> &'static str {
-    concat!(version!(), "-simd")  
-}
 
-#[cfg(not(feature="simdcompression"))]
+/// Expose the current version of tantivy, as well
+/// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
-    concat!(version!(), "-nosimd") 
+    if cfg!(feature="simdcompression") {
+        concat!(version!(), "-simd")  
+    }
+    else {
+        concat!(version!(), "-nosimd") 
+    }
 }
 
 /// Tantivy's makes it possible to personalize when 
