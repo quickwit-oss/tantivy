@@ -257,15 +257,25 @@ mod tests {
     }
     
     #[bench]
+    fn bench_block_segment_postings(b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        b.iter(|| {
+            let mut block_segment_postings = segment_reader.read_block_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            while block_segment_postings.advance() {}
+        });
+    }
+
+    #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
-        
         b.iter(|| {
-            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            while segment_postings.advance_block() {}
+            let mut block_segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            while block_segment_postings.advance() {}
         });
-    }    
+    } 
+
     
     #[bench]
     fn bench_segment_intersection(b: &mut Bencher) {

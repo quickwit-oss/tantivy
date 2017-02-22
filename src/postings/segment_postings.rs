@@ -33,15 +33,15 @@ impl<'a> BlockSegmentPostings<'a> {
         }
     }
 
-    fn docs(&self) -> &[DocId] {
+    pub fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
     }
     
-    fn freq_handler(&self) -> &FreqHandler {
+    pub fn freq_handler(&self) -> &FreqHandler {
         &self.freq_handler
     }
     
-    fn advance(&mut self) -> bool {
+    pub fn advance(&mut self) -> bool {
         if self.num_binpacked_blocks > 0 {
             self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
             self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
@@ -61,7 +61,6 @@ impl<'a> BlockSegmentPostings<'a> {
             }
         }
     }
-    
     
     /// Returns an empty segment postings object
     pub fn empty() -> BlockSegmentPostings<'static> {
@@ -107,10 +106,6 @@ impl<'a> SegmentPostings<'a> {
             cur: Wrapping(usize::max_value()),
             cur_block_len: 0,
         }
-    }
-
-    pub fn advance_block(&mut self) -> bool {
-        self.block_cursor.advance()
     }
     
     /// Returns an empty segment postings object
