@@ -100,7 +100,7 @@ impl<'a> TermIterator<'a> {
         for segment_ord in self.current_segment_ords.drain(..) {
             if let Some(term) = self.key_streams[segment_ord].next() {
                 self.heap.push(HeapItem {
-                    term: Term::from(term),
+                    term: Term::from_bytes(term),
                     segment_ord: segment_ord,
                 });
             }

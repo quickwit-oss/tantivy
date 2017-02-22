@@ -11,7 +11,6 @@ use std::str;
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 
-
 impl Term {
     
     /// Pre-allocate a term buffer. 
@@ -64,6 +63,14 @@ impl Term {
         Term(buffer)
     }
     
+    /// Builds a term from its byte representation.
+    ///
+    /// If you want to build a field for a given `str`,
+    /// you want to use `from_field_text`.
+    pub fn from_bytes(data: &[u8]) -> Term {
+        Term(Vec::from(data))
+    }
+
     /// Returns the serialized value of the term.
     /// (this does not include the field.)
     ///
@@ -96,12 +103,6 @@ impl Term {
     }
 }
 
-impl<'a> From<&'a [u8]> for Term {
-    fn from(data: &[u8]) -> Term {
-        Term(Vec::from(data))
-    }
-}
-
 impl AsRef<[u8]> for Term {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -113,7 +114,6 @@ impl fmt::Debug for Term {
         write!(f, "Term({:?})", &self.0[..])
     }
 }
-
 
 
 #[cfg(test)]
