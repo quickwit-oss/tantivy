@@ -64,6 +64,7 @@ fn compute_min_max_val(u32_reader: &U32FastFieldReader, max_doc: DocId, delete_b
         // we need to recompute the max / min
         (0..max_doc)
             .filter(|doc_id| !delete_bitset.is_deleted(*doc_id))
+            .map(|doc_id| u32_reader.get(doc_id))
             .minmax()
             .into_option()
     }
@@ -283,11 +284,15 @@ mod tests {
     use schema;
     use schema::Document;
     use schema::Term;
+    use query::TermQuery;
+    use schema::{Field, FieldValue};
     use core::Index;
+    use Searcher;
     use DocAddress;
     use collector::tests::FastFieldTestCollector;
     use collector::tests::TestCollector;
     use query::BooleanQuery;
+    use postings::SegmentPostingsOption;
     use schema::TextIndexingOptions;
     use futures::Future;
 
@@ -396,11 +401,139 @@ mod tests {
                     let query = BooleanQuery::new_multiterms_query(terms);
                     let mut collector = FastFieldTestCollector::for_field(score_field);
                     assert!(searcher.search(&query, &mut collector).is_ok());
-                    collector.vals().clone()
+                    collector.vals()
                 };
                 assert_eq!(get_fast_vals(vec![Term::from_field_text(text_field, "a")]),
                            vec!(5, 7, 13,));
             }
         }
+    }
+
+    fn search_term(searcher: &Searcher, term: Term) ->  Vec<u32> {
+        let mut collector = FastFieldTestCollector::for_field(Field(1));
+        let term_query = TermQuery::new(term, SegmentPostingsOption::NoFreq);
+        searcher.search(&term_query, &mut collector).unwrap();
+        collector.vals()
+    }
+
+    #[test]
+    fn test_index_merger_with_deletes() {
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_fieldtype = schema::TextOptions::default()
+                                 .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+                                 .set_stored();
+        let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let score_fieldtype = schema::U32Options::default().set_fast();
+        let score_field = schema_builder.add_u32_field("score", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            
+        {   // a first commit
+            index_writer.add_document(
+                doc!(
+                    text_field => "a b d",
+                    score_field => 1
+                )).unwrap();
+            index_writer.add_document(
+                doc!(
+                    text_field => "b c",
+                    score_field => 2
+                )).unwrap();
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            index_writer.add_document(
+                doc!(
+                    text_field => "c d",
+                    score_field => 3
+                )).unwrap();
+            index_writer.commit().expect("committed");
+            index.load_searchers().unwrap();
+            let ref searcher = *index.searcher();
+            assert_eq!(searcher.num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!(1));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!(1));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!(3));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!(1, 3));
+        }
+        {   // a second commit
+            index_writer.add_document(
+                doc!(
+                    text_field => "a d e",
+                    score_field => 4_000
+                )).unwrap();
+            index_writer.add_document(
+                doc!(
+                    text_field => "e f",
+                    score_field => 5_000
+                )).unwrap();
+            index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            index_writer.delete_term(Term::from_field_text(text_field, "f"));
+            index_writer.add_document(
+                doc!(
+                    text_field => "f g",
+                    score_field => 6_000
+                )).unwrap();
+            index_writer.add_document(
+                doc!(
+                    text_field => "g h",
+                    score_field => 7_000
+                )).unwrap();
+            index_writer.commit().expect("committed");
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            assert_eq!(searcher.segment_readers().len(), 2);
+            assert_eq!(searcher.num_docs(), 3);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
+            assert_eq!(searcher.segment_readers()[1].num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[1].max_doc(), 4);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!(3));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!(3));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
+            
+            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_val(), 1);
+            assert_eq!(score_field_reader.max_val(), 3);
+
+            let score_field_reader = searcher.segment_reader(1).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_val(), 4000);
+            assert_eq!(score_field_reader.max_val(), 7000);
+        }
+        {   // merging the segments
+            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
+            index_writer.merge(&segment_ids)
+                        .wait()
+                        .expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
+        
+            let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.merge(&segment_ids)
+                        .wait()
+                        .expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
+            index.load_searchers().unwrap();
+            let ref searcher = *index.searcher();
+            assert_eq!(searcher.segment_readers().len(), 1);
+            assert_eq!(searcher.num_docs(), 3);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 3);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!(3));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!(3));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
+            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_val(), 3);
+            assert_eq!(score_field_reader.max_val(), 7000);
+        }
+        
     }
 }

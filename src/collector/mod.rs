@@ -140,8 +140,8 @@ pub mod tests {
             }
         }
 
-        pub fn vals(&self,) -> &Vec<u32> {
-            &self.vals
+        pub fn vals(self,) -> Vec<u32> {
+            self.vals
         }
     }
         
