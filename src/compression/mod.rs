@@ -26,7 +26,7 @@ pub trait VIntDecoder {
     fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> &'a [u8];
 }
 
-impl VIntEncoder for BlockEncoder{
+impl VIntEncoder for BlockEncoder {
     
     fn compress_vint_sorted(&mut self, input: &[u32], mut offset: u32) -> &[u8] {
         let mut byte_written = 0;

@@ -6,6 +6,63 @@ use std::num::Wrapping;
 
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
 
+
+struct SegmentPostingsBlockCursor<'a> {
+    num_binpacked_blocks: usize,
+    num_vint_docs: usize,
+    block_decoder: BlockDecoder,
+    freq_handler: FreqHandler,
+    remaining_data: &'a [u8],
+    doc_offset: DocId,
+}
+
+impl<'a> SegmentPostingsBlockCursor<'a> {
+        
+    fn docs(&self) -> &[DocId] {
+        self.block_decoder.output_array()
+    }
+    
+    fn freq_handler(&self) -> &FreqHandler {
+        &self.freq_handler
+    }
+    
+    fn advance(&mut self) -> bool {
+        if self.num_binpacked_blocks > 0 {
+            self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
+            self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
+            self.doc_offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
+            self.num_binpacked_blocks -= 1;
+            return true;
+        }
+        else {
+            if self.num_vint_docs > 0 {
+                self.remaining_data = self.block_decoder.uncompress_vint_sorted(self.remaining_data, self.doc_offset, self.num_vint_docs);
+                self.freq_handler.read_freq_vint(self.remaining_data, self.num_vint_docs);
+                self.num_vint_docs = 0;
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+    }
+    
+    
+    /// Returns an empty segment postings object
+    pub fn empty() -> SegmentPostingsBlockCursor<'static> {
+        SegmentPostingsBlockCursor {
+            num_binpacked_blocks: 0,
+            num_vint_docs: 0,
+            block_decoder: BlockDecoder::new(),
+            freq_handler: FreqHandler::new_without_freq(),
+            remaining_data:  &EMPTY_DATA,
+            doc_offset: 0,
+        }
+    }
+    
+}
+
+
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
 ///
@@ -13,27 +70,13 @@ const EMPTY_DATA: [u8; 0] = [0u8; 0];
 /// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings<'a> {
     len: usize,
-    doc_offset: u32,
-    block_decoder: BlockDecoder,
-    freq_handler: FreqHandler,
-    remaining_data: &'a [u8],
+    // doc_offset: usize,
     cur: Wrapping<usize>,
+    block_cursor: SegmentPostingsBlockCursor<'a>,
+    cur_block_len: usize
 }
 
 impl<'a> SegmentPostings<'a> {
-    fn load_next_block(&mut self) {
-        let num_remaining_docs = self.len - self.cur.0;
-        if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
-            self.remaining_data = self.block_decoder
-                .uncompress_block_sorted(self.remaining_data, self.doc_offset);
-            self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
-            self.doc_offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
-        } else {
-            self.remaining_data = self.block_decoder
-                .uncompress_vint_sorted(self.remaining_data, self.doc_offset, num_remaining_docs);
-            self.freq_handler.read_freq_vint(self.remaining_data, num_remaining_docs);
-        }
-    }
 
     /// Reads a Segment postings from an &[u8]
     ///
@@ -42,32 +85,34 @@ impl<'a> SegmentPostings<'a> {
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
     pub fn from_data(len: u32, data: &'a [u8], freq_handler: FreqHandler) -> SegmentPostings<'a> {
-        SegmentPostings {
-            len: len as usize,
-            doc_offset: 0,
+        let num_binpacked_blocks: usize = (len as usize) / NUM_DOCS_PER_BLOCK;
+        let num_vint_docs = (len as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
+        let block_cursor = SegmentPostingsBlockCursor {
+            num_binpacked_blocks: num_binpacked_blocks,
+            num_vint_docs: num_vint_docs,
             block_decoder: BlockDecoder::new(),
             freq_handler: freq_handler,
             remaining_data: data,
+            doc_offset: 0,
+        };
+        SegmentPostings {
+            len: len as usize,
+            block_cursor: block_cursor,
             cur: Wrapping(usize::max_value()),
+            cur_block_len: 0,
         }
     }
+
 
     /// Returns an empty segment postings object
     pub fn empty() -> SegmentPostings<'static> {
+        let empty_block_cursor = SegmentPostingsBlockCursor::empty();
         SegmentPostings {
             len: 0,
-            doc_offset: 0,
-            block_decoder: BlockDecoder::new(),
-            freq_handler: FreqHandler::new_without_freq(),
-            remaining_data: &EMPTY_DATA,
+            block_cursor: empty_block_cursor,
             cur: Wrapping(usize::max_value()),
+            cur_block_len: 0,
         }
-    }
-
-    /// Index within a block is used as an address when
-    /// interacting with the `FreqHandler`
-    fn index_within_block(&self) -> usize {
-        self.cur.0 % NUM_DOCS_PER_BLOCK
     }
 }
 
@@ -78,18 +123,21 @@ impl<'a> DocSet for SegmentPostings<'a> {
     #[inline]
     fn advance(&mut self) -> bool {
         self.cur += Wrapping(1);
-        if self.cur.0 >= self.len {
-            return false;
-        }
-        if self.index_within_block() == 0 {
-            self.load_next_block();
+        if self.cur.0 == self.cur_block_len {
+            self.cur = Wrapping(0);
+            if !self.block_cursor.advance() {
+                self.cur_block_len = 0;
+                self.cur = Wrapping(usize::max_value());
+                return false;
+            }
+            self.cur_block_len = self.block_cursor.docs().len();
         }
         true
     }
 
     #[inline]
     fn doc(&self) -> DocId {
-        self.block_decoder.output(self.index_within_block())
+        self.block_cursor.docs()[self.cur.0]
     }
 }
 
@@ -101,10 +149,10 @@ impl<'a> HasLen for SegmentPostings<'a> {
 
 impl<'a> Postings for SegmentPostings<'a> {
     fn term_freq(&self) -> u32 {
-        self.freq_handler.freq(self.index_within_block())
+        self.block_cursor.freq_handler().freq(self.cur.0)
     }
 
     fn positions(&self) -> &[u32] {
-        self.freq_handler.positions(self.index_within_block())
+        self.block_cursor.freq_handler().positions(self.cur.0)
     }
 }
