@@ -103,7 +103,10 @@ impl<'a> SegmentPostings<'a> {
         }
     }
 
-
+    pub fn advance_block(&mut self) -> bool {
+        self.block_cursor.advance()
+    }
+    
     /// Returns an empty segment postings object
     pub fn empty() -> SegmentPostings<'static> {
         let empty_block_cursor = SegmentPostingsBlockCursor::empty();

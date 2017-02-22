@@ -263,7 +263,7 @@ mod tests {
         
         b.iter(|| {
             let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            while segment_postings.advance() {}
+            while segment_postings.advance_block() {}
         });
     }    
     
