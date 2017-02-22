@@ -30,7 +30,7 @@ pub use self::postings::Postings;
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
 pub use self::chained_postings::ChainedPostings;
-pub use self::segment_postings::SegmentPostings;
+pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
 

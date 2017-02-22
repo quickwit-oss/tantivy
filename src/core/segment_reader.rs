@@ -15,8 +15,7 @@ use std::fmt;
 use rustc_serialize::json;
 use core::SegmentInfo;
 use schema::Field;
-use postings::SegmentPostingsOption;
-use postings::SegmentPostings;
+use postings::{SegmentPostings, BlockSegmentPostings, SegmentPostingsOption};
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
 use schema::Schema;
 use schema::FieldType;
@@ -165,16 +164,7 @@ impl SegmentReader {
     }
 
 
-    /// Returns the segment postings associated with the term, and with the given option,
-    /// or `None` if the term has never been encounterred and indexed. 
-    /// 
-    /// If the field was not indexed with the indexing options that cover 
-    /// the requested options, the returned `SegmentPostings` the method does not fail
-    /// and returns a `SegmentPostings` with as much information as possible.
-    ///
-    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a `TextIndexingOptions`
-    /// that does not index position will return a `SegmentPostings` with `DocId`s and frequencies.
-    pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
+    pub fn read_block_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<BlockSegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(&term));
@@ -214,7 +204,21 @@ impl SegmentReader {
                 FreqHandler::new_without_freq()
             }
         };
-        Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, freq_handler))
+        Some(BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler))
+    }
+
+    /// Returns the segment postings associated with the term, and with the given option,
+    /// or `None` if the term has never been encounterred and indexed. 
+    /// 
+    /// If the field was not indexed with the indexing options that cover 
+    /// the requested options, the returned `SegmentPostings` the method does not fail
+    /// and returns a `SegmentPostings` with as much information as possible.
+    ///
+    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a `TextIndexingOptions`
+    /// that does not index position will return a `SegmentPostings` with `DocId`s and frequencies.
+    pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
+        self.read_block_postings(term, option)
+            .map(SegmentPostings::from_block_postings)
     }
         
     /// Returns the posting list associated with a term.

@@ -7,17 +7,32 @@ use std::num::Wrapping;
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
 
 
-struct SegmentPostingsBlockCursor<'a> {
+pub struct BlockSegmentPostings<'a> {
     num_binpacked_blocks: usize,
     num_vint_docs: usize,
     block_decoder: BlockDecoder,
     freq_handler: FreqHandler,
     remaining_data: &'a [u8],
     doc_offset: DocId,
+    len: usize,
 }
 
-impl<'a> SegmentPostingsBlockCursor<'a> {
-        
+impl<'a> BlockSegmentPostings<'a> {
+    
+    pub fn from_data(len: usize, data: &'a [u8], freq_handler: FreqHandler) -> BlockSegmentPostings<'a> {
+        let num_binpacked_blocks: usize = (len as usize) / NUM_DOCS_PER_BLOCK;
+        let num_vint_docs = (len as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
+        BlockSegmentPostings {
+            num_binpacked_blocks: num_binpacked_blocks,
+            num_vint_docs: num_vint_docs,
+            block_decoder: BlockDecoder::new(),
+            freq_handler: freq_handler,
+            remaining_data: data,
+            doc_offset: 0,
+            len: len,
+        }
+    }
+
     fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
     }
@@ -32,31 +47,32 @@ impl<'a> SegmentPostingsBlockCursor<'a> {
             self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
             self.doc_offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
             self.num_binpacked_blocks -= 1;
-            return true;
+            true
         }
         else {
             if self.num_vint_docs > 0 {
                 self.remaining_data = self.block_decoder.uncompress_vint_sorted(self.remaining_data, self.doc_offset, self.num_vint_docs);
                 self.freq_handler.read_freq_vint(self.remaining_data, self.num_vint_docs);
                 self.num_vint_docs = 0;
-                return true;
+                true
             }
             else {
-                return false;
+                false
             }
         }
     }
     
     
     /// Returns an empty segment postings object
-    pub fn empty() -> SegmentPostingsBlockCursor<'static> {
-        SegmentPostingsBlockCursor {
+    pub fn empty() -> BlockSegmentPostings<'static> {
+        BlockSegmentPostings {
             num_binpacked_blocks: 0,
             num_vint_docs: 0,
             block_decoder: BlockDecoder::new(),
             freq_handler: FreqHandler::new_without_freq(),
             remaining_data:  &EMPTY_DATA,
             doc_offset: 0,
+            len: 0,
         }
     }
     
@@ -72,7 +88,7 @@ pub struct SegmentPostings<'a> {
     len: usize,
     // doc_offset: usize,
     cur: Wrapping<usize>,
-    block_cursor: SegmentPostingsBlockCursor<'a>,
+    block_cursor: BlockSegmentPostings<'a>,
     cur_block_len: usize
 }
 
@@ -84,20 +100,10 @@ impl<'a> SegmentPostings<'a> {
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_data(len: u32, data: &'a [u8], freq_handler: FreqHandler) -> SegmentPostings<'a> {
-        let num_binpacked_blocks: usize = (len as usize) / NUM_DOCS_PER_BLOCK;
-        let num_vint_docs = (len as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
-        let block_cursor = SegmentPostingsBlockCursor {
-            num_binpacked_blocks: num_binpacked_blocks,
-            num_vint_docs: num_vint_docs,
-            block_decoder: BlockDecoder::new(),
-            freq_handler: freq_handler,
-            remaining_data: data,
-            doc_offset: 0,
-        };
+    pub fn from_block_postings(segment_block_postings: BlockSegmentPostings<'a>) -> SegmentPostings<'a> {
         SegmentPostings {
-            len: len as usize,
-            block_cursor: block_cursor,
+            len: segment_block_postings.len,
+            block_cursor: segment_block_postings,
             cur: Wrapping(usize::max_value()),
             cur_block_len: 0,
         }
@@ -109,7 +115,7 @@ impl<'a> SegmentPostings<'a> {
     
     /// Returns an empty segment postings object
     pub fn empty() -> SegmentPostings<'static> {
-        let empty_block_cursor = SegmentPostingsBlockCursor::empty();
+        let empty_block_cursor = BlockSegmentPostings::empty();
         SegmentPostings {
             len: 0,
             block_cursor: empty_block_cursor,
