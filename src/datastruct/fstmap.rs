@@ -71,6 +71,10 @@ impl<V: BinarySerializable> FstMap<V> {
         self.fst_index.keys()
     }
 
+    pub fn fst_index(&self) -> fst::Map {
+        self.fst_index
+    }
+
     pub fn from_source(source: ReadOnlySource)  -> io::Result<FstMap<V>> {
         let total_len = source.len();
         let length_offset = total_len - 4;
