@@ -82,7 +82,7 @@ mod error;
 pub use error::{Result, Error};
 
 mod analyzer;
-mod datastruct;
+pub mod datastruct;
 
 
 /// Query module
