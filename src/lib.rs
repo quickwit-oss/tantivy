@@ -73,7 +73,6 @@ mod macros {
 
 mod core;
 mod compression;
-mod fastfield;
 mod store;
 mod indexer;
 mod common;
@@ -96,6 +95,7 @@ pub mod postings;
 /// Schema
 pub mod schema;
 
+pub mod fastfield;
 
 pub use directory::Directory;
 pub use core::searcher::Searcher;
