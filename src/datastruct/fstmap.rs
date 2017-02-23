@@ -91,8 +91,8 @@ impl<V: BinarySerializable> FstMap<V> {
             _phantom_: PhantomData,
         })
     }
-
-    fn read_value(&self, offset: u64) -> V {
+    
+    pub fn read_value(&self, offset: u64) -> V {
         let buffer = self.values_mmap.as_slice();
         let mut cursor = &buffer[(offset as usize)..];
         V::deserialize(&mut cursor).expect("Data in FST is corrupted")

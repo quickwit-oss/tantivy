@@ -169,6 +169,20 @@ impl SegmentReader {
     }
 
 
+    pub fn read_block_postings_from_terminfo(&self, term_info: &TermInfo, field_type: &FieldType) -> Option<BlockSegmentPostings> {
+        let offset = term_info.postings_offset as usize;
+        let postings_data = &self.postings_data[offset..];
+        let freq_handler = match *field_type {
+            FieldType::Str(_) => {
+                FreqHandler::new_without_freq()
+            }
+            _ => {
+                FreqHandler::new_without_freq()
+            }
+        };
+        Some(BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler))
+    }
+    
     pub fn read_block_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<BlockSegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
