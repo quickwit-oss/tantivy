@@ -101,6 +101,9 @@ pub struct U32FastFieldsReader {
     field_offsets: HashMap<Field, (u32, u32)>,
 }
 
+unsafe impl Send for U32FastFieldReader {}
+unsafe impl Sync for U32FastFieldReader {}
+
 unsafe impl Send for U32FastFieldsReader {}
 unsafe impl Sync for U32FastFieldsReader {}
 
