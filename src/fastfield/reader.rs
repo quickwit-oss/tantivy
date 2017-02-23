@@ -101,6 +101,9 @@ pub struct U32FastFieldsReader {
     field_offsets: HashMap<Field, (u32, u32)>,
 }
 
+unsafe impl Send for U32FastFieldsReader {}
+unsafe impl Sync for U32FastFieldsReader {}
+
 impl U32FastFieldsReader {
     pub fn open(source: ReadOnlySource) -> io::Result<U32FastFieldsReader> {
         let header_offset;
