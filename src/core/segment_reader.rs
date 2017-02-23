@@ -56,6 +56,11 @@ impl SegmentReader {
         self.segment_info.max_doc
     }
     
+
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
     /// Returns the number of documents.
     /// Deleted documents are not counted.
     ///
