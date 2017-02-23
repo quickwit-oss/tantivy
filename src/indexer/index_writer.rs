@@ -155,16 +155,14 @@ fn index_documents(heap: &mut Heap,
     // this is ensured by the call to peek before starting
     // the worker thread.
     assert!(num_docs > 0);    
-    
-    segment
-        .meta_mut()
-        .set_num_docs(num_docs);
-    
+
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
     // let segment_entry = advance_deletes(&mut segment, delete_queue, delete_position, )?;
+    let mut segment_meta = SegmentMeta::new(segment.id());
+    segment_meta.set_num_docs(num_docs);
 
-    let mut segment_entry = SegmentEntry::new(SegmentMeta::new(segment.id()));
+    let mut segment_entry = SegmentEntry::new(segment_meta);
     segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
 
     segment_updater

@@ -243,7 +243,8 @@ impl Index {
         let mut searchers = Vec::new();
         for _ in 0..NUM_SEARCHERS {
             let searchable_segments_clone = searchable_segments.clone();
-            let segment_readers: Vec<SegmentReader> = try!(searchable_segments_clone.into_iter()
+            let segment_readers: Vec<SegmentReader> = try!(searchable_segments_clone
+                .into_iter()
                 .map(SegmentReader::open)
                 .collect());
             let searcher = Searcher::from(segment_readers);

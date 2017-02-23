@@ -83,9 +83,11 @@ impl IndexMerger {
         let mut readers = vec!();
         let mut max_doc = 0;
         for segment in segments {
-            let reader = SegmentReader::open(segment.clone())?;
-            max_doc += reader.num_docs();
-            readers.push(reader);
+            if segment.meta().num_docs() > 0 {
+                let reader = SegmentReader::open(segment.clone())?;
+                max_doc += reader.num_docs();
+                readers.push(reader);
+            }
         }
         Ok(IndexMerger {
             schema: schema,
