@@ -102,8 +102,6 @@ mod tests {
         }
         {
             let boolean_query = BooleanQuery::from(vec![(Occur::MustNot, make_term_query("d")),]);
-            // TODO optimize this use case : only MustNot subqueries... no need
-            // to read any postings.
             assert_eq!(matching_docs(&boolean_query), Vec::new());
         }
     }

@@ -209,8 +209,6 @@ impl IndexWriter {
         let mut segment_updater = self.segment_updater.clone();
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
         
-        // TODO fix this. the cursor might be too advanced
-        // at this point.
         let generation = self.generation;
 
         let join_handle: JoinHandle<Result<()>> =
@@ -369,7 +367,6 @@ impl IndexWriter {
         // pending add segment commands will be dismissed.
         self.generation += 1;
 
-        // TODO requires a new delete queue...
         let rollback_future = self.segment_updater.rollback(self.generation);
         
         // we cannot drop segment ready receiver yet
@@ -457,13 +454,11 @@ impl IndexWriter {
         // committed segments.
         self.committed_opstamp = self.stamp();
 
-        // TODO remove clone
-        let future = self.segment_updater.commit(self.committed_opstamp);
-
         // wait for the segment update thread to have processed the info
-        // TODO remove unwrap
-        future.wait().unwrap();
-
+        self.segment_updater
+            .commit(self.committed_opstamp)
+            .wait()?;
+        
         self.delete_queue.clear();
         Ok(self.committed_opstamp)
     }    

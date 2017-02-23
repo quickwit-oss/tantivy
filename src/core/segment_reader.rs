@@ -147,7 +147,6 @@ impl SegmentReader {
             .open_read(SegmentComponent::POSITIONS)
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
-        // TODO 0u64
         let delete_bitset =
             if segment.meta().has_deletes() {
                 let delete_data = segment.open_read(SegmentComponent::DELETE)?;

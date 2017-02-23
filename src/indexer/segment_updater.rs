@@ -136,21 +136,21 @@ impl SegmentUpdater {
     }
 
 
-    fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> impl Future<Item=T, Error=&'static str> {
+    fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> impl Future<Item=T, Error=Error> {
         let me_clone = self.clone();
         self.0.pool.spawn_fn(move || {
             Ok(f(me_clone))
         })
     }
 
-    pub fn rollback(&mut self, generation: usize) -> impl Future<Item=(), Error=&'static str> {
+    pub fn rollback(&mut self, generation: usize) -> impl Future<Item=(), Error=Error> {
         self.0.generation.store(generation, Ordering::Release);
         self.run_async(|segment_updater| {
             segment_updater.0.segment_manager.rollback();
         })
     }
 
-    pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> impl Future<Item=bool, Error=&'static str> {
+    pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> impl Future<Item=bool, Error=Error> {
         if generation >= self.0.generation.load(Ordering::Acquire) {
             future::Either::A(self.run_async(|segment_updater| {
                 segment_updater.0.segment_manager.add_segment(segment_entry);
@@ -174,7 +174,7 @@ impl SegmentUpdater {
             .collect()
     }
 
-    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=&'static str> {
+    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
         self.run_async(move |segment_updater| {
             let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
             let segment_entries = segment_metas
@@ -242,8 +242,7 @@ impl SegmentUpdater {
                 .collect();
             
             // An IndexMerger is like a "view" of our merged segments. 
-            // TODO unwrap
-            let merger: IndexMerger = IndexMerger::open(schema, &segments[..]).expect("Creating index merger failed");
+            let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
             let mut merged_segment = index.new_segment(); 
             
             // ... we just serialize this index merger in our new segment
@@ -284,7 +283,7 @@ impl SegmentUpdater {
     
     fn end_merge(&self, 
         merged_segment_metas: Vec<SegmentMeta>,
-        resulting_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=&'static str> {
+        resulting_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
         
         self.run_async(move |segment_updater| {
             segment_updater.0.segment_manager.end_merge(&merged_segment_metas, resulting_segment_entry);

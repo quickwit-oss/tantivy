@@ -36,7 +36,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     fn insert(&mut self, doc_id: DocId, value: &T) -> io::Result<Option<(DocId, u32)>> {
         self.remaining -= 1;
         self.len += 1;
-        let offset = self.written_size() as u32; // TODO not sure if we want after or here
+        let offset = self.written_size() as u32;
         try!(doc_id.serialize(&mut self.buffer));
         try!(value.serialize(&mut self.buffer));
         Ok(if self.remaining == 0 {

@@ -149,9 +149,7 @@ impl IndexMerger {
             }
 
             assert!(min_val <= max_val);
-
-            // TODO test deleting all documents off the index.
-
+            
             try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
             for (max_doc, u32_reader, delete_bitset) in u32_readers {
                 for doc_id in 0..max_doc {
