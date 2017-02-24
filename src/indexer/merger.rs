@@ -101,8 +101,8 @@ impl IndexMerger {
                          .filter(|&(_, field_entry)| field_entry.is_u32_fast())
                          .map(|(field_id, _)| Field(field_id as u8)) {
             let mut u32_readers = Vec::new();
-            let mut min_val = u32::min_value();
-            let mut max_val = 0;
+            let mut min_val = u32::max_value();
+            let mut max_val = u32::min_value();
             for reader in &self.readers {
                 let u32_reader = try!(reader.get_fast_field_reader(field));
                 min_val = min(min_val, u32_reader.min_val());
