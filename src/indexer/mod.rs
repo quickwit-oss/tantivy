@@ -1,5 +1,4 @@
-
-mod index_writer;
+pub mod index_writer;
 pub mod segment_serializer;
 pub mod merger;
 mod merge_policy;

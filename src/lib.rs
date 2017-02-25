@@ -73,6 +73,11 @@ mod macros {
     );
 }
 
+pub use error::Error;
+
+/// Tantivy result.
+pub type Result<T> = std::result::Result<T, Error>;
+
 mod core;
 mod compression;
 mod fastfield;
@@ -80,9 +85,6 @@ mod store;
 mod indexer;
 mod common;
 mod error;
-
-pub use error::{Result, Error};
-
 mod analyzer;
 mod datastruct;
 

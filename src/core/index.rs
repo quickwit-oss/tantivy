@@ -7,7 +7,7 @@ use std::fmt;
 use rustc_serialize::json;
 use core::SegmentId;
 use directory::{Directory, MmapDirectory, RAMDirectory};
-use indexer::IndexWriter;
+use indexer::index_writer::open_index_writer;
 use core::searcher::Searcher;
 use std::convert::From;
 use num_cpus;
@@ -18,6 +18,7 @@ use core::SegmentMeta;
 use super::pool::LeasedItem;
 use std::path::Path;
 use core::IndexMeta;
+use IndexWriter;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
@@ -147,8 +148,16 @@ impl Index {
         self.opstamp
     }
 
-    /// Creates a multithreaded writer.
-    /// Each writer produces an independent segment.
+    /// Open a new index writer. Attempts to acquire a lockfile.
+    ///
+    /// The lockfile should be deleted on drop, but it is possible
+    /// that due to a panic or other error, a stale lockfile will be
+    /// left in the index directory. If you are sure that no other
+    /// `IndexWriter` on the system is accessing the index directory,
+    /// it is safe to manually delete the lockfile.
+    ///
+    /// num_threads specifies the number of indexing workers that
+    /// should work at the same time.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
@@ -158,12 +167,13 @@ impl Index {
                                    num_threads: usize,
                                    heap_size_in_bytes: usize)
                                    -> Result<IndexWriter> {
-        IndexWriter::open(self, num_threads, heap_size_in_bytes)
+        open_index_writer(self, num_threads, heap_size_in_bytes)
     }
 
 
     /// Creates a multithreaded writer
     /// It just calls `writer_with_num_threads` with the number of cores as `num_threads`
+    ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// # Panics

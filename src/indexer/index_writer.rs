@@ -86,6 +86,70 @@ impl !Send for IndexWriter {}
 impl !Sync for IndexWriter {}
 
 
+
+/// Open a new index writer. Attempts to acquire a lockfile.
+///
+/// The lockfile should be deleted on drop, but it is possible
+/// that due to a panic or other error, a stale lockfile will be
+/// left in the index directory. If you are sure that no other
+/// `IndexWriter` on the system is accessing the index directory,
+/// it is safe to manually delete the lockfile.
+///
+/// num_threads specifies the number of indexing workers that
+/// should work at the same time.
+/// # Errors
+/// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+/// # Panics
+/// If the heap size per thread is too small, panics.
+pub fn open_index_writer(index: &Index,
+            num_threads: usize,
+            heap_size_in_bytes_per_thread: usize)
+            -> Result<IndexWriter> {
+
+    if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
+        panic!(format!("The heap size per thread needs to be at least {}.",
+                        HEAP_SIZE_LIMIT));
+    }
+    
+    let directory_lock = try!(DirectoryLock::lock(index.directory().box_clone()));
+    
+    let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
+        chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+
+
+    let delete_queue = DeleteQueue::default();
+    
+    let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.clone())?;
+    
+    let mut index_writer = IndexWriter {
+        
+        _directory_lock: directory_lock,
+        
+        heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
+        index: index.clone(),
+
+        document_receiver: document_receiver,
+        document_sender: document_sender,
+
+        segment_updater: segment_updater,
+
+        workers_join_handle: Vec::new(),
+        num_threads: num_threads,
+
+        delete_queue: delete_queue,
+
+        committed_opstamp: index.opstamp(),
+        uncommitted_opstamp: index.opstamp(),
+
+        generation: 0,
+
+        worker_id: 0,
+    };
+    try!(index_writer.start_workers());
+    Ok(index_writer)
+}
+
+
 // TODO put delete bitset in segment entry
 // rather than DocToOpstamp.
 
@@ -252,70 +316,6 @@ impl IndexWriter {
         self.workers_join_handle.push(join_handle);
         Ok(())
     }
-
-
-    /// Open a new index writer. Attempts to acquire a lockfile.
-    ///
-    /// The lockfile should be deleted on drop, but it is possible
-    /// that due to a panic or other error, a stale lockfile will be
-    /// left in the index directory. If you are sure that no other
-    /// `IndexWriter` on the system is accessing the index directory,
-    /// it is safe to manually delete the lockfile.
-    ///
-    /// num_threads specifies the number of indexing workers that
-    /// should work at the same time.
-    /// # Errors
-    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
-    pub fn open(index: &Index,
-                num_threads: usize,
-                heap_size_in_bytes_per_thread: usize)
-                -> Result<IndexWriter> {
-
-        if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
-            panic!(format!("The heap size per thread needs to be at least {}.",
-                           HEAP_SIZE_LIMIT));
-        }
-        
-        let directory_lock = try!(DirectoryLock::lock(index.directory().box_clone()));
-        
-        let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
-            chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
-
-
-        let delete_queue = DeleteQueue::default();
-        
-        let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.clone())?;
-        
-        let mut index_writer = IndexWriter {
-            
-            _directory_lock: directory_lock,
-            
-            heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
-            index: index.clone(),
-
-            document_receiver: document_receiver,
-            document_sender: document_sender,
-
-            segment_updater: segment_updater,
-
-            workers_join_handle: Vec::new(),
-            num_threads: num_threads,
-
-            delete_queue: delete_queue,
-
-            committed_opstamp: index.opstamp(),
-            uncommitted_opstamp: index.opstamp(),
-
-            generation: 0,
-
-            worker_id: 0,
-        };
-        try!(index_writer.start_workers());
-        Ok(index_writer)
-    }
-    
 
     pub fn get_merge_policy(&self) -> Box<MergePolicy> {
         self.segment_updater.get_merge_policy()
