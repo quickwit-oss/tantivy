@@ -12,7 +12,7 @@ use std::sync::Arc;
 use super::*;
 use std::fmt;
 
-
+const MAX_NUM_FIELDS: usize = 255;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -94,10 +94,13 @@ impl SchemaBuilder {
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
     pub fn build(self,) -> Schema {
+        if self.fields.len() > MAX_NUM_FIELDS {
+            panic!("There may be at most 255 fields.");
+        }
         Schema(Arc::new(InnerSchema {
             fields: self.fields,
             fields_map: self.fields_map,
-        })) 
+        }))
     }
 }
 
