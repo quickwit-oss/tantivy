@@ -2,6 +2,7 @@ use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
+use fastfield::delete::DeleteBitSet;
 
 
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
@@ -18,6 +19,7 @@ pub struct SegmentPostings<'a> {
     freq_handler: FreqHandler,
     remaining_data: &'a [u8],
     cur: Wrapping<usize>,
+    delete_bitset: DeleteBitSet,
 }
 
 impl<'a> SegmentPostings<'a> {
@@ -41,7 +43,10 @@ impl<'a> SegmentPostings<'a> {
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_data(len: u32, data: &'a [u8], freq_handler: FreqHandler) -> SegmentPostings<'a> {
+    pub fn from_data(len: u32,
+                     data: &'a [u8],
+                     delete_bitset: &'a DeleteBitSet,
+                     freq_handler: FreqHandler) -> SegmentPostings<'a> {
         SegmentPostings {
             len: len as usize,
             doc_offset: 0,
@@ -49,6 +54,7 @@ impl<'a> SegmentPostings<'a> {
             freq_handler: freq_handler,
             remaining_data: data,
             cur: Wrapping(usize::max_value()),
+            delete_bitset: delete_bitset.clone(),
         }
     }
 
@@ -60,6 +66,7 @@ impl<'a> SegmentPostings<'a> {
             block_decoder: BlockDecoder::new(),
             freq_handler: FreqHandler::new_without_freq(),
             remaining_data: &EMPTY_DATA,
+            delete_bitset: DeleteBitSet::empty(),
             cur: Wrapping(usize::max_value()),
         }
     }
@@ -77,14 +84,18 @@ impl<'a> DocSet for SegmentPostings<'a> {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        self.cur += Wrapping(1);
-        if self.cur.0 >= self.len {
-            return false;
+        loop {
+            self.cur += Wrapping(1);
+            if self.cur.0 >= self.len {
+                return false;
+            }
+            if self.index_within_block() == 0 {
+                self.load_next_block();
+            }
+            if !self.delete_bitset.is_deleted(self.doc()) {
+                return true;
+            }
         }
-        if self.index_within_block() == 0 {
-            self.load_next_block();
-        }
-        true
     }
 
     #[inline]

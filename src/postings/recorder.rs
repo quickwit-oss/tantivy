@@ -26,8 +26,6 @@ pub trait Recorder: HeapAllocable {
     fn record_position(&mut self, position: u32, heap: &Heap);
     /// Close the document. It will help record the term frequency.
     fn close_doc(&mut self, heap: &Heap);
-    /// Returns the number of document that have been seen so far
-    fn doc_freq(&self) -> u32;
     /// Pushes the postings information to the serializer.
     fn serialize(&self,
                  self_addr: u32,
@@ -41,7 +39,6 @@ pub trait Recorder: HeapAllocable {
 pub struct NothingRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
-    doc_freq: u32,
 }
 
 impl HeapAllocable for NothingRecorder {
@@ -49,7 +46,6 @@ impl HeapAllocable for NothingRecorder {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
-            doc_freq: 0u32,
         }
     }
 }
@@ -62,16 +58,11 @@ impl Recorder for NothingRecorder {
     fn new_doc(&mut self, doc: DocId, heap: &Heap) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
-        self.doc_freq += 1;
     }
 
     fn record_position(&mut self, _position: u32, _heap: &Heap) {}
 
     fn close_doc(&mut self, _heap: &Heap) {}
-
-    fn doc_freq(&self) -> u32 {
-        self.doc_freq
-    }
 
     fn serialize(&self,
                  self_addr: u32,
@@ -91,7 +82,6 @@ pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
-    doc_freq: u32,
 }
 
 impl HeapAllocable for TermFrequencyRecorder {
@@ -100,7 +90,6 @@ impl HeapAllocable for TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
             current_tf: 0u32,
-            doc_freq: 0u32,
         }
     }
 }
@@ -111,7 +100,6 @@ impl Recorder for TermFrequencyRecorder {
     }
 
     fn new_doc(&mut self, doc: DocId, heap: &Heap) {
-        self.doc_freq += 1u32;
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
@@ -124,10 +112,6 @@ impl Recorder for TermFrequencyRecorder {
         debug_assert!(self.current_tf > 0);
         self.stack.push(self.current_tf, heap);
         self.current_tf = 0;
-    }
-
-    fn doc_freq(&self) -> u32 {
-        self.doc_freq
     }
 
     fn serialize(&self,
@@ -154,7 +138,6 @@ impl Recorder for TermFrequencyRecorder {
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
-    doc_freq: u32,
 }
 
 impl HeapAllocable for TFAndPositionRecorder {
@@ -162,7 +145,6 @@ impl HeapAllocable for TFAndPositionRecorder {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
-            doc_freq: 0u32,
         }
     }
 }
@@ -173,7 +155,6 @@ impl Recorder for TFAndPositionRecorder {
     }
 
     fn new_doc(&mut self, doc: DocId, heap: &Heap) {
-        self.doc_freq += 1;
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
@@ -184,10 +165,6 @@ impl Recorder for TFAndPositionRecorder {
 
     fn close_doc(&mut self, heap: &Heap) {
         self.stack.push(POSITION_END, heap);
-    }
-
-    fn doc_freq(&self) -> u32 {
-        self.doc_freq
     }
 
     fn serialize(&self,

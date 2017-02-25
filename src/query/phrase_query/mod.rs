@@ -48,6 +48,7 @@ mod tests {
             assert!(index_writer.commit().is_ok());
         }
 
+        index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<&str>| {
             let mut test_collector = TestCollector::default();

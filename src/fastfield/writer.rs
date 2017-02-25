@@ -98,7 +98,6 @@ impl U32FastFieldWriter {
                 }
             },
             None => {
-                // TODO make default value configurable
                 0u32
             }            
         }

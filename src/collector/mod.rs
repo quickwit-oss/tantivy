@@ -2,7 +2,7 @@ use SegmentReader;
 use SegmentLocalId;
 use DocId;
 use Score;
-use std::io;
+use Result;
 
 mod count_collector;
 pub use self::count_collector::CountCollector;
@@ -48,14 +48,14 @@ pub use self::chained_collector::chain;
 pub trait Collector {
     /// `set_segment` is called before beginning to enumerate 
     /// on this segment.
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()>;
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()>;
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 }
 
 
 impl<'a, C: Collector> Collector for &'a mut C {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()> {
         (*self).set_segment(segment_local_id, segment)
     }
     /// The query pushes the scored document to the collector via this method.
@@ -73,7 +73,6 @@ pub mod tests {
     use DocId;
     use Score;
     use core::SegmentReader;
-    use std::io;
     use SegmentLocalId;
     use fastfield::U32FastFieldReader;
     use schema::Field;
@@ -107,7 +106,7 @@ pub mod tests {
 
     impl Collector for TestCollector {
 
-        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
+        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
             self.offset += self.segment_max_doc;
             self.segment_max_doc = reader.max_doc();
             Ok(())
@@ -140,13 +139,13 @@ pub mod tests {
             }
         }
 
-        pub fn vals(&self,) -> &Vec<u32> {
-            &self.vals
+        pub fn vals(self,) -> Vec<u32> {
+            self.vals
         }
     }
         
     impl Collector for FastFieldTestCollector {
-        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> io::Result<()> {
+        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
             self.ff_reader = Some(try!(reader.get_fast_field_reader(self.field)));
             Ok(())
         }

@@ -9,80 +9,71 @@ use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
 use std::result;
+use core::SegmentMeta;
 use directory::error::{FileError, OpenWriteError};
-
-
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
 pub struct Segment {
     index: Index,
-    segment_id: SegmentId,
+    meta: SegmentMeta,
 }
 
 impl fmt::Debug for Segment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Segment({:?})", self.segment_id.uuid_string())
+        write!(f, "Segment({:?})", self.id().uuid_string())
     }
 }
-
 
 /// Creates a new segment given an `Index` and a `SegmentId`
 /// 
 /// The function is here to make it private outside `tantivy`. 
-pub fn create_segment(index: Index, segment_id: SegmentId) -> Segment {
+pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
     Segment {
         index: index,
-        segment_id: segment_id,
+        meta: meta,
     }
 }
 
 impl Segment {
-
-
+    
     /// Returns our index's schema.
     pub fn schema(&self,) -> Schema {
         self.index.schema()
     }
+    
+    pub fn meta(&self,) -> &SegmentMeta {
+        &self.meta
+    }
+
+    pub fn meta_mut(&mut self,) -> &mut SegmentMeta {
+        &mut self.meta
+    }
 
     /// Returns the segment's id.
     pub fn id(&self,) -> SegmentId {
-        self.segment_id
+        self.meta.id()
     }
-    
 
     /// Returns the relative path of a component of our segment.
     ///  
     /// It just joins the segment id with the extension 
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        self.segment_id.relative_path(component)
+        use self::SegmentComponent::*;
+        let mut path = self.id().uuid_string();
+        path.push_str(&*match component {
+            POSITIONS => ".pos".to_string(),
+            INFO => ".info".to_string(),
+            POSTINGS => ".idx".to_string(),
+            TERMS => ".term".to_string(),
+            STORE => ".store".to_string(),
+            FASTFIELDS => ".fast".to_string(),
+            FIELDNORMS => ".fieldnorm".to_string(),
+            DELETE => {format!(".{}.del", self.meta.delete_opstamp().unwrap_or(0))},
+        });
+        PathBuf::from(path)
     }
-
-    /// Deletes all of the document of the segment.
-    /// This is called when there is a merge or a rollback.
-    ///
-    /// # Disclaimer
-    /// If deletion of a file fails (e.g. a file 
-    /// was read-only.), the method does not
-    /// fail and just logs an error
-    pub fn delete(&self,) {
-        for component in SegmentComponent::values() {
-            let rel_path = self.relative_path(component);
-            if let Err(err) = self.index.directory().delete(&rel_path) {
-                match err {
-                    FileError::FileDoesNotExist(_) => {
-                        // this is normal behavior.
-                        // the position file for instance may not exists.
-                    }
-                    FileError::IOError(err) => {
-                		error!("Failed to remove {:?} : {:?}", self.segment_id, err);
-                    }
-                }
-            }
-        }
-    }
-
 
     /// Open one of the component file for read.
     pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, FileError> {

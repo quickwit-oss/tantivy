@@ -3,6 +3,8 @@ use core::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
+use common::HasLen;
+use fastfield::delete::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
@@ -44,6 +46,7 @@ pub struct SegmentReader {
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
     fieldnorms_reader: U32FastFieldsReader,
+    delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
 }
@@ -63,20 +66,27 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_info.max_doc
+        self.segment_info.max_doc - self.num_deleted_docs()
     }
     
+    pub fn num_deleted_docs(&self) -> DocId {
+        self.delete_bitset.len() as DocId
+    }
+
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fast_field_reader(&self, field: Field) -> Result<U32FastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match *field_entry.field_type() {
-            FieldType::Str(_) => {
-                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+        match field_entry.field_type() {
+            &FieldType::Str(_) => {
+                Err(Error::InvalidArgument(format!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name())))
             },
-            FieldType::U32(_) => {
-                // TODO check that the schema allows that
-                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
-                self.fast_fields_reader.get_field(field)
+            &FieldType::U32(ref u32_options) => {
+                if u32_options.is_fast() {
+                    Ok(self.fast_fields_reader.get_field(field)?)
+                }
+                else {
+                    Err(Error::InvalidArgument(format!("Field <{}> is not defined as a fast field.", field_entry.name())))
+                }
             },
         }
     }
@@ -137,6 +147,15 @@ impl SegmentReader {
             .open_read(SegmentComponent::POSITIONS)
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
+        let delete_bitset =
+            if segment.meta().has_deletes() {
+                let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+                DeleteBitSet::open(delete_data)
+            }
+            else {
+                DeleteBitSet::empty()
+            };
+        
         let schema = segment.schema();
         Ok(SegmentReader {
             segment_info: segment_info,
@@ -146,6 +165,7 @@ impl SegmentReader {
             store_reader: store_reader,
             fast_fields_reader: fast_fields_reader,
             fieldnorms_reader: fieldnorms_reader,
+            delete_bitset: delete_bitset,
             positions_data: positions_data,
             schema: schema,
         })
@@ -214,10 +234,15 @@ impl SegmentReader {
                 FreqHandler::new_without_freq()
             }
         };
-        Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, freq_handler))
+        Some(SegmentPostings::from_data(term_info.doc_freq, postings_data, &self.delete_bitset, freq_handler))
     }
-        
+    
+
     /// Returns the posting list associated with a term.
+    ///
+    /// If the term is not found, return None.
+    /// Even when non-null, because of deletes, the posting object 
+    /// returned by this method may contain no documents.
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());
         let segment_posting_option = match *field_entry.field_type() {
@@ -236,6 +261,19 @@ impl SegmentReader {
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
+    }
+
+    /// Returns the segment id
+    pub fn segment_id(&self) -> SegmentId {
+        self.segment_id
+    }
+
+    pub fn delete_bitset(&self) -> &DeleteBitSet {
+        &self.delete_bitset
+    }
+
+    pub fn is_deleted(&self, doc: DocId) -> bool {
+        self.delete_bitset.is_deleted(doc)
     }
 }
 

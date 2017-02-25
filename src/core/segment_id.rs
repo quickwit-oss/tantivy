@@ -1,10 +1,7 @@
 use uuid::Uuid;
 use std::fmt;
 use rustc_serialize::{Encoder, Decoder, Encodable, Decodable};
-use core::SegmentComponent;
-use std::path::PathBuf;
 use std::cmp::{Ordering, Ord};
-
 
 #[cfg(test)]
 use std::sync::atomic;
@@ -47,11 +44,6 @@ impl SegmentId {
 
     pub fn uuid_string(&self,) -> String {
         self.0.simple().to_string()
-    }
-
-    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let filename = self.uuid_string() + component.path_suffix();
-        PathBuf::from(filename)
     }
 }
 

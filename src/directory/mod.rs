@@ -111,7 +111,7 @@ mod tests {
         }
     }
 
-    fn test_delete(directory: &mut Directory) {
+    fn test_directory_delete(directory: &mut Directory) {
         assert!(directory.open_read(*TEST_PATH).is_err());
         let mut write_file = directory.open_write(*TEST_PATH).unwrap();
         write_file.write_all(&[1, 2, 3, 4]).unwrap();
@@ -131,7 +131,7 @@ mod tests {
         test_seek(directory);
         test_rewrite_forbidden(directory);
         test_write_create_the_file(directory);
-        test_delete(directory);
+        test_directory_delete(directory);
     }
 
 }

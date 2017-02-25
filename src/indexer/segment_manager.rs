@@ -2,27 +2,18 @@ use super::segment_register::SegmentRegister;
 use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
+use indexer::SegmentEntry;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct SegmentRegisters {
-    docstamp: u64,
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
-}
-
-#[derive(Eq, PartialEq)]
-pub enum CommitState {
-    Committed,
-    Uncommitted,
-    Missing,
 }
 
 impl Default for SegmentRegisters {
     fn default() -> SegmentRegisters {
         SegmentRegisters {
-            docstamp: 0u64,
             uncommitted: SegmentRegister::default(),
             committed: SegmentRegister::default()
         }
@@ -37,12 +28,6 @@ impl Default for SegmentRegisters {
 /// changes (merges especially)
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
-    // generation  is an ever increasing counter that 
-    // is incremented whenever we modify 
-    // the segment manager. It can be useful for debugging
-    // purposes, and it also acts as a "dirty" marker,
-    // to detect when the `meta.json` should be written.
-    generation: AtomicUsize, 
 }
 
 impl Debug for SegmentManager {
@@ -58,41 +43,41 @@ impl Debug for SegmentManager {
 ///
 /// For instance, a segment will not appear in both committed and uncommitted 
 /// segments
-pub fn get_segment_ready_for_commit(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+pub fn get_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
-    (registers_lock.committed.get_segment_ready_for_commit(),
-     registers_lock.uncommitted.get_segment_ready_for_commit())
+    (registers_lock.committed.get_segments(),
+     registers_lock.uncommitted.get_segments())
 }
 
 impl SegmentManager {
     
-    /// Returns whether a segment is committed, uncommitted or missing.
-    pub fn is_committed(&self, segment_id: SegmentId) -> CommitState {
-        let lock = self.read();
-        if lock.uncommitted.contains(segment_id) {
-            CommitState::Uncommitted
-        }
-        else if lock.committed.contains(segment_id) {
-            CommitState::Committed
-        }
-        else {
-            CommitState::Missing
-        }
-    }
-    
-    pub fn docstamp(&self,) -> u64 {
-        self.read().docstamp
-    }
-
     pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
         SegmentManager {
-            registers: RwLock::new( SegmentRegisters {
-                docstamp: 0u64, // TODO put the actual value
+            registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::from(segment_metas),
+                committed: SegmentRegister::new(segment_metas),
             }),
-            generation: AtomicUsize::default(),
         }
+    }
+
+    pub fn segment_entries(&self,) -> Vec<SegmentEntry> {
+        let mut segment_entries = self.read()
+            .uncommitted
+            .segment_entries();
+        segment_entries.extend(
+            self.read()
+            .committed
+            .segment_entries()
+        );
+        segment_entries
+    }
+    
+    pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
+        let registers = self.read();
+        registers
+            .committed
+            .segment_entry(segment_id)
+            .or_else(|| registers.uncommitted.segment_entry(segment_id))        
     }
 
     // Lock poisoning should never happen :
@@ -103,12 +88,7 @@ impl SegmentManager {
     }
 
     fn write(&self,) -> RwLockWriteGuard<SegmentRegisters> {
-        self.generation.fetch_add(1, Ordering::Release);
         self.registers.write().expect("Failed to acquire write lock on SegmentManager.")
-    }
-
-    pub fn generation(&self,) -> usize {
-        self.generation.load(Ordering::Acquire)
     }
 
     /// Removes all of the uncommitted segments
@@ -120,19 +100,13 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self, docstamp: u64) {
+    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
-        let segment_entries = registers_lock.uncommitted.segment_entries();
+        registers_lock.committed.clear();
+        registers_lock.uncommitted.clear();
         for segment_entry in segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
-        registers_lock.docstamp = docstamp;
-        registers_lock.uncommitted.clear();    
-    }
-    
-    pub fn add_segment(&self, segment_meta: SegmentMeta) {
-        let mut registers_lock = self.write();
-        registers_lock.uncommitted.add_segment(segment_meta);
     }
     
     pub fn start_merge(&self, segment_ids: &[SegmentId]) {
@@ -148,33 +122,45 @@ impl SegmentManager {
             }
         }
     }
-    
-    pub fn end_merge(&self, merged_segment_ids: &[SegmentId], merged_segment_meta: &SegmentMeta) {
+
+    pub fn add_segment(&self, segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
-        if registers_lock.uncommitted.contains_all(merged_segment_ids) {
-            for segment_id in merged_segment_ids {
+        registers_lock.uncommitted.add_segment_entry(segment_entry);
+    }
+    
+    pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_entry: SegmentEntry) {
+        let mut registers_lock = self.write();
+        let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.id()).collect();
+        if registers_lock.uncommitted.contains_all(&merged_segment_ids) {
+            for segment_id in &merged_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);
             }
-            registers_lock.uncommitted.add_segment(merged_segment_meta.clone());
+            registers_lock.uncommitted.add_segment_entry(merged_segment_entry);
         }
-        else if registers_lock.committed.contains_all(merged_segment_ids) {
-            for segment_id in merged_segment_ids {
+        else if registers_lock.committed.contains_all(&merged_segment_ids) {
+            for segment_id in &merged_segment_ids {
                 registers_lock.committed.remove_segment(segment_id);
             }
-            registers_lock.committed.add_segment(merged_segment_meta.clone());
+            registers_lock.committed.add_segment_entry(merged_segment_entry);
         } else {
             warn!("couldn't find segment in SegmentManager");
         }
     }
-    
-    pub fn committed_segments(&self,) -> Vec<SegmentId> {
+
+    pub fn committed_segment_metas(&self,) -> Vec<SegmentMeta> {
         let registers_lock = self.read();
-        registers_lock.committed.segment_ids()
-    }
-    
-    pub fn segment_metas(&self,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
-        let registers_lock = self.read();
-        (registers_lock.committed.segment_metas(), registers_lock.uncommitted.segment_metas())
+        registers_lock.committed.segment_metas()
     }
 }
 
+
+impl Default for SegmentManager {
+    fn default() -> SegmentManager {
+        SegmentManager {
+            registers: RwLock::new( SegmentRegisters {
+                uncommitted: SegmentRegister::default(),
+                committed: SegmentRegister::default(),
+            }),
+        }
+    }
+}

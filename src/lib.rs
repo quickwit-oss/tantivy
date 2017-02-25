@@ -45,7 +45,9 @@ extern crate combine;
 extern crate itertools;
 extern crate chan;
 extern crate crossbeam;
-
+extern crate bit_set;
+extern crate futures;
+extern crate futures_cpupool;
 
 #[cfg(feature="simdcompression")]
 extern crate libc;
@@ -115,14 +117,16 @@ pub use postings::SegmentPostingsOption;
 
 pub use core::TermIterator;
 
-#[cfg(feature="simdcompression")]
-pub fn version() -> &'static str {
-    concat!(version!(), "-simd")  
-}
 
-#[cfg(not(feature="simdcompression"))]
+/// Expose the current version of tantivy, as well
+/// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
-    concat!(version!(), "-nosimd") 
+    if cfg!(feature="simdcompression") {
+        concat!(version!(), "-simd")  
+    }
+    else {
+        concat!(version!(), "-nosimd") 
+    }
 }
 
 /// Tantivy's makes it possible to personalize when 
@@ -239,6 +243,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, "a");
             assert_eq!(searcher.doc_freq(&term_a), 3);
@@ -274,7 +279,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let segment_reader: &SegmentReader = searcher.segment_reader(0);
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
@@ -283,6 +288,143 @@ mod tests {
             assert_eq!(fieldnorms_reader.get(2), 2);
         }
     }
+
+
+    #[test]
+    fn test_delete_postings() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {   // 0
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 1
+                let doc = doc!(text_field=>" a c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 2
+                let doc = doc!(text_field=>" b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 3
+                let doc = doc!(text_field=>" b d");
+                index_writer.add_document(doc).unwrap();
+            }
+            {
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            {
+                index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            }
+            {   // 4
+                let doc = doc!(text_field=>" b c");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 5
+                let doc = doc!(text_field=>" a");
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 5);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+        }
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {   // 0
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   // 1
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            index_writer.rollback().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 5);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+        }
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            { 
+                let doc = doc!(text_field=>"a b");
+                index_writer.add_document(doc).unwrap();
+            }
+            {   
+                index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            }
+            index_writer.rollback().unwrap();
+            {   
+                index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            }
+            index_writer.commit().unwrap();
+        }
+        {
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            let reader = searcher.segment_reader(0);
+            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 3);
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+            {
+                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "c")).unwrap();
+                assert!(postings.advance());
+                assert_eq!(postings.doc(), 4);
+                assert!(!postings.advance());
+            }
+        }
+    }
+
 
     #[test]
     fn test_termfreq() {
@@ -300,6 +442,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
@@ -336,6 +479,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);

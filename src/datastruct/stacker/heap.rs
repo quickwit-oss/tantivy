@@ -41,7 +41,6 @@ impl Heap {
         self.inner().clear();
     }
     
-    
     /// Return the heap capacity.
     pub fn capacity(&self,) -> u32 {
         self.inner().capacity()
@@ -89,6 +88,10 @@ impl Heap {
     
     /// Returns a mutable reference for an object at a given Item.
     pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
+        self.inner().get_mut_ref(addr)
+    }
+
+    pub fn get_ref<Item>(&self, addr: u32) -> &Item {
         self.inner().get_mut_ref(addr)
     }
 }

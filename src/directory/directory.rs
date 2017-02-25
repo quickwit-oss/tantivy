@@ -1,13 +1,14 @@
 use std::marker::Send;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use directory::error::{FileError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
 use std::marker::Sync;
 
-/// Write-once read many (WORM) abstraction for where tantivy's index should be stored. 
+/// Write-once read many (WORM) abstraction for where
+/// tantivy's data should be stored. 
 ///
 /// There are currently two implementations of `Directory`
 /// 
@@ -27,6 +28,8 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// have no effect on the returned `ReadOnlySource` object. 
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError>;
     
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
+
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual
@@ -70,6 +73,10 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
         
     /// Clones the directory and boxes the clone 
     fn box_clone(&self) -> Box<Directory>;
+
+    /// Returns the list of files starting by a given
+    /// prefix.
+    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>>;
 }
 
 

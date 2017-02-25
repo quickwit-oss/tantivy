@@ -329,7 +329,6 @@ mod tests {
         schema_builder.add_u32_field("count", count_options);
         let schema = schema_builder.build();
         let schema_json: String = format!("{}", json::as_pretty_json(&schema));
-        println!("{}", schema_json);
         let expected = r#"[
   {
     "name": "title",
@@ -456,7 +455,6 @@ mod tests {
                 "author": "fulmicoton",
                 "count": -5
             }"#);
-            println!("{:?}", json_err);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
                     assert!(true);
@@ -472,7 +470,6 @@ mod tests {
                 "author": "fulmicoton",
                 "count": 5000000000
             }"#);
-            println!("{:?}", json_err);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);

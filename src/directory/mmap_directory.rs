@@ -9,16 +9,14 @@ use fst::raw::MmapReadOnly;
 use memmap::{Mmap, Protection};
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
-use std::mem;
 use std::convert::From;
 use std::fmt;
-use std::fs;
-use std::fs::File;
+use std::fs::{self, File};
 use std::fs::OpenOptions;
-use std::io;
-use std::io::{Seek, SeekFrom};
-use std::io::BufWriter;
-use std::io::Write;
+use std::fs::ReadDir;
+use std::io::{self, Seek, SeekFrom};
+use std::io::{BufWriter, Read, Write};
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
@@ -302,7 +300,7 @@ impl Directory for MmapDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), FileError> {
-        debug!("Delete {:?}", path);
+        debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
@@ -324,6 +322,13 @@ impl Directory for MmapDirectory {
         full_path.exists()
     }
 
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+        let full_path = self.resolve_path(path);
+        let mut buffer = Vec::new();
+        File::open(&full_path)?.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    }
+
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
@@ -338,6 +343,25 @@ impl Directory for MmapDirectory {
         Box::new(self.clone())
     }
     
+    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>> {
+        fs::read_dir(&self.root_path)
+        .map(|paths: ReadDir| {
+            paths
+            .filter_map(|dir_entry_res|
+                dir_entry_res
+                    .ok()
+                    .map(|dir_entry| dir_entry.path())
+            )
+            .filter(|path| 
+                path.to_str()
+                    .map(|filepath| filepath.starts_with(prefix))
+                    .unwrap_or(false)
+            )
+            .map(PathBuf::from)
+            .collect()
+        })
+          
+    }
 }
 
 

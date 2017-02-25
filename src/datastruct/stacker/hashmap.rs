@@ -125,6 +125,10 @@ impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
             .map(move |addr: u32| heap.get_mut_ref::<V>(addr))
     }
 
+    pub fn heap(&self) -> &Heap {
+        &self.heap
+    }
+
     pub fn get_or_create<S: AsRef<[u8]>>(&mut self, key: S) -> &mut V {
         let entry = self.lookup(key.as_ref());
         match entry {
