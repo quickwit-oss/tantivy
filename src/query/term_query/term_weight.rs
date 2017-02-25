@@ -4,7 +4,6 @@ use core::SegmentReader;
 use query::Scorer;
 use postings::SegmentPostingsOption;
 use postings::SegmentPostings;
-use fastfield::U32FastFieldReader;
 use super::term_scorer::TermScorer;
 use Result;
 
@@ -33,21 +32,21 @@ impl TermWeight {
 
     pub fn specialized_scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<TermScorer<SegmentPostings<'a>>> {
         let field = self.term.field();
-        let fieldnorm_reader = try!(reader.get_fieldnorms_reader(field));
+        let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);
         Ok(
             reader
                 .read_postings(&self.term, self.segment_postings_options)
                 .map(|segment_postings|
                     TermScorer {
                         idf: self.idf(),
-                        fieldnorm_reader: fieldnorm_reader,
+                        fieldnorm_reader_opt: fieldnorm_reader_opt,
                         postings: segment_postings,
                     }
                 )
                 .unwrap_or(
                     TermScorer {
                         idf: 1f32,
-                        fieldnorm_reader: U32FastFieldReader::empty(),
+                        fieldnorm_reader_opt: None,
                         postings: SegmentPostings::empty()
                     })
         )

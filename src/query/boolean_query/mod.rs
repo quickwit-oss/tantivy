@@ -116,7 +116,7 @@ mod tests {
         let left = VecPostings::from(vec!(1, 2, 3));
         let left_scorer = TermScorer {
             idf: 1f32,
-            fieldnorm_reader: left_fieldnorms,
+            fieldnorm_reader_opt: Some(left_fieldnorms),
             postings: left,
         };
         
@@ -125,7 +125,7 @@ mod tests {
         
         let right_scorer = TermScorer {
             idf: 4f32,
-            fieldnorm_reader: right_fieldnorms,
+            fieldnorm_reader_opt: Some(right_fieldnorms),
             postings: right,
         };
 
@@ -141,19 +141,5 @@ mod tests {
     }
     
     
-    #[test]
-    pub fn test_term_scorer() {
-        let left_fieldnorms = U32FastFieldReader::from(vec!(10, 4));
-        assert_eq!(left_fieldnorms.get(0), 10);
-        assert_eq!(left_fieldnorms.get(1), 4);
-        let left = VecPostings::from(vec!(1));
-        let mut left_scorer = TermScorer {
-            idf: 0.30685282,
-            fieldnorm_reader: left_fieldnorms,
-            postings: left,
-        };
-        left_scorer.advance();
-        assert!(abs_diff(left_scorer.score(), 0.15342641) < 0.001f32);
-    }
 
 }

@@ -9,7 +9,6 @@ use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
-use std::io;
 use std::str;
 use postings::TermInfo;
 use datastruct::FstMap;
@@ -69,23 +68,35 @@ impl SegmentReader {
         self.segment_info.max_doc - self.num_deleted_docs()
     }
     
+    /// Return the number of documents that have been
+    /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
         self.delete_bitset.len() as DocId
     }
 
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> Result<U32FastFieldReader> {
+    pub fn get_fast_field_reader(&self, field: Field) -> Option<U32FastFieldReader> {
+        /// Returns the u32 fast value reader if the field
+        /// is a u32 field indexed as "fast".
+        ///
+        /// Return None if the field is not a u32 field
+        /// indexed with the fast option.
+        ///
+        /// # Panics
+        /// May panic if the index is corrupted.
         let field_entry = self.schema.get_field_entry(field);
         match field_entry.field_type() {
             &FieldType::Str(_) => {
-                Err(Error::InvalidArgument(format!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name())))
+                warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
+                None
             },
             &FieldType::U32(ref u32_options) => {
                 if u32_options.is_fast() {
-                    Ok(self.fast_fields_reader.get_field(field)?)
+                    self.fast_fields_reader.get_field(field)
                 }
                 else {
-                    Err(Error::InvalidArgument(format!("Field <{}> is not defined as a fast field.", field_entry.name())))
+                    warn!("Field <{}> is not defined as a fast field.", field_entry.name());
+                    None
                 }
             },
         }
@@ -98,7 +109,7 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in 
     /// the `.fieldnorm` file of the segment. 
-    pub fn get_fieldnorms_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U32FastFieldReader> {
         self.fieldnorms_reader.get_field(field) 
     }
         

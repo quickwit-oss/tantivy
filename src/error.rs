@@ -36,6 +36,9 @@ pub enum Error {
     InvalidArgument(String),
     /// An Error happened in one of the thread
     ErrorInThread(String),
+    /// An Error appeared related to the lack of a field.
+    SchemaError(String),
+    
 }
 
 impl From<io::Error> for Error {

@@ -1,4 +1,4 @@
-use Result;
+use {Error, Result};
 use core::SegmentReader;
 use core::Segment;
 use DocId;
@@ -18,6 +18,7 @@ use store::StoreWriter;
 use core::SegmentInfo;
 use std::cmp::{min, max};
 use std::iter;
+
 
 
 pub struct IndexMerger {
@@ -70,11 +71,11 @@ fn compute_min_max_val(u32_reader: &U32FastFieldReader, max_doc: DocId, delete_b
     }
 }
 
-fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Result<U32FastFieldReader> {
-    Ok(segment_reader.get_fieldnorms_reader(field)?)
+fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Option<U32FastFieldReader> {
+    segment_reader.get_fieldnorms_reader(field)
 }
 
-fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Result<U32FastFieldReader> {
+fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U32FastFieldReader> {
     segment_reader.get_fast_field_reader(field)
 }
 
@@ -123,7 +124,7 @@ impl IndexMerger {
     // used both to merge field norms and regular u32 fast fields.
     fn generic_write_fast_field(&self,
         fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> Result<U32FastFieldReader>,
+        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U32FastFieldReader>,
         fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         
         for field in fields {
@@ -133,13 +134,22 @@ impl IndexMerger {
             let mut max_val = u32::min_value();
             
             for reader in &self.readers {
-                let u32_reader = field_reader_extractor(reader, field)?;
-                if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(&u32_reader, reader.max_doc(), reader.delete_bitset()) {
-                    // the segment has some non-deleted documents
-                    min_val = min(min_val, seg_min_val);
-                    max_val = max(max_val, seg_max_val);
-                    u32_readers.push((reader.max_doc(), u32_reader, reader.delete_bitset()));
+                match field_reader_extractor(reader, field) {
+                    Some(u32_reader) => {
+                        if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(&u32_reader, reader.max_doc(), reader.delete_bitset()) {
+                            // the segment has some non-deleted documents
+                            min_val = min(min_val, seg_min_val);
+                            max_val = max(max_val, seg_max_val);
+                            u32_readers.push((reader.max_doc(), u32_reader, reader.delete_bitset()));
+                        }        
+                    }
+                    None => {
+                        let error_msg = format!("Failed to find a u32_reader for field {:?}", field);
+                        error!("{}", error_msg);
+                        return Err(Error::SchemaError(error_msg))
+                    }
                 }
+                
             }
 
             if u32_readers.is_empty() {
