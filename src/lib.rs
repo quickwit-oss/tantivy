@@ -103,10 +103,7 @@ pub mod schema;
 
 
 pub use directory::Directory;
-pub use core::searcher::Searcher;
-
-pub use core::Segment;
-pub use core::Index;
+pub use core::{Index, Segment, SegmentId, SegmentMeta, Searcher};
 pub use indexer::IndexWriter;
 pub use schema::{Term, Document};
 pub use core::SegmentReader;

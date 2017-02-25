@@ -45,13 +45,14 @@ pub struct Index {
 
 
 
-/// Deletes all of the document of the segment.
+/// Deletes all of the files of the segment.
 /// This is called when there is a merge or a rollback.
 ///
 /// # Disclaimer
 /// If deletion of a file fails (e.g. a file 
 /// was read-only.), the method does not
 /// fail and just logs an error when it fails.
+#[doc(hidden)]
 pub fn delete_segment(directory: &Directory, segment_id: SegmentId) {
     info!("Deleting segment {:?}", segment_id);
     let segment_filepaths_res = directory.ls_starting_with(
@@ -208,7 +209,7 @@ impl Index {
         delete_segment(self.directory(), segment_id); 
     }
     
-    /// Creates a segment object given an index and a segment_meta.
+    #[doc(hidden)]
     pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
         create_segment(self.clone(), segment_meta)
     }
