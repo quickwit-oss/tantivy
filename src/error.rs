@@ -36,7 +36,7 @@ pub enum Error {
     /// Invalid argument was passed by the user.
     InvalidArgument(String),
     /// An Error happened in one of the thread
-    ErrorInThread(String), // TODO investigate better solution
+    ErrorInThread(String),
 }
 
 impl From<io::Error> for Error {

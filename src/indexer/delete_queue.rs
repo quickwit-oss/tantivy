@@ -7,7 +7,7 @@ use std::mem;
 
 #[derive(Default)]
 struct InnerDeleteQueue {
-    ro_chunks: ReadOnlyDeletes,
+    ro_chunks: DeleteQueueSnapshot,
     last_chunk: Vec<DeleteOperation>,
 }
 
@@ -16,7 +16,7 @@ impl InnerDeleteQueue {
         self.last_chunk.push(delete_operation);
     }
 
-    pub fn snapshot(&mut self,) -> ReadOnlyDeletes {
+    pub fn snapshot(&mut self,) -> DeleteQueueSnapshot {
         if self.last_chunk.len() > 0 {
             let new_operations = vec!();
             let new_ro_chunk = mem::replace(&mut self.last_chunk, new_operations);
@@ -33,11 +33,10 @@ impl InnerDeleteQueue {
 
 
 
-// TODO Rename to DeleteQueueSnapshot
 #[derive(Default, Clone)]
-pub struct ReadOnlyDeletes(Vec<Arc<Vec<DeleteOperation>>>);
+pub struct DeleteQueueSnapshot(Vec<Arc<Vec<DeleteOperation>>>);
 
-impl ReadOnlyDeletes {
+impl DeleteQueueSnapshot {
     fn push(&mut self, operations: Vec<DeleteOperation>) {
         self.0.push(Arc::new(operations));
     }
@@ -61,7 +60,7 @@ impl DeleteQueue {
         self.0.write().unwrap().push(delete_operation);
     }
 
-    pub fn snapshot(&self) -> ReadOnlyDeletes {
+    pub fn snapshot(&self) -> DeleteQueueSnapshot {
         self.0.write().unwrap().snapshot()
     }
 

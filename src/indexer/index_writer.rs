@@ -9,7 +9,7 @@ use core::SegmentReader;
 use datastruct::stacker::Heap;
 use Error;
 use fastfield::delete::write_delete_bitset;
-use indexer::delete_queue::ReadOnlyDeletes;
+use indexer::delete_queue::DeleteQueueSnapshot;
 use futures::Canceled;
 use futures::Future;
 use indexer::delete_queue::DeleteQueue;
@@ -94,7 +94,7 @@ impl !Sync for IndexWriter {}
 
 pub fn advance_deletes(
     segment: &mut Segment,
-    delete_operations: &ReadOnlyDeletes,
+    delete_operations: &DeleteQueueSnapshot,
     doc_opstamps: &DocToOpstampMapping) -> Result<SegmentMeta> {
         let segment_reader = SegmentReader::open(segment.clone())?;
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
@@ -134,14 +134,15 @@ pub fn advance_deletes(
 }
 
 fn index_documents(heap: &mut Heap,
-                   mut segment: Segment,
+                   segment: Segment,
                    schema: &Schema,
                    generation: usize,
                    document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_updater: &mut SegmentUpdater)
                    -> Result<bool> {
     heap.clear();
-    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment.clone(), &schema));
+    let segment_id = segment.id();
+    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
@@ -159,7 +160,7 @@ fn index_documents(heap: &mut Heap,
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
     // let segment_entry = advance_deletes(&mut segment, delete_queue, delete_position, )?;
-    let mut segment_meta = SegmentMeta::new(segment.id());
+    let mut segment_meta = SegmentMeta::new(segment_id);
     segment_meta.set_num_docs(num_docs);
 
     let mut segment_entry = SegmentEntry::new(segment_meta);
