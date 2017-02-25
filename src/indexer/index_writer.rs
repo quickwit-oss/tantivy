@@ -183,14 +183,14 @@ pub fn advance_deletes(
             }
         }
 
-        if let Some(last_opstamp) = last_opstamp_opt {
+    if let Some(last_opstamp) = last_opstamp_opt {
             for doc in 0u32..segment_reader.max_doc() {
                 if segment_reader.is_deleted(doc) {
                     delete_bitset.insert(doc as usize);
                 }
             }
             let num_deleted_docs = delete_bitset.len();
-            segment.meta_mut().set_deletes(num_deleted_docs as u32, last_opstamp);
+            segment.set_delete_meta(num_deleted_docs as u32, last_opstamp);
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
@@ -317,6 +317,7 @@ impl IndexWriter {
         Ok(())
     }
 
+    /// Accessor to the merge policy.
     pub fn get_merge_policy(&self) -> Box<MergePolicy> {
         self.segment_updater.get_merge_policy()
     }
@@ -464,7 +465,14 @@ impl IndexWriter {
         Ok(self.committed_opstamp)
     }    
 
-    
+    /// Delete all documents containing a given term.
+    ///
+    /// Delete operation only affects documents that
+    /// were added in previous commits, and documents
+    /// that were added previously in the same commit.
+    ///
+    /// Like adds, the deletion itself will be visible 
+    /// only after calling `commit()`.
     pub fn delete_term(&mut self, term: Term) {
         let opstamp = self.stamp();
         let delete_operation = DeleteOperation {

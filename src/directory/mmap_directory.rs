@@ -46,9 +46,14 @@ fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError
 
 #[derive(Default,Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct CacheCounters {
-    hit: usize,
-    miss_empty: usize,
-    miss_weak: usize,
+    // Number of time the cache prevents to call `mmap`
+    pub hit: usize,
+    // Number of time tantivy had to call `mmap`
+    // as no entry was in the cache.
+    pub miss_empty: usize,
+    // Number of time tantivy had to call `mmap`
+    // as the entry in the cache was evinced.
+    pub miss_weak: usize,
 }
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
@@ -210,6 +215,11 @@ impl MmapDirectory {
         Ok(())
     }
 
+    /// Returns some statistical information
+    /// about the Mmap cache.
+    /// 
+    /// The `MmapDirectory` embeds a `MmapDirectory` 
+    /// to avoid multiplying the `mmap` system calls.
     pub fn get_cache_info(&mut self) -> CacheInfo {
         self.mmap_cache
             .write()

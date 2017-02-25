@@ -41,13 +41,16 @@ impl Segment {
     pub fn schema(&self,) -> Schema {
         self.index.schema()
     }
-    
-    pub fn meta(&self,) -> &SegmentMeta {
+
+    /// Returns the segment meta-information.
+    /// See [SegmentMeta](SegmentMeta.html).
+    pub fn meta(&self) -> &SegmentMeta {
         &self.meta
     }
 
-    pub fn meta_mut(&mut self,) -> &mut SegmentMeta {
-        &mut self.meta
+    /// Set the delete meta data
+    pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
+        self.meta.set_delete_meta(num_deleted_docs, opstamp);
     }
 
     /// Returns the segment's id.

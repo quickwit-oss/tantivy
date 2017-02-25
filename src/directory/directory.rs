@@ -27,8 +27,6 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// Specifically, subsequent writes or flushes should
     /// have no effect on the returned `ReadOnlySource` object. 
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError>;
-    
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
 
     /// Removes a file
     ///
@@ -63,6 +61,12 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// The file may not previously exist.
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
     
+    /// Reads the full content file that has been written using
+    /// atomic_write.
+    ///
+    /// This should only be used for small files.
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
+
     /// Atomically replace the content of a file with data.
     /// 
     /// This calls ensure that reads can never *observe*

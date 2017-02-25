@@ -279,10 +279,15 @@ impl SegmentReader {
         self.segment_id
     }
 
+    /// Returns the bitset representing
+    /// the documents that have been deleted.
     pub fn delete_bitset(&self) -> &DeleteBitSet {
         &self.delete_bitset
     }
 
+
+    /// Returns true iff the `doc` is marked
+    /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.delete_bitset.is_deleted(doc)
     }

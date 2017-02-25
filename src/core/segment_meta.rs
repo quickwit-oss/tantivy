@@ -45,7 +45,7 @@ impl SegmentMeta {
         self.num_docs = num_docs;
     }
 
-    pub fn set_deletes(&mut self, num_deleted_docs: u32, opstamp: u64) {
+    pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
         self.deletes = Some(DeleteMeta {
             num_deleted_docs: num_deleted_docs,
             opstamp: opstamp,

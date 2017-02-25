@@ -89,6 +89,7 @@ mod analyzer;
 mod datastruct;
 
 
+
 /// Query module
 pub mod query;
 /// Directory module
@@ -107,8 +108,7 @@ pub use core::searcher::Searcher;
 pub use core::Segment;
 pub use core::Index;
 pub use indexer::IndexWriter;
-pub use schema::Term;
-pub use schema::Document;
+pub use schema::{Term, Document};
 pub use core::SegmentReader;
 pub use self::common::TimerTree;
 

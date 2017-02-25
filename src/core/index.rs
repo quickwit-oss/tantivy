@@ -207,7 +207,8 @@ impl Index {
     pub fn delete_segment(&self, segment_id: SegmentId) {
         delete_segment(self.directory(), segment_id); 
     }
-
+    
+    /// Creates a segment object given an index and a segment_meta.
     pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
         create_segment(self.clone(), segment_meta)
     }
