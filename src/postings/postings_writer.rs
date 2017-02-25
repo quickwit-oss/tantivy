@@ -120,7 +120,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         term_offsets.sort_by_key(|&(k, _v)| k);
         let mut term = Term::allocate(Field(0), 100);
         for (term_bytes, (addr, recorder)) in term_offsets {
-            // TODO remove copy
+            // sadly we are required to copy the data
             term.set_content(term_bytes);
             try!(serializer.new_term(&term));
             try!(recorder.serialize(addr, serializer, heap));

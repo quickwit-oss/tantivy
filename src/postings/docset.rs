@@ -55,9 +55,6 @@ pub trait DocSet {
     /// Returns the current document
     fn doc(&self) -> DocId;
 
-    /// TODO can impl trait for trait?
-
-
     /// Advances the cursor to the next document
     /// None is returned if the iterator has `DocSet`
     /// has already been entirely consumed.

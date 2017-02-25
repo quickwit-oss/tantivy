@@ -2,8 +2,6 @@ use postings::DocSet;
 use postings::SkipResult;
 use DocId;
 
-// TODO Find a way to specialize `IntersectionDocSet`
-
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct IntersectionDocSet<TDocSet: DocSet> {
     docsets: Vec<TDocSet>,

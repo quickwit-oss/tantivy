@@ -49,7 +49,7 @@ use common::BinarySerializable;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
-    terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, /* TODO find an alternative to work around the "move" */
+    terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>,
     postings_write: WritePtr,
     positions_write: WritePtr,
     written_bytes_postings: usize,
