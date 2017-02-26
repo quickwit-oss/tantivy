@@ -15,6 +15,7 @@ use indexer::segment_entry::SegmentEntry;
 /// segments that are currently searchable,
 /// and by the index merger to identify 
 /// merge candidates.
+#[derive(Default)]
 pub struct SegmentRegister {
     segment_states: HashMap<SegmentId, SegmentEntry>, 
 }
@@ -110,13 +111,6 @@ impl SegmentRegister {
     }
 }
 
-impl Default for SegmentRegister {
-    fn default() -> SegmentRegister {
-        SegmentRegister {
-            segment_states: HashMap::new(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

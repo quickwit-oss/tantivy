@@ -2,23 +2,17 @@ use super::segment_register::SegmentRegister;
 use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
-use indexer::SegmentEntry;
+use indexer::{SegmentEntry, SegmentState};
+
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 
+#[derive(Default)]
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
 }
 
-impl Default for SegmentRegisters {
-    fn default() -> SegmentRegisters {
-        SegmentRegisters {
-            uncommitted: SegmentRegister::default(),
-            committed: SegmentRegister::default()
-        }
-    }
-}
 
 
 /// The segment manager stores the list of segments
@@ -26,6 +20,7 @@ impl Default for SegmentRegisters {
 ///
 /// It guarantees the atomicity of the 
 /// changes (merges especially)
+#[derive(Default)]
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
 }
@@ -71,7 +66,12 @@ impl SegmentManager {
         );
         segment_entries
     }
-    
+
+    pub fn segment_state(&self, segment_id: &SegmentId) -> Option<SegmentState> {
+        self.segment_entry(segment_id)
+            .map(|segment_entry| segment_entry.state())
+    }
+
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         let registers = self.read();
         registers
@@ -100,11 +100,22 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
+    pub fn commit(&self, segment_metas: Vec<SegmentMeta>) {
+         let committed_segment_entries = segment_metas
+                .into_iter()
+                .map(|segment_meta| {
+                    let segment_id = segment_meta.id();
+                    let mut segment_entry = SegmentEntry::new(segment_meta);
+                    if let Some(state) = self.segment_state(&segment_id) {
+                        segment_entry.set_state(state);
+                    }
+                    segment_entry
+                })
+                .collect::<Vec<_>>();
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
         registers_lock.uncommitted.clear();
-        for segment_entry in segment_entries {
+        for segment_entry in committed_segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
     }
@@ -120,6 +131,9 @@ impl SegmentManager {
             for segment_id in segment_ids {
                 registers_lock.committed.start_merge(segment_id);
             }
+        }
+        else {
+            error!("Merge operation sent for segments that are not all uncommited or commited.");
         }
     }
 
@@ -150,17 +164,5 @@ impl SegmentManager {
     pub fn committed_segment_metas(&self,) -> Vec<SegmentMeta> {
         let registers_lock = self.read();
         registers_lock.committed.segment_metas()
-    }
-}
-
-
-impl Default for SegmentManager {
-    fn default() -> SegmentManager {
-        SegmentManager {
-            registers: RwLock::new( SegmentRegisters {
-                uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::default(),
-            }),
-        }
     }
 }

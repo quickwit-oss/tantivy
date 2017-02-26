@@ -43,6 +43,10 @@ impl SegmentEntry {
         self.state
     }
 
+     pub fn set_state(&mut self, state: SegmentState) {
+        self.state = state;
+    }
+
     pub fn set_doc_to_opstamp(&mut self, doc_to_opstamp: DocToOpstampMapping) {
         self.doc_to_opstamp = doc_to_opstamp;
     }

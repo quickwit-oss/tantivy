@@ -55,6 +55,10 @@ extern crate libc;
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
 
+
+#[cfg(test)]
+mod functional_test;
+
 #[macro_use]
 mod macros {
     macro_rules! get(
@@ -185,8 +189,10 @@ mod tests {
     use Index;
     use core::SegmentReader;
     use query::BooleanQuery;
+    use postings::SegmentPostingsOption;
     use schema::*;
     use DocSet;
+    use IndexWriter;
     use Postings;
 
     #[test]
@@ -290,7 +296,7 @@ mod tests {
 
 
     #[test]
-    fn test_delete_postings() {
+    fn test_delete_postings1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -392,10 +398,8 @@ mod tests {
             {   
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
-            index_writer.rollback().unwrap();
-            {   
-                index_writer.delete_term(Term::from_field_text(text_field, "a"));
-            }
+            index_writer.rollback().unwrap();   
+            index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
         }
         {
@@ -424,6 +428,63 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn test_indexed_u32() {
+        let mut schema_builder = SchemaBuilder::default();
+        let field = schema_builder.add_u32_field("text", U32_INDEXED);
+        let schema = schema_builder.build();
+        
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        index_writer.add_document(
+            doc!(field=>1)
+        );
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let term = Term::from_field_u32(field, 1u32);
+        let mut postings = searcher.segment_reader(0).read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
+        assert!(postings.advance());
+        assert_eq!(postings.doc(), 0);
+        assert!(!postings.advance());
+    }
+
+    #[test]
+    fn test_delete_postings2() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
+        
+        let add_document = |index_writer: &mut IndexWriter, val: &'static str| {
+            let doc = doc!(text_field=>val);
+            index_writer.add_document(doc);
+        };
+        
+        let remove_document = |index_writer: &mut IndexWriter, val: &'static str| {
+            let delterm = Term::from_field_text(text_field, val);
+            index_writer.delete_term(delterm);
+        };
+
+        add_document(&mut index_writer, "63");
+        add_document(&mut index_writer, "70");
+        add_document(&mut index_writer, "34");
+        add_document(&mut index_writer, "1");
+        add_document(&mut index_writer, "38");
+        add_document(&mut index_writer, "33");
+        add_document(&mut index_writer, "40");
+        add_document(&mut index_writer, "17");
+        remove_document(&mut index_writer, "38");
+        remove_document(&mut index_writer, "34");
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 6);
+    }
 
     #[test]
     fn test_termfreq() {

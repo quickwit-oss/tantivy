@@ -160,12 +160,25 @@ pub fn advance_deletes(
     segment: &mut Segment,
     delete_operations: &DeleteQueueSnapshot,
     doc_opstamps: &DocToOpstampMapping) -> Result<SegmentMeta> {
+
+        
         let segment_reader = SegmentReader::open(segment.clone())?;
+        
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
         
         let mut last_opstamp_opt: Option<u64> = None;
 
+        let previous_delete_opstamp_opt = segment.meta().delete_opstamp();
+        
         for delete_op in delete_operations.iter() {
+
+            // let's skip operations that have already been deleted.0u32
+            if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
+                if delete_op.opstamp <= previous_delete_opstamp {
+                    continue;
+                }
+            }
+
             // A delete operation should only affect
             // document that were inserted after it.
             // 
@@ -179,11 +192,11 @@ pub fn advance_deletes(
                         delete_bitset.insert(deleted_doc as usize);
                     }
                 }
-                last_opstamp_opt = Some(delete_op.opstamp);
             }
+            last_opstamp_opt = Some(delete_op.opstamp);
         }
 
-    if let Some(last_opstamp) = last_opstamp_opt {
+        if let Some(last_opstamp) = last_opstamp_opt {
             for doc in 0u32..segment_reader.max_doc() {
                 if segment_reader.is_deleted(doc) {
                     delete_bitset.insert(doc as usize);
@@ -194,6 +207,7 @@ pub fn advance_deletes(
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
+
         Ok(segment.meta().clone())
 }
 
@@ -365,6 +379,8 @@ impl IndexWriter {
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<u64> {
 
+        info!("Rolling back to opstamp {}", self.committed_opstamp);
+
         // by updating the generation in the segment updater,
         // pending add segment commands will be dismissed.
         self.generation += 1;
@@ -428,6 +444,19 @@ impl IndexWriter {
     ///
     pub fn commit(&mut self) -> Result<u64> {
 
+        // here, because we join all of the worker threads,
+        // all of the segment update for this commit have been
+        // sent.
+        //
+        // No document belonging to the next generation have been
+        // pushed too, because add_document can only happen
+        // on this thread.
+
+        // This will move uncommitted segments to the state of
+        // committed segments.
+        self.committed_opstamp = self.stamp();
+        info!("committing {}", self.committed_opstamp);
+
         // this will drop the current document channel
         // and recreate a new one channels.
         self.recreate_document_channel();
@@ -444,17 +473,7 @@ impl IndexWriter {
             try!(self.add_indexing_worker());
         }
 
-        // here, because we join all of the worker threads,
-        // all of the segment update for this commit have been
-        // sent.
-        //
-        // No document belonging to the next generation have been
-        // pushed too, because add_document can only happen
-        // on this thread.
-
-        // This will move uncommitted segments to the state of
-        // committed segments.
-        self.committed_opstamp = self.stamp();
+        
 
         // wait for the segment update thread to have processed the info
         self.segment_updater
@@ -473,13 +492,14 @@ impl IndexWriter {
     ///
     /// Like adds, the deletion itself will be visible 
     /// only after calling `commit()`.
-    pub fn delete_term(&mut self, term: Term) {
+    pub fn delete_term(&mut self, term: Term) -> u64 {
         let opstamp = self.stamp();
         let delete_operation = DeleteOperation {
             opstamp: opstamp,
             term: term,
         };
         self.delete_queue.push(delete_operation);
+        opstamp
     }
 
     fn stamp(&mut self) -> u64 {
@@ -498,6 +518,8 @@ impl IndexWriter {
     ///
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
+
+    // TODO remove return without Result<>
     pub fn add_document(&mut self, document: Document) -> io::Result<u64> {
         let opstamp = self.stamp();
         let add_operation = AddOperation {

@@ -105,8 +105,7 @@ struct InnerSegmentUpdater {
 
 impl SegmentUpdater {
 
-    pub fn new(index: Index, delete_queue: DeleteQueue) -> Result<SegmentUpdater>
-    {   
+    pub fn new(index: Index, delete_queue: DeleteQueue) -> Result<SegmentUpdater> {
         let segments = index.segments()?;
         let segment_manager = SegmentManager::from_segments(segments);
         Ok(
@@ -177,11 +176,7 @@ impl SegmentUpdater {
     pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
         self.run_async(move |segment_updater| {
             let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
-            let segment_entries = segment_metas
-                .into_iter()
-                .map(SegmentEntry::new)
-                .collect::<Vec<_>>();
-            segment_updater.0.segment_manager.commit(segment_entries);
+            segment_updater.0.segment_manager.commit(segment_metas);
             let mut directory = segment_updater.0.index.directory().box_clone();
             save_metas(
                     segment_updater.0.segment_manager.committed_segment_metas(),
@@ -241,13 +236,15 @@ impl SegmentUpdater {
                 .map(|segment_meta| index.segment(segment_meta))
                 .collect();
             
-            // An IndexMerger is like a "view" of our merged segments. 
+            // An IndexMerger is like a "view" of our merged segments.
             let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
             let mut merged_segment = index.new_segment(); 
             
             // ... we just serialize this index merger in our new segment
             // to merge the two segments.
+
             let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
+
             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
             let mut segment_meta = SegmentMeta::new(merged_segment.id());
             segment_meta.set_num_docs(num_docs);
@@ -257,7 +254,6 @@ impl SegmentUpdater {
                 .end_merge(segment_metas.clone(), segment_entry.clone())
                 .wait()
                 .unwrap();
-            
             merging_future_send.complete(segment_entry.clone());
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(segment_entry)

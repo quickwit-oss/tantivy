@@ -79,7 +79,7 @@ impl Decodable for SegmentId {
 
 impl fmt::Debug for SegmentId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SegmentId({:?})", self.uuid_string())
+        write!(f, "Seg({:?})", self.short_uuid_string())
     }
 }
 

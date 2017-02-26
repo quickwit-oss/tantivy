@@ -39,7 +39,6 @@ pub struct Index {
     directory: Box<Directory>,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
-    opstamp: u64,
 }
 
 
@@ -117,12 +116,10 @@ impl Index {
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: Box<Directory>, metas: IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
-        let opstamp = metas.opstamp;
         let index = Index {
             directory: directory,
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
-            opstamp: opstamp,
         };
         try!(index.load_searchers());
         Ok(index)
@@ -146,7 +143,7 @@ impl Index {
     /// The opstamp is the number of documents that have been added
     /// from the beginning of time, and until the moment of the last commit.
     pub fn opstamp(&self) -> u64 {
-        self.opstamp
+        load_metas(self.directory()).unwrap().opstamp
     }
 
     /// Open a new index writer. Attempts to acquire a lockfile.
@@ -294,7 +291,6 @@ impl Clone for Index {
             directory: self.directory.box_clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
-            opstamp: self.opstamp,
         }
     }
 }
