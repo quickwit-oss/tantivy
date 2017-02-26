@@ -42,14 +42,24 @@ fn create_uuid() -> Uuid {
 }
 
 impl SegmentId {
+    #[doc(hidden)]
     pub fn generate_random() -> SegmentId {
         SegmentId(create_uuid())
     }
 
+
+    /// Returns a shorter identifier of the segment.
+    ///
+    /// We are using UUID4, so only 6 bits are fixed,
+    /// and the rest is random.
+    ///
+    /// Picking the first 8 chars is ok to identify 
+    /// segments in a display message.
     pub fn short_uuid_string(&self,) -> String {
         (&self.0.simple().to_string()[..8]).to_string()
     }
 
+    /// Returns a segment uuid string.
     pub fn uuid_string(&self,) -> String {
         self.0.simple().to_string()
     }

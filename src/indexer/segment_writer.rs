@@ -130,25 +130,6 @@ impl<'a> SegmentWriter<'a> {
 	pub fn is_buffer_full(&self,) -> bool {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
-
-	// pub fn compute_doc_mapping_after_delete(&self, mut delete_queue_cursor: DeleteQueueCursor) -> Vec<Option<DocId>> {
-	// 	let delete_docs = self.compute_delete_mask(&mut delete_queue_cursor);
-	// 	let max_doc: usize = self.max_doc as usize;
-	// 	let mut doc_autoinc = 0u32;
-	// 	(0..max_doc)
-	// 	.map(|doc| {
-	// 		if delete_docs.contains(doc) {
-	// 			None
-	// 		}
-	// 		else {
-	// 			let new_doc = doc_autoinc;
-	// 			doc_autoinc += 1;
-	// 			Some(new_doc)
-	// 		}
-	// 	})
-	// 	.collect::<Vec<_>>()
-	// }
-	
 	
 	/// Indexes a new document
 	///
