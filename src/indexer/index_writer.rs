@@ -24,7 +24,6 @@ use Result;
 use schema::Document;
 use schema::Schema;
 use schema::Term;
-use std::io;
 use std::mem;
 use std::mem::swap; 
 use std::thread;
@@ -196,6 +195,10 @@ pub fn advance_deletes(
             last_opstamp_opt = Some(delete_op.opstamp);
         }
 
+        // we only write the result different
+        // iff we ended ended up increasing the delete opstamp
+        //
+        // TODO just move the file if there was no new delete?
         if let Some(last_opstamp) = last_opstamp_opt {
             for doc in 0u32..segment_reader.max_doc() {
                 if segment_reader.is_deleted(doc) {
@@ -518,16 +521,14 @@ impl IndexWriter {
     ///
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
-
-    // TODO remove return without Result<>
-    pub fn add_document(&mut self, document: Document) -> io::Result<u64> {
+    pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamp();
         let add_operation = AddOperation {
             opstamp: opstamp,
             document: document,
         };
         self.document_sender.send(add_operation);
-        Ok(opstamp)
+        opstamp
     }
 }
 
@@ -595,7 +596,7 @@ mod tests {
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert_eq!(index_writer.rollback().unwrap(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
@@ -603,12 +604,12 @@ mod tests {
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert_eq!(index_writer.commit().unwrap(), 2u64);
             index.load_searchers().unwrap();
@@ -637,13 +638,13 @@ mod tests {
             for _doc in 0..100 {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().expect("commit failed");
             for _doc in 0..100 {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");

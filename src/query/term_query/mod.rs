@@ -36,7 +36,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field => "a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert!(index_writer.commit().is_ok());
         }

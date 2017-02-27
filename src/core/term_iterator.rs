@@ -149,7 +149,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b d f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }
@@ -157,7 +157,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }
@@ -165,7 +165,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "e f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }

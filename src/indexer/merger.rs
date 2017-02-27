@@ -325,19 +325,19 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u32(score_field, 3);
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c");
                     doc.add_u32(score_field, 5);
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d");
                     doc.add_u32(score_field, 7);
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("committed");
             }
@@ -348,13 +348,13 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u32(score_field, 11);
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c g");
                     doc.add_u32(score_field, 13);
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("Commit failed");
             }
@@ -443,18 +443,18 @@ mod tests {
                 doc!(
                     text_field => "a b d",
                     score_field => 1
-                )).unwrap();
+                ));
             index_writer.add_document(
                 doc!(
                     text_field => "b c",
                     score_field => 2
-                )).unwrap();
+                ));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(
                 doc!(
                     text_field => "c d",
                     score_field => 3
-                )).unwrap();
+                ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let ref searcher = *index.searcher();
@@ -471,24 +471,24 @@ mod tests {
                 doc!(
                     text_field => "a d e",
                     score_field => 4_000
-                )).unwrap();
+                ));
             index_writer.add_document(
                 doc!(
                     text_field => "e f",
                     score_field => 5_000
-                )).unwrap();
+                ));
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(
                 doc!(
                     text_field => "f g",
                     score_field => 6_000
-                )).unwrap();
+                ));
             index_writer.add_document(
                 doc!(
                     text_field => "g h",
                     score_field => 7_000
-                )).unwrap();
+                ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let searcher = index.searcher();

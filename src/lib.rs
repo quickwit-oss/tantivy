@@ -206,15 +206,15 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c d");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert!(index_writer.commit().is_ok());
         }
@@ -228,23 +228,23 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         {
-            index_writer.add_document(doc!(text_field=>"a b c")).unwrap();
+            index_writer.add_document(doc!(text_field=>"a b c"));
             index_writer.commit().unwrap();
         }
         {
             {
                 let doc = doc!(text_field=>"a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }
         {
             let doc = doc!(text_field=>"c");
-            index_writer.add_document(doc).unwrap();
+            index_writer.add_document(doc);
             index_writer.commit().unwrap();
         }
         {
@@ -271,15 +271,15 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!();
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }
@@ -306,19 +306,19 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {   // 0
                 let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 1
                 let doc = doc!(text_field=>" a c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 2
                 let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 3
                 let doc = doc!(text_field=>" b d");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
@@ -328,11 +328,11 @@ mod tests {
             }
             {   // 4
                 let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 5
                 let doc = doc!(text_field=>" a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }
@@ -361,7 +361,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {   // 0
                 let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 1
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
@@ -393,7 +393,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             { 
                 let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
@@ -497,7 +497,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af af af bc bc");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }
@@ -526,15 +526,15 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af af af b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c d");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }
@@ -593,15 +593,15 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af b");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let doc = doc!(text_field=>"a b c d");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             index_writer.commit().unwrap();
         }

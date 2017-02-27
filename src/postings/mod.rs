@@ -175,12 +175,12 @@ mod tests {
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "g b b d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "g a b b a d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert!(index_writer.commit().is_ok());
         }
@@ -257,7 +257,7 @@ mod tests {
                         count_b += 1;
                         doc.add_text(text_field, "b");
                     }
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 assert!(index_writer.commit().is_ok());
             }

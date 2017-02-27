@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 
 use schema::*;
 use Index;
@@ -30,7 +30,7 @@ fn test_indexing() {
     let mut committed_docs: HashSet<u32> = HashSet::new();
     let mut uncommitted_docs: HashSet<u32> = HashSet::new();
 
-    for n in 0..200 {
+    for _ in 0..200 {
         let random_val = universe.ind_sample(&mut rng);
         if random_val == 0 {
             index_writer.commit();

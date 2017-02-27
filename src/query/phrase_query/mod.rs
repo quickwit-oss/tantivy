@@ -27,23 +27,23 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             {   // 0
                 let doc = doc!(text_field=>"b b b d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 1
                 let doc = doc!(text_field=>"a b b d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 2
                 let doc = doc!(text_field=>"a b a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 3
                 let doc = doc!(text_field=>"c a b a d ga a");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {   // 4
                 let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert!(index_writer.commit().is_ok());
         }
