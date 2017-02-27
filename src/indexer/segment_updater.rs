@@ -247,7 +247,7 @@ impl SegmentUpdater {
 
             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
             let mut segment_meta = SegmentMeta::new(merged_segment.id());
-            segment_meta.set_num_docs(num_docs);
+            segment_meta.set_max_doc(num_docs);
             
             let segment_entry = SegmentEntry::new(segment_meta);
             segment_updater_clone

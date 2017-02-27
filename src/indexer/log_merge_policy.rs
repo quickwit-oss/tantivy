@@ -122,7 +122,7 @@ mod tests {
 
     fn seg_meta(num_docs: u32) -> SegmentMeta {
         let mut segment_metas = SegmentMeta::new(SegmentId::generate_random());
-        segment_metas.set_num_docs(num_docs);
+        segment_metas.set_max_doc(num_docs);
         segment_metas
     }
 

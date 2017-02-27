@@ -242,7 +242,7 @@ fn index_documents(heap: &mut Heap,
 
     // let segment_entry = advance_deletes(&mut segment, delete_queue, delete_position, )?;
     let mut segment_meta = SegmentMeta::new(segment_id);
-    segment_meta.set_num_docs(num_docs);
+    segment_meta.set_max_doc(num_docs);
 
     let mut segment_entry = SegmentEntry::new(segment_meta);
     segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
