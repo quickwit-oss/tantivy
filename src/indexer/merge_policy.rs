@@ -43,3 +43,28 @@ impl MergePolicy for NoMergePolicy {
     }
 }
 
+
+#[cfg(test)]
+pub mod tests {
+
+    use super::*;
+    use core::SegmentId;
+    use core::SegmentMeta;
+
+    #[derive(Debug)]
+    pub struct MergeWheneverPossible;
+
+    impl MergePolicy for MergeWheneverPossible {
+        fn compute_merge_candidates(&self, segment_metas: &[SegmentMeta]) -> Vec<MergeCandidate> {
+            let segment_ids = segment_metas
+                .iter()
+                .map(|segment_meta| segment_meta.id())
+                .collect::<Vec<SegmentId>>();
+            vec!(MergeCandidate(segment_ids))
+        }
+        
+        fn box_clone(&self) -> Box<MergePolicy> {
+            box MergeWheneverPossible
+        }
+    }
+}

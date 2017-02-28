@@ -323,3 +323,68 @@ impl SegmentUpdater {
     }
 
 }
+
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use Index;
+    use schema::*;
+    use indexer::merge_policy::tests::MergeWheneverPossible;
+
+    #[test]
+    fn test_delete_during_merge() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        index_writer.set_merge_policy(box MergeWheneverPossible);
+
+        {
+            for i in 0..100 {
+                index_writer.add_document(doc!(text_field=>"a"));
+                index_writer.add_document(doc!(text_field=>"b"));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        
+        {
+            for i in 0..100 {
+                index_writer.add_document(doc!(text_field=>"c"));
+                index_writer.add_document(doc!(text_field=>"d"));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        
+        {
+            index_writer.add_document(doc!(text_field=>"e"));
+            index_writer.add_document(doc!(text_field=>"f"));
+            assert!(index_writer.commit().is_ok());
+        }
+
+        {
+            let term = Term::from_field_text(text_field, "a");
+            index_writer.delete_term(term);
+            assert!(index_writer.commit().is_ok());
+        }
+
+        index.load_searchers();
+        assert_eq!(index.searcher().segment_readers().len(), 3);
+        assert_eq!(index.searcher().num_docs(), 302);
+
+        {
+            index_writer.wait_merging_threads()
+                        .expect("waiting for merging threads");
+        }
+
+        index.load_searchers();
+        assert_eq!(index.searcher().segment_readers().len(), 2);
+        assert_eq!(index.searcher().num_docs(), 302);
+    }
+}
