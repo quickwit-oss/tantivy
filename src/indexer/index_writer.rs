@@ -352,7 +352,7 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentEntry, Error=Canceled> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentMeta, Error=Canceled> {
         self.segment_updater.start_merge(segment_ids)
     }
 

@@ -175,9 +175,10 @@ impl SegmentManager {
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
     
-    pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_entry: SegmentEntry) {
+    pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_meta: SegmentMeta) {
         let mut registers_lock = self.write();
         let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.id()).collect();
+        let merged_segment_entry = SegmentEntry::new(merged_segment_meta);
         if registers_lock.uncommitted.contains_all(&merged_segment_ids) {
             for segment_id in &merged_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);

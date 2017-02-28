@@ -97,7 +97,7 @@ struct InnerSegmentUpdater {
     segment_manager: SegmentManager,
     merge_policy: RwLock<Box<MergePolicy>>,
     merging_thread_id: AtomicUsize,
-    merging_threads: RwLock<HashMap<usize, JoinHandle<Result<SegmentEntry>>>>,
+    merging_threads: RwLock<HashMap<usize, JoinHandle<Result<()>>>>,
     generation: AtomicUsize,
     delete_queue: DeleteQueue,
 }
@@ -202,7 +202,7 @@ impl SegmentUpdater {
     }
 
 
-    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentEntry, Error=Canceled> {
+    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentMeta, Error=Canceled> {
         
         self.0.segment_manager.start_merge(segment_ids);
         let segment_updater_clone = self.clone();
@@ -263,14 +263,13 @@ impl SegmentUpdater {
             let mut segment_meta = SegmentMeta::new(merged_segment.id());
             segment_meta.set_max_doc(num_docs);
             
-            let segment_entry = SegmentEntry::new(segment_meta);
             segment_updater_clone
-                .end_merge(segment_metas.clone(), segment_entry.clone())
+                .end_merge(segment_metas.clone(), segment_meta.clone())
                 .wait()
                 .unwrap();
-            merging_future_send.complete(segment_entry.clone());
+            merging_future_send.complete(segment_meta);
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
-            Ok(segment_entry)
+            Ok(())
         });
         self.0.merging_threads.write().unwrap().insert(merging_thread_id, merging_join_handle);
         merging_future_recv
@@ -293,10 +292,10 @@ impl SegmentUpdater {
     
     fn end_merge(&self, 
         merged_segment_metas: Vec<SegmentMeta>,
-        resulting_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
+        segment_meta: SegmentMeta) -> impl Future<Item=(), Error=Error> {
         
         self.run_async(move |segment_updater| {
-            segment_updater.0.segment_manager.end_merge(&merged_segment_metas, resulting_segment_entry);
+            segment_updater.0.segment_manager.end_merge(&merged_segment_metas, segment_meta);
             let mut directory = segment_updater.0.index.directory().box_clone();
             let segment_metas = segment_updater.0.segment_manager.committed_segment_metas();
             save_metas(
@@ -347,7 +346,7 @@ mod tests {
         index_writer.set_merge_policy(box MergeWheneverPossible);
 
         {
-            for i in 0..100 {
+            for _ in 0..100 {
                 index_writer.add_document(doc!(text_field=>"a"));
                 index_writer.add_document(doc!(text_field=>"b"));
             }
@@ -355,7 +354,7 @@ mod tests {
         }
         
         {
-            for i in 0..100 {
+            for _ in 0..100 {
                 index_writer.add_document(doc!(text_field=>"c"));
                 index_writer.add_document(doc!(text_field=>"d"));
             }
@@ -374,7 +373,7 @@ mod tests {
             assert!(index_writer.commit().is_ok());
         }
 
-        index.load_searchers();
+        index.load_searchers().unwrap();
         assert_eq!(index.searcher().segment_readers().len(), 3);
         assert_eq!(index.searcher().num_docs(), 302);
 
@@ -383,7 +382,7 @@ mod tests {
                         .expect("waiting for merging threads");
         }
 
-        index.load_searchers();
+        index.load_searchers().unwrap();
         assert_eq!(index.searcher().segment_readers().len(), 2);
         assert_eq!(index.searcher().num_docs(), 302);
     }
