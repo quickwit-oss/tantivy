@@ -21,6 +21,7 @@ use indexer::merger::IndexMerger;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use Result;
+use std::path::PathBuf;
 use rustc_serialize::json;
 use schema::Schema;
 use std::borrow::BorrowMut;
@@ -74,13 +75,16 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
         schema: schema,
         opstamp: opstamp,
     };
-    let mut w = Vec::new();
+    let mut w = vec!();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
     Ok(directory
         .atomic_write(&META_FILEPATH, &w[..])?)
         
 }
 
+fn garbage_collect_files(directory: &Directory, alive_files: Vec<PathBuf>) {
+    // 
+}
 
 
 // The segment update runner is in charge of processing all
@@ -183,7 +187,10 @@ impl SegmentUpdater {
                     segment_updater.0.index.schema(),
                     opstamp,
                     directory.borrow_mut()).expect("Could not save metas.");
+            let useful_files = segment_updater.0.segment_manager.alive_files();
+            garbage_collect_files(&*directory, useful_files);
             segment_updater.consider_merge_options();
+            
         })
     }
 
@@ -290,9 +297,6 @@ impl SegmentUpdater {
                 segment_updater.0.index.schema(),
                 segment_updater.0.index.opstamp(),
                 directory.borrow_mut()).expect("Could not save metas.");
-            for segment_meta in merged_segment_metas {
-                segment_updater.0.index.delete_segment(segment_meta.id());
-            }
         })
         
     }

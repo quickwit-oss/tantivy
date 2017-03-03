@@ -3,7 +3,7 @@ use std::sync::RwLock;
 use core::SegmentMeta;
 use core::SegmentId;
 use indexer::{SegmentEntry, SegmentState};
-
+use std::path::PathBuf;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 
@@ -65,6 +65,17 @@ impl SegmentManager {
             .segment_entries()
         );
         segment_entries
+    }
+
+    pub fn alive_files(&self) -> Vec<PathBuf> {
+        let mut files = vec!();
+        let (segment_meta_uncommitted, segment_meta_committed) = get_segments(self);
+        for segment_meta in segment_meta_uncommitted
+                .into_iter()
+                .chain(segment_meta_committed.into_iter()) {
+            files.extend(segment_meta.alive_files());
+        }
+        files
     }
 
     pub fn segment_state(&self, segment_id: &SegmentId) -> Option<SegmentState> {

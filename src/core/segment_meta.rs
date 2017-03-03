@@ -1,4 +1,6 @@
 use core::SegmentId;
+use super::SegmentComponent;
+use std::path::PathBuf;
 
 
 #[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
@@ -41,6 +43,35 @@ impl SegmentMeta {
             .as_ref()
             .map(|delete_meta| delete_meta.num_deleted_docs)
             .unwrap_or(0u32)
+    }
+
+    pub fn alive_files(&self) -> Vec<PathBuf> {
+        SegmentComponent::iterator()
+            .map(|component| {
+                self.relative_path(*component)
+            })
+            .collect::<Vec<PathBuf>>()
+        
+    }
+
+    /// Returns the relative path of a component of our segment.
+    ///  
+    /// It just joins the segment id with the extension 
+    /// associated to a segment component.
+    pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
+        use self::SegmentComponent::*;
+        let mut path = self.id().uuid_string();
+        path.push_str(&*match component {
+            POSITIONS => ".pos".to_string(),
+            INFO => ".info".to_string(),
+            POSTINGS => ".idx".to_string(),
+            TERMS => ".term".to_string(),
+            STORE => ".store".to_string(),
+            FASTFIELDS => ".fast".to_string(),
+            FIELDNORMS => ".fieldnorm".to_string(),
+            DELETE => {format!(".{}.del", self.delete_opstamp().unwrap_or(0))},
+        });
+        PathBuf::from(path)
     }
 
     /// Return the highest doc id + 1

@@ -4,6 +4,7 @@ use core::SegmentMeta;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use indexer::segment_entry::SegmentEntry;
+use std::path::PathBuf;
 
 
 

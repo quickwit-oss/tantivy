@@ -352,26 +352,6 @@ impl Directory for MmapDirectory {
     fn box_clone(&self,) -> Box<Directory> {
         Box::new(self.clone())
     }
-    
-    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>> {
-        fs::read_dir(&self.root_path)
-        .map(|paths: ReadDir| {
-            paths
-            .filter_map(|dir_entry_res|
-                dir_entry_res
-                    .ok()
-                    .map(|dir_entry| dir_entry.path())
-            )
-            .filter(|path| 
-                path.to_str()
-                    .map(|filepath| filepath.starts_with(prefix))
-                    .unwrap_or(false)
-            )
-            .map(PathBuf::from)
-            .collect()
-        })
-          
-    }
 }
 
 

@@ -78,9 +78,6 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// Clones the directory and boxes the clone 
     fn box_clone(&self) -> Box<Directory>;
 
-    /// Returns the list of files starting by a given
-    /// prefix.
-    fn ls_starting_with(&self, prefix: &str) -> io::Result<Vec<PathBuf>>;
 }
 
 
