@@ -9,6 +9,7 @@ use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
 use std::result;
+use directory::Directory;
 use core::SegmentMeta;
 use directory::error::{FileError, OpenWriteError};
 

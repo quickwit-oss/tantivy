@@ -13,7 +13,6 @@ use std::convert::From;
 use std::fmt;
 use std::fs::{self, File};
 use std::fs::OpenOptions;
-use std::fs::ReadDir;
 use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
 use std::mem;
@@ -35,13 +34,24 @@ fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError
         }
     };
     let file = File::open(&full_path).map_err(convert_file_error)?;
-    if try!(file.metadata()).len() == 0 {
+    let meta_data = file
+        .metadata()
+        .map_err(|e| FileError::IOError(e))?;
+    if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible 
         // to mmap the file, so we return an anonymous mmap_cache
         // instead.
         return Ok(None)
     }
-    Ok(Some(Arc::new(Mmap::open(&file, Protection::Read)?)))
+    match Mmap::open(&file, Protection::Read) {
+        Ok(mmap) => {
+            Ok(Some(Arc::new(mmap)))
+        }
+        Err(e) => {
+            Err(FileError::IOError(e))
+        }
+    }
+    
 }
 
 #[derive(Default,Clone,Debug,RustcDecodable,RustcEncodable)]
@@ -267,9 +277,9 @@ impl Directory for MmapDirectory {
         
         let mut mmap_cache = self.mmap_cache
             .write()
-            .map_err(|_| {
+            .map_err(|_| FileError::IOError(
                 make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
-            })?;
+            ))?;
         
         Ok(mmap_cache.get_mmap(full_path)?
             .map(MmapReadOnly::from)
@@ -314,17 +324,27 @@ impl Directory for MmapDirectory {
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
-            .map_err(|_| {
-                make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))
-            })
+            .map_err(|_| 
+                 FileError::IOError(make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))))
         );
         // Removing the entry in the MMap cache.
         // The munmap will appear on Drop,
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
-        try!(fs::remove_file(&full_path));
-        try!(self.sync_directory());
-        Ok(())
+        match fs::remove_file(&full_path) {
+            Ok(_) => {
+                self.sync_directory()
+                    .map_err(|e| FileError::IOError(e))
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(FileError::FileDoesNotExist(path.to_owned()))
+                }
+                else {
+                    Err(FileError::IOError(e))
+                }
+            }
+        }
     }
 
     fn exists(&self, path: &Path) -> bool {
@@ -335,8 +355,22 @@ impl Directory for MmapDirectory {
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
         let full_path = self.resolve_path(path);
         let mut buffer = Vec::new();
-        File::open(&full_path)?.read_to_end(&mut buffer)?;
-        Ok(buffer)
+        match File::open(&full_path) {
+            Ok(mut file) => {
+                file.read_to_end(&mut buffer)
+                    .map_err(|e| FileError::IOError(e))?;
+                Ok(buffer)
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(FileError::FileDoesNotExist(path.to_owned()))
+                }
+                else {
+                    Err(FileError::IOError(e))
+                }
+            }
+        }
+        
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

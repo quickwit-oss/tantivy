@@ -23,7 +23,6 @@ use directory::ManagedDirectory;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
-use directory::error::FileError;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -48,7 +47,8 @@ impl Index {
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
-        let directory = ManagedDirectory::new(RAMDirectory::create());
+        let ram_directory = RAMDirectory::create();
+        let directory = ManagedDirectory::new(ram_directory).expect("Creating a managed directory from a brand new RAM directory should never fail.");
         Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail") // unwrap is ok here
     }
 
@@ -57,7 +57,8 @@ impl Index {
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
     pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
-        let directory = ManagedDirectory::new(MmapDirectory::open(directory_path)?);
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        let directory = ManagedDirectory::new(mmap_directory)?;
         Index::from_directory(directory, schema)
     }
 
@@ -70,7 +71,8 @@ impl Index {
     /// The temp directory is only used for testing the `MmapDirectory`.
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
-        let directory = ManagedDirectory::new(MmapDirectory::create_from_tempdir()?);
+        let mmap_directory = MmapDirectory::create_from_tempdir()?;
+        let directory = ManagedDirectory::new(mmap_directory)?;
         Index::from_directory(directory, schema)
     }
 
@@ -94,7 +96,8 @@ impl Index {
 
     /// Opens a new directory from an index path.
     pub fn open(directory_path: &Path) -> Result<Index> {
-        let directory = ManagedDirectory::new(MmapDirectory::open(directory_path)?);
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        let directory = ManagedDirectory::new(mmap_directory)?;
         let metas = try!(load_metas(&directory));
         Index::create_from_metas(directory, metas)
     }
@@ -170,12 +173,12 @@ impl Index {
     }
 
     /// Return a reference to the index directory.
-    pub fn directory(&self) -> &Directory {
+    pub fn directory(&self) -> &ManagedDirectory {
         &self.directory
     }
 
     /// Return a mutable reference to the index directory.
-    pub fn directory_mut(&mut self) -> &mut Directory {
+    pub fn directory_mut(&mut self) -> &mut ManagedDirectory {
         &mut self.directory
     }
 

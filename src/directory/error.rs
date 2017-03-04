@@ -36,9 +36,3 @@ pub enum FileError {
     /// interacting with the underlying IO device.
     IOError(io::Error),
 }
-
-impl From<io::Error> for FileError {
-    fn from(err: io::Error) -> FileError {
-        FileError::IOError(err)
-    }
-}

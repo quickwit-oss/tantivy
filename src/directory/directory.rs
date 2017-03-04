@@ -1,6 +1,6 @@
 use std::marker::Send;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use directory::error::{FileError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;

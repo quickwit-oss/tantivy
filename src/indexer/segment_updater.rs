@@ -21,7 +21,6 @@ use indexer::merger::IndexMerger;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use Result;
-use std::path::PathBuf;
 use rustc_serialize::json;
 use schema::Schema;
 use std::borrow::BorrowMut;
@@ -82,10 +81,6 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
         
 }
 
-fn garbage_collect_files(directory: &Directory, alive_files: Vec<PathBuf>) {
-    // 
-}
-
 
 // The segment update runner is in charge of processing all
 //  of the `SegmentUpdate`s.
@@ -124,6 +119,15 @@ impl SegmentUpdater {
                 delete_queue: delete_queue,
             }))
         )
+    }
+
+    pub fn new_segment(&self) -> Segment {
+        let new_segment = self.0.index.new_segment();
+        let segment_id = new_segment.id();
+        self.run_async(move |segment_updater| {
+            segment_updater.0.segment_manager.write_segment(segment_id);
+        });
+        new_segment
     }
 
     pub fn get_merge_policy(&self) -> Box<MergePolicy> {
@@ -181,14 +185,17 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
             segment_updater.0.segment_manager.commit(segment_metas);
-            let mut directory = segment_updater.0.index.directory().box_clone();
-            save_metas(
+            let mut index = segment_updater.0.index.clone();
+            {
+                let directory = index.directory();
+                save_metas(
                     segment_updater.0.segment_manager.committed_segment_metas(),
-                    segment_updater.0.index.schema(),
+                    index.schema(),
                     opstamp,
-                    directory.borrow_mut()).expect("Could not save metas.");
-            let useful_files = segment_updater.0.segment_manager.alive_files();
-            garbage_collect_files(&*directory, useful_files);
+                    directory.box_clone().borrow_mut()).expect("Could not save metas.");
+            }
+            let living_files = segment_updater.0.segment_manager.living_files();
+            index.directory_mut().garbage_collect(living_files);
             segment_updater.consider_merge_options();
             
         })

@@ -4,9 +4,6 @@ use core::SegmentMeta;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use indexer::segment_entry::SegmentEntry;
-use std::path::PathBuf;
-
-
 
 /// The segment register keeps track
 /// of the list of segment, their size as well

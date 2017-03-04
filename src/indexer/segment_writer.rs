@@ -72,7 +72,6 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 
 impl<'a> SegmentWriter<'a> {
 	
-	
 	/// Creates a new `SegmentWriter`
 	///
 	/// The arguments are defined as follows

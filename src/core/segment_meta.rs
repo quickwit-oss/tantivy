@@ -1,7 +1,7 @@
 use core::SegmentId;
 use super::SegmentComponent;
 use std::path::PathBuf;
-
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
 struct DeleteMeta {
@@ -45,12 +45,12 @@ impl SegmentMeta {
             .unwrap_or(0u32)
     }
 
-    pub fn alive_files(&self) -> Vec<PathBuf> {
+    pub fn living_files(&self) -> HashSet<PathBuf> {
         SegmentComponent::iterator()
             .map(|component| {
                 self.relative_path(*component)
             })
-            .collect::<Vec<PathBuf>>()
+            .collect::<HashSet<PathBuf>>()
         
     }
 

@@ -8,6 +8,7 @@ use core::SegmentMeta;
 use core::SegmentReader;
 use datastruct::stacker::Heap;
 use Error;
+use Directory;
 use fastfield::delete::write_delete_bitset;
 use indexer::delete_queue::DeleteQueueSnapshot;
 use futures::Canceled;
@@ -285,7 +286,6 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
-        let index = self.index.clone();
         let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
@@ -311,7 +311,7 @@ impl IndexWriter {
                     // peeked document now belongs to
                     // our local iterator.
                     if document_iterator.peek().is_some() {
-                        let segment = index.new_segment();
+                        let segment = segment_updater.new_segment();
                         index_documents(&mut heap,
                                         segment,
                                         &schema,

@@ -1,9 +1,11 @@
 use super::segment_register::SegmentRegister;
 use std::sync::RwLock;
 use core::SegmentMeta;
+use core::META_FILEPATH;
 use core::SegmentId;
 use indexer::{SegmentEntry, SegmentState};
 use std::path::PathBuf;
+use std::collections::hash_set::HashSet;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
 
@@ -11,6 +13,7 @@ use std::fmt::{self, Debug, Formatter};
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
+    writing: HashSet<SegmentId>,    
 }
 
 
@@ -51,6 +54,7 @@ impl SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas),
+                writing: HashSet::new(),
             }),
         }
     }
@@ -67,13 +71,25 @@ impl SegmentManager {
         segment_entries
     }
 
-    pub fn alive_files(&self) -> Vec<PathBuf> {
-        let mut files = vec!();
-        let (segment_meta_uncommitted, segment_meta_committed) = get_segments(self);
-        for segment_meta in segment_meta_uncommitted
+    pub fn living_files(&self) -> HashSet<PathBuf> {
+        let registers_lock = self.read();
+        let mut files = HashSet::new();
+        files.insert(META_FILEPATH.clone());
+        
+        let segment_metas =
+            registers_lock.committed
+                .get_segments()
                 .into_iter()
-                .chain(segment_meta_committed.into_iter()) {
-            files.extend(segment_meta.alive_files());
+                .chain(registers_lock.uncommitted
+                    .get_segments()
+                    .into_iter())
+                .chain(registers_lock.writing
+                    .iter()
+                    .cloned()
+                    .map(SegmentMeta::new));
+        
+        for segment_meta in segment_metas {
+            files.extend(segment_meta.living_files());
         }
         files
     }
@@ -148,8 +164,14 @@ impl SegmentManager {
         }
     }
 
+    pub fn write_segment(&self, segment_id: SegmentId) {
+        let mut registers_lock = self.write();
+        registers_lock.writing.insert(segment_id);
+    }
+
     pub fn add_segment(&self, segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
+        registers_lock.writing.remove(&segment_entry.segment_id());
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
     
