@@ -55,7 +55,7 @@ impl Seek for VecWriter {
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.is_flushed = false;
-        try!(self.data.write(buf));
+        try!(self.data.write_all(buf));
         Ok(buf.len())
     }
 

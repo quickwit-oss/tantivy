@@ -15,7 +15,7 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
             byte |= 1 << shift;
         }
         if shift == 7 {
-            writer.write(&[byte])?;
+            writer.write_all(&[byte])?;
             shift = 0;
             byte = 0;
         }
@@ -24,7 +24,7 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
         }
     }
     if max_doc % 8 > 0 {
-        writer.write(&[byte])?;
+        writer.write_all(&[byte])?;
     }
     writer.flush()
 }
