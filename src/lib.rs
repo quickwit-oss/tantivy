@@ -8,7 +8,6 @@
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![feature(conservative_impl_trait)]
 
 #![warn(missing_docs)]
 
