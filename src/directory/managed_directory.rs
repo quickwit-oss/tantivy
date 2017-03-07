@@ -12,6 +12,15 @@ use core::MANAGED_FILEPATH;
 use Result;
 use Error;
 
+/// Wrapper of directories that keeps track of files created by Tantivy.
+///
+/// A managed directory is just a wrapper of a directory
+/// that keeps a (persisted) list of the files that 
+/// have been created (and not deleted) by tantivy so far.
+///
+/// Thanks to this list, it implements a `garbage_collect` method
+/// that removes the files that were created by tantivy and are not
+/// useful anymore.
 #[derive(Debug)]
 pub struct ManagedDirectory {
     directory: Box<Directory>,
@@ -19,6 +28,8 @@ pub struct ManagedDirectory {
 }
 
 impl ManagedDirectory {
+
+    /// Wraps a directory as managed directory.
     pub fn new<Dir: Directory>(directory: Dir) -> Result<ManagedDirectory> {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
@@ -42,6 +53,17 @@ impl ManagedDirectory {
         }
     }
 
+    /// Garbage collect unused files.
+    ///
+    /// Removes the files that were created by `tantivy` and are not
+    /// used by any segment anymore.
+    /// 
+    /// * `living_files` - List of files that are still used by the index.
+    ///
+    /// This method does not panick nor returns errors.
+    /// If a file cannot be deleted (for permission reasons for instance)
+    /// an error is simply logged, and the file remains in the list of managed
+    /// files.
     pub fn garbage_collect(&mut self, living_files: HashSet<PathBuf>) {
         let mut managed_has_changed: bool = false;
         {
@@ -80,6 +102,8 @@ impl ManagedDirectory {
         }
     }
 
+    /// Saves the file containing the list of existing files
+    /// that were created by tantivy.
     fn save_managed_paths(&mut self,) -> io::Result<()> {
         let managed_files_lock = self.managed_paths
             .read()
@@ -90,6 +114,13 @@ impl ManagedDirectory {
         Ok(())
     }
 
+    /// Registers a file as managed
+    /// 
+    /// This method must be called before the file is 
+    /// actually created to ensure that a failure between
+    /// registering the filepath and creating the file
+    /// will not lead to garbage files that will 
+    /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
         let has_changed = {
             let mut managed_files_lock = self

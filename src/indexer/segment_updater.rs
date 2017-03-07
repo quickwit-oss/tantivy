@@ -194,7 +194,7 @@ impl SegmentUpdater {
                     opstamp,
                     directory.box_clone().borrow_mut()).expect("Could not save metas.");
             }
-            let living_files = segment_updater.0.segment_manager.living_files();
+            let living_files = segment_updater.0.segment_manager.list_files();
             index.directory_mut().garbage_collect(living_files);
             segment_updater.consider_merge_options();
             

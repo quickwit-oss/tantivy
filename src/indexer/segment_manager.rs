@@ -71,7 +71,7 @@ impl SegmentManager {
         segment_entries
     }
 
-    pub fn living_files(&self) -> HashSet<PathBuf> {
+    pub fn list_files(&self) -> HashSet<PathBuf> {
         let registers_lock = self.read();
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
@@ -89,7 +89,7 @@ impl SegmentManager {
                     .map(SegmentMeta::new));
         
         for segment_meta in segment_metas {
-            files.extend(segment_meta.living_files());
+            files.extend(segment_meta.list_files());
         }
         files
     }

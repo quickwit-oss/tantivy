@@ -45,7 +45,13 @@ impl SegmentMeta {
             .unwrap_or(0u32)
     }
 
-    pub fn living_files(&self) -> HashSet<PathBuf> {
+    /// Returns the list of files that
+    /// are required for the segment meta.
+    ///
+    /// This is useful as the way tantivy removes files
+    /// is by removing all files that have been created by tantivy
+    /// and are not used by any segment anymore.
+    pub fn list_files(&self) -> HashSet<PathBuf> {
         SegmentComponent::iterator()
             .map(|component| {
                 self.relative_path(*component)
