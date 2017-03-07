@@ -32,7 +32,9 @@ Tantivy supports Linux and MacOS. Windows is not supported.
 - [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
 - [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
-- [reference doc](https://tantivy-search.github.io/tantivy/tantivy/index.html).
+- [reference doc]
+    - [For the last released version](https://docs.rs/tantivy/)
+    - [For the last master branch](https://tantivy-search.github.io/tantivy/tantivy/index.html)
 
 # Compiling 
 
