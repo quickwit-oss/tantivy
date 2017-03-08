@@ -1,0 +1,5 @@
+[target.x86_64-unknown-linux-gnu]
+image = "tantivy-cli-x86_64-unknown-linux-gnu:latest"
+
+[target.x86_64-unknown-linux-musl]
+image = "tantivy-cli-x86_64-unknown-linux-musl:latest"
