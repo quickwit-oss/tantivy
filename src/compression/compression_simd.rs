@@ -1,7 +1,4 @@
-
 use super::NUM_DOCS_PER_BLOCK;
-
-use libc::size_t;
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1; 
 
