@@ -11,7 +11,7 @@ use tantivy::query::QueryParser;
 
 fn main() {
     // Let's create a temporary directory for the 
-    // sake of this example
+    // sake of this example.
     if let Ok(dir) = TempDir::new("tantivy_example_dir") {
         run_example(dir.path()).unwrap();
         dir.close().unwrap();
@@ -30,7 +30,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // be indexed".
     
     
-    // first we need to define a schema ...
+    // First we need to define a schema...
     let mut schema_builder = SchemaBuilder::default();
     
     // Our first field is title.
@@ -49,7 +49,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // documents that were selected during the search phase.
     schema_builder.add_text_field("title", TEXT | STORED);
     
-    // Our first field is body.
+    // Our second field is body.
     // We want full-text search for it, and we want to be able
     // to retrieve the body after the search.
     schema_builder.add_text_field("body", TEXT);
@@ -68,7 +68,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     
     
-    // To insert document we need an index writer.
+    // To insert a document we need an index writer.
     // There must be only one writer at a time.
     // This single `IndexWriter` is already
     // multithreaded.
@@ -100,7 +100,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // ### Create a document directly from json.
     //
     // Alternatively, we can use our schema to parse
-    // a document object directly from json.
+    // a document object directly from JSON.
     
     let mice_and_men_doc = try!(schema.parse_document(r#"{
        "title": "Of Mice and Men",
@@ -113,14 +113,14 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // expressed in JSON by an array.
     // The following document has two titles.
     let frankenstein_doc = try!(schema.parse_document(r#"{
-       "title": ["Frankenstein", "The Modern Promotheus"],
+       "title": ["Frankenstein", "The Modern Prometheus"],
        "body": "You will rejoice to hear that no disaster has accompanied the commencement of an enterprise which you have regarded with such evil forebodings.  I arrived here yesterday, and my first task is to assure my dear sister of my welfare and increasing confidence in the success of my undertaking."  
     }"#));
     index_writer.add_document(frankenstein_doc);
     
     // This is an example, so we will only index 3 documents
     // here. You can check out tantivy's tutorial to index
-    // the English wikipedia. Tantivy's indexing is rather fast. 
+    // the English Wikipedia. Tantivy's indexing is rather fast. 
     // Indexing 5 million articles of the English wikipedia takes
     // around 4 minutes on my computer!
     
@@ -143,7 +143,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // persistently indexed.
     // 
     // In the scenario of a crash or a power failure,
-    // tantivy behaves as if has rolled back to its last
+    // tantivy behaves as if it has rolled back to its last
     // commit.
     
     
@@ -159,7 +159,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which
-    // field they want to search, tantivy will search
+    // field he wants to search, tantivy will search
     // in both title and body.
     let query_parser = QueryParser::new(index.schema(), vec!(title, body));
     
