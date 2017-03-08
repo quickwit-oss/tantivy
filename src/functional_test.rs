@@ -12,6 +12,7 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u32>) {
 }
 
 #[test]
+#[ignore]
 fn test_indexing() {
 
     let mut schema_builder = SchemaBuilder::default();
