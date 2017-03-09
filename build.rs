@@ -10,8 +10,6 @@ mod build {
             .output()
             .unwrap_or_else(|e| { panic!("Failed to make simdcomp: {}", e) });
         gcc::Config::new()
-                    .cpp(true)
-                    .flag("-std=c++11")
                     .flag("-O3")
                     .flag("-mssse3")
                     .include("./cpp/simdcomp/include")
@@ -22,9 +20,8 @@ mod build {
                     .object("cpp/simdcomp/simdcomputil.o")
                     .object("cpp/simdcomp/simdpackedselect.o")
                     .object("cpp/simdcomp/simdfor.o")
-                    .file("cpp/simdcomp_wrapper.cpp")
+                    .file("cpp/simdcomp_wrapper.c")
                     .compile("libsimdcomp.a");
-        println!("cargo:rustc-flags=-l dylib=stdc++");
     }
 }
 
