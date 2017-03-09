@@ -10,7 +10,7 @@ size_t compress_sorted(
     const uint32_t b = simdmaxbitsd1(offset, datain);
     *output++ = b;
     simdpackwithoutmaskd1(offset, datain, (__m128i *) output,  b);
-    return 1 + b * sizeof(__m128i);;
+    return 1 + b * sizeof(__m128i);
 }
 
 // assumes datain has a size of 128 uint32
@@ -30,7 +30,7 @@ size_t compress_unsorted(
     const uint32_t b = maxbits(datain);
     *output++ = b;
     simdpackwithoutmask(datain, (__m128i *) output,  b);
-    return 1 + b * sizeof(__m128i);;
+    return 1 + b * sizeof(__m128i);
 }
 
 size_t uncompress_unsorted(
