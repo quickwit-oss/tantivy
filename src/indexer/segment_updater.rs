@@ -103,9 +103,9 @@ struct InnerSegmentUpdater {
 
 impl SegmentUpdater {
 
-    pub fn new(index: Index) -> Result<SegmentUpdater> {
+    pub fn new(index: Index, delete_cursor: DeleteCursor) -> Result<SegmentUpdater> {
         let segments = index.segments()?;
-        let segment_manager = SegmentManager::from_segments(segments);
+        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         Ok(
             SegmentUpdater(Arc::new(InnerSegmentUpdater {
                 pool: CpuPool::new(1),
@@ -168,23 +168,22 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self, delete_cursor: DeleteCursor) -> Result<Vec<SegmentMeta>> {
-        let mut segment_metas = vec!();
-        for segment_entry in self.0.segment_manager.segment_entries() {
-            let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-            let delete_cursor = delete_cursor.clone();
-            // TODO delete cursor skip...
-            let segment_meta = advance_deletes(&mut segment, delete_cursor, segment_entry.doc_to_opstamp())?;
-            segment_metas.push(segment_meta);
+    fn purge_deletes(&self) -> Result<Vec<SegmentEntry>> {
+        let mut segment_entries = self.0.segment_manager.segment_entries(); 
+        for segment_entry in &mut segment_entries {
+            let segment = self.0.index.segment(segment_entry.meta().clone());
+            advance_deletes(segment, segment_entry)?;
         }
-        Ok(segment_metas)
+        Ok(segment_entries)
         
     }
 
-    pub fn commit(&self, opstamp: u64, delete_cursor: DeleteCursor) -> impl Future<Item=(), Error=Error> {
+    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
         self.run_async(move |segment_updater| {
-            let segment_metas = segment_updater.purge_deletes(delete_cursor).expect("Failed purge deletes");
-            segment_updater.0.segment_manager.commit(segment_metas);
+            let segment_entries = segment_updater
+                .purge_deletes()
+                .expect("Failed purge deletes");
+            segment_updater.0.segment_manager.commit(segment_entries);
             let mut index = segment_updater.0.index.clone();
             {
                 let directory = index.directory();
@@ -226,22 +225,20 @@ impl SegmentUpdater {
             let ref index = segment_updater_clone.0.index;
             let schema = index.schema();
 
-            let mut segment_metas = vec!();
+            let mut segment_entries = vec!();
+
             for segment_id in &segment_ids_vec {
-                if let Some(segment_entry) = segment_updater_clone.0
+                if let Some(mut segment_entry) = segment_updater_clone.0
                     .segment_manager
                     .segment_entry(segment_id) {
 
                     // TODOS make sure that the segment are in the same 
                     // position with regard to deletes.
 
-                    // let mut segment = index.segment(segment_entry.meta().clone());
-                    // let segment_meta = advance_deletes(
-                    //      &mut segment,
-                    //      &delete_operations,
-                    //      segment_entry.doc_to_opstamp())?;
-                    let segment_meta = segment_entry.meta().clone();
-                    segment_metas.push(segment_meta);
+                    let segment = index.segment(segment_entry.meta().clone());
+                    advance_deletes(segment, &mut segment_entry)?;
+                    
+                    segment_entries.push(segment_entry);
                 }
                 else {
                     error!("Error, had to abort merge as some of the segment is not managed anymore.a");
@@ -249,10 +246,13 @@ impl SegmentUpdater {
                 }
             }
             
-            let segments: Vec<Segment> = segment_metas
+            let delete_cursor = segment_entries[0].delete_cursor().clone();
+        
+            let segments: Vec<Segment> = segment_entries
                 .iter()
-                .cloned()
-                .map(|segment_meta| index.segment(segment_meta))
+                .map(|segment_entry| {
+                    index.segment(segment_entry.meta().clone())
+                })
                 .collect();
             
             // An IndexMerger is like a "view" of our merged segments.
@@ -262,16 +262,27 @@ impl SegmentUpdater {
             // ... we just serialize this index merger in our new segment
             // to merge the two segments.
 
-            let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
+            let segment_serializer =
+                SegmentSerializer
+                ::for_segment(&mut merged_segment)
+                .expect("Creating index serializer failed");
 
             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
             let mut segment_meta = SegmentMeta::new(merged_segment.id());
             segment_meta.set_max_doc(num_docs);
             
+            let before_merged_segment_ids = segment_entries
+                .iter()
+                .map(|segment_entry| segment_entry.segment_id())
+                .collect::<Vec<_>>();
+            
+            let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor);
+
             segment_updater_clone
-                .end_merge(segment_metas.clone(), segment_meta.clone())
+                .end_merge(before_merged_segment_ids, after_merge_segment_entry)
                 .wait()
                 .unwrap();
+            
             merging_future_send.complete(segment_meta);
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(())
@@ -296,11 +307,11 @@ impl SegmentUpdater {
 
     
     fn end_merge(&self, 
-        merged_segment_metas: Vec<SegmentMeta>,
-        segment_meta: SegmentMeta) -> impl Future<Item=(), Error=Error> {
+        before_merge_segment_ids: Vec<SegmentId>,
+        after_merge_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
         
         self.run_async(move |segment_updater| {
-            segment_updater.0.segment_manager.end_merge(&merged_segment_metas, segment_meta);
+            segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
             let mut directory = segment_updater.0.index.directory().box_clone();
             let segment_metas = segment_updater.0.segment_manager.committed_segment_metas();
             save_metas(

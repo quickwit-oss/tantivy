@@ -10,10 +10,9 @@ use datastruct::stacker::Heap;
 use Error;
 use Directory;
 use fastfield::delete::write_delete_bitset;
-use indexer::delete_queue::DeleteCursor;
+use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use futures::Canceled;
 use futures::Future;
-use indexer::delete_queue::DeleteQueue;
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::MergePolicy;
 use indexer::operation::DeleteOperation;
@@ -117,9 +116,9 @@ pub fn open_index_writer(index: &Index,
         chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
 
 
-    let delete_queue = DeleteQueue::default();
+    let delete_queue = DeleteQueue::new();
     
-    let segment_updater = SegmentUpdater::new(index.clone())?;
+    let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor())?;
     
     let mut index_writer = IndexWriter {
         
@@ -156,12 +155,12 @@ pub fn open_index_writer(index: &Index,
 // TODO skip delete operation before teh 
 // last delete opstamp
 
-pub fn advance_deletes(
-    segment: &mut Segment,
-    delete_cursor: DeleteCursor,
-    doc_opstamps: &DocToOpstampMapping) -> Result<SegmentMeta> {
+pub fn advance_deletes(mut segment: Segment, segment_entry: &mut SegmentEntry) -> Result<()> {
 
-        
+    {
+        let doc_opstamps = segment_entry.reset_doc_to_stamp();
+        let delete_cursor = segment_entry.delete_cursor();
+
         let segment_reader = SegmentReader::open(segment.clone())?;
         
         let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
@@ -171,6 +170,8 @@ pub fn advance_deletes(
         let previous_delete_opstamp_opt = segment.meta().delete_opstamp();
         
         for delete_op in delete_cursor {
+
+            println!("opstamp {:?}", delete_op.opstamp);
 
             // let's skip operations that have already been deleted.0u32
             if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
@@ -211,8 +212,10 @@ pub fn advance_deletes(
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
+    }
+    segment_entry.set_meta(segment.meta().clone());
 
-        Ok(segment.meta().clone())
+    Ok(())
 }
 
 fn index_documents(heap: &mut Heap,
@@ -220,7 +223,8 @@ fn index_documents(heap: &mut Heap,
                    schema: &Schema,
                    generation: usize,
                    document_iterator: &mut Iterator<Item=AddOperation>,
-                   segment_updater: &mut SegmentUpdater)
+                   segment_updater: &mut SegmentUpdater,
+                   delete_cursor: DeleteCursor)
                    -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
@@ -245,9 +249,9 @@ fn index_documents(heap: &mut Heap,
     let mut segment_meta = SegmentMeta::new(segment_id);
     segment_meta.set_max_doc(num_docs);
 
-    let mut segment_entry = SegmentEntry::new(segment_meta);
+    let mut segment_entry = SegmentEntry::new(segment_meta, delete_cursor);
     segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
-
+    
     segment_updater
         .add_segment(generation, segment_entry)
         .wait()
@@ -292,6 +296,8 @@ impl IndexWriter {
         let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
         
         let generation = self.generation;
+        
+        let mut delete_cursor = self.delete_queue.cursor();
 
         let join_handle: JoinHandle<Result<()>> =
             thread::Builder::new()
@@ -299,9 +305,14 @@ impl IndexWriter {
             .spawn(move || {
                 
                 loop {
+
+                    
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
                         .peekable();
+                    
+                    // we consume all previous delete operations.
+                    delete_cursor.go_to_tail();
 
                     // the peeking here is to avoid
                     // creating a new segment's files
@@ -317,7 +328,8 @@ impl IndexWriter {
                                         &schema,
                                         generation,
                                         &mut document_iterator,
-                                        &mut segment_updater)?;
+                                        &mut segment_updater,
+                                        delete_cursor.clone())?;
                     }
                     else {
                         // No more documents.
@@ -480,7 +492,7 @@ impl IndexWriter {
 
         // wait for the segment update thread to have processed the info
         self.segment_updater
-            .commit(self.committed_opstamp, self.delete_queue.cursor())
+            .commit(self.committed_opstamp)
             .wait()?;
         
         self.delete_queue.clear();

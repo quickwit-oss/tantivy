@@ -494,6 +494,7 @@ mod tests {
             let searcher = index.searcher();
             assert_eq!(searcher.segment_readers().len(), 2);
             assert_eq!(searcher.num_docs(), 3);
+            
             assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
             assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
             assert_eq!(searcher.segment_readers()[1].num_docs(), 2);

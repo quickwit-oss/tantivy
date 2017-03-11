@@ -1,7 +1,9 @@
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use core::SegmentMeta;
+use indexer::delete_queue::DeleteCursor;
 use core::SegmentId;
 use std::fmt;
+use std::mem;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SegmentState {
@@ -23,20 +25,32 @@ pub struct SegmentEntry {
     meta: SegmentMeta,
     state: SegmentState,
     doc_to_opstamp: DocToOpstampMapping,
+    delete_cursor: DeleteCursor,
+
 }
 
 impl SegmentEntry {
 
-    pub fn new(segment_meta: SegmentMeta) -> SegmentEntry {
+    pub fn new(segment_meta: SegmentMeta, 
+               delete_cursor: DeleteCursor) -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             state: SegmentState::Ready,
             doc_to_opstamp: DocToOpstampMapping::None,
+            delete_cursor: delete_cursor,
         }
     }
 
-    pub fn doc_to_opstamp(&self) -> &DocToOpstampMapping {
-        &self.doc_to_opstamp
+    pub fn reset_doc_to_stamp(&mut self,) -> DocToOpstampMapping {
+        mem::replace(&mut self.doc_to_opstamp, DocToOpstampMapping::None)
+    }
+
+    pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
+        self.meta = segment_meta;
+    }
+
+    pub fn delete_cursor(&mut self) -> &mut DeleteCursor {
+        &mut self.delete_cursor
     }
 
     pub fn state(&self) -> SegmentState {

@@ -15,6 +15,13 @@ pub struct DeleteCursor {
     operations: InnerDeleteQueue,
 }
 
+impl DeleteCursor {
+    pub fn go_to_tail(&mut self,) {
+        let read = self.operations.read().unwrap();
+        self.cursor = read.len();
+    }
+}
+
 // TODO remove copy
 impl Iterator for DeleteCursor {
     
@@ -37,6 +44,11 @@ impl Iterator for DeleteCursor {
 pub struct DeleteQueue(InnerDeleteQueue);
 
 impl DeleteQueue {
+
+    pub fn new() -> DeleteQueue {
+        DeleteQueue::default()
+    }
+
     pub fn push(&self, delete_operation: DeleteOperation) {
         self.0.write().unwrap().push(delete_operation);
     }
@@ -61,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_deletequeue() {
-        let delete_queue = DeleteQueue::default();
+        let delete_queue = DeleteQueue::new();
         
         let make_op = |i: usize| {
             let field = Field(1u8);

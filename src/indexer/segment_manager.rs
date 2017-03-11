@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::collections::hash_set::HashSet;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use std::fmt::{self, Debug, Formatter};
+use indexer::delete_queue::DeleteCursor;
 
 #[derive(Default)]
 struct SegmentRegisters {
@@ -49,11 +50,11 @@ pub fn get_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec
 
 impl SegmentManager {
     
-    pub fn from_segments(segment_metas: Vec<SegmentMeta>) -> SegmentManager {
+    pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteCursor) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas),
+                committed: SegmentRegister::new(segment_metas, delete_cursor),
                 writing: HashSet::new(),
             }),
         }
@@ -127,22 +128,19 @@ impl SegmentManager {
         segment_ids
     }
 
-    pub fn commit(&self, segment_metas: Vec<SegmentMeta>) {
-         let committed_segment_entries = segment_metas
-                .into_iter()
-                .map(|segment_meta| {
-                    let segment_id = segment_meta.id();
-                    let mut segment_entry = SegmentEntry::new(segment_meta);
-                    if let Some(state) = self.segment_state(&segment_id) {
-                        segment_entry.set_state(state);
-                    }
-                    segment_entry
-                })
-                .collect::<Vec<_>>();
+    pub fn commit(&self, mut segment_entries: Vec<SegmentEntry>) {
+        // TODO is still relevant!?
+        // restore the state of the segment_entries
+        for segment_entry in &mut segment_entries {
+            let segment_id = segment_entry.segment_id();
+            if let Some(state) = self.segment_state(&segment_id) {
+                segment_entry.set_state(state);
+            }
+        }
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
         registers_lock.uncommitted.clear();
-        for segment_entry in committed_segment_entries {
+        for segment_entry in segment_entries {
             registers_lock.committed.add_segment_entry(segment_entry);
         }
     }
@@ -175,21 +173,23 @@ impl SegmentManager {
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
     
-    pub fn end_merge(&self, merged_segment_metas: &[SegmentMeta], merged_segment_meta: SegmentMeta) {
+    pub fn end_merge(&self,
+            before_merge_segment_ids: &[SegmentId],
+            after_merge_segment_entry: SegmentEntry) {
+        
         let mut registers_lock = self.write();
-        let merged_segment_ids: Vec<SegmentId> = merged_segment_metas.iter().map(|meta| meta.id()).collect();
-        let merged_segment_entry = SegmentEntry::new(merged_segment_meta);
-        if registers_lock.uncommitted.contains_all(&merged_segment_ids) {
-            for segment_id in &merged_segment_ids {
+        
+        if registers_lock.uncommitted.contains_all(&before_merge_segment_ids) {
+            for segment_id in before_merge_segment_ids {
                 registers_lock.uncommitted.remove_segment(segment_id);
             }
-            registers_lock.uncommitted.add_segment_entry(merged_segment_entry);
+            registers_lock.uncommitted.add_segment_entry(after_merge_segment_entry);
         }
-        else if registers_lock.committed.contains_all(&merged_segment_ids) {
-            for segment_id in &merged_segment_ids {
+        else if registers_lock.committed.contains_all(&before_merge_segment_ids) {
+            for segment_id in before_merge_segment_ids {
                 registers_lock.committed.remove_segment(segment_id);
             }
-            registers_lock.committed.add_segment_entry(merged_segment_entry);
+            registers_lock.committed.add_segment_entry(after_merge_segment_entry);
         } else {
             warn!("couldn't find segment in SegmentManager");
         }
