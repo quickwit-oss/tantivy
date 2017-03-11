@@ -14,7 +14,6 @@ use futures::{Future, future};
 use futures::Canceled;
 use futures::oneshot;
 use indexer::{MergePolicy, DefaultMergePolicy};
-use indexer::delete_queue::DeleteQueue;
 use indexer::index_writer::advance_deletes;
 use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
@@ -22,6 +21,7 @@ use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use Result;
 use rustc_serialize::json;
+use indexer::delete_queue::DeleteCursor;
 use schema::Schema;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -99,12 +99,11 @@ struct InnerSegmentUpdater {
     merging_thread_id: AtomicUsize,
     merging_threads: RwLock<HashMap<usize, JoinHandle<Result<()>>>>,
     generation: AtomicUsize,
-    delete_queue: DeleteQueue,
 }
 
 impl SegmentUpdater {
 
-    pub fn new(index: Index, delete_queue: DeleteQueue) -> Result<SegmentUpdater> {
+    pub fn new(index: Index) -> Result<SegmentUpdater> {
         let segments = index.segments()?;
         let segment_manager = SegmentManager::from_segments(segments);
         Ok(
@@ -116,7 +115,6 @@ impl SegmentUpdater {
                 merging_thread_id: AtomicUsize::default(),
                 merging_threads: RwLock::new(HashMap::new()),
                 generation: AtomicUsize::default(),
-                delete_queue: delete_queue,
             }))
         )
     }
@@ -170,20 +168,22 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self) -> Result<Vec<SegmentMeta>> {
-        self.0.segment_manager
-            .segment_entries()
-            .into_iter()
-            .map(|segment_entry| {
-                let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
-                advance_deletes(&mut segment, &self.0.delete_queue.snapshot(), segment_entry.doc_to_opstamp())
-            })
-            .collect()
+    fn purge_deletes(&self, delete_cursor: DeleteCursor) -> Result<Vec<SegmentMeta>> {
+        let mut segment_metas = vec!();
+        for segment_entry in self.0.segment_manager.segment_entries() {
+            let mut segment = self.0.index.segment(segment_entry.meta().clone()); 
+            let delete_cursor = delete_cursor.clone();
+            // TODO delete cursor skip...
+            let segment_meta = advance_deletes(&mut segment, delete_cursor, segment_entry.doc_to_opstamp())?;
+            segment_metas.push(segment_meta);
+        }
+        Ok(segment_metas)
+        
     }
 
-    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
+    pub fn commit(&self, opstamp: u64, delete_cursor: DeleteCursor) -> impl Future<Item=(), Error=Error> {
         self.run_async(move |segment_updater| {
-            let segment_metas = segment_updater.purge_deletes().expect("Failed purge deletes");
+            let segment_metas = segment_updater.purge_deletes(delete_cursor).expect("Failed purge deletes");
             segment_updater.0.segment_manager.commit(segment_metas);
             let mut index = segment_updater.0.index.clone();
             {
@@ -212,7 +212,7 @@ impl SegmentUpdater {
         let merging_thread_id = self.get_merging_thread_id();
         let (merging_future_send, merging_future_recv) = oneshot();
         
-        let delete_operations = self.0.delete_queue.snapshot();
+        // let delete_operations = self.0.delete_queue.snapshot();
 
         if segment_ids.is_empty() {
             return merging_future_recv;
@@ -231,11 +231,16 @@ impl SegmentUpdater {
                 if let Some(segment_entry) = segment_updater_clone.0
                     .segment_manager
                     .segment_entry(segment_id) {
-                    let mut segment = index.segment(segment_entry.meta().clone());
-                    let segment_meta = advance_deletes(
-                         &mut segment,
-                         &delete_operations,
-                         segment_entry.doc_to_opstamp())?;
+
+                    // TODOS make sure that the segment are in the same 
+                    // position with regard to deletes.
+
+                    // let mut segment = index.segment(segment_entry.meta().clone());
+                    // let segment_meta = advance_deletes(
+                    //      &mut segment,
+                    //      &delete_operations,
+                    //      segment_entry.doc_to_opstamp())?;
+                    let segment_meta = segment_entry.meta().clone();
                     segment_metas.push(segment_meta);
                 }
                 else {

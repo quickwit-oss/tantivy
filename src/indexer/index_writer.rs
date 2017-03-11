@@ -10,7 +10,7 @@ use datastruct::stacker::Heap;
 use Error;
 use Directory;
 use fastfield::delete::write_delete_bitset;
-use indexer::delete_queue::DeleteQueueSnapshot;
+use indexer::delete_queue::DeleteCursor;
 use futures::Canceled;
 use futures::Future;
 use indexer::delete_queue::DeleteQueue;
@@ -119,7 +119,7 @@ pub fn open_index_writer(index: &Index,
 
     let delete_queue = DeleteQueue::default();
     
-    let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.clone())?;
+    let segment_updater = SegmentUpdater::new(index.clone())?;
     
     let mut index_writer = IndexWriter {
         
@@ -158,7 +158,7 @@ pub fn open_index_writer(index: &Index,
 
 pub fn advance_deletes(
     segment: &mut Segment,
-    delete_operations: &DeleteQueueSnapshot,
+    delete_cursor: DeleteCursor,
     doc_opstamps: &DocToOpstampMapping) -> Result<SegmentMeta> {
 
         
@@ -170,7 +170,7 @@ pub fn advance_deletes(
 
         let previous_delete_opstamp_opt = segment.meta().delete_opstamp();
         
-        for delete_op in delete_operations.iter() {
+        for delete_op in delete_cursor {
 
             // let's skip operations that have already been deleted.0u32
             if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
@@ -480,7 +480,7 @@ impl IndexWriter {
 
         // wait for the segment update thread to have processed the info
         self.segment_updater
-            .commit(self.committed_opstamp)
+            .commit(self.committed_opstamp, self.delete_queue.cursor())
             .wait()?;
         
         self.delete_queue.clear();

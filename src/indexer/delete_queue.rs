@@ -1,71 +1,55 @@
 use super::operation::DeleteOperation;
 use std::sync::{Arc, RwLock};
-use std::mem;
 
 /// This implementation assumes that we
 /// have a lot more write operation than read operations.
 
-#[derive(Default)]
-struct InnerDeleteQueue {
-    ro_chunks: DeleteQueueSnapshot,
-    last_chunk: Vec<DeleteOperation>,
+
+type InnerDeleteQueue = Arc<RwLock<Vec<DeleteOperation>>>;
+
+// TODO very inefficient.
+// fix this once the refactoring/bugfix is done
+#[derive(Clone)]
+pub struct DeleteCursor {
+    cursor: usize,
+    operations: InnerDeleteQueue,
 }
 
-impl InnerDeleteQueue {
-    pub fn push(&mut self, delete_operation: DeleteOperation) {
-        self.last_chunk.push(delete_operation);
-    }
-
-    pub fn snapshot(&mut self,) -> DeleteQueueSnapshot {
-        if self.last_chunk.len() > 0 {
-            let new_operations = vec!();
-            let new_ro_chunk = mem::replace(&mut self.last_chunk, new_operations);
-            self.ro_chunks.push(new_ro_chunk)
+// TODO remove copy
+impl Iterator for DeleteCursor {
+    
+    type Item=DeleteOperation;
+    
+    fn next(&mut self) -> Option<DeleteOperation >{
+        let read = self.operations.read().unwrap();
+        if self.cursor >= read.len() {
+            None
         }
-        self.ro_chunks.clone()
-    }
-
-    pub fn clear(&mut self) {
-        self.ro_chunks.clear();
-        self.last_chunk.clear();
-    }
-}
-
-
-
-#[derive(Default, Clone)]
-pub struct DeleteQueueSnapshot(Vec<Arc<Vec<DeleteOperation>>>);
-
-impl DeleteQueueSnapshot {
-    fn push(&mut self, operations: Vec<DeleteOperation>) {
-        self.0.push(Arc::new(operations));
-    }
-
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a DeleteOperation> {
-        self.0
-            .iter()
-            .flat_map(|chunk| chunk.iter())
-    }
-
-    pub fn clear(&mut self) {
-        self.0.clear();
+        else {
+            let operation = read[self.cursor].clone();
+            self.cursor += 1;
+            Some(operation)
+        }
     }
 }
 
 #[derive(Clone, Default)]
-pub struct DeleteQueue(Arc<RwLock<InnerDeleteQueue>>);
+pub struct DeleteQueue(InnerDeleteQueue);
 
 impl DeleteQueue {
     pub fn push(&self, delete_operation: DeleteOperation) {
         self.0.write().unwrap().push(delete_operation);
     }
 
-    pub fn snapshot(&self) -> DeleteQueueSnapshot {
-        self.0.write().unwrap().snapshot()
+    pub fn clear(&mut self) {
+        self.0.write().unwrap().clear();
     }
 
-    pub fn clear(&self) {
-        self.0.write().unwrap().clear();
+    pub fn cursor(&self) -> DeleteCursor {
+        DeleteCursor {
+            cursor: 0,
+            operations: self.0.clone(),
+        }
     }
 }
 
@@ -90,34 +74,35 @@ mod tests {
         delete_queue.push(make_op(1));
         delete_queue.push(make_op(2));
 
-        let snapshot = delete_queue.snapshot();
+        let snapshot = delete_queue.cursor();
         {
-            let mut operations_it = snapshot.iter();
+            let mut operations_it = snapshot.clone();
             assert_eq!(operations_it.next().unwrap().opstamp, 1);
             assert_eq!(operations_it.next().unwrap().opstamp, 2);
             assert!(operations_it.next().is_none());
         }
-        {   // iterating does not consume results.
-            let mut operations_it = snapshot.iter();
+        {   
+            let mut operations_it = snapshot.clone();
             assert_eq!(operations_it.next().unwrap().opstamp, 1);
             assert_eq!(operations_it.next().unwrap().opstamp, 2);
             assert!(operations_it.next().is_none());
         }
-        // operations does not own a lock on the queue.
-        delete_queue.push(make_op(3));
-        let snapshot2 = delete_queue.snapshot();
-        {
-            // operations is not affected by
-            // the push that occurs after.
-            let mut operations_it = snapshot.iter();
-            let mut operations2_it = snapshot2.iter();
-            assert_eq!(operations_it.next().unwrap().opstamp, 1);
-            assert_eq!(operations2_it.next().unwrap().opstamp, 1);
-            assert_eq!(operations_it.next().unwrap().opstamp, 2);
-            assert_eq!(operations2_it.next().unwrap().opstamp, 2);
-            assert!(operations_it.next().is_none());
-            assert_eq!(operations2_it.next().unwrap().opstamp, 3);
-            assert!(operations2_it.next().is_none());
-        }
+        
+        // // operations does not own a lock on the queue.
+        // delete_queue.push(make_op(3));
+        // let snapshot2 = delete_queue.snapshot();
+        // {
+        //     // operations is not affected by
+        //     // the push that occurs after.
+        //     let mut operations_it = snapshot.iter();
+        //     let mut operations2_it = snapshot2.iter();
+        //     assert_eq!(operations_it.next().unwrap().opstamp, 1);
+        //     assert_eq!(operations2_it.next().unwrap().opstamp, 1);
+        //     assert_eq!(operations_it.next().unwrap().opstamp, 2);
+        //     assert_eq!(operations2_it.next().unwrap().opstamp, 2);
+        //     assert!(operations_it.next().is_none());
+        //     assert_eq!(operations2_it.next().unwrap().opstamp, 3);
+        //     assert!(operations2_it.next().is_none());
+        // }
     }
 }
