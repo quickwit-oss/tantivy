@@ -1,7 +1,7 @@
 use super::segment_register::SegmentRegister;
 use std::sync::RwLock;
 use core::SegmentMeta;
-use core::META_FILEPATH;
+use core::{META_FILEPATH, LOCKFILE_FILEPATH};
 use core::SegmentId;
 use indexer::{SegmentEntry, SegmentState};
 use std::path::PathBuf;
@@ -76,6 +76,7 @@ impl SegmentManager {
         let registers_lock = self.read();
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
+        files.insert(LOCKFILE_FILEPATH.clone());
         
         let segment_metas =
             registers_lock.committed
@@ -117,15 +118,6 @@ impl SegmentManager {
 
     fn write(&self,) -> RwLockWriteGuard<SegmentRegisters> {
         self.registers.write().expect("Failed to acquire write lock on SegmentManager.")
-    }
-
-    /// Removes all of the uncommitted segments
-    /// and returns them.
-    pub fn rollback(&self,) -> Vec<SegmentId> {
-        let mut registers_lock = self.write();
-        let segment_ids = registers_lock.uncommitted.segment_ids();
-        registers_lock.uncommitted.clear();
-        segment_ids
     }
 
     pub fn commit(&self, mut segment_entries: Vec<SegmentEntry>) {

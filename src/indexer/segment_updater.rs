@@ -8,6 +8,7 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::SerializableSegment;
 use directory::Directory;
+use indexer::stamper::Stamper;
 use Error;
 use futures_cpupool::CpuPool;
 use futures::{Future, future};
@@ -29,7 +30,7 @@ use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, AtomicBool};
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 use std::thread;
@@ -99,11 +100,15 @@ struct InnerSegmentUpdater {
     merging_thread_id: AtomicUsize,
     merging_threads: RwLock<HashMap<usize, JoinHandle<Result<()>>>>,
     generation: AtomicUsize,
+    killed: AtomicBool, 
+    stamper: Stamper,
 }
 
 impl SegmentUpdater {
 
-    pub fn new(index: Index, delete_cursor: DeleteCursor) -> Result<SegmentUpdater> {
+    pub fn new(index: Index,
+               stamper: Stamper,
+               delete_cursor: DeleteCursor) -> Result<SegmentUpdater> {
         let segments = index.segments()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         Ok(
@@ -115,6 +120,8 @@ impl SegmentUpdater {
                 merging_thread_id: AtomicUsize::default(),
                 merging_threads: RwLock::new(HashMap::new()),
                 generation: AtomicUsize::default(),
+                killed: AtomicBool::new(false),
+                stamper: stamper,
             }))
         )
     }
@@ -148,15 +155,8 @@ impl SegmentUpdater {
         })
     }
 
-    pub fn rollback(&mut self, generation: usize) -> impl Future<Item=(), Error=Error> {
-        self.0.generation.store(generation, Ordering::Release);
-        self.run_async(|segment_updater| {
-            segment_updater.0.segment_manager.rollback();
-        })
-    }
-
     pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> impl Future<Item=bool, Error=Error> {
-        if generation >= self.0.generation.load(Ordering::Acquire) {
+        if self.is_alive() && generation >= self.0.generation.load(Ordering::Acquire) {
             future::Either::A(self.run_async(|segment_updater| {
                 segment_updater.0.segment_manager.add_segment(segment_entry);
                 segment_updater.consider_merge_options();
@@ -168,35 +168,49 @@ impl SegmentUpdater {
         }
     }
 
-    fn purge_deletes(&self) -> Result<Vec<SegmentEntry>> {
+    pub fn kill(&mut self,) {
+        self.0.killed.store(true, Ordering::Release);
+    }
+
+    fn is_alive(&self,) -> bool {
+        !self.0.killed.load(Ordering::Acquire)
+    }
+
+    fn purge_deletes(&self, target_opstamp: u64) -> Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.0.segment_manager.segment_entries(); 
         for segment_entry in &mut segment_entries {
             let segment = self.0.index.segment(segment_entry.meta().clone());
-            advance_deletes(segment, segment_entry)?;
+            advance_deletes(segment, segment_entry, target_opstamp)?;
         }
         Ok(segment_entries)
         
     }
 
+    pub fn save_metas(&self, opstamp: u64) {
+        if self.is_alive() {
+            let index = &self.0.index;
+            let directory = index.directory();
+            save_metas(
+                self.0.segment_manager.committed_segment_metas(),
+                index.schema(),
+                opstamp,
+                directory.box_clone().borrow_mut()).expect("Could not save metas.");
+        }
+    }
+
     pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
         self.run_async(move |segment_updater| {
-            let segment_entries = segment_updater
-                .purge_deletes()
-                .expect("Failed purge deletes");
-            segment_updater.0.segment_manager.commit(segment_entries);
-            let mut index = segment_updater.0.index.clone();
-            {
-                let directory = index.directory();
-                save_metas(
-                    segment_updater.0.segment_manager.committed_segment_metas(),
-                    index.schema(),
-                    opstamp,
-                    directory.box_clone().borrow_mut()).expect("Could not save metas.");
+            if segment_updater.is_alive() {
+                let segment_entries = segment_updater
+                    .purge_deletes(opstamp)
+                    .expect("Failed purge deletes");
+                segment_updater.0.segment_manager.commit(segment_entries);
+                let mut index = segment_updater.0.index.clone();
+                segment_updater.save_metas(opstamp);
+                let living_files = segment_updater.0.segment_manager.list_files();
+                index.directory_mut().garbage_collect(living_files);
+                segment_updater.consider_merge_options();
             }
-            let living_files = segment_updater.0.segment_manager.list_files();
-            index.directory_mut().garbage_collect(living_files);
-            segment_updater.consider_merge_options();
-            
         })
     }
 
@@ -217,6 +231,7 @@ impl SegmentUpdater {
             return merging_future_recv;
         }
         
+        let target_opstamp = self.0.stamper.stamp();
         let merging_join_handle = thread::spawn(move || {
             
             // first we need to apply deletes to our segment.
@@ -226,18 +241,16 @@ impl SegmentUpdater {
             let schema = index.schema();
 
             let mut segment_entries = vec!();
+            
 
             for segment_id in &segment_ids_vec {
                 if let Some(mut segment_entry) = segment_updater_clone.0
                     .segment_manager
                     .segment_entry(segment_id) {
 
-                    // TODOS make sure that the segment are in the same 
-                    // position with regard to deletes.
-
                     let segment = index.segment(segment_entry.meta().clone());
-                    advance_deletes(segment, &mut segment_entry)?;
-                    
+                    // TODO unwrap
+                    advance_deletes(segment, &mut segment_entry, target_opstamp).unwrap();
                     segment_entries.push(segment_entry);
                 }
                 else {
@@ -308,17 +321,19 @@ impl SegmentUpdater {
     
     fn end_merge(&self, 
         before_merge_segment_ids: Vec<SegmentId>,
-        after_merge_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
+        mut after_merge_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
         
         self.run_async(move |segment_updater| {
+            if let Some(delete_operation) = after_merge_segment_entry.delete_cursor().peek() {
+                let committed_opstamp = segment_updater.0.index.opstamp();
+                if delete_operation.opstamp < committed_opstamp {
+                    let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
+                    // TODO check unwrap
+                    advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp).unwrap();
+                }
+            }
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
-            let mut directory = segment_updater.0.index.directory().box_clone();
-            let segment_metas = segment_updater.0.segment_manager.committed_segment_metas();
-            save_metas(
-                segment_metas,
-                segment_updater.0.index.schema(),
-                segment_updater.0.index.opstamp(),
-                directory.borrow_mut()).expect("Could not save metas.");
+            segment_updater.save_metas(segment_updater.0.index.opstamp());
         })
         
     }
@@ -395,7 +410,7 @@ mod tests {
 
         {
             index_writer.wait_merging_threads()
-                        .expect("waiting for merging threads");
+                        .expect(    "waiting for merging threads");
         }
 
         index.load_searchers().unwrap();

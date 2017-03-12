@@ -27,4 +27,5 @@ use std::path::PathBuf;
 lazy_static! {
     pub static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
     pub static ref MANAGED_FILEPATH: PathBuf = PathBuf::from(".managed.json");
+    pub static ref LOCKFILE_FILEPATH: PathBuf = PathBuf::from(".tantivy-indexer.lock");
 }

@@ -429,9 +429,10 @@ mod tests {
     #[test]
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
-        let text_fieldtype = schema::TextOptions::default()
-                                 .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
-                                 .set_stored();
+        let text_fieldtype = schema::TextOptions
+            ::default()
+            .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+            .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::U32Options::default().set_fast();
         let score_field = schema_builder.add_u32_field("score", score_fieldtype);
@@ -492,9 +493,11 @@ mod tests {
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let searcher = index.searcher();
+            for segment_reader in searcher.segment_readers() {
+                println!("segment reader {}", segment_reader.num_docs());
+            }
             assert_eq!(searcher.segment_readers().len(), 2);
             assert_eq!(searcher.num_docs(), 3);
-            
             assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
             assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
             assert_eq!(searcher.segment_readers()[1].num_docs(), 2);

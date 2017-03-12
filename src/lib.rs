@@ -5,6 +5,8 @@
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
+#![feature(integer_atomics)]
+
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
@@ -397,7 +399,7 @@ mod tests {
             {   
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
-            index_writer.rollback().unwrap();   
+            index_writer = index_writer.rollback().unwrap();   
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
         }

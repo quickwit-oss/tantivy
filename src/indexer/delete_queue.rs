@@ -16,9 +16,32 @@ pub struct DeleteCursor {
 }
 
 impl DeleteCursor {
-    pub fn go_to_tail(&mut self,) {
+
+    pub fn skip_to(&mut self, target_opstamp: u64) {
+        while let Some(operation) = self.peek() {
+            if operation.opstamp >= target_opstamp {
+                break;
+            }
+            self.advance()
+        }
+    }
+
+    pub fn advance(&mut self) {
         let read = self.operations.read().unwrap();
-        self.cursor = read.len();
+        if self.cursor < read.len()  {
+            self.cursor += 1;
+        }
+    }
+
+    pub fn peek(&self,) -> Option<DeleteOperation> {
+        let read = self.operations.read().unwrap();
+        if self.cursor >= read.len() {
+            None
+        }
+        else {
+            let operation = read[self.cursor].clone();
+            Some(operation)
+        }
     }
 }
 
@@ -40,6 +63,7 @@ impl Iterator for DeleteCursor {
     }
 }
 
+
 #[derive(Clone, Default)]
 pub struct DeleteQueue(InnerDeleteQueue);
 
@@ -53,10 +77,6 @@ impl DeleteQueue {
         self.0.write().unwrap().push(delete_operation);
     }
 
-    pub fn clear(&mut self) {
-        self.0.write().unwrap().clear();
-    }
-
     pub fn cursor(&self) -> DeleteCursor {
         DeleteCursor {
             cursor: 0,
@@ -64,6 +84,7 @@ impl DeleteQueue {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

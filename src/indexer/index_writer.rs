@@ -6,6 +6,7 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
+use indexer::stamper::Stamper;
 use datastruct::stacker::Heap;
 use Error;
 use Directory;
@@ -26,11 +27,11 @@ use schema::Schema;
 use schema::Term;
 use std::mem;
 use std::mem::swap; 
-use std::thread;
 use std::thread::JoinHandle;
 use super::directory_lock::DirectoryLock;
 use super::operation::AddOperation;
 use super::segment_updater::SegmentUpdater;
+use std::thread;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -76,7 +77,7 @@ pub struct IndexWriter {
 
     delete_queue: DeleteQueue,
 
-    uncommitted_opstamp: u64,
+    stamper: Stamper,
     committed_opstamp: u64,
 }
 
@@ -100,10 +101,10 @@ impl !Sync for IndexWriter {}
 /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
 /// # Panics
 /// If the heap size per thread is too small, panics.
-pub fn open_index_writer(index: &Index,
-            num_threads: usize,
-            heap_size_in_bytes_per_thread: usize)
-            -> Result<IndexWriter> {
+pub fn open_index_writer(
+    index: &Index,
+    num_threads: usize,
+    heap_size_in_bytes_per_thread: usize) -> Result<IndexWriter> {
 
     if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
         panic!(format!("The heap size per thread needs to be at least {}.",
@@ -118,7 +119,11 @@ pub fn open_index_writer(index: &Index,
 
     let delete_queue = DeleteQueue::new();
     
-    let segment_updater = SegmentUpdater::new(index.clone(), delete_queue.cursor())?;
+    let stamper = Stamper::new(index.opstamp());
+
+    let segment_updater = SegmentUpdater::new(index.clone(), 
+                                              stamper.clone(),
+                                              delete_queue.cursor())?;
     
     let mut index_writer = IndexWriter {
         
@@ -132,13 +137,13 @@ pub fn open_index_writer(index: &Index,
 
         segment_updater: segment_updater,
 
-        workers_join_handle: Vec::new(),
+        workers_join_handle: vec!(),
         num_threads: num_threads,
 
         delete_queue: delete_queue,
 
         committed_opstamp: index.opstamp(),
-        uncommitted_opstamp: index.opstamp(),
+        stamper: stamper,
 
         generation: 0,
 
@@ -155,7 +160,12 @@ pub fn open_index_writer(index: &Index,
 // TODO skip delete operation before teh 
 // last delete opstamp
 
-pub fn advance_deletes(mut segment: Segment, segment_entry: &mut SegmentEntry) -> Result<()> {
+/// Advance delete for the given segment up
+/// to the target opstamp.
+pub fn advance_deletes(
+    mut segment: Segment,
+    segment_entry: &mut SegmentEntry,
+    target_opstamp: u64) -> Result<()> {
 
     {
         let doc_opstamps = segment_entry.reset_doc_to_stamp();
@@ -168,33 +178,43 @@ pub fn advance_deletes(mut segment: Segment, segment_entry: &mut SegmentEntry) -
         let mut last_opstamp_opt: Option<u64> = None;
 
         let previous_delete_opstamp_opt = segment.meta().delete_opstamp();
-        
-        for delete_op in delete_cursor {
 
-            println!("opstamp {:?}", delete_op.opstamp);
+        loop {
 
-            // let's skip operations that have already been deleted.0u32
-            if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
-                if delete_op.opstamp <= previous_delete_opstamp {
-                    continue;
+            if let Some(delete_op) = delete_cursor.peek() {
+                if delete_op.opstamp > target_opstamp {
+                    break;
                 }
-            }
-
-            // A delete operation should only affect
-            // document that were inserted after it.
-            // 
-            // Limit doc helps identify the first document
-            // that may be affected by the delete operation.
-            let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-            if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
-                while docset.advance() {
-                    let deleted_doc = docset.doc();
-                    if deleted_doc < limit_doc {
-                        delete_bitset.insert(deleted_doc as usize);
+                else {
+                    // let's skip operations that have already been deleted.0u32
+                    if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
+                        if delete_op.opstamp <= previous_delete_opstamp {
+                            continue;
+                        }
                     }
+
+                    // A delete operation should only affect
+                    // document that were inserted after it.
+                    // 
+                    // Limit doc helps identify the first document
+                    // that may be affected by the delete operation.
+                    let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+                    if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+                        while docset.advance() {
+                            let deleted_doc = docset.doc();
+                            if deleted_doc < limit_doc {
+                                delete_bitset.insert(deleted_doc as usize);
+                            }
+                        }
+                    }
+                    last_opstamp_opt = Some(delete_op.opstamp);
                 }
             }
-            last_opstamp_opt = Some(delete_op.opstamp);
+            else {
+                break;
+            }
+
+            delete_cursor.advance();
         }
 
         // we only write the result different
@@ -245,7 +265,6 @@ fn index_documents(heap: &mut Heap,
 
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    // let segment_entry = advance_deletes(&mut segment, delete_queue, delete_position, )?;
     let mut segment_meta = SegmentMeta::new(segment_id);
     segment_meta.set_max_doc(num_docs);
 
@@ -311,9 +330,6 @@ impl IndexWriter {
                         .into_iter()
                         .peekable();
                     
-                    // we consume all previous delete operations.
-                    delete_cursor.go_to_tail();
-
                     // the peeking here is to avoid
                     // creating a new segment's files
                     // if no document are available.
@@ -321,15 +337,8 @@ impl IndexWriter {
                     // this is a valid guarantee as the 
                     // peeked document now belongs to
                     // our local iterator.
-                    if document_iterator.peek().is_some() {
-                        let segment = segment_updater.new_segment();
-                        index_documents(&mut heap,
-                                        segment,
-                                        &schema,
-                                        generation,
-                                        &mut document_iterator,
-                                        &mut segment_updater,
-                                        delete_cursor.clone())?;
+                    if let Some(operation) = document_iterator.peek() {
+                        delete_cursor.skip_to(operation.opstamp);
                     }
                     else {
                         // No more documents.
@@ -337,7 +346,14 @@ impl IndexWriter {
                         // was dropped.
                         return Ok(())
                     }
-
+                    let segment = segment_updater.new_segment();
+                    index_documents(&mut heap,
+                                    segment,
+                                    &schema,
+                                    generation,
+                                    &mut document_iterator,
+                                    &mut segment_updater,
+                                    delete_cursor.clone())?;
                     
                 }
             })?;
@@ -392,56 +408,28 @@ impl IndexWriter {
     /// state as it was after the last commit.
     ///
     /// The opstamp at the last commit is returned.
-    pub fn rollback(&mut self) -> Result<u64> {
-
+    pub fn rollback(mut self) -> Result<IndexWriter> {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
 
-        // by updating the generation in the segment updater,
-        // pending add segment commands will be dismissed.
-        self.generation += 1;
-
-        let rollback_future = self.segment_updater.rollback(self.generation);
-        
-        // we cannot drop segment ready receiver yet
-        // as it would block the workers.
-        let document_receiver = self.recreate_document_channel();
+        self.segment_updater.kill();
 
         // Drains the document receiver pipeline :
         // Workers don't need to index the pending documents.
-        for _ in document_receiver {}
-
-        let mut former_workers_join_handle = Vec::new();
-        swap(&mut former_workers_join_handle,
-             &mut self.workers_join_handle);
+        let receiver_clone = self.document_receiver.clone();
+        let index = self.index.clone();
+        let num_threads = self.num_threads;
+        let heap_size_in_bytes_per_thread = self.heap_size_in_bytes_per_thread;
+        drop(self);
+        for _ in receiver_clone {}
         
-        // wait for all the worker to finish their work
-        // (it should be fast since we consumed all pending documents)
-        for worker_handle in former_workers_join_handle {
-            // we stop one worker at a time ...
-            try!(try!(worker_handle.join()
-                .map_err(|e| Error::ErrorInThread(format!("{:?}", e)))));
-            // ... and recreate a new one right away
-            // to work on the next generation.
-            try!(self.add_indexing_worker());
-        }
-
-        // All of our indexing workers for the rollbacked generation have
-        // been terminated.
-        // 
-        // Our document receiver pipe was drained.
-        // No new document have been added in the meanwhile because `IndexWriter`
-        // is not shared by different threads.
+        let index_writer = open_index_writer(
+                &index,
+                num_threads,
+                heap_size_in_bytes_per_thread)?;
         
-        rollback_future.wait().map_err(|_|
-            Error::ErrorInThread("Error while waiting for rollback.".to_string())
-        )?;
-
-        self.delete_queue.clear();
-
-        // reset the opstamp
-        self.uncommitted_opstamp = self.committed_opstamp;
-        Ok(self.committed_opstamp)
+        Ok(index_writer)
     }
+
 
     /// Commits all of the pending changes
     ///
@@ -469,7 +457,7 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-        self.committed_opstamp = self.stamp();
+        self.committed_opstamp = self.stamper.stamp();
         info!("committing {}", self.committed_opstamp);
 
         // this will drop the current document channel
@@ -495,7 +483,6 @@ impl IndexWriter {
             .commit(self.committed_opstamp)
             .wait()?;
         
-        self.delete_queue.clear();
         Ok(self.committed_opstamp)
     }    
 
@@ -508,7 +495,7 @@ impl IndexWriter {
     /// Like adds, the deletion itself will be visible 
     /// only after calling `commit()`.
     pub fn delete_term(&mut self, term: Term) -> u64 {
-        let opstamp = self.stamp();
+        let opstamp = self.stamper.stamp();
         let delete_operation = DeleteOperation {
             opstamp: opstamp,
             term: term,
@@ -517,10 +504,8 @@ impl IndexWriter {
         opstamp
     }
 
-    fn stamp(&mut self) -> u64 {
-        let opstamp = self.uncommitted_opstamp;
-        self.uncommitted_opstamp += 1u64;
-        opstamp
+    pub fn commit_opstamp(&self) -> u64 {
+        self.committed_opstamp
     }
 
     /// Adds a document.
@@ -534,7 +519,7 @@ impl IndexWriter {
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
     pub fn add_document(&mut self, document: Document) -> u64 {
-        let opstamp = self.stamp();
+        let opstamp = self.stamper.stamp();
         let add_operation = AddOperation {
             opstamp: opstamp,
             document: document,
@@ -610,7 +595,10 @@ mod tests {
                 doc.add_text(text_field, "a");
                 index_writer.add_document(doc);
             }
-            assert_eq!(index_writer.rollback().unwrap(), 0u64);
+
+            index_writer = index_writer.rollback().unwrap();
+            
+            assert_eq!(index_writer.commit_opstamp(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
 
             {

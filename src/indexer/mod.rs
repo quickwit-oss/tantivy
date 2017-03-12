@@ -12,6 +12,7 @@ mod directory_lock;
 mod segment_entry;
 mod doc_opstamp_mapping;
 pub mod operation;
+mod stamper;
 
 
 // TODO avoid exposing SegmentState / SegmentEntry if it does not have to be public API
