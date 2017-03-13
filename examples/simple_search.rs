@@ -73,10 +73,8 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // This single `IndexWriter` is already
     // multithreaded.
     //
-    // Here we use a buffer of 50MB. Using a bigger
+    // Here we use a buffer of 50MB per thread. Using a bigger
     // heap for the indexer can increase its throughput.
-    // This buffer will be split between the indexing
-    // threads.
     let mut index_writer = try!(index.writer(50_000_000));
 
     // Let's index our documents!
