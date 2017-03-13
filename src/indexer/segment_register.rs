@@ -36,8 +36,15 @@ impl SegmentRegister {
     pub fn clear(&mut self,) {
         self.segment_states.clear();
     }
+
+    pub fn get_all_segments(&self,) -> Vec<SegmentMeta> {
+        self.segment_states
+            .values()
+            .map(|segment_entry| segment_entry.meta().clone())
+            .collect()
+    }
     
-    pub fn get_segments(&self,) -> Vec<SegmentMeta> {
+    pub fn get_mergeable_segments(&self,) -> Vec<SegmentMeta> {
         self.segment_states
             .values()
             .filter(|segment_entry| segment_entry.is_ready())

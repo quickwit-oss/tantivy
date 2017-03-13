@@ -35,7 +35,7 @@ use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
-use super::segment_manager::{SegmentManager, get_segments};
+use super::segment_manager::{SegmentManager, get_mergeable_segments};
 
 
 /// Save the index meta file.
@@ -129,9 +129,7 @@ impl SegmentUpdater {
     pub fn new_segment(&self) -> Segment {
         let new_segment = self.0.index.new_segment();
         let segment_id = new_segment.id();
-        self.run_async(move |segment_updater| {
-            segment_updater.0.segment_manager.write_segment(segment_id);
-        });
+        self.0.segment_manager.write_segment(segment_id);
         new_segment
     }
 
@@ -147,7 +145,8 @@ impl SegmentUpdater {
         self.0.merging_thread_id.fetch_add(1, Ordering::SeqCst)
     }
 
-
+    /// TODO check that we use this correctly taking
+    /// the laziness in account.
     fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> impl Future<Item=T, Error=Error> {
         let me_clone = self.clone();
         self.0.pool.spawn_fn(move || {
@@ -157,11 +156,13 @@ impl SegmentUpdater {
 
     pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> impl Future<Item=bool, Error=Error> {
         if self.is_alive() && generation >= self.0.generation.load(Ordering::Acquire) {
-            future::Either::A(self.run_async(|segment_updater| {
-                segment_updater.0.segment_manager.add_segment(segment_entry);
-                segment_updater.consider_merge_options();
-                true
-            }))
+            future::Either::A({
+                self.run_async(|segment_updater| {
+                    segment_updater.0.segment_manager.add_segment(segment_entry);
+                    segment_updater.consider_merge_options();
+                    true
+                })
+            })
         }
         else {
             future::Either::B(future::ok(false))
@@ -306,7 +307,7 @@ impl SegmentUpdater {
 
 
     fn consider_merge_options(&self) {
-        let (committed_segments, uncommitted_segments) = get_segments(&self.0.segment_manager);
+        let (committed_segments, uncommitted_segments) = get_mergeable_segments(&self.0.segment_manager);
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independently.
         let merge_policy = self.get_merge_policy();
@@ -405,7 +406,7 @@ mod tests {
         }
 
         index.load_searchers().unwrap();
-        assert_eq!(index.searcher().segment_readers().len(), 3);
+        assert_eq!(index.searcher().segment_readers().len(), 2);
         assert_eq!(index.searcher().num_docs(), 302);
 
         {
@@ -414,7 +415,7 @@ mod tests {
         }
 
         index.load_searchers().unwrap();
-        assert_eq!(index.searcher().segment_readers().len(), 2);
+        assert_eq!(index.searcher().segment_readers().len(), 1);
         assert_eq!(index.searcher().num_docs(), 302);
     }
 }

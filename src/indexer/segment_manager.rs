@@ -42,10 +42,16 @@ impl Debug for SegmentManager {
 ///
 /// For instance, a segment will not appear in both committed and uncommitted 
 /// segments
-pub fn get_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+pub fn get_all_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
-    (registers_lock.committed.get_segments(),
-     registers_lock.uncommitted.get_segments())
+    (registers_lock.committed.get_all_segments(),
+     registers_lock.uncommitted.get_all_segments())
+}
+
+pub fn get_mergeable_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+    let registers_lock = segment_manager.read();
+    (registers_lock.committed.get_mergeable_segments(),
+     registers_lock.uncommitted.get_mergeable_segments())
 }
 
 impl SegmentManager {
@@ -78,18 +84,18 @@ impl SegmentManager {
         files.insert(META_FILEPATH.clone());
         files.insert(LOCKFILE_FILEPATH.clone());
         
-        let segment_metas =
+        let segment_metas: Vec<SegmentMeta> =
             registers_lock.committed
-                .get_segments()
+                .get_all_segments()
                 .into_iter()
                 .chain(registers_lock.uncommitted
-                    .get_segments()
+                    .get_all_segments()
                     .into_iter())
                 .chain(registers_lock.writing
                     .iter()
                     .cloned()
-                    .map(SegmentMeta::new));
-        
+                    .map(SegmentMeta::new))
+                .collect();
         for segment_meta in segment_metas {
             files.extend(segment_meta.list_files());
         }

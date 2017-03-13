@@ -175,9 +175,9 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_postings(&self,
-
-        postings_serializer: &mut PostingsSerializer) -> Result<()> {
+    fn write_postings(
+            &self,
+            postings_serializer: &mut PostingsSerializer) -> Result<()> {
         
         let mut merged_terms = TermIterator::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
@@ -493,9 +493,7 @@ mod tests {
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let searcher = index.searcher();
-            for segment_reader in searcher.segment_readers() {
-                println!("segment reader {}", segment_reader.num_docs());
-            }
+
             assert_eq!(searcher.segment_readers().len(), 2);
             assert_eq!(searcher.num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 1);

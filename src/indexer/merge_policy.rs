@@ -60,7 +60,12 @@ pub mod tests {
                 .iter()
                 .map(|segment_meta| segment_meta.id())
                 .collect::<Vec<SegmentId>>();
-            vec!(MergeCandidate(segment_ids))
+            if segment_ids.len() > 1 {
+                vec!(MergeCandidate(segment_ids))
+            }
+            else {
+                vec!()
+            }
         }
         
         fn box_clone(&self) -> Box<MergePolicy> {
