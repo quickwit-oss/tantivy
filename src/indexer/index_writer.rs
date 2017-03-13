@@ -504,6 +504,13 @@ impl IndexWriter {
         opstamp
     }
 
+    /// Returns the opstamp of the last successful commit.
+    /// 
+    /// This is, for instance, the opstamp the index will
+    /// rollback to if there is a failure like a power surge.
+    ///
+    /// This is also the opstamp of the commit that is currently
+    /// available for searchers.
     pub fn commit_opstamp(&self) -> u64 {
         self.committed_opstamp
     }

@@ -77,6 +77,10 @@ impl SegmentEntry {
         self.state = SegmentState::InMerge;
     }
 
+    pub fn cancel_merge(&mut self,) {
+        self.state = SegmentState::Ready;
+    }
+
     pub fn is_ready(&self,) -> bool {
         self.state == SegmentState::Ready
     }

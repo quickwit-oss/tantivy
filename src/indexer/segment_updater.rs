@@ -92,6 +92,59 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
 pub struct SegmentUpdater(Arc<InnerSegmentUpdater>);
 
 
+
+fn perform_merge(segment_ids: &[SegmentId],
+                 segment_updater: &SegmentUpdater,
+                 mut merged_segment: Segment,
+                 target_opstamp: u64) -> Result<SegmentEntry> {
+    // first we need to apply deletes to our segment.
+    info!("Start merge: {:?}", segment_ids);
+    
+    let ref index = segment_updater.0.index;
+    let schema = index.schema();
+    let mut segment_entries = vec!();
+    for segment_id in segment_ids {
+        if let Some(mut segment_entry) = segment_updater.0
+            .segment_manager
+            .segment_entry(segment_id) {
+            let segment = index.segment(segment_entry.meta().clone());
+            advance_deletes(segment, &mut segment_entry, target_opstamp)?;
+            segment_entries.push(segment_entry);
+        }
+        else {
+            error!("Error, had to abort merge as some of the segment is not managed anymore.a");
+            return Err(Error::InvalidArgument(format!("Segment {:?} requested for merge is not managed.", segment_id)));
+        }
+    }
+    
+    let delete_cursor = segment_entries[0].delete_cursor().clone();
+
+    let segments: Vec<Segment> = segment_entries
+        .iter()
+        .map(|segment_entry| {
+            index.segment(segment_entry.meta().clone())
+        })
+        .collect();
+    
+    // An IndexMerger is like a "view" of our merged segments.
+    let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
+    
+    // ... we just serialize this index merger in our new segment
+    // to merge the two segments.
+
+    let segment_serializer =
+        SegmentSerializer::for_segment(&mut merged_segment)
+        .expect("Creating index serializer failed");
+
+    let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
+    let mut segment_meta = SegmentMeta::new(merged_segment.id());
+    segment_meta.set_max_doc(num_docs);
+    
+    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor);
+    Ok(after_merge_segment_entry)
+}
+
+
 struct InnerSegmentUpdater {
     pool: CpuPool,
     index: Index,
@@ -145,8 +198,6 @@ impl SegmentUpdater {
         self.0.merging_thread_id.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// TODO check that we use this correctly taking
-    /// the laziness in account.
     fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> impl Future<Item=T, Error=Error> {
         let me_clone = self.clone();
         self.0.pool.spawn_fn(move || {
@@ -238,66 +289,26 @@ impl SegmentUpdater {
             // first we need to apply deletes to our segment.
             info!("Start merge: {:?}", segment_ids_vec);
             
-            let ref index = segment_updater_clone.0.index;
-            let schema = index.schema();
+            let merged_segment = segment_updater_clone.new_segment(); 
+            let merged_segment_id = merged_segment.id();
+            let merge_result = perform_merge(&segment_ids_vec, &segment_updater_clone, merged_segment, target_opstamp);
 
-            let mut segment_entries = vec!();
-            
-
-            for segment_id in &segment_ids_vec {
-                if let Some(mut segment_entry) = segment_updater_clone.0
-                    .segment_manager
-                    .segment_entry(segment_id) {
-
-                    let segment = index.segment(segment_entry.meta().clone());
-                    // TODO unwrap
-                    advance_deletes(segment, &mut segment_entry, target_opstamp).unwrap();
-                    segment_entries.push(segment_entry);
+            match merge_result {
+                Ok(after_merge_segment_entry) => {
+                    let merged_segment_meta = after_merge_segment_entry.meta().clone();
+                    segment_updater_clone
+                        .end_merge(segment_ids_vec, after_merge_segment_entry)
+                        .wait()
+                        .expect("Segment updater thread is corrupted.");
+                    merging_future_send.complete(merged_segment_meta);
                 }
-                else {
-                    error!("Error, had to abort merge as some of the segment is not managed anymore.a");
-                    return Err(Error::InvalidArgument(format!("Segment {:?} requested for merge is not managed.", segment_id)));
+                Err(_) => {
+                    // ... cancel merge
+                    warn!("Merge of {:?} was cancelled", segment_ids_vec);
+                    segment_updater_clone.cancel_merge(&segment_ids_vec, merged_segment_id);
+                    // merging_future_send will be dropped, sending an error to the future.
                 }
             }
-            
-            let delete_cursor = segment_entries[0].delete_cursor().clone();
-        
-            let segments: Vec<Segment> = segment_entries
-                .iter()
-                .map(|segment_entry| {
-                    index.segment(segment_entry.meta().clone())
-                })
-                .collect();
-            
-            // An IndexMerger is like a "view" of our merged segments.
-            let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
-            let mut merged_segment = index.new_segment(); 
-            
-            // ... we just serialize this index merger in our new segment
-            // to merge the two segments.
-
-            let segment_serializer =
-                SegmentSerializer
-                ::for_segment(&mut merged_segment)
-                .expect("Creating index serializer failed");
-
-            let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
-            let mut segment_meta = SegmentMeta::new(merged_segment.id());
-            segment_meta.set_max_doc(num_docs);
-            
-            let before_merged_segment_ids = segment_entries
-                .iter()
-                .map(|segment_entry| segment_entry.segment_id())
-                .collect::<Vec<_>>();
-            
-            let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor);
-
-            segment_updater_clone
-                .end_merge(before_merged_segment_ids, after_merge_segment_entry)
-                .wait()
-                .unwrap();
-            
-            merging_future_send.complete(segment_meta);
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(())
         });
@@ -319,6 +330,12 @@ impl SegmentUpdater {
         }
     }
 
+    fn cancel_merge(&self, 
+        before_merge_segment_ids: &[SegmentId],
+        after_merge_segment_entry: SegmentId)  {
+        self.0.segment_manager.cancel_merge(&before_merge_segment_ids, after_merge_segment_entry);
+    }
+
     
     fn end_merge(&self, 
         before_merge_segment_ids: Vec<SegmentId>,
@@ -336,7 +353,6 @@ impl SegmentUpdater {
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
             segment_updater.save_metas(segment_updater.0.index.opstamp());
         })
-        
     }
 
     pub fn wait_merging_thread(&self) -> thread::Result<()> {

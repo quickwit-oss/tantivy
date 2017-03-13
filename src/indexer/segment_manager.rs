@@ -36,18 +36,6 @@ impl Debug for SegmentManager {
     }
 }
 
-
-/// Returns the `SegmentMeta`s for (committed segment, uncommitted segments).
-/// The result is consistent with other transactions.
-///
-/// For instance, a segment will not appear in both committed and uncommitted 
-/// segments
-pub fn get_all_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
-    let registers_lock = segment_manager.read();
-    (registers_lock.committed.get_all_segments(),
-     registers_lock.uncommitted.get_all_segments())
-}
-
 pub fn get_mergeable_segments(segment_manager: &SegmentManager,) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
     (registers_lock.committed.get_mergeable_segments(),
@@ -160,6 +148,40 @@ impl SegmentManager {
         }
     }
 
+
+    pub fn cancel_merge(&self,
+            before_merge_segment_ids: &[SegmentId],
+            after_merge_segment_id: SegmentId) {
+        
+        let mut registers_lock = self.write();
+        
+        // we mark all segments are ready for merge.
+        {
+            let target_segment_register: &mut SegmentRegister;
+            target_segment_register = {
+                if registers_lock.uncommitted.contains_all(&before_merge_segment_ids) {
+                    &mut registers_lock.uncommitted
+                }
+                else if registers_lock.committed.contains_all(&before_merge_segment_ids) {
+                    &mut registers_lock.committed
+                }
+                else {
+                    warn!("couldn't find segment in SegmentManager");
+                    return;
+                }
+            };
+            for segment_id in before_merge_segment_ids {
+                target_segment_register.cancel_merge(segment_id);
+            }
+        }
+
+        // ... and we make sure the target segment entry
+        // can be garbage collected.
+        registers_lock.writing.remove(&after_merge_segment_id);
+        
+    }
+
+
     pub fn write_segment(&self, segment_id: SegmentId) {
         let mut registers_lock = self.write();
         registers_lock.writing.insert(segment_id);
@@ -176,21 +198,27 @@ impl SegmentManager {
             after_merge_segment_entry: SegmentEntry) {
         
         let mut registers_lock = self.write();
+        registers_lock.writing.remove(&after_merge_segment_entry.segment_id());
         
-        if registers_lock.uncommitted.contains_all(&before_merge_segment_ids) {
-            for segment_id in before_merge_segment_ids {
-                registers_lock.uncommitted.remove_segment(segment_id);
+        let mut target_register: &mut SegmentRegister = {
+            if registers_lock.uncommitted.contains_all(&before_merge_segment_ids) {
+                &mut registers_lock.uncommitted
             }
-            registers_lock.uncommitted.add_segment_entry(after_merge_segment_entry);
-        }
-        else if registers_lock.committed.contains_all(&before_merge_segment_ids) {
-            for segment_id in before_merge_segment_ids {
-                registers_lock.committed.remove_segment(segment_id);
+            else if registers_lock.committed.contains_all(&before_merge_segment_ids) {
+                &mut registers_lock.committed
+            } else {
+                warn!("couldn't find segment in SegmentManager");
+                return;
             }
-            registers_lock.committed.add_segment_entry(after_merge_segment_entry);
-        } else {
-            warn!("couldn't find segment in SegmentManager");
+        };
+        for segment_id in before_merge_segment_ids {
+            target_register.remove_segment(segment_id);
         }
+        target_register.add_segment_entry(after_merge_segment_entry);
+
+        
+
+        
     }
 
     pub fn committed_segment_metas(&self,) -> Vec<SegmentMeta> {
