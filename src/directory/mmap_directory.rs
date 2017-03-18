@@ -219,12 +219,28 @@ impl MmapDirectory {
     /// Sync the root directory.
     /// In certain FS, this is required to persistently create
     /// a file.
-    fn sync_directory(&self,) -> Result<(), io::Error> {
-        let fd = try!(File::open(&self.root_path));
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        let mut open_opts = OpenOptions::new();
+
+        // Linux needs read to be set, or otherwise returns EINVAL
+        // and fails with EISDIR if write is set
+        open_opts.read(true);
+
+        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
+        // and calling sync_all() only works if write access is requested.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x02000000;
+
+            open_opts.write(true)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
+        };
+
+        let fd = try!(open_opts.open(&self.root_path));
         try!(fd.sync_all());
         Ok(())
     }
-
     /// Returns some statistical information
     /// about the Mmap cache.
     /// 
