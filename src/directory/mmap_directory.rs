@@ -23,6 +23,10 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
+#[cfg(windows)]
+use winapi::winbase::FILE_FLAG_BACKUP_SEMANTICS;
+
+
 
 fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError> {
     let convert_file_error = |err: io::Error| {
@@ -231,11 +235,9 @@ impl MmapDirectory {
         #[cfg(windows)]
         {
             use std::os::windows::fs::OpenOptionsExt;
-            const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x02000000;
-
             open_opts.write(true)
                 .custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
-        };
+        }
 
         let fd = try!(open_opts.open(&self.root_path));
         try!(fd.sync_all());
