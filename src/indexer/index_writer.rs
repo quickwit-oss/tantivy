@@ -154,6 +154,52 @@ pub fn open_index_writer(
 }
 
 
+
+pub fn compute_deleted_bitset(
+    delete_bitset: &mut BitSet,
+    segment_reader: &SegmentReader,
+    delete_cursor: &mut DeleteCursor,
+    doc_opstamps: DocToOpstampMapping,
+    target_opstamp: u64) -> Result<(Option<BitSet>)> {
+    
+    
+    loop {
+        if let Some(delete_op) = delete_cursor.peek() {
+            if delete_op.opstamp > target_opstamp {
+                break;
+            }
+            else {
+                // A delete operation should only affect
+                // document that were inserted after it.
+                // 
+                // Limit doc helps identify the first document
+                // that may be affected by the delete operation.
+                let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+                if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+                    while docset.advance() {
+                        let deleted_doc = docset.doc();
+                        if deleted_doc < limit_doc {
+                            delete_bitset.insert(deleted_doc as usize);
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            break;
+        }
+        delete_cursor.advance();
+    }
+
+    if !delete_bitset.is_empty() {
+        Ok(Some(delete_bitset))
+    }
+    else {
+        Ok(None)
+    }
+}
+
+
 // TODO put delete bitset in segment entry
 // rather than DocToOpstamp.
 
@@ -168,67 +214,40 @@ pub fn advance_deletes(
     target_opstamp: u64) -> Result<()> {
 
     {
-        let doc_opstamps = segment_entry.reset_doc_to_stamp();
+        
+        let segment_reader = SegmentReader::open(segment.clone())?;
+
+        let mut delete_bitset: BitSet =
+            match segment_entry.reset_delete_bitset() {
+                Some(previous_delete_bitset) => {
+                    previous_delete_bitset
+                },
+                None => {
+                    BitSet::with_capacity(segment_reader.max_doc() as usize)
+                }
+            };
+        
         let delete_cursor = segment_entry.delete_cursor();
 
-        let segment_reader = SegmentReader::open(segment.clone())?;
+        let new_deleted_bitset = compute_deleted_bitset(
+            &segment_reader,
+            delete_cursor,
+            &mut delete_bitset,
+            DocToOpstampMapping::None,
+            target_opstamp)?;
         
-        let mut delete_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
-        
-        let mut last_opstamp_opt: Option<u64> = None;
-
-        let previous_delete_opstamp_opt = segment.meta().delete_opstamp();
-
-        loop {
-
-            if let Some(delete_op) = delete_cursor.peek() {
-                if delete_op.opstamp > target_opstamp {
-                    break;
-                }
-                else {
-                    // let's skip operations that have already been deleted.0u32
-                    if let Some(previous_delete_opstamp) = previous_delete_opstamp_opt {
-                        if delete_op.opstamp <= previous_delete_opstamp {
-                            continue;
-                        }
-                    }
-
-                    // A delete operation should only affect
-                    // document that were inserted after it.
-                    // 
-                    // Limit doc helps identify the first document
-                    // that may be affected by the delete operation.
-                    let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-                    if let Some(mut docset) = segment_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
-                        while docset.advance() {
-                            let deleted_doc = docset.doc();
-                            if deleted_doc < limit_doc {
-                                delete_bitset.insert(deleted_doc as usize);
-                            }
-                        }
-                    }
-                    last_opstamp_opt = Some(delete_op.opstamp);
-                }
-            }
-            else {
-                break;
-            }
-
-            delete_cursor.advance();
-        }
-
         // we only write the result different
         // iff we ended ended up increasing the delete opstamp
         //
         // TODO just move the file if there was no new delete?
-        if let Some(last_opstamp) = last_opstamp_opt {
+        if let Some(mut delete_bitset) = new_deleted_bitset {
             for doc in 0u32..segment_reader.max_doc() {
                 if segment_reader.is_deleted(doc) {
                     delete_bitset.insert(doc as usize);
                 }
             }
             let num_deleted_docs = delete_bitset.len();
-            segment.set_delete_meta(num_deleted_docs as u32, last_opstamp);
+            segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;    
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
@@ -244,11 +263,11 @@ fn index_documents(heap: &mut Heap,
                    generation: usize,
                    document_iterator: &mut Iterator<Item=AddOperation>,
                    segment_updater: &mut SegmentUpdater,
-                   delete_cursor: DeleteCursor)
+                   mut delete_cursor: DeleteCursor)
                    -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = try!(SegmentWriter::for_segment(heap, segment, &schema));
+    let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), &schema)?;
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
@@ -268,15 +287,28 @@ fn index_documents(heap: &mut Heap,
     let mut segment_meta = SegmentMeta::new(segment_id);
     segment_meta.set_max_doc(num_docs);
 
-    let mut segment_entry = SegmentEntry::new(segment_meta, delete_cursor);
-    segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
+    let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
+    
+    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+    let segment_reader = SegmentReader::open(segment)?;
+    let delete_bitset = compute_deleted_bitset(
+        &segment_reader,
+        &mut delete_cursor,
+        doc_to_opstamps,
+        last_docstamp,
+    )?;
+
+    let segment_entry = SegmentEntry::new(
+        segment_meta,
+        delete_cursor,
+        delete_bitset);
     
     segment_updater
         .add_segment(generation, segment_entry)
         .wait()
         .map_err(|_| Error::ErrorInThread("Could not add segment.".to_string()))
 
-}
+}   
 
 
 impl IndexWriter {
@@ -287,9 +319,8 @@ impl IndexWriter {
         // dropping the last reference to the segment_updater.
         drop(self.document_sender);
         
-        let mut v = Vec::new();
-        mem::swap(&mut v, &mut self.workers_join_handle);
-        for join_handle in v {
+        let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec!());
+        for join_handle in former_workers_handles {
             try!(join_handle.join()
                 .expect("Indexing Worker thread panicked")
                 .map_err(|e| {
@@ -325,7 +356,6 @@ impl IndexWriter {
                 
                 loop {
 
-                    
                     let mut document_iterator = document_receiver_clone.clone()
                         .into_iter()
                         .peekable();

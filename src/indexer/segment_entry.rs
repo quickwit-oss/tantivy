@@ -1,14 +1,14 @@
-use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use core::SegmentMeta;
+use bit_set::BitSet;
 use indexer::delete_queue::DeleteCursor;
 use core::SegmentId;
 use std::fmt;
-use std::mem;
+
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SegmentState {
     Ready,
-    InMerge,    
+    InMerge,        
 }
 
 impl SegmentState {
@@ -24,7 +24,7 @@ impl SegmentState {
 pub struct SegmentEntry {
     meta: SegmentMeta,
     state: SegmentState,
-    doc_to_opstamp: DocToOpstampMapping,
+    delete_bitset: Option<BitSet>,
     delete_cursor: DeleteCursor,
 
 }
@@ -32,17 +32,18 @@ pub struct SegmentEntry {
 impl SegmentEntry {
 
     pub fn new(segment_meta: SegmentMeta, 
-               delete_cursor: DeleteCursor) -> SegmentEntry {
+               delete_cursor: DeleteCursor,
+               delete_bitset: Option<BitSet>) -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             state: SegmentState::Ready,
-            doc_to_opstamp: DocToOpstampMapping::None,
+            delete_bitset: delete_bitset,
             delete_cursor: delete_cursor,
         }
     }
 
-    pub fn reset_doc_to_stamp(&mut self,) -> DocToOpstampMapping {
-        mem::replace(&mut self.doc_to_opstamp, DocToOpstampMapping::None)
+    pub fn reset_delete_bitset(&mut self,) -> Option<BitSet> {
+        self.delete_bitset.take()
     }
 
     pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
@@ -57,12 +58,8 @@ impl SegmentEntry {
         self.state
     }
 
-     pub fn set_state(&mut self, state: SegmentState) {
+    pub fn set_state(&mut self, state: SegmentState) {
         self.state = state;
-    }
-
-    pub fn set_doc_to_opstamp(&mut self, doc_to_opstamp: DocToOpstampMapping) {
-        self.doc_to_opstamp = doc_to_opstamp;
     }
 
     pub fn segment_id(&self) -> SegmentId {

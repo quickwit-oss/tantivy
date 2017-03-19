@@ -31,6 +31,7 @@ impl Debug for SegmentRegister {
     }
 }
 
+
 impl SegmentRegister {
     
     pub fn clear(&mut self,) {
@@ -107,7 +108,10 @@ impl SegmentRegister {
         let mut segment_states = HashMap::new();
         for segment_meta in segment_metas {
             let segment_id = segment_meta.id();
-            let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone());
+            let segment_entry = SegmentEntry::new(
+                segment_meta,
+                delete_cursor.clone(),
+                None);
             segment_states.insert(segment_id, segment_entry);
         }
         SegmentRegister {
@@ -144,14 +148,14 @@ mod tests {
         
         {
             let segment_meta = SegmentMeta::new(segment_id_a);
-            let segment_entry = SegmentEntry::new(segment_meta,  delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta,  delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_register.segment_entry(&segment_id_a).unwrap().state(), SegmentState::Ready);
         assert_eq!(segment_ids(&segment_register), vec!(segment_id_a));
         {
             let segment_meta = SegmentMeta::new(segment_id_b);
-            let segment_entry = SegmentEntry::new(segment_meta,  delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta,  delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_register.segment_entry(&segment_id_b).unwrap().state(), SegmentState::Ready);
@@ -163,7 +167,7 @@ mod tests {
         segment_register.remove_segment(&segment_id_b);
         {
             let segment_meta_merged = SegmentMeta::new(segment_id_merged);
-            let segment_entry = SegmentEntry::new(segment_meta_merged,  delete_queue.cursor());
+            let segment_entry = SegmentEntry::new(segment_meta_merged,  delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);        
         }
         assert_eq!(segment_ids(&segment_register), vec!(segment_id_merged));        

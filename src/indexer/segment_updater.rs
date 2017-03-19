@@ -140,7 +140,7 @@ fn perform_merge(segment_ids: &[SegmentId],
     let mut segment_meta = SegmentMeta::new(merged_segment.id());
     segment_meta.set_max_doc(num_docs);
     
-    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor);
+    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None);
     Ok(after_merge_segment_entry)
 }
 
