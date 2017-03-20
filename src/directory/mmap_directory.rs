@@ -23,11 +23,6 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
-#[cfg(windows)]
-use winapi::winbase::FILE_FLAG_BACKUP_SEMANTICS;
-
-
-
 fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError> {
     let convert_file_error = |err: io::Error| {
         if err.kind() == io::ErrorKind::NotFound {
@@ -226,8 +221,8 @@ impl MmapDirectory {
     fn sync_directory(&self) -> Result<(), io::Error> {
         let mut open_opts = OpenOptions::new();
 
-        // Linux needs read to be set, or otherwise returns EINVAL
-        // and fails with EISDIR if write is set
+        // Linux needs read to be set, otherwise returns EINVAL
+        // write must not be set, or it fails with EISDIR
         open_opts.read(true);
 
         // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
@@ -235,8 +230,10 @@ impl MmapDirectory {
         #[cfg(windows)]
         {
             use std::os::windows::fs::OpenOptionsExt;
+            use winapi::winbase;
+
             open_opts.write(true)
-                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
         }
 
         let fd = try!(open_opts.open(&self.root_path));
