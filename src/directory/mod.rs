@@ -139,7 +139,10 @@ mod tests {
             }
         }
 
-        assert!(directory.delete(*TEST_PATH).is_ok());
+        if cfg!(windows) {
+            assert!(directory.delete(*TEST_PATH).is_ok());
+        }
+
         assert!(directory.open_read(*TEST_PATH).is_err());
         assert!(directory.delete(*TEST_PATH).is_err());
     }
