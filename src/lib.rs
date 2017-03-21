@@ -51,6 +51,9 @@ extern crate futures_cpupool;
 #[cfg(feature="simdcompression")]
 extern crate libc;
 
+#[cfg(windows)]
+extern crate winapi;
+
 #[cfg(test)] extern crate test;
 #[cfg(test)] extern crate rand;
 

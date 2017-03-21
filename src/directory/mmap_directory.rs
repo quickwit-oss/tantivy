@@ -23,7 +23,6 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
-
 fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError> {
     let convert_file_error = |err: io::Error| {
         if err.kind() == io::ErrorKind::NotFound {
@@ -219,12 +218,28 @@ impl MmapDirectory {
     /// Sync the root directory.
     /// In certain FS, this is required to persistently create
     /// a file.
-    fn sync_directory(&self,) -> Result<(), io::Error> {
-        let fd = try!(File::open(&self.root_path));
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        let mut open_opts = OpenOptions::new();
+
+        // Linux needs read to be set, otherwise returns EINVAL
+        // write must not be set, or it fails with EISDIR
+        open_opts.read(true);
+
+        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
+        // and calling sync_all() only works if write access is requested.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            use winapi::winbase;
+
+            open_opts.write(true)
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
+        }
+
+        let fd = try!(open_opts.open(&self.root_path));
         try!(fd.sync_all());
         Ok(())
     }
-
     /// Returns some statistical information
     /// about the Mmap cache.
     /// 
