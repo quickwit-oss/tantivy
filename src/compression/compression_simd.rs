@@ -5,7 +5,6 @@ const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1;
 mod simdcomp {
     use libc::size_t;
 
-    #[link(name = "simdcomp")]
     extern {
         pub fn compress_sorted(
             data: *const u32,
