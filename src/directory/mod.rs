@@ -60,31 +60,37 @@ mod tests {
 
     fn test_simple(directory: &mut Directory) {
         {
-            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-            assert!(directory.exists(*TEST_PATH));
-            write_file.write_all(&[4]).unwrap();
-            write_file.write_all(&[3]).unwrap();
-            write_file.write_all(&[7,3,5]).unwrap();
-            write_file.flush().unwrap();
+            {
+                let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+                assert!(directory.exists(*TEST_PATH));
+                write_file.write_all(&[4]).unwrap();
+                write_file.write_all(&[3]).unwrap();
+                write_file.write_all(&[7,3,5]).unwrap();
+                write_file.flush().unwrap();
+            }
+            let read_file = directory.open_read(*TEST_PATH).unwrap();
+            let data: &[u8] = &*read_file;
+            assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
         }
-        let read_file = directory.open_read(*TEST_PATH).unwrap();
-        let data: &[u8] = &*read_file;
-        assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
+
         assert!(directory.delete(*TEST_PATH).is_ok());
         assert!(!directory.exists(*TEST_PATH));
     }
 
     fn test_seek(directory: &mut Directory) {
         {
-            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-            write_file.write_all(&[4, 3, 7,3,5]).unwrap();
-            write_file.seek(SeekFrom::Start(0)).unwrap();
-            write_file.write_all(&[3,1]).unwrap();
-            write_file.flush().unwrap();
+            {
+                let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+                write_file.write_all(&[4, 3, 7,3,5]).unwrap();
+                write_file.seek(SeekFrom::Start(0)).unwrap();
+                write_file.write_all(&[3,1]).unwrap();
+                write_file.flush().unwrap();
+            }
+            let read_file = directory.open_read(*TEST_PATH).unwrap();
+            let data: &[u8] = &*read_file;
+            assert_eq!(data, &[3u8, 1u8, 7u8, 3u8, 5u8]);
         }
-        let read_file = directory.open_read(*TEST_PATH).unwrap();
-        let data: &[u8] = &*read_file;
-        assert_eq!(data, &[3u8, 1u8, 7u8, 3u8, 5u8]);
+
         assert!(directory.delete(*TEST_PATH).is_ok());
     }
 
@@ -118,14 +124,27 @@ mod tests {
         let mut write_file = directory.open_write(*TEST_PATH).unwrap();
         write_file.write_all(&[1, 2, 3, 4]).unwrap();
         write_file.flush().unwrap();
-        let read_handle = directory.open_read(*TEST_PATH).unwrap();  
         {
-            assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
-            assert!(directory.delete(*TEST_PATH).is_ok());
-            assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
-            assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+            let read_handle = directory.open_read(*TEST_PATH).unwrap();
+            {
+                assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+
+                // Mapped files can't be deleted on Windows
+                if !cfg!(windows) {
+                    assert!(directory.delete(*TEST_PATH).is_ok());
+                    assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+                }
+
+                assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
+            }
         }
+
+        if cfg!(windows) {
+            assert!(directory.delete(*TEST_PATH).is_ok());
+        }
+
         assert!(directory.open_read(*TEST_PATH).is_err());
+        assert!(directory.delete(*TEST_PATH).is_err());
     }
 
     fn test_directory(directory: &mut Directory) {
