@@ -308,7 +308,7 @@ impl SegmentUpdater {
         
     }
 
-    pub fn wait_merging_thread(&self) -> thread::Result<()> {
+    pub fn wait_merging_thread(&self) -> Result<()> {
         let mut new_merging_threads = HashMap::new();
         {
             let mut merging_threads = self.0.merging_threads.write().unwrap();
@@ -317,9 +317,13 @@ impl SegmentUpdater {
         for (_, merging_thread_handle) in new_merging_threads {
             merging_thread_handle
                 .join()
-                .map(|_| ())?
+                .map(|_| ())
+                .map_err(|_| {
+                    Error::ErrorInThread("Merging thread failed.".to_string())
+                })?
         }
-        Ok(())
+        // Our merging thread may have queued their completed
+        self.run_async(move |_| {}).wait()
     }
 
 }
