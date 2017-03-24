@@ -1,0 +1,24 @@
+# Appveyor configuration template for Rust using rustup for Rust installation
+# https://github.com/starkat99/appveyor-rust
+
+os: Visual Studio 2015
+environment:
+  matrix:
+    - channel: nightly
+      target: x86_64-pc-windows-msvc
+    - channel: nightly
+      target: x86_64-pc-windows-gnu
+      msys_bits: 64
+
+install:
+  - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+  - rustup-init -yv --default-toolchain %channel% --default-host %target%
+  - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+  - if defined msys_bits set PATH=%PATH%;C:\msys64\mingw%msys_bits%\bin
+  - rustc -vV
+  - cargo -vV
+
+build: false
+
+test_script:
+  - cargo test --verbose
