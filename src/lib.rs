@@ -48,6 +48,9 @@ extern crate bit_set;
 extern crate futures;
 extern crate futures_cpupool;
 
+#[cfg(test)]
+extern crate env_logger;
+
 #[cfg(feature="simdcompression")]
 extern crate libc;
 

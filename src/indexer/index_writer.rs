@@ -263,6 +263,8 @@ impl IndexWriter {
         
         let mut v = Vec::new();
         mem::swap(&mut v, &mut self.workers_join_handle);
+
+        debug!("wait {} merging threads START", v.len());
         for join_handle in v {
             try!(join_handle.join()
                 .expect("Indexing Worker thread panicked")
@@ -272,11 +274,14 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        self.segment_updater
+        let result = self.segment_updater
             .wait_merging_thread()
             .map_err(|_| 
                 Error::ErrorInThread("Failed to join merging thread.".to_string())
-            )
+            );
+        
+        debug!("wait merging threads DONE");
+        result
     }
 
     /// Spawns a new worker thread for indexing.
@@ -539,6 +544,7 @@ mod tests {
     use Index;
     use Term;
     use Error;
+    use env_logger;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -619,6 +625,7 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
+        let _ = env_logger::init();
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -646,6 +653,7 @@ mod tests {
             index_writer.commit().expect("commit failed");
             index_writer.wait_merging_threads().expect("waiting merging thread failed");
             index.load_searchers().unwrap();
+            
             assert_eq!(num_docs_containing("a"), 200);
             assert_eq!(index.searchable_segments().unwrap().len(), 1);
         }

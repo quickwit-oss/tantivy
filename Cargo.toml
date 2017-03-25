@@ -43,6 +43,7 @@ winapi = "*"
 
 [dev-dependencies]
 rand = "0.3"
+env_logger = "0.4"
 
 [build-dependencies]
 gcc = {version = "0.3", optional=true}

@@ -78,8 +78,9 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
     };
     let mut w = vec!();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
-    Ok(directory
-        .atomic_write(&META_FILEPATH, &w[..])?)
+    let res = directory.atomic_write(&META_FILEPATH, &w[..])?;
+    debug!("Saved metas {}", json::as_pretty_json(&metas));
+    Ok(res)
         
 }
 
@@ -301,6 +302,7 @@ impl SegmentUpdater {
         resulting_segment_entry: SegmentEntry) -> Result<()> {
         
         self.run_async(move |segment_updater| {
+            debug!("End merge {:?}", merged_segment_metas);
             segment_updater.0.segment_manager.end_merge(&merged_segment_metas, resulting_segment_entry);
             let mut directory = segment_updater.0.index.directory().box_clone();
             let segment_metas = segment_updater.0.segment_manager.committed_segment_metas();
