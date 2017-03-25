@@ -248,10 +248,7 @@ fn index_documents(heap: &mut Heap,
     let mut segment_entry = SegmentEntry::new(segment_meta);
     segment_entry.set_doc_to_opstamp(DocToOpstampMapping::from(doc_opstamps));
 
-    segment_updater
-        .add_segment(generation, segment_entry)
-        .wait()
-        .map_err(|_| Error::ErrorInThread("Could not add segment.".to_string()))
+    Ok(segment_updater.add_segment(generation, segment_entry))
 
 }
 
@@ -420,7 +417,7 @@ impl IndexWriter {
         // No new document have been added in the meanwhile because `IndexWriter`
         // is not shared by different threads.
         
-        rollback_future.wait().map_err(|_|
+        rollback_future.map_err(|_|
             Error::ErrorInThread("Error while waiting for rollback.".to_string())
         )?;
 
@@ -480,8 +477,7 @@ impl IndexWriter {
 
         // wait for the segment update thread to have processed the info
         self.segment_updater
-            .commit(self.committed_opstamp)
-            .wait()?;
+            .commit(self.committed_opstamp)?;
         
         self.delete_queue.clear();
         Ok(self.committed_opstamp)
