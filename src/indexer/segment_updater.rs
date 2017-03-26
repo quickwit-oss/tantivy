@@ -300,7 +300,13 @@ impl SegmentUpdater {
                         .end_merge(segment_ids_vec, after_merge_segment_entry)
                         .wait()
                         .expect("Segment updater thread is corrupted.");
-                    merging_future_send.complete(merged_segment_meta);
+                    
+                    // the future may fail if the listener of the oneshot future 
+                    // has been destroyed.
+                    //
+                    // This is not a problem here, so we just ignore any 
+                    // possible error.
+                    let _merging_future_res = merging_future_send.send(merged_segment_meta);
                 }
                 Err(_) => {
                     // ... cancel merge

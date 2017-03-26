@@ -307,7 +307,7 @@ mod tests {
     use futures::Future;
 
     #[test]
-    fn test_index_merger() {
+    fn test_index_merger_no_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
                                  .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
