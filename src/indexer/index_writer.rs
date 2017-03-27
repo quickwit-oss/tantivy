@@ -304,11 +304,11 @@ fn index_documents(heap: &mut Heap,
           else { None } }
     );
     
-    segment_updater
+    Ok(
+        segment_updater
         .add_segment(generation, segment_entry)
-        .wait()
-        .map_err(|_| Error::ErrorInThread("Could not add segment.".to_string()))
-
+    )
+        
 }   
 
 
@@ -320,7 +320,9 @@ impl IndexWriter {
         // dropping the last reference to the segment_updater.
         drop(self.document_sender);
         
+
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec!());
+        debug!("wait {} merging threads START", former_workers_handles.len());
         for join_handle in former_workers_handles {
             try!(join_handle.join()
                 .expect("Indexing Worker thread panicked")
@@ -330,11 +332,14 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        self.segment_updater
+        let result = self.segment_updater
             .wait_merging_thread()
             .map_err(|_| 
                 Error::ErrorInThread("Failed to join merging thread.".to_string())
-            )
+            );
+        
+        debug!("wait merging threads DONE");
+        result
     }
 
     /// Spawns a new worker thread for indexing.
@@ -459,6 +464,7 @@ impl IndexWriter {
                 heap_size_in_bytes_per_thread)?;
         
         Ok(index_writer)
+
     }
 
 
@@ -511,8 +517,7 @@ impl IndexWriter {
 
         // wait for the segment update thread to have processed the info
         self.segment_updater
-            .commit(self.committed_opstamp)
-            .wait()?;
+            .commit(self.committed_opstamp)?;
         
         Ok(self.committed_opstamp)
     }    
@@ -578,6 +583,7 @@ mod tests {
     use Index;
     use Term;
     use Error;
+    use env_logger;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -661,6 +667,7 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
+        let _ = env_logger::init();
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -688,6 +695,7 @@ mod tests {
             index_writer.commit().expect("commit failed");
             index_writer.wait_merging_threads().expect("waiting merging thread failed");
             index.load_searchers().unwrap();
+            
             assert_eq!(num_docs_containing("a"), 200);
             assert_eq!(index.searchable_segments().unwrap().len(), 1);
         }

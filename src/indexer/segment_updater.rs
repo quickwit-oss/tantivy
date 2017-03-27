@@ -11,7 +11,7 @@ use directory::Directory;
 use indexer::stamper::Stamper;
 use Error;
 use futures_cpupool::CpuPool;
-use futures::{Future, future};
+use futures::Future;
 use futures::Canceled;
 use futures::oneshot;
 use indexer::{MergePolicy, DefaultMergePolicy};
@@ -21,6 +21,7 @@ use indexer::merger::IndexMerger;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use Result;
+use futures_cpupool::CpuFuture;
 use rustc_serialize::json;
 use indexer::delete_queue::DeleteCursor;
 use schema::Schema;
@@ -77,8 +78,9 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
     };
     let mut w = vec!();
     try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
-    Ok(directory
-        .atomic_write(&META_FILEPATH, &w[..])?)
+    let res = directory.atomic_write(&META_FILEPATH, &w[..])?;
+    debug!("Saved metas {}", json::as_pretty_json(&metas));
+    Ok(res)
         
 }
 
@@ -198,25 +200,25 @@ impl SegmentUpdater {
         self.0.merging_thread_id.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> impl Future<Item=T, Error=Error> {
+    fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(&self, f: F) -> CpuFuture<T, Error> {
         let me_clone = self.clone();
         self.0.pool.spawn_fn(move || {
             Ok(f(me_clone))
         })
     }
 
-    pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> impl Future<Item=bool, Error=Error> {
-        if self.is_alive() && generation >= self.0.generation.load(Ordering::Acquire) {
-            future::Either::A({
-                self.run_async(|segment_updater| {
-                    segment_updater.0.segment_manager.add_segment(segment_entry);
-                    segment_updater.consider_merge_options();
-                    true
-                })
-            })
+
+    pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> bool {
+        if generation >= self.0.generation.load(Ordering::Acquire) {
+            self.run_async(|segment_updater| {
+                segment_updater.0.segment_manager.add_segment(segment_entry);
+                segment_updater.consider_merge_options();
+                true
+            }).forget();
+            true
         }
         else {
-            future::Either::B(future::ok(false))
+            false
         }
     }
 
@@ -250,20 +252,26 @@ impl SegmentUpdater {
         }
     }
 
-    pub fn commit(&self, opstamp: u64) -> impl Future<Item=(), Error=Error> {
+    pub fn commit(&self, opstamp: u64) -> Result<()> {
         self.run_async(move |segment_updater| {
+            let mut index = segment_updater.0.index.clone();
+
             if segment_updater.is_alive() {
                 let segment_entries = segment_updater
                     .purge_deletes(opstamp)
                     .expect("Failed purge deletes");
                 segment_updater.0.segment_manager.commit(segment_entries);
-                let mut index = segment_updater.0.index.clone();
                 segment_updater.save_metas(opstamp);
                 let living_files = segment_updater.0.segment_manager.list_files();
                 index.directory_mut().garbage_collect(living_files);
                 segment_updater.consider_merge_options();
             }
-        })
+            
+            let living_files = segment_updater.0.segment_manager.list_files();
+            index.directory_mut().garbage_collect(living_files);
+            
+            segment_updater.consider_merge_options();
+        }).wait()
     }
 
 
@@ -298,7 +306,6 @@ impl SegmentUpdater {
                     let merged_segment_meta = after_merge_segment_entry.meta().clone();
                     segment_updater_clone
                         .end_merge(segment_ids_vec, after_merge_segment_entry)
-                        .wait()
                         .expect("Segment updater thread is corrupted.");
                     
                     // the future may fail if the listener of the oneshot future 
@@ -315,6 +322,41 @@ impl SegmentUpdater {
                     // merging_future_send will be dropped, sending an error to the future.
                 }
             }
+// <<<<<<< HEAD
+// =======
+            
+//             let segments: Vec<Segment> = segment_metas
+//                 .iter()
+//                 .cloned()
+//                 .map(|segment_meta| index.segment(segment_meta))
+//                 .collect();
+            
+//             // An IndexMerger is like a "view" of our merged segments.
+//             let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
+//             let mut merged_segment = index.new_segment(); 
+            
+//             // ... we just serialize this index merger in our new segment
+//             // to merge the two segments.
+
+//             let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
+
+//             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
+//             let mut segment_meta = SegmentMeta::new(merged_segment.id());
+//             segment_meta.set_max_doc(num_docs);
+            
+//             let segment_entry = SegmentEntry::new(segment_meta);
+//             segment_updater_clone
+//                 .end_merge(segment_metas.clone(), segment_entry.clone())
+//                 .unwrap();
+            
+//             // Send will fail if nobody is waiting for the result and
+//             // the receiver side got destroyed.
+//             //
+//             // This is not a problem.
+//             let _send_result = merging_future_send
+//                 .send(segment_entry.clone());
+            
+// >>>>>>> master
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(())
         });
@@ -345,9 +387,10 @@ impl SegmentUpdater {
     
     fn end_merge(&self, 
         before_merge_segment_ids: Vec<SegmentId>,
-        mut after_merge_segment_entry: SegmentEntry) -> impl Future<Item=(), Error=Error> {
+        mut after_merge_segment_entry: SegmentEntry) -> Result<()> {
         
         self.run_async(move |segment_updater| {
+            debug!("End merge {:?}", after_merge_segment_entry.meta());
             if let Some(delete_operation) = after_merge_segment_entry.delete_cursor().peek() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
@@ -358,10 +401,10 @@ impl SegmentUpdater {
             }
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
             segment_updater.save_metas(segment_updater.0.index.opstamp());
-        })
+        }).wait()
     }
 
-    pub fn wait_merging_thread(&self) -> thread::Result<()> {
+    pub fn wait_merging_thread(&self) -> Result<()> {
         let mut new_merging_threads = HashMap::new();
         {
             let mut merging_threads = self.0.merging_threads.write().unwrap();
@@ -370,9 +413,13 @@ impl SegmentUpdater {
         for (_, merging_thread_handle) in new_merging_threads {
             merging_thread_handle
                 .join()
-                .map(|_| ())?
+                .map(|_| ())
+                .map_err(|_| {
+                    Error::ErrorInThread("Merging thread failed.".to_string())
+                })?
         }
-        Ok(())
+        // Our merging thread may have queued their completed
+        self.run_async(move |_| {}).wait()
     }
 
 }
