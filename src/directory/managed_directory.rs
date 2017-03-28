@@ -81,6 +81,7 @@ impl ManagedDirectory {
                         managed_has_changed |= managed_paths_write.remove(&file_to_delete);
                     }
                     Err(file_error) => {
+                        error!("Failed to delete {:?}", file_to_delete);
                         match file_error {
                             FileError::FileDoesNotExist(_) => {
                                 managed_has_changed |= managed_paths_write.remove(&file_to_delete);

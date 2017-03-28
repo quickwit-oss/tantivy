@@ -265,12 +265,10 @@ impl SegmentUpdater {
                 let living_files = segment_updater.0.segment_manager.list_files();
                 index.directory_mut().garbage_collect(living_files);
                 segment_updater.consider_merge_options();
+                
+                // See #112
+                // index.directory_mut().garbage_collect(living_files);
             }
-            
-            let living_files = segment_updater.0.segment_manager.list_files();
-            index.directory_mut().garbage_collect(living_files);
-            
-            segment_updater.consider_merge_options();
         }).wait()
     }
 
@@ -315,48 +313,18 @@ impl SegmentUpdater {
                     // possible error.
                     let _merging_future_res = merging_future_send.send(merged_segment_meta);
                 }
-                Err(_) => {
+                Err(e) => {
                     // ... cancel merge
-                    warn!("Merge of {:?} was cancelled", segment_ids_vec);
+                    if cfg!(test) {
+                        panic!("Merge failed.");
+                    }
+                    else {
+                        error!("Merge of {:?} was cancelled: {:?}", segment_ids_vec, e);
+                    }
                     segment_updater_clone.cancel_merge(&segment_ids_vec, merged_segment_id);
                     // merging_future_send will be dropped, sending an error to the future.
                 }
             }
-// <<<<<<< HEAD
-// =======
-            
-//             let segments: Vec<Segment> = segment_metas
-//                 .iter()
-//                 .cloned()
-//                 .map(|segment_meta| index.segment(segment_meta))
-//                 .collect();
-            
-//             // An IndexMerger is like a "view" of our merged segments.
-//             let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
-//             let mut merged_segment = index.new_segment(); 
-            
-//             // ... we just serialize this index merger in our new segment
-//             // to merge the two segments.
-
-//             let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect("Creating index serializer failed");
-
-//             let num_docs = merger.write(segment_serializer).expect("Serializing merged index failed");
-//             let mut segment_meta = SegmentMeta::new(merged_segment.id());
-//             segment_meta.set_max_doc(num_docs);
-            
-//             let segment_entry = SegmentEntry::new(segment_meta);
-//             segment_updater_clone
-//                 .end_merge(segment_metas.clone(), segment_entry.clone())
-//                 .unwrap();
-            
-//             // Send will fail if nobody is waiting for the result and
-//             // the receiver side got destroyed.
-//             //
-//             // This is not a problem.
-//             let _send_result = merging_future_send
-//                 .send(segment_entry.clone());
-            
-// >>>>>>> master
             segment_updater_clone.0.merging_threads.write().unwrap().remove(&merging_thread_id);
             Ok(())
         });
@@ -410,6 +378,7 @@ impl SegmentUpdater {
             let mut merging_threads = self.0.merging_threads.write().unwrap();
             mem::swap(&mut new_merging_threads, merging_threads.deref_mut());
         }
+        debug!("wait merging thread {}", new_merging_threads.len());
         for (_, merging_thread_handle) in new_merging_threads {
             merging_thread_handle
                 .join()

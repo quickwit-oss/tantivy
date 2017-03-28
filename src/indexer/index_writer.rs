@@ -209,7 +209,7 @@ pub fn advance_deletes(
     segment_entry: &mut SegmentEntry,
     target_opstamp: u64) -> Result<()> {
 
-    {   
+    {
         if let Some(previous_opstamp) = segment_entry.meta().delete_opstamp() {
             // We are already up-to-date here.
             if target_opstamp == previous_opstamp {
@@ -221,12 +221,10 @@ pub fn advance_deletes(
         
         let mut delete_bitset: BitSet =
             match segment_entry.reset_delete_bitset() {
-                Some(previous_delete_bitset) => {
-                    previous_delete_bitset
-                },
-                None => {
+                Some(previous_delete_bitset) =>
+                    previous_delete_bitset,
+                None =>
                     BitSet::with_capacity(max_doc as usize)
-                }
             };
         
         let delete_cursor = segment_entry.delete_cursor();
@@ -245,9 +243,11 @@ pub fn advance_deletes(
         }
 
         let num_deleted_docs = delete_bitset.len();
-        segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
-        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
-        write_delete_bitset(&delete_bitset, &mut delete_file)?;
+        if num_deleted_docs > 0 {
+            segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
+            let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
+            write_delete_bitset(&delete_bitset, &mut delete_file)?;
+        }
     }
     segment_entry.set_meta(segment.meta().clone());
 
@@ -665,6 +665,7 @@ mod tests {
         index.searcher();
     }
 
+
     #[test]
     fn test_with_merges() {
         let _ = env_logger::init();
@@ -679,7 +680,7 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(4, 4 * 30_000_000).unwrap();
-            // create 10 segments with 100 tiny docs
+            // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a");
@@ -698,6 +699,7 @@ mod tests {
             
             assert_eq!(num_docs_containing("a"), 200);
             assert_eq!(index.searchable_segments().unwrap().len(), 1);
+            
         }
     }
 
