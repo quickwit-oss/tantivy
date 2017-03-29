@@ -1,6 +1,7 @@
 use std::fmt;
 
 use common::BinarySerializable;
+use common::create_vec_with_len;
 use byteorder::{BigEndian, ByteOrder};
 use super::Field;
 use std::str;
@@ -44,8 +45,7 @@ impl Term {
     /// The first byte is `1`, and the 4 following bytes are that of the u32.
     pub fn from_field_u32(field: Field, val: u32) -> Term {
         const U32_TERM_LEN: usize = 1 + 4;
-        let mut buffer = Vec::with_capacity(U32_TERM_LEN);
-        unsafe { buffer.set_len(U32_TERM_LEN) };
+        let mut buffer = create_vec_with_len(U32_TERM_LEN);
         buffer[0] = field.0;
         // we want BigEndian here to have lexicographic order
         // match the natural order of vals.

@@ -30,3 +30,10 @@ pub trait HasLen {
 }
 
 
+pub fn create_vec_with_len<T>(capacity: usize) -> Vec<T> {
+    let mut v = Vec::with_capacity(capacity);
+    unsafe {
+        v.set_len(capacity);
+    }
+    v
+}
