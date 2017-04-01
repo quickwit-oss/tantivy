@@ -14,9 +14,6 @@ mod doc_opstamp_mapping;
 pub mod operation;
 mod stamper;
 
-
-// TODO avoid exposing SegmentState / SegmentEntry if it does not have to be public API
-
 pub use self::segment_entry::{SegmentEntry, SegmentState};
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;

@@ -165,7 +165,7 @@ pub fn compute_deleted_bitset(
     let mut might_have_changed = false;
     
     loop {
-        if let Some(delete_op) = delete_cursor.peek() {
+        if let Some(delete_op) = delete_cursor.get() {
             if delete_op.opstamp > target_opstamp {
                 break;
             }

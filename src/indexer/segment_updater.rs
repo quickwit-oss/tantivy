@@ -359,7 +359,8 @@ impl SegmentUpdater {
         
         self.run_async(move |segment_updater| {
             debug!("End merge {:?}", after_merge_segment_entry.meta());
-            if let Some(delete_operation) = after_merge_segment_entry.delete_cursor().peek() {
+            let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+            if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
                     let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
