@@ -38,6 +38,10 @@ impl SegmentRegister {
         self.segment_states.clear();
     }
 
+    pub fn len(&self) -> usize {
+        self.segment_states.len()
+    }
+
     pub fn get_all_segments(&self,) -> Vec<SegmentMeta> {
         self.segment_states
             .values()

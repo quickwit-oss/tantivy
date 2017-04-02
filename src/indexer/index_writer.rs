@@ -324,9 +324,8 @@ impl IndexWriter {
         // dropping the last reference to the segment_updater.
         drop(self.document_sender);
         
-
+        
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec!());
-        debug!("wait {} merging threads START", former_workers_handles.len());
         for join_handle in former_workers_handles {
             try!(join_handle.join()
                 .expect("Indexing Worker thread panicked")
@@ -342,7 +341,10 @@ impl IndexWriter {
                 Error::ErrorInThread("Failed to join merging thread.".to_string())
             );
         
-        debug!("wait merging threads DONE");
+        if let &Err(ref e) = &result {
+            error!("Some merging thread failed {:?}", e);
+        }
+
         result
     }
 

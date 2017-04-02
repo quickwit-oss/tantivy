@@ -374,22 +374,36 @@ impl SegmentUpdater {
     }
 
     pub fn wait_merging_thread(&self) -> Result<()> {
-        let mut new_merging_threads = HashMap::new();
-        {
-            let mut merging_threads = self.0.merging_threads.write().unwrap();
-            mem::swap(&mut new_merging_threads, merging_threads.deref_mut());
-        }
-        debug!("wait merging thread {}", new_merging_threads.len());
-        for (_, merging_thread_handle) in new_merging_threads {
-            merging_thread_handle
-                .join()
-                .map(|_| ())
-                .map_err(|_| {
-                    Error::ErrorInThread("Merging thread failed.".to_string())
-                })?
-        }
-        // Our merging thread may have queued their completed
-        self.run_async(move |_| {}).wait()
+
+        let mut num_segments: usize;
+        loop {
+            
+            num_segments = self.0.segment_manager.num_segments();
+
+            let mut new_merging_threads = HashMap::new();
+            {
+                let mut merging_threads = self.0.merging_threads.write().unwrap();
+                mem::swap(&mut new_merging_threads, merging_threads.deref_mut());
+            }
+            debug!("wait merging thread {}", new_merging_threads.len());
+            for (_, merging_thread_handle) in new_merging_threads {
+                merging_thread_handle
+                    .join()
+                    .map(|_| ())
+                    .map_err(|_| {
+                        Error::ErrorInThread("Merging thread failed.".to_string())
+                    })?
+            }
+            // Our merging thread may have queued their completed
+            self.run_async(move |_| {}).wait()?;
+
+            let new_num_segments = self.0.segment_manager.num_segments();
+
+            if new_num_segments >= num_segments {
+                break;
+            }
+        }      
+        Ok(())
     }
 
 }

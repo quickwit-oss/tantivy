@@ -66,6 +66,11 @@ impl SegmentManager {
         segment_entries
     }
 
+    pub fn num_segments(&self,) -> usize {
+        let registers_lock = self.read();
+        registers_lock.committed.len() + registers_lock.uncommitted.len()
+    }
+
     pub fn list_files(&self) -> HashSet<PathBuf> {
         let registers_lock = self.read();
         let mut files = HashSet::new();
