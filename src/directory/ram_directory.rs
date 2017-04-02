@@ -6,7 +6,7 @@ use std::result;
 use std::sync::{Arc, RwLock};
 use common::make_io_err;
 use directory::{Directory, ReadOnlySource};
-use directory::error::{OpenWriteError, FileError};
+use directory::error::{OpenWriteError, FileError, DeleteError};
 use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
@@ -104,12 +104,12 @@ impl InnerDirectory {
             })
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.0
             .write()
             .map_err(|_| {
                 let io_err = make_io_err(format!("Failed to acquire write lock for the directory, when trying to delete {:?}", path));
-                FileError::IOError(io_err)
+                DeleteError::IOError(io_err)
             })
             .and_then(|mut writable_map| {
                 match writable_map.remove(path) {
@@ -117,7 +117,7 @@ impl InnerDirectory {
                         Ok(())
                     },
                     None => {
-                        Err(FileError::FileDoesNotExist(PathBuf::from(path)))
+                        Err(DeleteError::FileDoesNotExist(PathBuf::from(path)))
                     }
                 }
             })
@@ -176,7 +176,7 @@ impl Directory for RAMDirectory {
         }
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.fs.delete(path)
     }
 

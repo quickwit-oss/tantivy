@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use directory::error::{FileError, OpenWriteError};
+use directory::error::{FileError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
@@ -9,6 +9,8 @@ use std::collections::HashSet;
 use std::io::Write;
 use rustc_serialize::json;
 use core::MANAGED_FILEPATH;
+use std::collections::HashMap;
+use std::fmt;
 use Result;
 use Error;
 
@@ -24,7 +26,30 @@ use Error;
 #[derive(Debug)]
 pub struct ManagedDirectory {
     directory: Box<Directory>,
-    managed_paths: Arc<RwLock<HashSet<PathBuf>>>,
+    meta_informations: Arc<RwLock<MetaInformation>>,
+}
+
+#[derive(Debug, Default)]
+struct MetaInformation {
+    managed_paths: HashSet<PathBuf>,
+    protected_files: HashMap<PathBuf, usize>,
+}
+
+pub struct FileProtection {
+    directory: ManagedDirectory,
+    path: PathBuf,
+}
+
+impl fmt::Debug for FileProtection {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
+        write!(formatter, "FileProtectionFor({:?})", self.path)    
+    }
+}
+
+impl Drop for FileProtection {
+    fn drop(&mut self) {
+        self.directory.unprotect_file_from_delete(&self.path);
+    }
 }
 
 impl ManagedDirectory {
@@ -38,13 +63,17 @@ impl ManagedDirectory {
                     .map_err(|e| Error::CorruptedFile(MANAGED_FILEPATH.clone(), Box::new(e)))?;
                 Ok(ManagedDirectory {
                     directory: box directory,
-                    managed_paths: Arc::new(RwLock::new(managed_files)),
+                    meta_informations: Arc::new(RwLock::new(
+                        MetaInformation {
+                            managed_paths: managed_files,
+                            protected_files: HashMap::default()
+                        })),
                 })
             }
             Err(FileError::FileDoesNotExist(_)) => {
                 Ok(ManagedDirectory {
                     directory: box directory,
-                    managed_paths: Arc::default(),
+                    meta_informations: Arc::default(),
                 })
             }
             Err(FileError::IOError(e)) => {
@@ -65,54 +94,98 @@ impl ManagedDirectory {
     /// an error is simply logged, and the file remains in the list of managed
     /// files.
     pub fn garbage_collect(&mut self, living_files: HashSet<PathBuf>) {
-        let mut managed_has_changed: bool = false;
-        {
-            let mut files_to_delete = vec!();
-            let mut managed_paths_write = self.managed_paths.write().unwrap();
+        let mut files_to_delete = vec!();
+        {   // releasing the lock as .delete() will use it too.
+            let mut meta_informations_wlock = self.meta_informations.write().unwrap();
+            let managed_paths_write = &mut meta_informations_wlock.managed_paths;
             for managed_path in managed_paths_write.iter() {
                 if !living_files.contains(managed_path) {
                     files_to_delete.push(managed_path.clone());
                 }
             }
+        }
+        
+        let mut deleted_files = vec!();
+        {
             for file_to_delete in files_to_delete {
-                match self.directory.delete(&file_to_delete) {
+                match self.delete(&file_to_delete) {
                     Ok(_) => {
                         info!("Deleted {:?}", file_to_delete);
-                        managed_has_changed |= managed_paths_write.remove(&file_to_delete);
+                        deleted_files.push(file_to_delete);
                     }
                     Err(file_error) => {
                         error!("Failed to delete {:?}", file_to_delete);
                         match file_error {
-                            FileError::FileDoesNotExist(_) => {
-                                managed_has_changed |= managed_paths_write.remove(&file_to_delete);
+                            DeleteError::FileDoesNotExist(_) => {
+                                deleted_files.push(file_to_delete);
                             }
-                            FileError::IOError(_) => {
+                            DeleteError::IOError(_) => {
                                 if !cfg!(target_os = "windows") {
                                     error!("Failed to delete {:?}", file_to_delete);
                                 }
                             }
-                            
+                            DeleteError::FileProtected(_) => {
+                                // this is expected.
+                            }
                         }
                         
                     }
                 }
             }
         }
-        if managed_has_changed {
+
+
+        if !deleted_files.is_empty() {
+            // update the list of managed files by removing 
+            // the file that were removed.
+            {
+                let mut meta_informations_wlock = self.meta_informations.write().unwrap();
+                let managed_paths_write = &mut meta_informations_wlock.managed_paths;
+                for delete_file in &deleted_files {
+                    managed_paths_write.remove(delete_file);
+                }
+            }
             if let Err(_) = self.save_managed_paths() {
                 error!("Failed to save the list of managed files.");
             }
+        }
+
+    }
+
+    pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
+        let mut meta_informations_wlock = self.meta_informations
+            .write()
+            .expect("Managed file lock poisoned");
+        let pathbuf = path.to_owned();
+        *meta_informations_wlock
+            .protected_files
+            .entry(pathbuf.clone())
+            .or_insert(0) += 1;
+        FileProtection {
+            directory: self.clone(),
+            path: pathbuf.clone(),
+        }
+    }
+
+    pub fn unprotect_file_from_delete(&self, path: &Path) {
+        let mut meta_informations_wlock = self.meta_informations
+            .write()
+            .expect("Managed file lock poisoned");
+        if let Some(counter_ref_mut) = meta_informations_wlock
+            .protected_files
+            .get_mut(path) {
+            (*counter_ref_mut) -= 1;
         }
     }
 
     /// Saves the file containing the list of existing files
     /// that were created by tantivy.
     fn save_managed_paths(&mut self,) -> io::Result<()> {
-        let managed_files_lock = self.managed_paths
+        let meta_informations_rlock = self.meta_informations
             .read()
             .expect("Managed file lock poisoned");
         let mut w = vec!();
-        try!(write!(&mut w, "{}\n", json::as_pretty_json(&*managed_files_lock)));
+        try!(write!(&mut w, "{}\n", json::as_pretty_json(&meta_informations_rlock.managed_paths)));
         self.directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
         Ok(())
     }
@@ -126,11 +199,10 @@ impl ManagedDirectory {
     /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
         let has_changed = {
-            let mut managed_files_lock = self
-                .managed_paths
+            let mut meta_wlock = self.meta_informations
                 .write()
                 .expect("Managed file lock poisoned");
-            managed_files_lock.insert(filepath.to_owned())
+            meta_wlock.managed_paths.insert(filepath.to_owned())
         };
         if has_changed {
             self.save_managed_paths()?;
@@ -159,7 +231,17 @@ impl Directory for ManagedDirectory {
         self.directory.atomic_read(path)
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        {
+            let metas_rlock = self.meta_informations
+                .read()
+                .expect("poisoned lock in managed directory meta");
+            if let Some(counter) = metas_rlock.protected_files.get(path) {
+                if *counter > 0 {
+                    return Err(DeleteError::FileProtected(path.to_owned()))
+                }
+            }
+        }
         self.directory.delete(path)
     }
 
@@ -177,7 +259,7 @@ impl Clone for ManagedDirectory {
     fn clone(&self) -> ManagedDirectory {
         ManagedDirectory {
             directory: self.directory.box_clone(),
-            managed_paths: self.managed_paths.clone(),   
+            meta_informations: self.meta_informations.clone(),
         }
     }
 }

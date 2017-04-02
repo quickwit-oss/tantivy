@@ -14,6 +14,7 @@ use futures_cpupool::CpuPool;
 use futures::Future;
 use futures::Canceled;
 use futures::oneshot;
+use directory::FileProtection;
 use indexer::{MergePolicy, DefaultMergePolicy};
 use indexer::index_writer::advance_deletes;
 use indexer::MergeCandidate;
@@ -105,12 +106,17 @@ fn perform_merge(segment_ids: &[SegmentId],
     let ref index = segment_updater.0.index;
     let schema = index.schema();
     let mut segment_entries = vec!();
+
+    let mut file_protections: Vec<FileProtection> = vec!();
+
     for segment_id in segment_ids {
         if let Some(mut segment_entry) = segment_updater.0
             .segment_manager
             .segment_entry(segment_id) {
             let segment = index.segment(segment_entry.meta().clone());
-            advance_deletes(segment, &mut segment_entry, target_opstamp)?;
+            if let Some(file_protection) = advance_deletes(segment, &mut segment_entry, target_opstamp)? {
+                file_protections.push(file_protection);
+            }
             segment_entries.push(segment_entry);
         }
         else {
@@ -119,14 +125,6 @@ fn perform_merge(segment_ids: &[SegmentId],
         }
     }
     
-    // TODO REMOVEEEEE THIIIIIS
-    {
-    let living_files = segment_updater.0.segment_manager.list_files();
-    let mut index = merged_segment.index().clone();
-    index.directory_mut().garbage_collect(living_files);
-    }
-
-
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
     let segments: Vec<Segment> = segment_entries
@@ -135,10 +133,11 @@ fn perform_merge(segment_ids: &[SegmentId],
             index.segment(segment_entry.meta().clone())
         })
         .collect();
+        
     
     // An IndexMerger is like a "view" of our merged segments.
     let merger: IndexMerger = IndexMerger::open(schema, &segments[..])?;
-    
+
     // ... we just serialize this index merger in our new segment
     // to merge the two segments.
 
@@ -317,12 +316,10 @@ impl SegmentUpdater {
                     let _merging_future_res = merging_future_send.send(merged_segment_meta);
                 }
                 Err(e) => {
+                    error!("Merge of {:?} was cancelled: {:?}", segment_ids_vec, e);
                     // ... cancel merge
                     if cfg!(test) {
                         panic!("Merge failed.");
-                    }
-                    else {
-                        error!("Merge of {:?} was cancelled: {:?}", segment_ids_vec, e);
                     }
                     segment_updater_clone.cancel_merge(&segment_ids_vec, merged_segment_id);
                     // merging_future_send will be dropped, sending an error to the future.

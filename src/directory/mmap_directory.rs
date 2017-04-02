@@ -1,7 +1,7 @@
 use atomicwrites;
 use common::make_io_err;
 use directory::Directory;
-use directory::error::{OpenWriteError, FileError, OpenDirectoryError};
+use directory::error::{OpenWriteError, FileError, DeleteError, OpenDirectoryError};
 use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
@@ -334,13 +334,13 @@ impl Directory for MmapDirectory {
         Ok(BufWriter::new(Box::new(writer)))
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
             .map_err(|_| 
-                 FileError::IOError(make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))))
+                 DeleteError::IOError(make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))))
         );
         // Removing the entry in the MMap cache.
         // The munmap will appear on Drop,
@@ -349,14 +349,14 @@ impl Directory for MmapDirectory {
         match fs::remove_file(&full_path) {
             Ok(_) => {
                 self.sync_directory()
-                    .map_err(|e| FileError::IOError(e))
+                    .map_err(|e| DeleteError::IOError(e))
             }
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
-                    Err(FileError::FileDoesNotExist(path.to_owned()))
+                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
                 }
                 else {
-                    Err(FileError::IOError(e))
+                    Err(DeleteError::IOError(e))
                 }
             }
         }

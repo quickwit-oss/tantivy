@@ -4,7 +4,7 @@ use schema::Schema;
 use DocId;
 use std::fmt;
 use core::SegmentId;
-use directory::{ReadOnlySource, WritePtr};
+use directory::{ReadOnlySource, WritePtr, FileProtection};
 use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
@@ -68,6 +68,11 @@ impl Segment {
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.meta.relative_path(component)
+    }
+
+    pub fn protect_from_delete(&self, component: SegmentComponent) -> FileProtection {
+        let path = self.relative_path(component);
+        self.index.directory().protect_file_from_delete(&path)
     }
 
     /// Open one of the component file for read.

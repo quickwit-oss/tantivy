@@ -8,6 +8,7 @@ use core::SegmentMeta;
 use core::SegmentReader;
 use indexer::stamper::Stamper;
 use datastruct::stacker::Heap;
+use directory::FileProtection;
 use Error;
 use Directory;
 use fastfield::delete::write_delete_bitset;
@@ -207,13 +208,15 @@ pub fn compute_deleted_bitset(
 pub fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
-    target_opstamp: u64) -> Result<()> {
+    target_opstamp: u64) -> Result<Option<FileProtection>> {
+
+    let mut file_protect: Option<FileProtection> = None;
 
     {
         if let Some(previous_opstamp) = segment_entry.meta().delete_opstamp() {
             // We are already up-to-date here.
             if target_opstamp == previous_opstamp {
-                return Ok(());
+                return Ok(file_protect);
             }
         }
         let segment_reader = SegmentReader::open(segment.clone())?;
@@ -245,13 +248,14 @@ pub fn advance_deletes(
         let num_deleted_docs = delete_bitset.len();
         if num_deleted_docs > 0 {
             segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
+            file_protect = Some(segment.protect_from_delete(SegmentComponent::DELETE));
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
     }
     segment_entry.set_meta(segment.meta().clone());
 
-    Ok(())
+    Ok(file_protect)
 }
 
 fn index_documents(heap: &mut Heap,

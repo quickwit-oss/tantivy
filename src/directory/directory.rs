@@ -1,7 +1,7 @@
 use std::marker::Send;
 use std::fmt;
 use std::path::Path;
-use directory::error::{FileError, OpenWriteError};
+use directory::error::{FileError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
@@ -35,7 +35,7 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// 
     /// Removing a nonexistent file, yields a
     /// `FileError::DoesNotExist`.
-    fn delete(&self, path: &Path) -> result::Result<(), FileError>;
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError>;
 
     /// Returns true iff the file exists
     fn exists(&self, path: &Path) -> bool;
