@@ -702,7 +702,7 @@ mod tests {
             index.load_searchers().unwrap();
             
             assert_eq!(num_docs_containing("a"), 200);
-            assert_eq!(index.searchable_segments().unwrap().len(), 1);
+            assert!(index.searchable_segments().unwrap().len() < 8);
             
         }
     }
