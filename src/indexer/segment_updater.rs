@@ -119,6 +119,14 @@ fn perform_merge(segment_ids: &[SegmentId],
         }
     }
     
+    // TODO REMOVEEEEE THIIIIIS
+    {
+    let living_files = segment_updater.0.segment_manager.list_files();
+    let mut index = merged_segment.index().clone();
+    index.directory_mut().garbage_collect(living_files);
+    }
+
+
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
     let segments: Vec<Segment> = segment_entries
@@ -265,9 +273,6 @@ impl SegmentUpdater {
                 let living_files = segment_updater.0.segment_manager.list_files();
                 index.directory_mut().garbage_collect(living_files);
                 segment_updater.consider_merge_options();
-                
-                // See #112
-                // index.directory_mut().garbage_collect(living_files);
             }
         }).wait()
     }
@@ -283,8 +288,6 @@ impl SegmentUpdater {
         let merging_thread_id = self.get_merging_thread_id();
         let (merging_future_send, merging_future_recv) = oneshot();
         
-        // let delete_operations = self.0.delete_queue.snapshot();
-
         if segment_ids.is_empty() {
             return merging_future_recv;
         }

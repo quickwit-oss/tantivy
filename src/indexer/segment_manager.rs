@@ -71,13 +71,7 @@ impl SegmentManager {
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
         files.insert(LOCKFILE_FILEPATH.clone());
-        
-        // TODO do new segment
-        // really have at no point a delete file?
-        // that might get garbage collected?
-        // 
-        // Consider have new segment matched as a prefix.
-        
+                
         let segment_metas: Vec<SegmentMeta> =
             registers_lock.committed
                 .get_all_segments()

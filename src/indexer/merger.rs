@@ -34,7 +34,11 @@ struct DeltaPositionComputer {
 
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
-        DeltaPositionComputer { buffer: iter::repeat(0u32).take(512).collect::<Vec<u32>>() }
+        DeltaPositionComputer { 
+            buffer: iter::repeat(0u32)
+                .take(512)
+                .collect::<Vec<u32>>()
+        }
     }
 
     fn compute_delta_positions(&mut self, positions: &[u32]) -> &[u32] {
@@ -227,7 +231,7 @@ impl IndexMerger {
             // We can remove the term if all documents which
             // contained it have been deleted.
             if segment_postings.len() > 0 {
-
+                
                 // We can now serialize this postings, by pushing each document to the
                 // postings serializer.                
                 

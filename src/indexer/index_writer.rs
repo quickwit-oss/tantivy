@@ -220,9 +220,9 @@ pub fn advance_deletes(
         let max_doc = segment_reader.max_doc();
         
         let mut delete_bitset: BitSet =
-            match segment_entry.reset_delete_bitset() {
-                Some(previous_delete_bitset) =>
-                    previous_delete_bitset,
+            match segment_entry.delete_bitset() {
+                Some(ref previous_delete_bitset) =>
+                    (*previous_delete_bitset).clone(),
                 None =>
                     BitSet::with_capacity(max_doc as usize)
             };

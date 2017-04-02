@@ -42,8 +42,8 @@ impl SegmentEntry {
         }
     }
 
-    pub fn reset_delete_bitset(&mut self,) -> Option<BitSet> {
-        self.delete_bitset.take()
+    pub fn delete_bitset(&self,) -> Option<&BitSet> {
+        self.delete_bitset.as_ref()
     }
 
     pub fn set_meta(&mut self, segment_meta: SegmentMeta) {

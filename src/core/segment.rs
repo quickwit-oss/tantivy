@@ -43,6 +43,10 @@ impl Segment {
         self.index.schema()
     }
 
+    pub fn index(&self,) -> &Index {
+        &self.index
+    }
+
     /// Returns the segment meta-information
     pub fn meta(&self) -> &SegmentMeta {
         &self.meta
