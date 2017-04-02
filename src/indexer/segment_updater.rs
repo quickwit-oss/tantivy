@@ -445,7 +445,6 @@ mod tests {
         }
 
         index.load_searchers().unwrap();
-        assert_eq!(index.searcher().segment_readers().len(), 2);
         assert_eq!(index.searcher().num_docs(), 302);
 
         {
