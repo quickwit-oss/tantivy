@@ -369,6 +369,7 @@ impl SegmentUpdater {
                 }
             }
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
+            segment_updater.consider_merge_options();
             segment_updater.save_metas(segment_updater.0.index.opstamp());
         }).wait()
     }
