@@ -35,9 +35,24 @@ struct MetaInformation {
     protected_files: HashMap<PathBuf, usize>,
 }
 
+
+/// A `FileProtection` prevents the garbage collection of a file.
+///
+/// See `ManagedDirectory.protect_file_from_delete`.
 pub struct FileProtection {
     directory: ManagedDirectory,
     path: PathBuf,
+}
+
+fn unprotect_file_from_delete(directory: &ManagedDirectory, path: &Path) {
+    let mut meta_informations_wlock = directory.meta_informations
+        .write()
+        .expect("Managed file lock poisoned");
+    if let Some(counter_ref_mut) = meta_informations_wlock
+        .protected_files
+        .get_mut(path) {
+        (*counter_ref_mut) -= 1;
+    }
 }
 
 impl fmt::Debug for FileProtection {
@@ -48,7 +63,7 @@ impl fmt::Debug for FileProtection {
 
 impl Drop for FileProtection {
     fn drop(&mut self) {
-        self.directory.unprotect_file_from_delete(&self.path);
+        unprotect_file_from_delete(&self.directory, &*self.path);
     }
 }
 
@@ -152,6 +167,12 @@ impl ManagedDirectory {
 
     }
 
+
+    /// Protects a file from being garbage collected.
+    ///
+    /// The method returns a `FileProtection` object.
+    /// The file will not be garbage collected as long as the
+    /// `FileProtection` object is kept alive. 
     pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
         let mut meta_informations_wlock = self.meta_informations
             .write()
@@ -167,16 +188,6 @@ impl ManagedDirectory {
         }
     }
 
-    pub fn unprotect_file_from_delete(&self, path: &Path) {
-        let mut meta_informations_wlock = self.meta_informations
-            .write()
-            .expect("Managed file lock poisoned");
-        if let Some(counter_ref_mut) = meta_informations_wlock
-            .protected_files
-            .get_mut(path) {
-            (*counter_ref_mut) -= 1;
-        }
-    }
 
     /// Saves the file containing the list of existing files
     /// that were created by tantivy.
@@ -355,6 +366,30 @@ mod tests {
         else {
             assert!(!managed_directory.exists(*TEST_PATH1));
         }
+
+    }
+
+
+    #[test]
+    fn test_managed_directory_protect() {
+        let tempdir = TempDir::new("index").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+        let living_files = HashSet::new();
+
+        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mut managed_directory = ManagedDirectory::new(mmap_directory).unwrap();
+        managed_directory.atomic_write(*TEST_PATH1, &vec!(0u8,1u8)).unwrap();
+        assert!(managed_directory.exists(*TEST_PATH1));
+
+        {
+            let _file_protection = managed_directory.protect_file_from_delete(*TEST_PATH1);
+            managed_directory.garbage_collect(living_files.clone());
+            assert!(managed_directory.exists(*TEST_PATH1));
+        }
+
+        managed_directory.garbage_collect(living_files.clone());
+        assert!(!managed_directory.exists(*TEST_PATH1));
+        
 
     }
 

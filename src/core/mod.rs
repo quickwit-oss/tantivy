@@ -25,7 +25,20 @@ pub use self::term_iterator::TermIterator;
 use std::path::PathBuf;
 
 lazy_static! {
+    /// The meta file contains all the information about the list of segments and the schema
+    /// of the index.
     pub static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
+    
+    /// The managed file contains a list of files that were created by the tantivy
+    /// and will therefore be garbage collected when they are deemed useless by tantivy.
+    ///
+    /// Removing this file is safe, but will prevent the garbage collection of all of the file that
+    /// are currently in the directory
     pub static ref MANAGED_FILEPATH: PathBuf = PathBuf::from(".managed.json");
+
+    /// Only one process should be able to write tantivy's index at a time.
+    /// This file, when present, is in charge of preventing other processes to open an IndexWriter.
+    ///
+    /// If the process is killed and this file remains, it is safe to remove it manually.
     pub static ref LOCKFILE_FILEPATH: PathBuf = PathBuf::from(".tantivy-indexer.lock");
 }

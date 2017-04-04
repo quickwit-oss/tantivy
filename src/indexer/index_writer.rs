@@ -197,9 +197,6 @@ pub fn compute_deleted_bitset(
 }
 
 
-// TODO put delete bitset in segment entry
-// rather than DocToOpstamp.
-
 // TODO skip delete operation before teh 
 // last delete opstamp
 

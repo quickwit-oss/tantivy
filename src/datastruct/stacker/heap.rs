@@ -1,6 +1,6 @@
 use std::cell::UnsafeCell;
 use std::mem;
-use common::create_vec_with_len;
+use common::allocate_vec;
 use std::ptr;
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
@@ -105,18 +105,11 @@ struct InnerHeap {
     next_heap: Option<Box<InnerHeap>>,
 }
 
-/// initializing a long Vec<u8> is crazy slow in 
-/// debug mode.
-/// We use this unsafe trick to make unit test
-/// way faster.
-fn allocate_fast(num_bytes: usize) -> Vec<u8> {
-    create_vec_with_len(num_bytes)
-}
 
 impl InnerHeap {
 
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
-        let buffer: Vec<u8> = allocate_fast(num_bytes);
+        let buffer: Vec<u8> = allocate_vec(num_bytes);
         InnerHeap {
             buffer: buffer,
             buffer_len: num_bytes as u32,

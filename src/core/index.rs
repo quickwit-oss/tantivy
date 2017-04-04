@@ -153,9 +153,8 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        let metas = load_metas(self.directory())?; 
-        Ok(metas
-            .segments
+        Ok(self
+            .searchable_segment_metas()?
             .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
@@ -183,18 +182,17 @@ impl Index {
     }
 
     /// Reads the meta.json and returns the list of
-    /// segments in the last commit.
-    pub fn segments(&self) -> Result<Vec<SegmentMeta>> {
+    /// `SegmentMeta` from the last commit.
+    pub fn searchable_segment_metas(&self) -> Result<Vec<SegmentMeta>> {
         Ok(load_metas(self.directory())?.segments)
     }
     
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        Ok(load_metas(self.directory())?
-            .segments
-            .iter()
-            .map(|segment_meta| segment_meta.id())
-            .collect())           
+        Ok(self.searchable_segment_metas()?
+               .iter()
+               .map(|segment_meta| segment_meta.id())
+               .collect())          
     }
 
     /// Creates a new generation of searchers after

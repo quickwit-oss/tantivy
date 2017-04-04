@@ -171,7 +171,7 @@ impl SegmentUpdater {
     pub fn new(index: Index,
                stamper: Stamper,
                delete_cursor: DeleteCursor) -> Result<SegmentUpdater> {
-        let segments = index.segments()?;
+        let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         Ok(
             SegmentUpdater(Arc::new(InnerSegmentUpdater {
