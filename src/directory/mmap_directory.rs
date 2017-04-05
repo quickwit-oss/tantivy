@@ -1,7 +1,7 @@
 use atomicwrites;
 use common::make_io_err;
 use directory::Directory;
-use directory::error::{OpenWriteError, FileError, DeleteError, OpenDirectoryError};
+use directory::error::{OpenWriteError, OpenReadError, DeleteError, OpenDirectoryError};
 use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
@@ -23,19 +23,19 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
-fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError> {
+fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
     let convert_file_error = |err: io::Error| {
         if err.kind() == io::ErrorKind::NotFound {
-            FileError::FileDoesNotExist(full_path.clone())
+            OpenReadError::FileDoesNotExist(full_path.clone())
         }
         else {
-            FileError::IOError(err)
+            OpenReadError::IOError(err)
         }
     };
     let file = File::open(&full_path).map_err(convert_file_error)?;
     let meta_data = file
         .metadata()
-        .map_err(|e| FileError::IOError(e))?;
+        .map_err(|e| OpenReadError::IOError(e))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible 
         // to mmap the file, so we return an anonymous mmap_cache
@@ -47,7 +47,7 @@ fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError
             Ok(Some(Arc::new(mmap)))
         }
         Err(e) => {
-            Err(FileError::IOError(e))
+            Err(OpenReadError::IOError(e))
         }
     }
     
@@ -116,7 +116,7 @@ impl MmapCache {
         }
     }
 
-    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, FileError> {
+    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, OpenReadError> {
         // if we exceed this limit, then we go through the weak
         // and remove those that are obsolete.
         if self.cache.len() > self.purge_weak_limit {
@@ -286,13 +286,13 @@ impl Seek for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
         
         let mut mmap_cache = self.mmap_cache
             .write()
-            .map_err(|_| FileError::IOError(
+            .map_err(|_| OpenReadError::IOError(
                 make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
             ))?;
         
@@ -367,21 +367,21 @@ impl Directory for MmapDirectory {
         full_path.exists()
     }
 
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let full_path = self.resolve_path(path);
         let mut buffer = Vec::new();
         match File::open(&full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer)
-                    .map_err(|e| FileError::IOError(e))?;
+                    .map_err(|e| OpenReadError::IOError(e))?;
                 Ok(buffer)
             }
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
-                    Err(FileError::FileDoesNotExist(path.to_owned()))
+                    Err(OpenReadError::FileDoesNotExist(path.to_owned()))
                 }
                 else {
-                    Err(FileError::IOError(e))
+                    Err(OpenReadError::IOError(e))
                 }
             }
         }

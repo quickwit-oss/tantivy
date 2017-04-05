@@ -6,7 +6,7 @@ use std::result;
 use std::sync::{Arc, RwLock};
 use common::make_io_err;
 use directory::{Directory, ReadOnlySource};
-use directory::error::{OpenWriteError, FileError, DeleteError};
+use directory::error::{OpenWriteError, OpenReadError, DeleteError};
 use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
@@ -87,17 +87,17 @@ impl InnerDirectory {
         Ok(prev_value.is_some())
     }
 
-    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, FileError> { 
+    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> { 
         self.0
             .read()
             .map_err(|_| {
                 let io_err = make_io_err(format!("Failed to acquire read lock for the directory, when trying to read {:?}", path));
-                FileError::IOError(io_err)
+                OpenReadError::IOError(io_err)
             })
             .and_then(|readable_map| {
                 readable_map
                 .get(path)
-                .ok_or_else(|| FileError::FileDoesNotExist(PathBuf::from(path)))
+                .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
                 .map(|data| {
                     ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
                 })
@@ -160,7 +160,7 @@ impl RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         self.fs.open_read(path)
     }
     
@@ -185,7 +185,7 @@ impl Directory for RAMDirectory {
         self.fs.exists(path)
     }
 
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, FileError> {
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let read = self.open_read(path)?;
         Ok(read.as_slice()
                .to_owned())

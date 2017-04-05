@@ -29,7 +29,7 @@ impl From<io::Error> for OpenWriteError {
 
 /// Error that may occur when accessing a file read
 #[derive(Debug)]
-pub enum FileError {
+pub enum OpenReadError {
     /// The file does not exists.
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when 

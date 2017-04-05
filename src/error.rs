@@ -7,7 +7,7 @@ use std::io;
 use std::path::PathBuf;
 use std::error;
 use std::sync::PoisonError;
-use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
+use directory::error::{OpenReadError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
 
@@ -59,11 +59,11 @@ impl<Guard> From<PoisonError<Guard>> for Error {
     }
 }
 
-impl From<FileError> for Error {
-    fn from(error: FileError) -> Error {
+impl From<OpenReadError> for Error {
+    fn from(error: OpenReadError) -> Error {
         match error {
-            FileError::FileDoesNotExist(filepath) => Error::PathDoesNotExist(filepath),
-            FileError::IOError(io_error) => Error::IOError(io_error),
+            OpenReadError::FileDoesNotExist(filepath) => Error::PathDoesNotExist(filepath),
+            OpenReadError::IOError(io_error) => Error::IOError(io_error),
         }
     }
 }

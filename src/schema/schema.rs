@@ -42,6 +42,12 @@ pub struct SchemaBuilder {
 
 impl SchemaBuilder {
     
+
+    /// Create a new `SchemaBuilder`
+    pub fn new() -> SchemaBuilder {
+        SchemaBuilder::default()
+    }
+
     /// Adds a new u32 field.
     /// Returns the associated field handle
     ///

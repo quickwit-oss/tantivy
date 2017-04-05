@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use directory::error::{FileError, DeleteError, OpenWriteError};
+use directory::error::{OpenReadError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
@@ -85,13 +85,13 @@ impl ManagedDirectory {
                         })),
                 })
             }
-            Err(FileError::FileDoesNotExist(_)) => {
+            Err(OpenReadError::FileDoesNotExist(_)) => {
                 Ok(ManagedDirectory {
                     directory: box directory,
                     meta_informations: Arc::default(),
                 })
             }
-            Err(FileError::IOError(e)) => {
+            Err(OpenReadError::IOError(e)) => {
                 Err(From::from(e))
             }
         }
@@ -224,7 +224,7 @@ impl ManagedDirectory {
 
 impl Directory for ManagedDirectory {
     
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         self.directory.open_read(path)
     }
 
@@ -238,7 +238,7 @@ impl Directory for ManagedDirectory {
         self.directory.atomic_write(path, data)
     }
 
-    fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, FileError> {
+    fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
         self.directory.atomic_read(path)
     }
 

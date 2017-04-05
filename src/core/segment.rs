@@ -11,7 +11,7 @@ use core::Index;
 use std::result;
 use directory::Directory;
 use core::SegmentMeta;
-use directory::error::{FileError, OpenWriteError};
+use directory::error::{OpenReadError, OpenWriteError};
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
@@ -78,7 +78,7 @@ impl Segment {
     }
 
     /// Open one of the component file for a *regular* read.
-    pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, FileError> {
+    pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, OpenReadError> {
         let path = self.relative_path(component);
         let source = try!(self.index.directory().open_read(&path));
         Ok(source)
@@ -110,59 +110,30 @@ pub struct SegmentInfo {
 mod tests {
 
     use core::SegmentComponent;
-    use std::path::Path;
     use directory::Directory;
-    use schema::{SchemaBuilder, Document, FieldValue, TEXT, Term};
+    use std::collections::HashSet;
+    use schema::SchemaBuilder;
     use Index;
 
     #[test]
     fn test_segment_protect_component() {
-        let mut schema_builder = SchemaBuilder::default();
-        let text_field = schema_builder.add_text_field("text", TEXT);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index = Index::create_in_ram(SchemaBuilder::new().build());
+        let segment = index.new_segment();
+        let path = segment.relative_path(SegmentComponent::POSTINGS);
         
+        let directory = index.directory_mut();
+        directory.atomic_write(&*path, &vec!(0u8)).unwrap();
+        
+        let living_files = HashSet::new();
         {
-            // simply creating two segments
-            // with one delete to create the DELETE file.
-            {
-                let doc1 = doc!(text_field=>"a");
-                index_writer.add_document(doc1);
-                let doc2 = doc!(text_field=>"b");
-                index_writer.add_document(doc2);
-                assert!(index_writer.commit().is_ok());
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "a"));
-                assert!(index_writer.commit().is_ok());
-            }
+            let _file_protection = segment.protect_from_delete(SegmentComponent::POSTINGS);
+            assert!(directory.exists(&*path));
+            directory.garbage_collect(living_files.clone());
+            assert!(directory.exists(&*path));
         }
 
-        let segments = index.searchable_segments().unwrap();
-        let directory = index.directory().clone();
-        assert_eq!(segments.len(), 1);
-
-        
-        let delete_file_path = Path::new("00000000000000000000000000000000.4.del");
-        let idx_file_path = Path::new("00000000000000000000000000000000.term");
-        assert!(directory.exists(&*delete_file_path));
-        assert!(directory.exists(&*idx_file_path));
-
-        {
-            let _file_protection = segments[0].protect_from_delete(SegmentComponent::DELETE);
-            index_writer.delete_term(Term::from_field_text(text_field, "b"));
-            index_writer.commit().unwrap();
-            // the delete file is protected, and should not be gc'ed.
-            assert!(directory.exists(&*delete_file_path));
-        }
-
-        index_writer.commit().unwrap();
-        
-        // at this point the protection is released.
-        assert!(!directory.exists(&*delete_file_path));
-
+        directory.garbage_collect(living_files);
+        assert!(!directory.exists(&*path));
     }
-        
 
 }
