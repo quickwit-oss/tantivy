@@ -111,9 +111,10 @@ impl ManagedDirectory {
     pub fn garbage_collect(&mut self, living_files: HashSet<PathBuf>) {
         let mut files_to_delete = vec!();
         {   // releasing the lock as .delete() will use it too.
-            let mut meta_informations_wlock = self.meta_informations.write().unwrap();
-            let managed_paths_write = &mut meta_informations_wlock.managed_paths;
-            for managed_path in managed_paths_write.iter() {
+            let meta_informations_rlock = self.meta_informations
+                .read()
+                .expect("Managed directory rlock poisoned in garbage collect.");
+            for managed_path in &meta_informations_rlock.managed_paths {
                 if !living_files.contains(managed_path) {
                     files_to_delete.push(managed_path.clone());
                 }
@@ -154,7 +155,9 @@ impl ManagedDirectory {
             // update the list of managed files by removing 
             // the file that were removed.
             {
-                let mut meta_informations_wlock = self.meta_informations.write().unwrap();
+                let mut meta_informations_wlock = self.meta_informations
+                    .write()
+                    .expect("Managed directory wlock poisoned (2).");
                 let managed_paths_write = &mut meta_informations_wlock.managed_paths;
                 for delete_file in &deleted_files {
                     managed_paths_write.remove(delete_file);
@@ -174,14 +177,16 @@ impl ManagedDirectory {
     /// The file will not be garbage collected as long as the
     /// `FileProtection` object is kept alive. 
     pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
-        let mut meta_informations_wlock = self.meta_informations
-            .write()
-            .expect("Managed file lock poisoned");
         let pathbuf = path.to_owned();
-        *meta_informations_wlock
-            .protected_files
-            .entry(pathbuf.clone())
-            .or_insert(0) += 1;
+        {
+            let mut meta_informations_wlock = self.meta_informations
+                .write()
+                .expect("Managed file lock poisoned on protect");
+            *meta_informations_wlock
+                .protected_files
+                .entry(pathbuf.clone())
+                .or_insert(0) += 1;
+        }
         FileProtection {
             directory: self.clone(),
             path: pathbuf.clone(),
@@ -192,11 +197,15 @@ impl ManagedDirectory {
     /// Saves the file containing the list of existing files
     /// that were created by tantivy.
     fn save_managed_paths(&mut self,) -> io::Result<()> {
-        let meta_informations_rlock = self.meta_informations
-            .read()
-            .expect("Managed file lock poisoned");
+        let managed_paths;
+        {
+            let meta_informations_rlock = self.meta_informations
+                .read()
+                .expect("Managed file lock poisoned");
+            managed_paths = meta_informations_rlock.managed_paths.clone();
+        }
         let mut w = vec!();
-        try!(write!(&mut w, "{}\n", json::as_pretty_json(&meta_informations_rlock.managed_paths)));
+        try!(write!(&mut w, "{}\n", json::as_pretty_json(&managed_paths)));
         self.directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
         Ok(())
     }
