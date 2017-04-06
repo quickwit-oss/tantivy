@@ -13,6 +13,9 @@ pub use self::multi_collector::MultiCollector;
 mod top_collector;
 pub use self::top_collector::TopCollector;
 
+mod facet_collector;
+pub use self::facet_collector::FacetCollector;
+
 mod chained_collector;
 pub use self::chained_collector::chain;
 
