@@ -51,6 +51,11 @@ pub mod tests {
     use core::SegmentId;
     use core::SegmentMeta;
 
+
+    /// Merge policy useful for test purposes.
+    ///
+    /// Everytime there is more than one segment,
+    /// it will suggest to merge them.
     #[derive(Debug)]
     pub struct MergeWheneverPossible;
 

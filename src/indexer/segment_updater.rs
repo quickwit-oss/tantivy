@@ -237,6 +237,11 @@ impl SegmentUpdater {
         !self.0.killed.load(Ordering::Acquire)
     }
 
+
+    /// Apply deletes up to the target opstamp to all segments.
+    ///
+    /// Tne method returns copies of the segment entries,
+    /// updated with the delete information.
     fn purge_deletes(&self, target_opstamp: u64) -> Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.0.segment_manager.segment_entries(); 
         for segment_entry in &mut segment_entries {
@@ -374,6 +379,22 @@ impl SegmentUpdater {
         }).wait()
     }
 
+
+    /// Wait for current merging threads.
+    ///
+    /// Upon termination of the current merging threads,
+    /// merge opportunity may appear.
+    // 
+    /// We keep waiting until the merge policy judges that
+    /// no opportunity is available.
+    ///
+    /// Note that it is not required to call this 
+    /// method in your application.
+    /// Terminating your application without letting 
+    /// merge terminate is perfectly safe.
+    /// 
+    /// Obsolete files will eventually be cleaned up
+    /// by the directory garbage collector.
     pub fn wait_merging_thread(&self) -> Result<()> {
 
         let mut num_segments: usize;

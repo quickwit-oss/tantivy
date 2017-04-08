@@ -21,7 +21,7 @@ use std::ops::DerefMut;
 #[derive(Default)]
 struct InnerDeleteQueue {
     writer: Vec<DeleteOperation>,
-    last_block: Option<Arc<Block>>, // TODO last block... is that ok.
+    last_block: Option<Arc<Block>>,
 }
 
 #[derive(Clone, Default)]
@@ -36,7 +36,7 @@ impl DeleteQueue {
     pub fn new() -> DeleteQueue {
         
         let delete_queue = DeleteQueue {
-            inner: Arc::new(RwLock::new(InnerDeleteQueue::default()))
+            inner: Arc::default(),
         };
             
         let next_block = NextBlock::from(delete_queue.clone());
@@ -61,7 +61,7 @@ impl DeleteQueue {
     pub fn cursor(&self) -> DeleteCursor {
         let last_block = self.inner
             .read()
-            .unwrap()
+            .expect("Read lock poisoned when opening delete queue cursor")
             .last_block
             .clone()
             .expect("Failed to unwrap last_block. This should never happen
@@ -253,7 +253,7 @@ impl DeleteCursor {
 
     /// Get the current delete operation.
     /// Calling `.get` does not advance the cursor.
-    pub fn get<'a>(&'a mut self) -> Option<&'a DeleteOperation> {
+    pub fn get(&mut self) -> Option<&DeleteOperation> {
         if self.load_block_if_required() {
             Some(&self.block.operations[self.pos])
         }

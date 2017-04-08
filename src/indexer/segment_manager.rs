@@ -3,7 +3,7 @@ use std::sync::RwLock;
 use core::SegmentMeta;
 use core::{META_FILEPATH, LOCKFILE_FILEPATH};
 use core::SegmentId;
-use indexer::{SegmentEntry, SegmentState};
+use indexer::SegmentEntry;
 use std::path::PathBuf;
 use std::collections::hash_set::HashSet;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
@@ -54,6 +54,7 @@ impl SegmentManager {
         }
     }
 
+    /// Returns all of the segment entries (committed or uncommitted)
     pub fn segment_entries(&self,) -> Vec<SegmentEntry> {
         let mut segment_entries = self.read()
             .uncommitted
@@ -66,6 +67,7 @@ impl SegmentManager {
         segment_entries
     }
 
+    /// Returns the overall number of segments in the `SegmentManager`
     pub fn num_segments(&self,) -> usize {
         let registers_lock = self.read();
         registers_lock.committed.len() + registers_lock.uncommitted.len()
@@ -95,11 +97,6 @@ impl SegmentManager {
         files
     }
 
-    pub fn segment_state(&self, segment_id: &SegmentId) -> Option<SegmentState> {
-        self.segment_entry(segment_id)
-            .map(|segment_entry| segment_entry.state())
-    }
-
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         let registers = self.read();
         registers
@@ -119,15 +116,7 @@ impl SegmentManager {
         self.registers.write().expect("Failed to acquire write lock on SegmentManager.")
     }
 
-    pub fn commit(&self, mut segment_entries: Vec<SegmentEntry>) {
-        // TODO is still relevant!?
-        // restore the state of the segment_entries
-        for segment_entry in &mut segment_entries {
-            let segment_id = segment_entry.segment_id();
-            if let Some(state) = self.segment_state(&segment_id) {
-                segment_entry.set_state(state);
-            }
-        }
+    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
         registers_lock.uncommitted.clear();
