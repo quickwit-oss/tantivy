@@ -1,8 +1,7 @@
 use Directory;
-use std::path::Path;
 use directory::error::OpenWriteError;
+use core::LOCKFILE_FILEPATH;
 
-pub const LOCKFILE_NAME: &'static str = ".tantivy-indexer.lock";
 
 
 /// The directory lock is a mechanism used to
@@ -16,16 +15,14 @@ pub struct DirectoryLock {
 
 impl DirectoryLock {
     pub fn lock(mut directory: Box<Directory>) -> Result<DirectoryLock, OpenWriteError> {
-        let lockfile_path = Path::new(LOCKFILE_NAME);
-        try!(directory.open_write(lockfile_path));
+        try!(directory.open_write(&*LOCKFILE_FILEPATH));
         Ok(DirectoryLock { directory: directory })
     }
 }
 
 impl Drop for DirectoryLock {
     fn drop(&mut self) {
-        let lockfile_path = Path::new(LOCKFILE_NAME);
-        if let Err(e) = self.directory.delete(lockfile_path) {
+        if let Err(e) = self.directory.delete(&*LOCKFILE_FILEPATH) {
             error!("Failed to remove the lock file. {:?}", e);
         }
     }

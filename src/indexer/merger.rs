@@ -17,9 +17,7 @@ use fastfield::FastFieldSerializer;
 use store::StoreWriter;
 use core::SegmentInfo;
 use std::cmp::{min, max};
-use std::iter;
-
-
+use common::allocate_vec;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -34,7 +32,9 @@ struct DeltaPositionComputer {
 
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
-        DeltaPositionComputer { buffer: iter::repeat(0u32).take(512).collect::<Vec<u32>>() }
+        DeltaPositionComputer { 
+            buffer: allocate_vec(512)
+        }
     }
 
     fn compute_delta_positions(&mut self, positions: &[u32]) -> &[u32] {
@@ -175,9 +175,9 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_postings(&self,
-
-        postings_serializer: &mut PostingsSerializer) -> Result<()> {
+    fn write_postings(
+            &self,
+            postings_serializer: &mut PostingsSerializer) -> Result<()> {
         
         let mut merged_terms = TermIterator::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
@@ -227,7 +227,7 @@ impl IndexMerger {
             // We can remove the term if all documents which
             // contained it have been deleted.
             if segment_postings.len() > 0 {
-
+                
                 // We can now serialize this postings, by pushing each document to the
                 // postings serializer.                
                 
@@ -307,7 +307,7 @@ mod tests {
     use futures::Future;
 
     #[test]
-    fn test_index_merger() {
+    fn test_index_merger_no_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
                                  .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
@@ -429,9 +429,10 @@ mod tests {
     #[test]
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
-        let text_fieldtype = schema::TextOptions::default()
-                                 .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
-                                 .set_stored();
+        let text_fieldtype = schema::TextOptions
+            ::default()
+            .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+            .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::U32Options::default().set_fast();
         let score_field = schema_builder.add_u32_field("score", score_fieldtype);
@@ -492,6 +493,7 @@ mod tests {
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let searcher = index.searcher();
+
             assert_eq!(searcher.segment_readers().len(), 2);
             assert_eq!(searcher.num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
