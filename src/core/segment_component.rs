@@ -1,6 +1,5 @@
 #[derive(Copy, Clone)]
 pub enum SegmentComponent {
-    INFO,
     POSTINGS,
     POSITIONS,
     FASTFIELDS,
@@ -13,8 +12,7 @@ pub enum SegmentComponent {
 impl SegmentComponent {
     
     pub fn iterator() -> impl Iterator<Item=&'static SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent;  8] = [
-            SegmentComponent::INFO,
+        static SEGMENT_COMPONENTS: [SegmentComponent;  7] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,
             SegmentComponent::FASTFIELDS,

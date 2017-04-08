@@ -65,17 +65,15 @@ impl SegmentMeta {
     /// It just joins the segment id with the extension 
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        use self::SegmentComponent::*;
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
-            POSITIONS => ".pos".to_string(),
-            INFO => ".info".to_string(),
-            POSTINGS => ".idx".to_string(),
-            TERMS => ".term".to_string(),
-            STORE => ".store".to_string(),
-            FASTFIELDS => ".fast".to_string(),
-            FIELDNORMS => ".fieldnorm".to_string(),
-            DELETE => {format!(".{}.del", self.delete_opstamp().unwrap_or(0))},
+            SegmentComponent::POSITIONS => ".pos".to_string(),
+            SegmentComponent::POSTINGS => ".idx".to_string(),
+            SegmentComponent::TERMS => ".term".to_string(),
+            SegmentComponent::STORE => ".store".to_string(),
+            SegmentComponent::FASTFIELDS => ".fast".to_string(),
+            SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
+            SegmentComponent::DELETE => {format!(".{}.del", self.delete_opstamp().unwrap_or(0))},
         });
         PathBuf::from(path)
     }

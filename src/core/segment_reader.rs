@@ -4,6 +4,7 @@ use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
 use common::HasLen;
+use core::SegmentMeta;
 use fastfield::delete::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
@@ -14,8 +15,6 @@ use postings::TermInfo;
 use datastruct::FstMap;
 use std::sync::Arc;
 use std::fmt;
-use rustc_serialize::json;
-use core::SegmentInfo;
 use schema::Field;
 use postings::SegmentPostingsOption;
 use postings::SegmentPostings;
@@ -24,8 +23,6 @@ use schema::Schema;
 use schema::FieldType;
 use postings::FreqHandler;
 use schema::TextIndexingOptions;
-use error::Error;
-
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -40,8 +37,8 @@ use error::Error;
 ///
 #[derive(Clone)]
 pub struct SegmentReader {
-    segment_info: SegmentInfo,
     segment_id: SegmentId,
+    segment_meta: SegmentMeta,
     term_infos: Arc<FstMap<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
@@ -58,7 +55,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes, so it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
-        self.segment_info.max_doc
+        self.segment_meta.max_doc()
     }
     
     /// Returns the number of documents.
@@ -67,7 +64,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_info.max_doc - self.num_deleted_docs()
+        self.segment_meta.num_docs()
     }
     
     /// Return the number of documents that have been
@@ -130,21 +127,7 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
-        let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
-        let segment_info_data = try!(
-            str::from_utf8(&*segment_info_reader)
-                .map_err(|err| {
-                    let segment_info_filepath = segment.relative_path(SegmentComponent::INFO);
-                    Error::CorruptedFile(segment_info_filepath, Box::new(err))
-                })
-         );
-        let segment_info: SegmentInfo = try!(
-            json::decode(&segment_info_data)
-            .map_err(|err| {
-                let file_path = segment.relative_path(SegmentComponent::INFO);
-                Error::CorruptedFile(file_path, Box::new(err))
-            })
-        );
+
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_infos = try!(FstMap::from_source(source));
         let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
@@ -171,7 +154,7 @@ impl SegmentReader {
         
         let schema = segment.schema();
         Ok(SegmentReader {
-            segment_info: segment_info,
+            segment_meta: segment.meta().clone(),
             postings_data: postings_shared_mmap,
             term_infos: Arc::new(term_infos),
             segment_id: segment.id(),

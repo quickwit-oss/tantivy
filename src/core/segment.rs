@@ -1,7 +1,6 @@
 use Result;
 use std::path::PathBuf;
 use schema::Schema;
-use DocId;
 use std::fmt;
 use core::SegmentId;
 use directory::{ReadOnlySource, WritePtr, FileProtection};
@@ -99,11 +98,6 @@ pub trait SerializableSegment {
     /// # Returns
     /// The number of documents in the segment.
     fn write(&self, serializer: SegmentSerializer) -> Result<u32>;
-}
-
-#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
-pub struct SegmentInfo {
-	pub max_doc: DocId,
 }
 
 #[cfg(test)]

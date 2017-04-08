@@ -15,14 +15,13 @@ use fastfield::delete::DeleteBitSet;
 use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
-use core::SegmentInfo;
 use std::cmp::{min, max};
 use common::allocate_vec;
 
 pub struct IndexMerger {
     schema: Schema,
     readers: Vec<SegmentReader>,
-    segment_info: SegmentInfo,
+    max_doc: u32,
 }
 
 
@@ -82,7 +81,7 @@ fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Op
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &[Segment]) -> Result<IndexMerger> {
         let mut readers = vec!();
-        let mut max_doc = 0;
+        let mut max_doc: u32 = 0u32;
         for segment in segments {
             if segment.meta().num_docs() > 0 {
                 let reader = SegmentReader::open(segment.clone())?;
@@ -93,7 +92,7 @@ impl IndexMerger {
         Ok(IndexMerger {
             schema: schema,
             readers: readers,
-            segment_info: SegmentInfo { max_doc: max_doc },
+            max_doc: max_doc,
         })
     }
 
@@ -283,9 +282,8 @@ impl SerializableSegment for IndexMerger {
         try!(self.write_fieldnorms(serializer.get_fieldnorms_serializer()));
         try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
         try!(self.write_storable_fields(serializer.get_store_writer()));
-        try!(serializer.write_segment_info(&self.segment_info));
         try!(serializer.close());
-        Ok(self.segment_info.max_doc)
+        Ok(self.max_doc)
     }
 }
 
