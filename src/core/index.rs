@@ -202,16 +202,13 @@ impl Index {
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
         let searchable_segments = self.searchable_segments()?;
-        let mut searchers = Vec::new();
-        for _ in 0..NUM_SEARCHERS {
-            let searchable_segments_clone = searchable_segments.clone();
-            let segment_readers: Vec<SegmentReader> = try!(searchable_segments_clone
+        let segment_readers: Vec<SegmentReader> = try!(searchable_segments
                 .into_iter()
                 .map(SegmentReader::open)
                 .collect());
-            let searcher = Searcher::from(segment_readers);
-            searchers.push(searcher);
-        }
+        let searchers = (0..NUM_SEARCHERS)
+            .map(|_| Searcher::from(segment_readers.clone()))
+            .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }

@@ -12,6 +12,7 @@ use DocId;
 use std::str;
 use postings::TermInfo;
 use datastruct::FstMap;
+use std::sync::Arc;
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentInfo;
@@ -37,14 +38,15 @@ use error::Error;
 /// The segment reader has a very low memory footprint,
 /// as close to all of the memory data is mmapped.
 ///
+#[derive(Clone)]
 pub struct SegmentReader {
     segment_info: SegmentInfo,
     segment_id: SegmentId,
-    term_infos: FstMap<TermInfo>,
+    term_infos: Arc<FstMap<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
-    fast_fields_reader: U32FastFieldsReader,
-    fieldnorms_reader: U32FastFieldsReader,
+    fast_fields_reader: Arc<U32FastFieldsReader>,
+    fieldnorms_reader: Arc<U32FastFieldsReader>,
     delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
@@ -171,11 +173,11 @@ impl SegmentReader {
         Ok(SegmentReader {
             segment_info: segment_info,
             postings_data: postings_shared_mmap,
-            term_infos: term_infos,
+            term_infos: Arc::new(term_infos),
             segment_id: segment.id(),
             store_reader: store_reader,
-            fast_fields_reader: fast_fields_reader,
-            fieldnorms_reader: fieldnorms_reader,
+            fast_fields_reader: Arc::new(fast_fields_reader),
+            fieldnorms_reader: Arc::new(fieldnorms_reader),
             delete_bitset: delete_bitset,
             positions_data: positions_data,
             schema: schema,
