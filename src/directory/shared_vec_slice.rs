@@ -35,3 +35,9 @@ impl SharedVecSlice {
         }
     }
 }
+
+impl From<Vec<u8>> for SharedVecSlice {
+    fn from(data: Vec<u8>) -> SharedVecSlice {
+        SharedVecSlice::new(Arc::new(data))
+    }
+}

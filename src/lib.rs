@@ -10,7 +10,8 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![feature(conservative_impl_trait)]
 
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
+#![allow(unused_imports)]
 
 //! # `tantivy`
 //!

@@ -1,5 +1,4 @@
 use Result;
-use datastruct::FstMapBuilder;
 use super::TermInfo;
 use schema::Term;
 use schema::Field;
@@ -7,6 +6,7 @@ use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
 use schema::TextIndexingOptions;
+use datastruct::TermDictionaryBuilder;
 use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
 use DocId;
@@ -49,7 +49,7 @@ use common::BinarySerializable;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
-    terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>, /* TODO find an alternative to work around the "move" */
+    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>, /* TODO find an alternative to work around the "move" */
     postings_write: WritePtr,
     positions_write: WritePtr,
     written_bytes_postings: usize,
@@ -72,7 +72,7 @@ impl PostingsSerializer {
                positions_write: WritePtr,
                schema: Schema)
                -> Result<PostingsSerializer> {
-        let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
+        let terms_fst_builder = try!(TermDictionaryBuilder::new(terms_write));
         Ok(PostingsSerializer {
             terms_fst_builder: terms_fst_builder,
             postings_write: postings_write,

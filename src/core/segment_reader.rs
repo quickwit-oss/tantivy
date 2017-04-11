@@ -10,7 +10,7 @@ use DocId;
 use std::io;
 use std::str;
 use postings::TermInfo;
-use datastruct::FstMap;
+use datastruct::TermDictionary;
 use std::fmt;
 use rustc_serialize::json;
 use core::SegmentInfo;
@@ -38,7 +38,7 @@ use error::Error;
 pub struct SegmentReader {
     segment_info: SegmentInfo,
     segment_id: SegmentId,
-    term_infos: FstMap<TermInfo>,
+    term_infos: TermDictionary<TermInfo>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: U32FastFieldsReader,
@@ -127,7 +127,7 @@ impl SegmentReader {
             })
         );
         let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let term_infos = try!(FstMap::from_source(source));
+        let term_infos = try!(TermDictionary::from_source(source));
         let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         
@@ -156,7 +156,7 @@ impl SegmentReader {
     }
     
     /// Return the term dictionary datastructure.
-    pub fn term_infos(&self) -> &FstMap<TermInfo> {
+    pub fn term_infos(&self) -> &TermDictionary<TermInfo> {
         &self.term_infos
     }
        

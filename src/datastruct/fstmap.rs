@@ -31,6 +31,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         })
     }
 
+
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)

@@ -22,6 +22,15 @@ pub struct TermInfo {
     pub positions_offset: u32,
 }
 
+impl Default for TermInfo {
+    fn default() -> TermInfo {
+        TermInfo {
+            doc_freq: 0u32,
+            postings_offset: 0u32,
+            positions_offset: 0u32,
+        }
+    }
+}
 
 impl BinarySerializable for TermInfo {
     fn serialize(&self, writer: &mut io::Write) -> io::Result<usize> {

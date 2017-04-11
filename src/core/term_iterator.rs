@@ -1,7 +1,8 @@
 use fst::Streamer;
 use std::mem;
 use std::collections::BinaryHeap;
-use fst::map::Keys;
+use postings::TermInfo;
+use datastruct::TermDictionaryStreamer;
 use schema::Field;
 use schema::Term;
 use core::SegmentReader;
@@ -34,7 +35,7 @@ impl Ord for HeapItem {
 /// - a slice with the ordinal of the segments containing
 /// the terms.
 pub struct TermIterator<'a> {
-    key_streams: Vec<Keys<'a>>,
+    key_streams: Vec<TermDictionaryStreamer<'a, TermInfo>>,
     heap: BinaryHeap<HeapItem>,
     // Buffer hosting the list of segment ordinals containing
     // the current term.
@@ -43,7 +44,7 @@ pub struct TermIterator<'a> {
 }
 
 impl<'a> TermIterator<'a> {
-    fn new(key_streams: Vec<Keys<'a>>) -> TermIterator<'a> {
+    fn new(key_streams: Vec<TermDictionaryStreamer<'a, TermInfo>>) -> TermIterator<'a> {
         let key_streams_len = key_streams.len();
         TermIterator {
             key_streams: key_streams,
@@ -98,7 +99,7 @@ impl<'a> TermIterator<'a> {
 
     fn advance_segments(&mut self) {
         for segment_ord in self.current_segment_ords.drain(..) {
-            if let Some(term) = self.key_streams[segment_ord].next() {
+            if let Some((term, val)) = self.key_streams[segment_ord].next() {
                 self.heap.push(HeapItem {
                     term: Term::from(term),
                     segment_ord: segment_ord,
@@ -126,7 +127,7 @@ impl<'a> From<&'a [SegmentReader]> for TermIterator<'a> {
         TermIterator::new(
             segment_readers
             .iter()
-            .map(|reader| reader.term_infos().keys())
+            .map(|reader| reader.term_infos().stream())
             .collect()
         )
     }
