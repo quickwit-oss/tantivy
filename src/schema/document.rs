@@ -11,7 +11,7 @@ use itertools::Itertools;
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, Default)]
 pub struct Document {
     field_values: Vec<FieldValue>,
 }
@@ -31,6 +31,11 @@ impl Eq for Document {}
 
 impl Document {
     
+    /// Creates a new, empty document object
+    pub fn new() -> Document {
+        Document::default()
+    }
+
     /// Returns the number of `(field, value)` pairs.
     pub fn len(&self,) -> usize {
         self.field_values.len()
@@ -97,14 +102,6 @@ impl Document {
     }
 }
 
-impl Default for Document {
-    
-    fn default() -> Document {
-        Document {
-            field_values: Vec::new(),
-        }
-    }
-}
 
 impl From<Vec<FieldValue>> for Document {
     fn from(field_values: Vec<FieldValue>) -> Document {

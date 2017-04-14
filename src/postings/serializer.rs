@@ -49,7 +49,7 @@ use common::BinarySerializable;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
-    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>, /* TODO find an alternative to work around the "move" */
+    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>, 
     postings_write: WritePtr,
     positions_write: WritePtr,
     written_bytes_postings: usize,
@@ -63,6 +63,7 @@ pub struct PostingsSerializer {
     schema: Schema,
     text_indexing_options: TextIndexingOptions,
     term_open: bool,
+    current_term_info: TermInfo,
 }
 
 impl PostingsSerializer {
@@ -88,6 +89,7 @@ impl PostingsSerializer {
             schema: schema,
             text_indexing_options: TextIndexingOptions::Unindexed,
             term_open: false,
+            current_term_info: TermInfo::default(),
         })
     }
 
@@ -121,7 +123,7 @@ impl PostingsSerializer {
     /// * term - the term. It needs to come after the previous term according
     ///   to the lexicographical order.
     /// * doc_freq - return the number of document containing the term.
-    pub fn new_term(&mut self, term: &Term, doc_freq: DocId) -> io::Result<()> {
+    pub fn new_term(&mut self, term: &Term) -> io::Result<()> {
         if self.term_open {
             panic!("Called new_term, while the previous term was not closed.");
         }
@@ -131,13 +133,12 @@ impl PostingsSerializer {
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();
         self.position_deltas.clear();
-        let term_info = TermInfo {
-            doc_freq: doc_freq,
+        self.current_term_info = TermInfo {
+            doc_freq: 0,
             postings_offset: self.written_bytes_postings as u32,
             positions_offset: self.written_bytes_positions as u32,
         };
-        self.terms_fst_builder
-            .insert(term.as_slice(), &term_info)
+        self.terms_fst_builder.insert_key(term.as_slice())
     }
 
     /// Finish the serialization for this term postings.
@@ -146,6 +147,9 @@ impl PostingsSerializer {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
+
+            self.terms_fst_builder.insert_value(&self.current_term_info)?;
+
             if !self.doc_ids.is_empty() {
                 // we have doc ids waiting to be written
                 // this happens when the number of doc ids is
@@ -202,6 +206,7 @@ impl PostingsSerializer {
                      term_freq: u32,
                      position_deltas: &[u32])
                      -> io::Result<()> {
+        self.current_term_info.doc_freq += 1;
         self.doc_ids.push(doc_id);
         if self.text_indexing_options.is_termfreq_enabled() {
             self.term_freqs.push(term_freq as u32);

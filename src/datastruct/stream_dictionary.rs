@@ -122,6 +122,11 @@ impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<
     }
 
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
+        self.insert_key(key)?;
+        self.insert_value(value)
+    }
+
+    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()>{
         if self.len % BLOCK_SIZE == 0 {
             self.add_index_entry();
         }
@@ -132,6 +137,10 @@ impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<
         self.last_key.extend_from_slice(&key[common_len..]);
         VInt((key.len() - common_len) as u64).serialize(&mut self.write)?;
         self.write.write_all(&key[common_len..])?;
+        Ok(())
+    }
+
+    pub fn insert_value(&mut self, value: &V) -> io::Result<()>{
         value.serialize(&mut self.write)?;
         Ok(())
     }

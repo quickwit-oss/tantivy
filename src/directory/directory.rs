@@ -1,13 +1,14 @@
 use std::marker::Send;
 use std::fmt;
 use std::path::Path;
-use directory::error::{FileError, OpenWriteError};
+use directory::error::{OpenReadError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
 use std::marker::Sync;
 
-/// Write-once read many (WORM) abstraction for where tantivy's index should be stored. 
+/// Write-once read many (WORM) abstraction for where
+/// tantivy's data should be stored. 
 ///
 /// There are currently two implementations of `Directory`
 /// 
@@ -25,16 +26,16 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     ///
     /// Specifically, subsequent writes or flushes should
     /// have no effect on the returned `ReadOnlySource` object. 
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError>;
-    
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
+
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual
     /// existing ReadOnlySource pointing to it.
     /// 
     /// Removing a nonexistent file, yields a
-    /// `FileError::DoesNotExist`.
-    fn delete(&self, path: &Path) -> result::Result<(), FileError>;
+    /// `DeleteError::DoesNotExist`.
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError>;
 
     /// Returns true iff the file exists
     fn exists(&self, path: &Path) -> bool;
@@ -60,6 +61,12 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// The file may not previously exist.
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
     
+    /// Reads the full content file that has been written using
+    /// atomic_write.
+    ///
+    /// This should only be used for small files.
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
+
     /// Atomically replace the content of a file with data.
     /// 
     /// This calls ensure that reads can never *observe*
@@ -70,6 +77,7 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
         
     /// Clones the directory and boxes the clone 
     fn box_clone(&self) -> Box<Directory>;
+
 }
 
 

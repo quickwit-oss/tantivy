@@ -6,7 +6,7 @@ use std::result;
 use std::sync::{Arc, RwLock};
 use common::make_io_err;
 use directory::{Directory, ReadOnlySource};
-use directory::error::{OpenWriteError, FileError};
+use directory::error::{OpenWriteError, OpenReadError, DeleteError};
 use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
@@ -55,7 +55,7 @@ impl Seek for VecWriter {
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.is_flushed = false;
-        try!(self.data.write(buf));
+        try!(self.data.write_all(buf));
         Ok(buf.len())
     }
 
@@ -87,29 +87,29 @@ impl InnerDirectory {
         Ok(prev_value.is_some())
     }
 
-    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, FileError> { 
+    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> { 
         self.0
             .read()
             .map_err(|_| {
                 let io_err = make_io_err(format!("Failed to acquire read lock for the directory, when trying to read {:?}", path));
-                FileError::IOError(io_err)
+                OpenReadError::IOError(io_err)
             })
             .and_then(|readable_map| {
                 readable_map
                 .get(path)
-                .ok_or_else(|| FileError::FileDoesNotExist(PathBuf::from(path)))
+                .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
                 .map(|data| {
                     ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
                 })
             })
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.0
             .write()
             .map_err(|_| {
                 let io_err = make_io_err(format!("Failed to acquire write lock for the directory, when trying to delete {:?}", path));
-                FileError::IOError(io_err)
+                DeleteError::IOError(io_err)
             })
             .and_then(|mut writable_map| {
                 match writable_map.remove(path) {
@@ -117,7 +117,7 @@ impl InnerDirectory {
                         Ok(())
                     },
                     None => {
-                        Err(FileError::FileDoesNotExist(PathBuf::from(path)))
+                        Err(DeleteError::FileDoesNotExist(PathBuf::from(path)))
                     }
                 }
             })
@@ -160,7 +160,7 @@ impl RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         self.fs.open_read(path)
     }
     
@@ -176,13 +176,19 @@ impl Directory for RAMDirectory {
         }
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.fs.delete(path)
     }
 
     
     fn exists(&self, path: &Path) -> bool {
         self.fs.exists(path)
+    }
+
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        let read = self.open_read(path)?;
+        Ok(read.as_slice()
+               .to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

@@ -4,6 +4,7 @@ mod vint;
 pub mod bitpacker;
 mod counting_writer;
 
+
 pub use self::serialize::BinarySerializable;
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;
@@ -13,6 +14,7 @@ pub use self::counting_writer::CountingWriter;
 
 use std::io;
 
+/// Create a default io error given a string.
 pub fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
@@ -30,3 +32,14 @@ pub trait HasLen {
 }
 
 
+/// Creates an uninitialized Vec of a given usize
+///
+/// `allocate_vec` does an unsafe call to `set_len`
+/// as other solution are extremely slow in debug mode.
+pub fn allocate_vec<T>(capacity: usize) -> Vec<T> {
+    let mut v = Vec::with_capacity(capacity);
+    unsafe {
+        v.set_len(capacity);
+    }
+    v
+}

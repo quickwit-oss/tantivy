@@ -12,7 +12,7 @@ use std::sync::Arc;
 use super::*;
 use std::fmt;
 
-
+const MAX_NUM_FIELDS: usize = 255;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -42,6 +42,12 @@ pub struct SchemaBuilder {
 
 impl SchemaBuilder {
     
+
+    /// Create a new `SchemaBuilder`
+    pub fn new() -> SchemaBuilder {
+        SchemaBuilder::default()
+    }
+
     /// Adds a new u32 field.
     /// Returns the associated field handle
     ///
@@ -94,10 +100,13 @@ impl SchemaBuilder {
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
     pub fn build(self,) -> Schema {
+        if self.fields.len() > MAX_NUM_FIELDS {
+            panic!("There may be at most 255 fields.");
+        }
         Schema(Arc::new(InnerSchema {
             fields: self.fields,
             fields_map: self.fields_map,
-        })) 
+        }))
     }
 }
 
@@ -329,7 +338,6 @@ mod tests {
         schema_builder.add_u32_field("count", count_options);
         let schema = schema_builder.build();
         let schema_json: String = format!("{}", json::as_pretty_json(&schema));
-        println!("{}", schema_json);
         let expected = r#"[
   {
     "name": "title",
@@ -456,7 +464,6 @@ mod tests {
                 "author": "fulmicoton",
                 "count": -5
             }"#);
-            println!("{:?}", json_err);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
                     assert!(true);
@@ -472,7 +479,6 @@ mod tests {
                 "author": "fulmicoton",
                 "count": 5000000000
             }"#);
-            println!("{:?}", json_err);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);

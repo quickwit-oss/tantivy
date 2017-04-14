@@ -21,7 +21,7 @@ pub struct FstMapBuilder<W: Write, V: BinarySerializable> {
 }
 
 impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
-
+    
     pub fn new(w: W) -> io::Result<FstMapBuilder<W, V>> {
         let fst_builder = try!(fst::MapBuilder::new(w).map_err(convert_fst_error));
         Ok(FstMapBuilder {
@@ -31,8 +31,28 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
         })
     }
 
+    /// Horribly unsafe, nobody should ever do that... except me :)
+    /// 
+    /// If used, it must be used by systematically alternating calls
+    /// to insert_key and insert_value.
+    ///
+    /// TODO see if I can bend Rust typesystem to enforce that
+    /// in a nice way.
+    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
+        try!(self.fst_builder
+            .insert(key, self.data.len() as u64)
+            .map_err(convert_fst_error));
+        Ok(())
+    }
 
-    pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
+    /// Horribly unsafe, nobody should ever do that... except me :)
+    pub fn insert_value(&mut self, value: &V) -> io::Result<()> {
+        try!(value.serialize(&mut self.data));
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         try!(self.fst_builder
             .insert(key, self.data.len() as u64)
             .map_err(convert_fst_error));
@@ -132,7 +152,6 @@ mod tests {
         assert_eq!(keys.next().unwrap(), "abc".as_bytes());
         assert_eq!(keys.next().unwrap(), "abcd".as_bytes());
         assert_eq!(keys.next(), None);
- 
     }
 
 }

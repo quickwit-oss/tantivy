@@ -9,17 +9,14 @@ mod recorder;
 mod serializer;
 mod postings_writer;
 mod term_info;
-mod chained_postings;
 mod vec_postings;
 mod segment_postings;
 mod intersection;
-mod offset_postings;
 mod freq_handler;
 mod docset;
 mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
-pub use self::offset_postings::OffsetPostings;
 pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
 pub use self::postings_writer::PostingsWriter;
@@ -29,11 +26,10 @@ pub use self::postings::Postings;
 
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
-pub use self::chained_postings::ChainedPostings;
+// pub use self::chained_postings::ChainedPostings;
 pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
-
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 
@@ -51,6 +47,7 @@ mod tests {
     use query::TermQuery;
     use schema::Field;
     use test::Bencher;
+    use indexer::operation::AddOperation;
     use rand::{XorShiftRng, Rng, SeedableRng};
     
         
@@ -63,7 +60,7 @@ mod tests {
         let mut segment = index.new_segment();
         let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
         let term = Term::from_field_text(text_field, "abc");
-        posting_serializer.new_term(&term, 3).unwrap();
+        posting_serializer.new_term(&term).unwrap();
         for doc_id in 0u32..3u32 {
             let positions = vec!(1,2,3,2);
             posting_serializer.write_doc(doc_id, 2, &positions).unwrap();
@@ -88,19 +85,31 @@ mod tests {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a b a c a d a a.");
                 doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 0u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "b a");
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 1u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             for i in 2..1000 {
                 let mut doc = Document::default();
                 let mut text = iter::repeat("e ").take(i).collect::<String>();
                 text.push_str(" a");
                 doc.add_text(text_field, &text);
-                segment_writer.add_document(&doc, &schema).unwrap();
+                let op = AddOperation {
+                    opstamp: 2u64,
+                    document: doc,  
+                };
+                segment_writer.add_document(&op, &schema).unwrap();
             }
             segment_writer.finalize().unwrap();
         }
@@ -167,15 +176,16 @@ mod tests {
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "g b b d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "g a b b a d c g c");
-                index_writer.add_document(doc).unwrap();
+                index_writer.add_document(doc);
             }
             assert!(index_writer.commit().is_ok());
         }
+        index.load_searchers().unwrap();
         let term_query = TermQuery::new(Term::from_field_text(text_field, "a"), SegmentPostingsOption::NoFreq);
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
@@ -248,10 +258,11 @@ mod tests {
                         count_b += 1;
                         doc.add_text(text_field, "b");
                     }
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 assert!(index_writer.commit().is_ok());
             }
+            index.load_searchers().unwrap();
             index
         };
     }
@@ -281,7 +292,6 @@ mod tests {
     fn bench_segment_intersection(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
-        
         b.iter(|| {
             let segment_postings_a = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
             let segment_postings_b = segment_reader.read_postings(&*TERM_B, SegmentPostingsOption::NoFreq).unwrap();

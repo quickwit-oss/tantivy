@@ -32,7 +32,7 @@ pub struct U32FastFieldReader {
 impl U32FastFieldReader {
 
     pub fn empty() -> U32FastFieldReader {
-        U32FastFieldReader::open(U32_FAST_FIELD_EMPTY.clone()).expect("should always work.")
+        U32FastFieldReader::open(U32_FAST_FIELD_EMPTY.clone())
     }
 
     pub fn min_val(&self,) -> u32 {
@@ -43,14 +43,18 @@ impl U32FastFieldReader {
         self.max_val
     }
 
-    pub fn open(data: ReadOnlySource) -> io::Result<U32FastFieldReader> {
+    /// Opens a new fast field reader given a read only source.
+    ///
+    /// # Panics
+    /// Panics if the data is corrupted.
+    pub fn open(data: ReadOnlySource) -> U32FastFieldReader {
         let min_val;
         let amplitude;
         let max_val;
         {
             let mut cursor = data.as_slice();
-            min_val = try!(u32::deserialize(&mut cursor));
-            amplitude = try!(u32::deserialize(&mut cursor));
+            min_val = u32::deserialize(&mut cursor).unwrap();
+            amplitude = u32::deserialize(&mut cursor).unwrap();
             max_val = min_val + amplitude;
         }
         let num_bits = compute_num_bits(amplitude);
@@ -58,12 +62,12 @@ impl U32FastFieldReader {
             let data_arr = &(data.deref()[8..]);
             BitUnpacker::new(data_arr, num_bits as usize)
         };
-        Ok(U32FastFieldReader {
+        U32FastFieldReader {
             _data: data,
             bit_unpacker: bit_unpacker,
             min_val: min_val,
             max_val: max_val,
-        })
+        }
     }
 
     pub fn get(&self, doc: DocId) -> u32 {
@@ -138,17 +142,20 @@ impl U32FastFieldsReader {
         })
     }
     
-    pub fn get_field(&self, field: Field) -> io::Result<U32FastFieldReader> {
-        match self.field_offsets.get(&field) {
-            Some(&(start, stop)) => {
+    /// Returns the u32 fast value reader if the field
+    /// is a u32 field indexed as "fast".
+    ///
+    /// Return None if the field is not a u32 field
+    /// indexed with the fast option.
+    ///
+    /// # Panics
+    /// May panic if the index is corrupted.
+    pub fn get_field(&self, field: Field) -> Option<U32FastFieldReader> {
+        self.field_offsets
+            .get(&field)
+            .map(|&(start, stop)| {
                 let field_source = self.source.slice(start as usize, stop as usize);
                 U32FastFieldReader::open(field_source)
-            }
-            None => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, "Could not find field"))
-            }
-
-        }
-
+            })
     }
 }

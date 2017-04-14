@@ -3,17 +3,16 @@
 /// Definition of Tantivy's error and result.
 
 use std::io;
-use std::result;
+
 use std::path::PathBuf;
 use std::error;
 use std::sync::PoisonError;
-use directory::error::{FileError, OpenWriteError, OpenDirectoryError};
+use directory::error::{OpenReadError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
 
 
-/// Tantivy result.
-pub type Result<T> = result::Result<T, Error>;
+
 
 
 /// Generic tantivy error.
@@ -32,11 +31,14 @@ pub enum Error {
     /// The data within is corrupted.
     ///
     /// For instance, it contains invalid JSON.
-    CorruptedFile(PathBuf, Box<error::Error + Send>),
+    CorruptedFile(PathBuf, Box<error::Error + Send + Sync>),
     /// Invalid argument was passed by the user.
     InvalidArgument(String),
     /// An Error happened in one of the thread
-    ErrorInThread(String), // TODO investigate better solution
+    ErrorInThread(String),
+    /// An Error appeared related to the lack of a field.
+    SchemaError(String),
+    
 }
 
 impl From<io::Error> for Error {
@@ -57,11 +59,11 @@ impl<Guard> From<PoisonError<Guard>> for Error {
     }
 }
 
-impl From<FileError> for Error {
-    fn from(error: FileError) -> Error {
+impl From<OpenReadError> for Error {
+    fn from(error: OpenReadError) -> Error {
         match error {
-            FileError::FileDoesNotExist(filepath) => Error::PathDoesNotExist(filepath),
-            FileError::IOError(io_error) => Error::IOError(io_error),
+            OpenReadError::FileDoesNotExist(filepath) => Error::PathDoesNotExist(filepath),
+            OpenReadError::IOError(io_error) => Error::IOError(io_error),
         }
     }
 }

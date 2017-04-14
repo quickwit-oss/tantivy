@@ -1,9 +1,6 @@
 use Result;
 
-use std::io::Write;
-use rustc_serialize::json;
 use core::Segment;
-use core::SegmentInfo;
 use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
@@ -13,7 +10,6 @@ use postings::PostingsSerializer;
 /// Segment serializer is in charge of laying out on disk
 /// the data accumulated and sorted by the `SegmentWriter`.
 pub struct SegmentSerializer {
-    segment: Segment,
     store_writer: StoreWriter,
     fast_field_serializer: FastFieldSerializer,
     fieldnorms_serializer: FastFieldSerializer,
@@ -33,7 +29,6 @@ impl SegmentSerializer {
 
         let postings_serializer = try!(PostingsSerializer::open(segment));
         Ok(SegmentSerializer {
-            segment: segment.clone(),
             postings_serializer: postings_serializer,
             store_writer: StoreWriter::new(store_write),
             fast_field_serializer: fast_field_serializer,
@@ -59,16 +54,6 @@ impl SegmentSerializer {
     /// Accessor to the `StoreWriter`.
     pub fn get_store_writer(&mut self) -> &mut StoreWriter {
         &mut self.store_writer
-    }
-
-    /// Write the `SegmentInfo`
-    pub fn write_segment_info(&mut self, segment_info: &SegmentInfo) -> Result<()> {
-        let mut write = try!(self.segment.open_write(SegmentComponent::INFO));
-        let json_data = json::encode(segment_info)
-            .expect("Encoding to segment_info to JSON failed. This should never happen");
-        try!(write.write_all(json_data.as_bytes()));
-        try!(write.flush());
-        Ok(())
     }
 
     /// Finalize the segment serialization.

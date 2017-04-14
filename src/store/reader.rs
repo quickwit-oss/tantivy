@@ -11,6 +11,7 @@ use std::io::{self, Read};
 use datastruct::SkipList;
 use lz4;
 
+#[derive(Clone)]
 pub struct StoreReader {
     pub data: ReadOnlySource,
     pub offset_index_source: ReadOnlySource,

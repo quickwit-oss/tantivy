@@ -131,6 +131,8 @@ pub use self::text_options::STORED;
 
 pub use self::u32_options::U32Options;
 pub use self::u32_options::FAST;
+pub use self::u32_options::U32_INDEXED;
+pub use self::u32_options::U32_STORED;
 
 use regex::Regex;
 

@@ -1,8 +1,8 @@
-use std::io;
 use super::Collector;
 use SegmentReader;
 use SegmentLocalId;
 use DocAddress;
+use Result;
 use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use DocId;
@@ -105,7 +105,7 @@ impl TopCollector {
 
 impl Collector for TopCollector {
 
-    fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
+    fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         self.segment_id = segment_id;
         Ok(())
     }

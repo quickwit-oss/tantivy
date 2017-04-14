@@ -13,7 +13,7 @@ pub struct MergeCandidate(pub Vec<SegmentId>);
 /// 
 /// Every time a the list of segments changes, the segment updater
 /// asks the merge policy if some segments should be merged.
-pub trait MergePolicy: marker::Send + Debug {
+pub trait MergePolicy: marker::Send + marker::Sync + Debug {
     /// Given the list of segment metas, returns the list of merge candidates. 
     ///
     /// This call happens on the segment updater thread, and will block 
@@ -43,3 +43,38 @@ impl MergePolicy for NoMergePolicy {
     }
 }
 
+
+#[cfg(test)]
+pub mod tests {
+
+    use super::*;
+    use core::SegmentId;
+    use core::SegmentMeta;
+
+
+    /// Merge policy useful for test purposes.
+    ///
+    /// Everytime there is more than one segment,
+    /// it will suggest to merge them.
+    #[derive(Debug)]
+    pub struct MergeWheneverPossible;
+
+    impl MergePolicy for MergeWheneverPossible {
+        fn compute_merge_candidates(&self, segment_metas: &[SegmentMeta]) -> Vec<MergeCandidate> {
+            let segment_ids = segment_metas
+                .iter()
+                .map(|segment_meta| segment_meta.id())
+                .collect::<Vec<SegmentId>>();
+            if segment_ids.len() > 1 {
+                vec!(MergeCandidate(segment_ids))
+            }
+            else {
+                vec!()
+            }
+        }
+        
+        fn box_clone(&self) -> Box<MergePolicy> {
+            box MergeWheneverPossible
+        }
+    }
+}

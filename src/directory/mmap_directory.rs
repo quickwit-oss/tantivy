@@ -1,7 +1,7 @@
 use atomicwrites;
 use common::make_io_err;
 use directory::Directory;
-use directory::error::{OpenWriteError, FileError, OpenDirectoryError};
+use directory::error::{OpenWriteError, OpenReadError, DeleteError, OpenDirectoryError};
 use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
@@ -9,16 +9,13 @@ use fst::raw::MmapReadOnly;
 use memmap::{Mmap, Protection};
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
-use std::mem;
 use std::convert::From;
 use std::fmt;
-use std::fs;
-use std::fs::File;
+use std::fs::{self, File};
 use std::fs::OpenOptions;
-use std::io;
-use std::io::{Seek, SeekFrom};
-use std::io::BufWriter;
-use std::io::Write;
+use std::io::{self, Seek, SeekFrom};
+use std::io::{BufWriter, Read, Write};
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
@@ -26,31 +23,46 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
-
-fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, FileError> {
+fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
     let convert_file_error = |err: io::Error| {
         if err.kind() == io::ErrorKind::NotFound {
-            FileError::FileDoesNotExist(full_path.clone())
+            OpenReadError::FileDoesNotExist(full_path.clone())
         }
         else {
-            FileError::IOError(err)
+            OpenReadError::IOError(err)
         }
     };
     let file = File::open(&full_path).map_err(convert_file_error)?;
-    if try!(file.metadata()).len() == 0 {
+    let meta_data = file
+        .metadata()
+        .map_err(|e| OpenReadError::IOError(e))?;
+    if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible 
         // to mmap the file, so we return an anonymous mmap_cache
         // instead.
         return Ok(None)
     }
-    Ok(Some(Arc::new(Mmap::open(&file, Protection::Read)?)))
+    match Mmap::open(&file, Protection::Read) {
+        Ok(mmap) => {
+            Ok(Some(Arc::new(mmap)))
+        }
+        Err(e) => {
+            Err(OpenReadError::IOError(e))
+        }
+    }
+    
 }
 
 #[derive(Default,Clone,Debug,RustcDecodable,RustcEncodable)]
 pub struct CacheCounters {
-    hit: usize,
-    miss_empty: usize,
-    miss_weak: usize,
+    // Number of time the cache prevents to call `mmap`
+    pub hit: usize,
+    // Number of time tantivy had to call `mmap`
+    // as no entry was in the cache.
+    pub miss_empty: usize,
+    // Number of time tantivy had to call `mmap`
+    // as the entry in the cache was evinced.
+    pub miss_weak: usize,
 }
 
 #[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
@@ -104,7 +116,7 @@ impl MmapCache {
         }
     }
 
-    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, FileError> {
+    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, OpenReadError> {
         // if we exceed this limit, then we go through the weak
         // and remove those that are obsolete.
         if self.cache.len() > self.purge_weak_limit {
@@ -206,12 +218,33 @@ impl MmapDirectory {
     /// Sync the root directory.
     /// In certain FS, this is required to persistently create
     /// a file.
-    fn sync_directory(&self,) -> Result<(), io::Error> {
-        let fd = try!(File::open(&self.root_path));
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        let mut open_opts = OpenOptions::new();
+
+        // Linux needs read to be set, otherwise returns EINVAL
+        // write must not be set, or it fails with EISDIR
+        open_opts.read(true);
+
+        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
+        // and calling sync_all() only works if write access is requested.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            use winapi::winbase;
+
+            open_opts.write(true)
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
+        }
+
+        let fd = try!(open_opts.open(&self.root_path));
         try!(fd.sync_all());
         Ok(())
     }
-
+    /// Returns some statistical information
+    /// about the Mmap cache.
+    /// 
+    /// The `MmapDirectory` embeds a `MmapDirectory` 
+    /// to avoid multiplying the `mmap` system calls.
     pub fn get_cache_info(&mut self) -> CacheInfo {
         self.mmap_cache
             .write()
@@ -253,15 +286,15 @@ impl Seek for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, FileError> {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
         
         let mut mmap_cache = self.mmap_cache
             .write()
-            .map_err(|_| {
+            .map_err(|_| OpenReadError::IOError(
                 make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
-            })?;
+            ))?;
         
         Ok(mmap_cache.get_mmap(full_path)?
             .map(MmapReadOnly::from)
@@ -301,27 +334,58 @@ impl Directory for MmapDirectory {
         Ok(BufWriter::new(Box::new(writer)))
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), FileError> {
-        debug!("Delete {:?}", path);
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         let mut mmap_cache = try!(self.mmap_cache
             .write()
-            .map_err(|_| {
-                make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))
-            })
+            .map_err(|_| 
+                 DeleteError::IOError(make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))))
         );
         // Removing the entry in the MMap cache.
         // The munmap will appear on Drop,
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
-        try!(fs::remove_file(&full_path));
-        try!(self.sync_directory());
-        Ok(())
+        match fs::remove_file(&full_path) {
+            Ok(_) => {
+                self.sync_directory()
+                    .map_err(|e| DeleteError::IOError(e))
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
+                }
+                else {
+                    Err(DeleteError::IOError(e))
+                }
+            }
+        }
     }
 
     fn exists(&self, path: &Path) -> bool {
         let full_path = self.resolve_path(path);
         full_path.exists()
+    }
+
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        let full_path = self.resolve_path(path);
+        let mut buffer = Vec::new();
+        match File::open(&full_path) {
+            Ok(mut file) => {
+                file.read_to_end(&mut buffer)
+                    .map_err(|e| OpenReadError::IOError(e))?;
+                Ok(buffer)
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(OpenReadError::FileDoesNotExist(path.to_owned()))
+                }
+                else {
+                    Err(OpenReadError::IOError(e))
+                }
+            }
+        }
+        
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -337,7 +401,6 @@ impl Directory for MmapDirectory {
     fn box_clone(&self,) -> Box<Directory> {
         Box::new(self.clone())
     }
-    
 }
 
 

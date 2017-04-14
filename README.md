@@ -1,9 +1,10 @@
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
 
 [![Build Status](https://travis-ci.org/tantivy-search/tantivy.svg?branch=master)](https://travis-ci.org/tantivy-search/tantivy)
-[![Coverage Status](https://coveralls.io/repos/github/tantivy-search/tantivy/badge.svg?branch=master)](https://coveralls.io/github/tantivy-search/tantivy?branch=master)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Coverage Status](https://coveralls.io/repos/github/tantivy-search/tantivy/badge.svg?branch=master&refresh1)](https://coveralls.io/github/tantivy-search/tantivy?branch=master)
 [![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build status](https://ci.appveyor.com/api/projects/status/r7nb13kj23u8m9pj?svg=true)](https://ci.appveyor.com/project/fulmicoton/tantivy)
 ![beacon for google analytics](https://ga-beacon.appspot.com/UA-88834340-1/tantivy/README)
 
 **Tantivy** is a **full text search engine library** written in rust.
@@ -25,14 +26,17 @@ It is strongly inspired by Lucene's design.
 - LZ4 compressed document store
 - Cheesy logo with a horse
 
-Tantivy supports Linux and MacOS. Windows is not supported.
+Tantivy supports Linux, MacOS and Windows.
+
 
 # Getting started
 
 - [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
 - [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
-- [reference doc](https://tantivy-search.github.io/tantivy/tantivy/schema/index.html).
+- [reference doc]
+    - [For the last released version](https://docs.rs/tantivy/)
+    - [For the last master branch](https://tantivy-search.github.io/tantivy/tantivy/index.html)
 
 # Compiling 
 

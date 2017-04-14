@@ -1,6 +1,8 @@
 use std::fmt;
 
 use common::BinarySerializable;
+use common::allocate_vec;
+use byteorder::{BigEndian, ByteOrder};
 use super::Field;
 use std::str;
 
@@ -10,7 +12,6 @@ use std::str;
 /// It actually wraps a `Vec<u8>`.
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
-
 
 impl Term {
     
@@ -43,10 +44,12 @@ impl Term {
     /// the Term will have 5 bytes.
     /// The first byte is `1`, and the 4 following bytes are that of the u32.
     pub fn from_field_u32(field: Field, val: u32) -> Term {
-        let mut buffer = Vec::with_capacity(1 + 4);
-        buffer.clear();
-        field.serialize(&mut buffer).unwrap();
-        val.serialize(&mut buffer).unwrap();
+        const U32_TERM_LEN: usize = 1 + 4;
+        let mut buffer = allocate_vec(U32_TERM_LEN);
+        buffer[0] = field.0;
+        // we want BigEndian here to have lexicographic order
+        // match the natural order of vals.
+        BigEndian::write_u32(&mut buffer[1..5], val);
         Term(buffer)
     }
     
@@ -63,7 +66,22 @@ impl Term {
         buffer.extend(text.as_bytes());
         Term(buffer)
     }
+
+    /// Assume the term is a u32 field.
+    ///
+    /// Panics if the term is not a u32 field.
+    pub fn get_u32(&self) -> u32 {
+        BigEndian::read_u32(&self.0[1..])
+    }
     
+    /// Builds a term from its byte representation.
+    ///
+    /// If you want to build a field for a given `str`,
+    /// you want to use `from_field_text`.
+    pub fn from_bytes(data: &[u8]) -> Term {
+        Term(Vec::from(data))
+    }
+
     /// Returns the serialized value of the term.
     /// (this does not include the field.)
     ///
@@ -96,12 +114,6 @@ impl Term {
     }
 }
 
-impl<'a> From<&'a [u8]> for Term {
-    fn from(data: &[u8]) -> Term {
-        Term(Vec::from(data))
-    }
-}
-
 impl AsRef<[u8]> for Term {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -113,7 +125,6 @@ impl fmt::Debug for Term {
         write!(f, "Term({:?})", &self.0[..])
     }
 }
-
 
 
 #[cfg(test)]
@@ -138,7 +149,10 @@ mod tests {
             assert_eq!(term.field(), count_field);
             assert_eq!(term.as_slice()[0], 2u8);
             assert_eq!(term.as_slice().len(), 5);
-            assert_eq!(term.as_slice()[1], (983u32 % 256u32) as u8);            
+            assert_eq!(term.as_slice()[1], 0u8);
+            assert_eq!(term.as_slice()[2], 0u8);
+            assert_eq!(term.as_slice()[3], (933u32 / 256u32) as u8);
+            assert_eq!(term.as_slice()[4], (983u32 % 256u32) as u8);
         }
                 
     }

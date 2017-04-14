@@ -2,6 +2,7 @@ use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
+use fastfield::delete::DeleteBitSet;
 
 
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
@@ -85,10 +86,10 @@ impl<'a> BlockSegmentPostings<'a> {
 /// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings<'a> {
     len: usize,
-    // doc_offset: usize,
     cur: Wrapping<usize>,
     block_cursor: BlockSegmentPostings<'a>,
-    cur_block_len: usize
+    cur_block_len: usize,
+    delete_bitset: DeleteBitSet,
 }
 
 impl<'a> SegmentPostings<'a> {
@@ -99,12 +100,15 @@ impl<'a> SegmentPostings<'a> {
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_block_postings(segment_block_postings: BlockSegmentPostings<'a>) -> SegmentPostings<'a> {
+    pub fn from_block_postings(
+            segment_block_postings: BlockSegmentPostings<'a>,
+            delete_bitset: DeleteBitSet) -> SegmentPostings<'a> {
         SegmentPostings {
             len: segment_block_postings.len,
             block_cursor: segment_block_postings,
             cur: Wrapping(usize::max_value()),
             cur_block_len: 0,
+            delete_bitset: delete_bitset,
         }
     }
     
@@ -114,6 +118,7 @@ impl<'a> SegmentPostings<'a> {
         SegmentPostings {
             len: 0,
             block_cursor: empty_block_cursor,
+            delete_bitset: DeleteBitSet::empty(),
             cur: Wrapping(usize::max_value()),
             cur_block_len: 0,
         }
@@ -126,17 +131,21 @@ impl<'a> DocSet for SegmentPostings<'a> {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        self.cur += Wrapping(1);
-        if self.cur.0 == self.cur_block_len {
-            self.cur = Wrapping(0);
-            if !self.block_cursor.advance() {
-                self.cur_block_len = 0;
-                self.cur = Wrapping(usize::max_value());
-                return false;
+        loop {   
+            self.cur += Wrapping(1);
+            if self.cur.0 == self.cur_block_len {
+                self.cur = Wrapping(0);
+                if !self.block_cursor.advance() {
+                    self.cur_block_len = 0;
+                    self.cur = Wrapping(usize::max_value());
+                    return false;
+                }
+                self.cur_block_len = self.block_cursor.docs().len();
             }
-            self.cur_block_len = self.block_cursor.docs().len();
+            if !self.delete_bitset.is_deleted(self.doc()) {
+                return true;
+            }
         }
-        true
     }
 
     #[inline]

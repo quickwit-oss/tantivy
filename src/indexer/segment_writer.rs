@@ -1,10 +1,8 @@
 use Result;
 use DocId;
 use std::io;
-use schema::Schema;
-use schema::Document;
+use schema::Schema;	
 use schema::Term;
-use core::SegmentInfo;
 use core::Segment;
 use core::SerializableSegment;
 use postings::PostingsWriter;
@@ -19,6 +17,8 @@ use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
 use indexer::index_writer::MARGIN_IN_BYTES;
+use super::operation::AddOperation;
+
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -32,6 +32,7 @@ pub struct SegmentWriter<'a> {
 	segment_serializer: SegmentSerializer,
 	fast_field_writers: U32FastFieldsWriter,
 	fieldnorms_writer: U32FastFieldsWriter,
+	doc_opstamps: Vec<u64>,
 }
 
 
@@ -70,7 +71,6 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 
 impl<'a> SegmentWriter<'a> {
 	
-	
 	/// Creates a new `SegmentWriter`
 	///
 	/// The arguments are defined as follows
@@ -80,7 +80,9 @@ impl<'a> SegmentWriter<'a> {
 	/// the flushing behavior as a buffer limit
 	/// - segment: The segment being written  
 	/// - schema
-	pub fn for_segment(heap: &'a Heap, mut segment: Segment, schema: &Schema) -> Result<SegmentWriter<'a>> {
+	pub fn for_segment(heap: &'a Heap,
+					   mut segment: Segment,
+					   schema: &Schema) -> Result<SegmentWriter<'a>> {
 		let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
 		let mut per_field_postings_writers: Vec<Box<PostingsWriter + 'a>> = Vec::new();
 		for field_entry in schema.fields() {
@@ -94,6 +96,7 @@ impl<'a> SegmentWriter<'a> {
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
 			fast_field_writers: U32FastFieldsWriter::from_schema(schema),
+			doc_opstamps: Vec::with_capacity(1_000),
 		})
 	}
 	
@@ -101,18 +104,16 @@ impl<'a> SegmentWriter<'a> {
 	/// 
 	/// Finalize consumes the `SegmentWriter`, so that it cannot 
 	/// be used afterwards.
-	pub fn finalize(mut self,) -> Result<()> {
-		let segment_info = self.segment_info();
+	pub fn finalize(mut self) -> Result<Vec<u64>> {
 		for per_field_postings_writer in &mut self.per_field_postings_writers {
 			per_field_postings_writer.close(self.heap);
 		}
-		try!(write(&self.per_field_postings_writers,
+		write(&self.per_field_postings_writers,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
-			  segment_info,
 			  self.segment_serializer,
-			  self.heap));
-		Ok(())
+			  self.heap)?;
+		Ok(self.doc_opstamps)
 	}
 	
 	/// Returns true iff the segment writer's buffer has reached capacity.
@@ -129,8 +130,10 @@ impl<'a> SegmentWriter<'a> {
 	/// Indexes a new document
 	///
 	/// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(&mut self, doc: &Document, schema: &Schema) -> io::Result<()> {
+    pub fn add_document(&mut self, add_operation: &AddOperation, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
+		let doc = &add_operation.document;
+		self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
 			let field_posting_writer: &mut Box<PostingsWriter> = &mut self.per_field_postings_writers[field.0 as usize];
 			let field_options = schema.get_field_entry(field);
@@ -165,7 +168,7 @@ impl<'a> SegmentWriter<'a> {
 			}
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
-		self.fast_field_writers.add_document(doc);
+		self.fast_field_writers.add_document(&doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.field_values()
 			.iter()
@@ -176,14 +179,6 @@ impl<'a> SegmentWriter<'a> {
         self.max_doc += 1;
 		Ok(())
     }
-	
-	/// Creates the `SegmentInfo` that will be serialized along
-	/// with the index in JSON format.  
- 	fn segment_info(&self,) -> SegmentInfo {
-		SegmentInfo {
-			max_doc: self.max_doc
-		}
-	}
 	
 	
 	/// Max doc is 
@@ -212,26 +207,25 @@ impl<'a> SegmentWriter<'a> {
 fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
 		 fast_field_writers: &U32FastFieldsWriter,
 		 fieldnorms_writer: &U32FastFieldsWriter,
-		 segment_info: SegmentInfo,
 	  	 mut serializer: SegmentSerializer,
-		 heap: &'a Heap,) -> Result<u32> {
-		for per_field_postings_writer in per_field_postings_writers.iter() {
+		 heap: &'a Heap,) -> Result<()> {
+		for per_field_postings_writer in per_field_postings_writers {
 			try!(per_field_postings_writer.serialize(serializer.get_postings_serializer(), heap));
 		}
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
-		try!(serializer.write_segment_info(&segment_info));
 		try!(serializer.close());
-		Ok(segment_info.max_doc)
+		Ok(())
 }
 
 impl<'a> SerializableSegment for SegmentWriter<'a> {
 	fn write(&self, serializer: SegmentSerializer) -> Result<u32> {
+		let max_doc = self.max_doc;
 		write(&self.per_field_postings_writers,
 		      &self.fast_field_writers,
 			  &self.fieldnorms_writer,
-			  self.segment_info(),
 		      serializer,
-			  self.heap)
+			  self.heap)?;
+		Ok(max_doc)
 	}
 }

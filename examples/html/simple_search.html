@@ -52,7 +52,7 @@
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-2">&#182;</a>
               </div>
-              <p>Let’s create a temporary directory for the 
+              <p>Let’s create a temporary directory for the
 sake of this example</p>
 
             </div>
@@ -60,7 +60,7 @@ sake of this example</p>
             <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Ok</span>(dir) = TempDir::new(<span class="hljs-string">"tantivy_example_dir"</span>) {
         run_example(dir.path()).unwrap();
         dir.close().unwrap();
-    }   
+    }
 }
 
 
@@ -78,7 +78,7 @@ sake of this example</p>
               <h1 id="defining-the-schema">Defining the schema</h1>
 <p>The Tantivy index requires a very strict schema.
 The schema declares which fields are in the index,
-and for each field, its type and “the way it should 
+and for each field, its type and “the way it should
 be indexed”.</p>
 
             </div>
@@ -111,12 +111,12 @@ be indexed”.</p>
 We want full-text search for it, and we want to be able
 to retrieve the document after the search.</p>
 <p>TEXT | STORED is some syntactic sugar to describe
-that. </p>
+that.</p>
 <p><code>TEXT</code> means the field should be tokenized and indexed,
 along with its term frequency and term positions.</p>
 <p><code>STORED</code> means that the field will also be saved
 in a compressed, row-oriented key-value store.
-This store is useful to reconstruct the 
+This store is useful to reconstruct the
 documents that were selected during the search phase.</p>
 
             </div>
@@ -139,7 +139,7 @@ to retrieve the body after the search.</p>
             </div>
             
             <div class="content"><div class='highlight'><pre>    schema_builder.add_text_field(<span class="hljs-string">"body"</span>, TEXT);
-    
+
     <span class="hljs-keyword">let</span> schema = schema_builder.build();</pre></div></div>
             
         </li>
@@ -173,14 +173,12 @@ with our schema in the directory.</p>
 There must be only one writer at a time.
 This single <code>IndexWriter</code> is already
 multithreaded.</p>
-<p>Here we use a buffer of 1 GB. Using a bigger 
-heap for the indexer can increase its throughput.
-This buffer will be split between the indexing
-threads.</p>
+<p>Here we use a buffer of 50MB per thread. Using a bigger
+heap for the indexer can increase its throughput.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> index_writer = <span class="hljs-built_in">try!</span>(index.writer(<span class="hljs-number">1_000_000_000</span>));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> index_writer = <span class="hljs-built_in">try!</span>(index.writer(<span class="hljs-number">50_000_000</span>));</pre></div></div>
             
         </li>
         
@@ -213,10 +211,12 @@ one by one in a Document object.</p>
             
             <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> title = schema.get_field(<span class="hljs-string">"title"</span>).unwrap();
     <span class="hljs-keyword">let</span> body = schema.get_field(<span class="hljs-string">"body"</span>).unwrap();
-     
+
     <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> old_man_doc = Document::<span class="hljs-keyword">default</span>();
     old_man_doc.add_text(title, <span class="hljs-string">"The Old Man and the Sea"</span>);
-    old_man_doc.add_text(body, <span class="hljs-string">"He was an old man who fished alone in a skiff in the Gulf Stream and he had gone eighty-four days now without taking a fish."</span>);</pre></div></div>
+    old_man_doc.add_text(body,
+                         <span class="hljs-string">"He was an old man who fished alone in a skiff in the Gulf Stream and \
+                          he had gone eighty-four days now without taking a fish."</span>);</pre></div></div>
             
         </li>
         
@@ -231,7 +231,7 @@ one by one in a Document object.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(index_writer.add_document(old_man_doc));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    index_writer.add_document(old_man_doc);</pre></div></div>
             
         </li>
         
@@ -248,13 +248,13 @@ a document object directly from json.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    
+            <div class="content"><div class='highlight'><pre>
     <span class="hljs-keyword">let</span> mice_and_men_doc = <span class="hljs-built_in">try!</span>(schema.parse_document(r#<span class="hljs-string">"{
        "</span>title<span class="hljs-string">": "</span>Of Mice and Men<span class="hljs-string">",
        "</span>body<span class="hljs-string">": "</span>few miles south of Soledad, the Salinas River drops <span class="hljs-keyword">in</span> close to the hillside bank and runs deep and green. The water is warm too, <span class="hljs-keyword">for</span> it has slipped twinkling over the yellow sands <span class="hljs-keyword">in</span> the sunlight before reaching the narrow pool. On one side of the river the golden foothill slopes curve up to the strong and rocky Gabilan Mountains, but on the valley side the water is lined with trees—willows fresh and green with every spring, carrying <span class="hljs-keyword">in</span> their lower leaf junctures the debris of the winter’s flooding; and sycamores with mottled, white,recumbent limbs and branches that arch over the pool<span class="hljs-string">"  
     }"</span>#));
-    
-    <span class="hljs-built_in">try!</span>(index_writer.add_document(mice_and_men_doc));</pre></div></div>
+
+    index_writer.add_document(mice_and_men_doc);</pre></div></div>
             
         </li>
         
@@ -275,7 +275,7 @@ The following document has two titles.</p>
        "</span>title<span class="hljs-string">": ["</span>Frankenstein<span class="hljs-string">", "</span>The Modern Promotheus<span class="hljs-string">"],
        "</span>body<span class="hljs-string">": "</span>You will rejoice to hear that no disaster has accompanied the commencement of an enterprise which you have regarded with such evil forebodings.  I arrived here yesterday, and my first task is to assure my dear sister of my welfare and increasing confidence <span class="hljs-keyword">in</span> the success of my undertaking.<span class="hljs-string">"  
     }"</span>#));
-    <span class="hljs-built_in">try!</span>(index_writer.add_document(frankenstein_doc));</pre></div></div>
+    index_writer.add_document(frankenstein_doc);</pre></div></div>
             
         </li>
         
@@ -288,7 +288,7 @@ The following document has two titles.</p>
               </div>
               <p>This is an example, so we will only index 3 documents
 here. You can check out tantivy’s tutorial to index
-the English wikipedia. Tantivy’s indexing is rather fast. 
+the English wikipedia. Tantivy’s indexing is rather fast.
 Indexing 5 million articles of the English wikipedia takes
 around 4 minutes on my computer!</p>
 
@@ -343,15 +343,13 @@ commit.</p>
                 <a class="pilcrow" href="#section-17">&#182;</a>
               </div>
               <h1 id="searching">Searching</h1>
-<p>Let’s search our index. We start
-by creating a searcher. There can be more
-than one searcher at a time.</p>
-<p>You should create a searcher
-every time you start a “search query”.</p>
+<p>Let’s search our index. Start by reloading
+searchers in the index. This should be done
+after every commit().</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> searcher = index.searcher();</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(index.load_searchers());</pre></div></div>
             
         </li>
         
@@ -362,14 +360,13 @@ every time you start a “search query”.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-18">&#182;</a>
               </div>
-              <p>The query parser can interpret human queries.
-Here, if the user does not specify which
-field they want to search, tantivy will search
-in both title and body.</p>
+              <p>Afterwards create one (or more) searchers.</p>
+<p>You should create a searcher
+every time you start a “search query”.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> query_parser = QueryParser::new(index.schema(), <span class="hljs-built_in">vec!</span>(title, body));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> searcher = index.searcher();</pre></div></div>
             
         </li>
         
@@ -379,6 +376,24 @@ in both title and body.</p>
               
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-19">&#182;</a>
+              </div>
+              <p>The query parser can interpret human queries.
+Here, if the user does not specify which
+field they want to search, tantivy will search
+in both title and body.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> query_parser = QueryParser::new(index.schema(), <span class="hljs-built_in">vec!</span>[title, body]);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-20">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-20">&#182;</a>
               </div>
               <p>QueryParser may fail if the query is not in the right
 format. For user facing applications, this can be a problem.
@@ -391,11 +406,11 @@ A ticket has been opened regarding this problem.</p>
         </li>
         
         
-        <li id="section-20">
+        <li id="section-21">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-20">&#182;</a>
+                <a class="pilcrow" href="#section-21">&#182;</a>
               </div>
               <p>A query defines a set of documents, as
 well as the way they should be scored.</p>
@@ -408,36 +423,20 @@ any document matching at least one of our terms.</p>
         </li>
         
         
-        <li id="section-21">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-21">&#182;</a>
-              </div>
-              <h3 id="collectors">Collectors</h3>
-<p>We are not interested in all of the documents but 
-only in the top 10. Keeping track of our top 10 best documents
-is the role of the TopCollector.</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre>    
-    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> top_collector = TopCollector::with_limit(<span class="hljs-number">10</span>);</pre></div></div>
-            
-        </li>
-        
-        
         <li id="section-22">
             <div class="annotation">
               
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-22">&#182;</a>
               </div>
-              <p>We can now perform our query.</p>
+              <h3 id="collectors">Collectors</h3>
+<p>We are not interested in all of the documents but
+only in the top 10. Keeping track of our top 10 best documents
+is the role of the TopCollector.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(searcher.search(&amp;query, &amp;<span class="hljs-keyword">mut</span> top_collector)));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> top_collector = TopCollector::with_limit(<span class="hljs-number">10</span>);</pre></div></div>
             
         </li>
         
@@ -448,12 +447,11 @@ is the role of the TopCollector.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-23">&#182;</a>
               </div>
-              <p>Our top collector now contains the 10 
-most relevant doc ids…</p>
+              <p>We can now perform our query.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> doc_addresses = top_collector.docs();</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(searcher.search(&amp;*query, &amp;<span class="hljs-keyword">mut</span> top_collector));</pre></div></div>
             
         </li>
         
@@ -464,7 +462,23 @@ most relevant doc ids…</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-24">&#182;</a>
               </div>
-              <p>The actual documents still need to be 
+              <p>Our top collector now contains the 10
+most relevant doc ids…</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> doc_addresses = top_collector.docs();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-25">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-25">&#182;</a>
+              </div>
+              <p>The actual documents still need to be
 retrieved from Tantivy’s store.</p>
 <p>Since the body field was not configured as stored,
 the document returned will only contain
@@ -472,10 +486,10 @@ a title.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    
+            <div class="content"><div class='highlight'><pre>
     <span class="hljs-keyword">for</span> doc_address <span class="hljs-keyword">in</span> doc_addresses {
-         <span class="hljs-keyword">let</span> retrieved_doc = <span class="hljs-built_in">try!</span>(searcher.doc(&amp;doc_address));
-         <span class="hljs-built_in">println!</span>(<span class="hljs-string">"{}"</span>, schema.to_json(&amp;retrieved_doc));
+        <span class="hljs-keyword">let</span> retrieved_doc = <span class="hljs-built_in">try!</span>(searcher.doc(&amp;doc_address));
+        <span class="hljs-built_in">println!</span>(<span class="hljs-string">"{}"</span>, schema.to_json(&amp;retrieved_doc));
     }
 
     <span class="hljs-literal">Ok</span>(())

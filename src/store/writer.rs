@@ -2,12 +2,9 @@ use directory::WritePtr;
 use DocId;
 use schema::FieldValue;
 use common::BinarySerializable;
-use std::io::Write;
-use std::io;
-use error::Result;
+use std::io::{self, Write};
 use lz4;
 use datastruct::SkipListBuilder;
-use super::StoreReader;
 
 const BLOCK_SIZE: usize = 16_384;
 
@@ -31,17 +28,6 @@ impl StoreWriter {
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
         }
-    }
-
-    pub fn stack_reader(&mut self, reader: &StoreReader) -> Result<()> {
-        for doc_id in 0..reader.max_doc {
-            let doc = try!(reader.get(doc_id));
-            let field_values: Vec<&FieldValue> = doc.field_values()
-                .iter()
-                .collect();
-            try!(self.store(&field_values));
-        }
-        Ok(())
     }
 
     pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {

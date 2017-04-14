@@ -1,44 +1,45 @@
-
 use super::NUM_DOCS_PER_BLOCK;
-
-use libc::size_t;
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1; 
 
-extern {
-    fn compress_sorted_cpp(
-        data: *const u32,
-        output: *mut u8,
-        offset: u32) -> size_t;
+mod simdcomp {
+    use libc::size_t;
 
-    fn uncompress_sorted_cpp(
-        compressed_data: *const u8,
-        output: *mut u32,
-        offset: u32) -> size_t;
-        
-    fn compress_unsorted_cpp(
-        data: *const u32,
-        output: *mut u8) -> size_t;
+    extern {
+        pub fn compress_sorted(
+            data: *const u32,
+            output: *mut u8,
+            offset: u32) -> size_t;
 
-    fn uncompress_unsorted_cpp(
-        compressed_data: *const u8,
-        output: *mut u32) -> size_t;
+        pub fn uncompress_sorted(
+            compressed_data: *const u8,
+            output: *mut u32,
+            offset: u32) -> size_t;
+            
+        pub fn compress_unsorted(
+            data: *const u32,
+            output: *mut u8) -> size_t;
+
+        pub fn uncompress_unsorted(
+            compressed_data: *const u8,
+            output: *mut u32) -> size_t;
+    }
 }
 
 fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
-    unsafe { compress_sorted_cpp(vals.as_ptr(), output.as_mut_ptr(), offset) }
+    unsafe { simdcomp::compress_sorted(vals.as_ptr(), output.as_mut_ptr(), offset) }
 }
 
 fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32) -> usize {
-    unsafe { uncompress_sorted_cpp(compressed_data.as_ptr(), output.as_mut_ptr(), offset) }
+    unsafe { simdcomp::uncompress_sorted(compressed_data.as_ptr(), output.as_mut_ptr(), offset) }
 }
 
 fn compress_unsorted(vals: &[u32], output: &mut [u8]) -> usize {
-    unsafe { compress_unsorted_cpp(vals.as_ptr(), output.as_mut_ptr()) }
+    unsafe { simdcomp::compress_unsorted(vals.as_ptr(), output.as_mut_ptr()) }
 }
 
 fn uncompress_unsorted(compressed_data: &[u8], output: &mut [u32]) -> usize {
-    unsafe { uncompress_unsorted_cpp(compressed_data.as_ptr(), output.as_mut_ptr()) }
+    unsafe { simdcomp::uncompress_unsorted(compressed_data.as_ptr(), output.as_mut_ptr()) }
 }
 
 

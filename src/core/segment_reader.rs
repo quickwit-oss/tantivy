@@ -3,17 +3,18 @@ use core::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
+use common::HasLen;
+use core::SegmentMeta;
+use fastfield::delete::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
-use std::io;
 use std::str;
 use postings::TermInfo;
 use datastruct::TermDictionary;
+use std::sync::Arc;
 use std::fmt;
-use rustc_serialize::json;
-use core::SegmentInfo;
 use schema::Field;
 use postings::{SegmentPostings, BlockSegmentPostings, SegmentPostingsOption};
 use fastfield::{U32FastFieldsReader, U32FastFieldReader};
@@ -21,8 +22,6 @@ use schema::Schema;
 use schema::FieldType;
 use postings::FreqHandler;
 use schema::TextIndexingOptions;
-use error::Error;
-
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -35,14 +34,16 @@ use error::Error;
 /// The segment reader has a very low memory footprint,
 /// as close to all of the memory data is mmapped.
 ///
+#[derive(Clone)]
 pub struct SegmentReader {
-    segment_info: SegmentInfo,
     segment_id: SegmentId,
-    term_infos: TermDictionary<TermInfo>,
+    segment_meta: SegmentMeta,
+    term_infos: Arc<TermDictionary<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
-    fast_fields_reader: U32FastFieldsReader,
-    fieldnorms_reader: U32FastFieldsReader,
+    fast_fields_reader: Arc<U32FastFieldsReader>,
+    fieldnorms_reader: Arc<U32FastFieldsReader>,
+    delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
 }
@@ -53,7 +54,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes, so it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
-        self.segment_info.max_doc
+        self.segment_meta.max_doc()
     }
     
 
@@ -67,20 +68,39 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_info.max_doc
+        self.segment_meta.num_docs()
     }
     
+    /// Return the number of documents that have been
+    /// deleted in the segment.
+    pub fn num_deleted_docs(&self) -> DocId {
+        self.delete_bitset.len() as DocId
+    }
+
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fast_field_reader(&self, field: Field) -> Option<U32FastFieldReader> {
+        /// Returns the u32 fast value reader if the field
+        /// is a u32 field indexed as "fast".
+        ///
+        /// Return None if the field is not a u32 field
+        /// indexed with the fast option.
+        ///
+        /// # Panics
+        /// May panic if the index is corrupted.
         let field_entry = self.schema.get_field_entry(field);
-        match *field_entry.field_type() {
-            FieldType::Str(_) => {
-                Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
+        match field_entry.field_type() {
+            &FieldType::Str(_) => {
+                warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
+                None
             },
-            FieldType::U32(_) => {
-                // TODO check that the schema allows that
-                //Err(io::Error::new(io::ErrorKind::Other, "fast field are not yet supported for text fields."))
-                self.fast_fields_reader.get_field(field)
+            &FieldType::U32(ref u32_options) => {
+                if u32_options.is_fast() {
+                    self.fast_fields_reader.get_field(field)
+                }
+                else {
+                    warn!("Field <{}> is not defined as a fast field.", field_entry.name());
+                    None
+                }
             },
         }
     }
@@ -92,7 +112,7 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in 
     /// the `.fieldnorm` file of the segment. 
-    pub fn get_fieldnorms_reader(&self, field: Field) -> io::Result<U32FastFieldReader> {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U32FastFieldReader> {
         self.fieldnorms_reader.get_field(field) 
     }
         
@@ -111,21 +131,7 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
-        let segment_info_reader = try!(segment.open_read(SegmentComponent::INFO));
-        let segment_info_data = try!(
-            str::from_utf8(&*segment_info_reader)
-                .map_err(|err| {
-                    let segment_info_filepath = segment.relative_path(SegmentComponent::INFO);
-                    Error::CorruptedFile(segment_info_filepath, Box::new(err))
-                })
-         );
-        let segment_info: SegmentInfo = try!(
-            json::decode(&segment_info_data)
-            .map_err(|err| {
-                let file_path = segment.relative_path(SegmentComponent::INFO);
-                Error::CorruptedFile(file_path, Box::new(err))
-            })
-        );
+
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let term_infos = try!(TermDictionary::from_source(source));
         let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
@@ -141,15 +147,25 @@ impl SegmentReader {
             .open_read(SegmentComponent::POSITIONS)
             .unwrap_or_else(|_| ReadOnlySource::empty());
         
+        let delete_bitset =
+            if segment.meta().has_deletes() {
+                let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+                DeleteBitSet::open(delete_data)
+            }
+            else {
+                DeleteBitSet::empty()
+            };
+        
         let schema = segment.schema();
         Ok(SegmentReader {
-            segment_info: segment_info,
+            segment_meta: segment.meta().clone(),
             postings_data: postings_shared_mmap,
-            term_infos: term_infos,
+            term_infos: Arc::new(term_infos),
             segment_id: segment.id(),
             store_reader: store_reader,
-            fast_fields_reader: fast_fields_reader,
-            fieldnorms_reader: fieldnorms_reader,
+            fast_fields_reader: Arc::new(fast_fields_reader),
+            fieldnorms_reader: Arc::new(fieldnorms_reader),
+            delete_bitset: delete_bitset,
             positions_data: positions_data,
             schema: schema,
         })
@@ -237,10 +253,17 @@ impl SegmentReader {
     /// that does not index position will return a `SegmentPostings` with `DocId`s and frequencies.
     pub fn read_postings(&self, term: &Term, option: SegmentPostingsOption) -> Option<SegmentPostings> {
         self.read_block_postings(term, option)
-            .map(SegmentPostings::from_block_postings)
+            .map(|block_postings| {
+                 SegmentPostings::from_block_postings(block_postings, self.delete_bitset.clone())
+            })
     }
-        
+    
+
     /// Returns the posting list associated with a term.
+    ///
+    /// If the term is not found, return None.
+    /// Even when non-null, because of deletes, the posting object 
+    /// returned by this method may contain no documents.
     pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
         let field_entry = self.schema.get_field_entry(term.field());
         let segment_posting_option = match *field_entry.field_type() {
@@ -259,6 +282,24 @@ impl SegmentReader {
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
         self.term_infos.get(term.as_slice())
+    }
+
+    /// Returns the segment id
+    pub fn segment_id(&self) -> SegmentId {
+        self.segment_id
+    }
+
+    /// Returns the bitset representing
+    /// the documents that have been deleted.
+    pub fn delete_bitset(&self) -> &DeleteBitSet {
+        &self.delete_bitset
+    }
+
+
+    /// Returns true iff the `doc` is marked
+    /// as deleted.
+    pub fn is_deleted(&self, doc: DocId) -> bool {
+        self.delete_bitset.is_deleted(doc)
     }
 }
 

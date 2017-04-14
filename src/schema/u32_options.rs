@@ -1,3 +1,5 @@
+use std::ops::BitOr;
+
 /// Define how a U32 field should be handled by tantivy.
 #[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
 pub struct U32Options {
@@ -65,9 +67,43 @@ impl Default for U32Options {
 }
 
 
-/// Shortcut for   
+/// Shortcut for a u32 fast field.
+///
+/// Such a shortcut can be composed as follows `STORED | FAST | U32_INDEXED`
 pub const FAST: U32Options = U32Options {
     indexed: false,
     stored: false,
     fast: true,
 };
+
+/// Shortcut for a u32 indexed field.
+///
+/// Such a shortcut can be composed as follows `STORED | FAST | U32_INDEXED`
+pub const U32_INDEXED: U32Options = U32Options {
+    indexed: true,
+    stored: false,
+    fast: false,
+};
+
+/// Shortcut for a u32 stored field. 
+///
+/// Such a shortcut can be composed as follows `STORED | FAST | U32_INDEXED`
+pub const U32_STORED: U32Options = U32Options {
+    indexed: false,
+    stored: true,
+    fast: false,
+};
+
+
+impl BitOr for U32Options {
+
+    type Output = U32Options;
+
+    fn bitor(self, other: U32Options) -> U32Options {
+        let mut res = U32Options::default();
+        res.indexed = self.indexed | other.indexed;
+        res.stored = self.stored | other.stored;
+        res.fast = self.fast | other.fast;
+        res
+    }
+}

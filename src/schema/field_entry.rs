@@ -54,7 +54,7 @@ impl FieldEntry {
     pub fn is_indexed(&self,) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
-            _ => false, // TODO handle u32 indexed
+            FieldType::U32(ref options) => options.is_indexed(),
         }
     }
     

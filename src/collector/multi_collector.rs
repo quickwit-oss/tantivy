@@ -1,7 +1,7 @@
-use std::io;
 use super::Collector;
 use DocId;
 use Score;
+use Result;
 use SegmentReader;
 use SegmentLocalId;
 
@@ -25,7 +25,7 @@ impl<'a> MultiCollector<'a> {
 
 
 impl<'a> Collector for MultiCollector<'a> {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()> {
         for collector in &mut self.collectors {
             try!(collector.set_segment(segment_local_id, segment));
         }

@@ -206,7 +206,7 @@ impl BitOr for TextOptions {
     fn bitor(self, other: TextOptions) -> TextOptions {
         let mut res = TextOptions::default();
         res.indexing = self.indexing | other.indexing;
-        res.stored = self.stored || other.stored;
+        res.stored = self.stored | other.stored;
         res
     }
 }

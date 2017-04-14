@@ -101,7 +101,7 @@ impl<'a> TermIterator<'a> {
         for segment_ord in self.current_segment_ords.drain(..) {
             if let Some((term, val)) = self.key_streams[segment_ord].next() {
                 self.heap.push(HeapItem {
-                    term: Term::from(term),
+                    term: Term::from_bytes(term),
                     segment_ord: segment_ord,
                 });
             }
@@ -150,7 +150,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b d f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }
@@ -158,7 +158,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }
@@ -166,11 +166,12 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "e f");
-                    index_writer.add_document(doc).unwrap();
+                    index_writer.add_document(doc);
                 }
                 index_writer.commit().unwrap();
             }
         }
+        index.load_searchers().unwrap();
         let searcher = index.searcher();
         let mut term_it = searcher.terms();
         let mut terms = String::new();
