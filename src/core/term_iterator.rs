@@ -99,7 +99,7 @@ impl<'a> TermIterator<'a> {
 
     fn advance_segments(&mut self) {
         for segment_ord in self.current_segment_ords.drain(..) {
-            if let Some((term, val)) = self.key_streams[segment_ord].next() {
+            if let Some((term, _val)) = self.key_streams[segment_ord].next() {
                 self.heap.push(HeapItem {
                     term: Term::from_bytes(term),
                     segment_ord: segment_ord,

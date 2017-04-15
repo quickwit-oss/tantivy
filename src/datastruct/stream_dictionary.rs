@@ -266,7 +266,7 @@ fn get_offset<'a, V, P: Fn(&[u8])->bool>(predicate: P, mut streamer: StreamDicti
 
 impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerBuilder<'a, V> {
     pub fn ge(mut self, target_key: &[u8]) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let mut streamer = stream_before(&self.stream_dictionary, target_key.as_ref());
+        let streamer = stream_before(&self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.lt(target_key) };
         let (offset_before, current_key, _) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
@@ -275,7 +275,7 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
     }
 
     pub fn gt(mut self, target_key: &[u8]) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let mut streamer = stream_before(self.stream_dictionary, target_key.as_ref());
+        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.le(target_key) };
         let (offset_before, current_key, _) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
@@ -284,7 +284,7 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
     }
 
     pub fn lt(mut self, target_key: &[u8]) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let mut streamer = stream_before(self.stream_dictionary, target_key.as_ref());
+        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.le(target_key) };
         let (_, _, offset_after) = get_offset(smaller_than, streamer);
         self.offset_to = offset_after;
@@ -292,7 +292,7 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
     }
 
     pub fn le(mut self, target_key: &[u8]) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let mut streamer = stream_before(self.stream_dictionary, target_key.as_ref());
+        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.lt(target_key) };
         let (_, _, offset_after) = get_offset(smaller_than, streamer);
         self.offset_to = offset_after;
@@ -408,7 +408,7 @@ mod test {
                 for j in 0..3 {
                     let (streamer_k, streamer_v) = streamer.next().unwrap();
                     let &(ref key, ref v) = &ids[i + j];
-                    assert_eq!(streamer_k, key.as_bytes());
+                    assert_eq!(str::from_utf8(streamer_k).unwrap(), key);
                     assert_eq!(streamer_v, v);
                 }
             }

@@ -47,8 +47,8 @@ mod test {
 
     #[test]
     fn test_counting_writer() {
-        let mut w: Vec<u8> = vec!();
-        let mut counting_writer = CountingWriter::wrap(w);
+        let buffer: Vec<u8> = vec!();
+        let mut counting_writer = CountingWriter::wrap(buffer);
         let bytes = (0u8..10u8).collect::<Vec<u8>>();
         counting_writer.write_all(&bytes).unwrap();
         let (w, len): (Vec<u8>, usize) = counting_writer.finish().unwrap();
