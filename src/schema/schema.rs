@@ -89,7 +89,7 @@ impl SchemaBuilder {
     
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
-        let field = Field(self.fields.len() as u8);
+        let field = Field(self.fields.len() as u32);
         let field_name = field_entry.name().clone();
         self.fields.push(field_entry);
         self.fields_map.insert(field_name, field);

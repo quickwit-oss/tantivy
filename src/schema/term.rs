@@ -24,13 +24,14 @@ impl Term {
 
     /// Set the content of the term.
     pub fn set_content(&mut self, content: &[u8]) {
+        assert!(content.len() >= 4);
         self.0.resize(content.len(), 0u8);
         (&mut self.0[..]).clone_from_slice(content);
     }
     
     /// Returns the field id.
-    fn field_id(&self,) -> u8 {
-        self.0[0]
+    fn field_id(&self,) -> u32 {
+        BigEndian::read_u32(&self.0[..4])
     }
 
     /// Returns the field.
@@ -41,15 +42,17 @@ impl Term {
     /// Builds a term given a field, and a u32-value
     ///
     /// Assuming the term has a field id of 1, and a u32 value of 3234,
-    /// the Term will have 5 bytes.
-    /// The first byte is `1`, and the 4 following bytes are that of the u32.
+    /// the Term will have 8 bytes.
+    /// 
+    /// The first four byte are dedicated to storing the field id as a u32.
+    /// The 4 following bytes are encoding the u32 value.
     pub fn from_field_u32(field: Field, val: u32) -> Term {
-        const U32_TERM_LEN: usize = 1 + 4;
+        const U32_TERM_LEN: usize = 4 + 4;
         let mut buffer = allocate_vec(U32_TERM_LEN);
-        buffer[0] = field.0;
         // we want BigEndian here to have lexicographic order
-        // match the natural order of vals.
-        BigEndian::write_u32(&mut buffer[1..5], val);
+        // match the natural order of `(field, val)`
+        BigEndian::write_u32(&mut buffer[0..4], field.0);
+        BigEndian::write_u32(&mut buffer[4..], val);
         Term(buffer)
     }
     
@@ -60,10 +63,9 @@ impl Term {
     /// The first byte is 2, and the three following bytes are the utf-8 
     /// representation of "abc".
     pub fn from_field_text(field: Field, text: &str) -> Term {
-        let mut buffer = Vec::with_capacity(1 + text.len());
-        buffer.clear();
-        field.serialize(&mut buffer).unwrap();
-        buffer.extend(text.as_bytes());
+        let mut buffer = allocate_vec(4 + text.len());
+        BigEndian::write_u32(&mut buffer[0..4], field.0);
+        buffer[4..].clone_from_slice(text.as_bytes());
         Term(buffer)
     }
 
@@ -71,7 +73,7 @@ impl Term {
     ///
     /// Panics if the term is not a u32 field.
     pub fn get_u32(&self) -> u32 {
-        BigEndian::read_u32(&self.0[1..])
+        BigEndian::read_u32(&self.0[4..])
     }
     
     /// Builds a term from its byte representation.
@@ -89,7 +91,7 @@ impl Term {
     /// If the term is a u32, its value is encoded according
     /// to `byteorder::LittleEndian`. 
     pub fn value(&self) -> &[u8] {
-        &self.0[1..]
+        &self.0[4..]
     }
 
     /// Returns the text associated with the term.
@@ -104,7 +106,7 @@ impl Term {
 
     /// Set the texts only, keeping the field untouched. 
     pub fn set_text(&mut self, text: &str) {
-        self.0.resize(1, 0u8);
+        self.0.resize(4, 0u8);
         self.0.extend(text.as_bytes());
     }
     
@@ -141,18 +143,18 @@ mod tests {
         {
             let term = Term::from_field_text(title_field, "test");
             assert_eq!(term.field(), title_field);
-            assert_eq!(term.as_slice()[0], 1u8);
-            assert_eq!(&term.as_slice()[1..], "test".as_bytes());
+            assert_eq!(&term.as_slice()[0..4], &[0u8,0u8,0u8,1u8]);
+            assert_eq!(&term.as_slice()[4..], "test".as_bytes());
         }
         {
             let term = Term::from_field_u32(count_field, 983u32);
             assert_eq!(term.field(), count_field);
-            assert_eq!(term.as_slice()[0], 2u8);
-            assert_eq!(term.as_slice().len(), 5);
-            assert_eq!(term.as_slice()[1], 0u8);
-            assert_eq!(term.as_slice()[2], 0u8);
-            assert_eq!(term.as_slice()[3], (933u32 / 256u32) as u8);
-            assert_eq!(term.as_slice()[4], (983u32 % 256u32) as u8);
+            assert_eq!(&term.as_slice()[0..4], &[0u8, 0u8, 0u8, 2u8]);
+            assert_eq!(term.as_slice().len(), 8);
+            assert_eq!(term.as_slice()[4], 0u8);
+            assert_eq!(term.as_slice()[5], 0u8);
+            assert_eq!(term.as_slice()[6], (933u32 / 256u32) as u8);
+            assert_eq!(term.as_slice()[7], (983u32 % 256u32) as u8);
         }
                 
     }

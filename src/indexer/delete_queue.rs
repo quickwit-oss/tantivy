@@ -280,7 +280,7 @@ mod tests {
         let delete_queue = DeleteQueue::new();
         
         let make_op = |i: usize| {
-            let field = Field(1u8);
+            let field = Field(1u32);
             DeleteOperation {
                 opstamp: i as u64,
                 term: Term::from_field_u32(field, i as u32)

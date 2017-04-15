@@ -11,7 +11,7 @@ use common::BinarySerializable;
 /// Because the field id is a `u8`, tantivy can only have at most `255` fields.
 /// Value 255 is reserved.
 #[derive(Copy, Clone, Debug, PartialEq,PartialOrd,Eq,Ord,Hash, RustcEncodable, RustcDecodable)]
-pub struct Field(pub u8);
+pub struct Field(pub u32);
 
 impl BinarySerializable for Field {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
@@ -19,7 +19,7 @@ impl BinarySerializable for Field {
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<Field> {
-        u8::deserialize(reader).map(Field)
+        u32::deserialize(reader).map(Field)
     }
 }
 
