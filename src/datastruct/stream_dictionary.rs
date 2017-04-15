@@ -252,7 +252,8 @@ fn get_offset<'a, V, P: Fn(&[u8])->bool>(predicate: P, mut streamer: StreamDicti
     where V: 'a + BinarySerializable + Clone + Default {
     // let mut streamer = stream_dictionary.stream_before(target_key.as_ref());
     let mut prev: &[u8] = streamer.cursor;
-    let mut prev_data: Vec<u8> = vec!();
+    
+    let mut prev_data: Vec<u8> = streamer.current_key.clone();
     while let Some((iter_key, _)) = streamer.next() {
         if !predicate(iter_key) {
             return (prev.as_ptr() as usize, prev_data, streamer.cursor.as_ptr() as usize);
@@ -326,7 +327,7 @@ impl<'a, V: BinarySerializable> StreamDictionaryStreamer<'a, V> {
         }
         let common_length: usize = VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
         let new_length: usize = common_length + VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
-        self.current_key.reserve(new_length); // TODO check if we can do better.
+        self.current_key.reserve(new_length);
         unsafe {
             self.current_key.set_len(new_length);
         }
@@ -383,6 +384,8 @@ mod test {
         stream_dictionary.get(key.as_bytes());
     }
 
+
+
     #[test]
     fn test_stream_range() {
         let ids: Vec<_> = (0u32..10_000u32)
@@ -396,7 +399,7 @@ mod test {
             stream_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-
+        
         let stream_dictionary: StreamDictionary<u32> = StreamDictionary::from_source(source).unwrap();
         {
             for i in (0..20).chain((BLOCK_SIZE - 10..BLOCK_SIZE + 10)) {
@@ -447,7 +450,7 @@ mod test {
                 }
             }
         }
+        
     }
-
     
 }
