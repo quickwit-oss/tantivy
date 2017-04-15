@@ -75,7 +75,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 20 as usize);
+            assert_eq!(source.len(), 23 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
@@ -108,7 +108,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 45 as usize);
+            assert_eq!(source.len(), 48 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();
@@ -143,7 +143,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 18 as usize);
+            assert_eq!(source.len(), 21 as usize);
         }
         {
             let fast_field_readers = U32FastFieldsReader::open(source).unwrap();

@@ -103,7 +103,7 @@ impl IndexMerger {
                          .iter()
                          .enumerate()
                          .filter(|&(_, field_entry)| field_entry.is_indexed())
-                         .map(|(field_id, _)| Field(field_id as u8))
+                         .map(|(field_id, _)| Field(field_id as u32))
                          .collect();
         self.generic_write_fast_field(fieldnorm_fastfields, &extract_fieldnorm_reader, fast_field_serializer)
     }
@@ -114,7 +114,7 @@ impl IndexMerger {
                          .iter()
                          .enumerate()
                          .filter(|&(_, field_entry)| field_entry.is_u32_fast())
-                         .map(|(field_id, _)| Field(field_id as u8))
+                         .map(|(field_id, _)| Field(field_id as u32))
                          .collect();
         self.generic_write_fast_field(fast_fields, &extract_fast_field_reader, fast_field_serializer)
     }

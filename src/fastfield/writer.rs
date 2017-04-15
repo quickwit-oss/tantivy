@@ -15,7 +15,7 @@ impl U32FastFieldsWriter {
             .iter()
             .enumerate()
             .filter(|&(_, field_entry)| field_entry.is_u32_fast()) 
-            .map(|(field_id, _)| Field(field_id as u8))
+            .map(|(field_id, _)| Field(field_id as u32))
             .collect();
         U32FastFieldsWriter::new(u32_fields)
     }
