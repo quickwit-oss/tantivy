@@ -4,7 +4,8 @@ mod build {
 
     pub fn build() {
         let mut config = gcc::Config::new();
-        config.include("./cpp/simdcomp/include")
+        config
+            .include("./cpp/simdcomp/include")
             .file("cpp/simdcomp/src/avxbitpacking.c")
             .file("cpp/simdcomp/src/simdintegratedbitpacking.c")
             .file("cpp/simdcomp/src/simdbitpacking.c")
@@ -12,22 +13,31 @@ mod build {
             .file("cpp/simdcomp/src/simdcomputil.c")
             .file("cpp/simdcomp/src/simdpackedselect.c")
             .file("cpp/simdcomp/src/simdfor.c")
-            .file("cpp/simdcomp_wrapper.c");
+            .file("cpp/simdcomp_wrapper.c")
+            .include("./cpp/streamvbyte/include")
+            .file("cpp/streamvbyte/src/streamvbyte.c")
+            .file("cpp/streamvbyte/src/streamvbytedelta.c")
+           ;
 
         if !cfg!(debug_assertions) {
             config.opt_level(3);
 
             if cfg!(target_env = "msvc") {
-                config.define("NDEBUG", None)
+                config
+                    .define("NDEBUG", None)
                     .flag("/Gm-")
                     .flag("/GS-")
                     .flag("/Gy")
                     .flag("/Oi")
                     .flag("/GL");
-            } else {
-                config.flag("-msse4.1")
-                    .flag("-march=native");
             }
+        }
+
+        if !cfg!(target_env = "msvc") {
+            config
+                .flag("-msse4.1")
+                .flag("-march=native")
+                .flag("-std=c99");
         }
 
         config.compile("libsimdcomp.a");

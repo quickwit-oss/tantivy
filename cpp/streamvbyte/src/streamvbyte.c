@@ -345,7 +345,7 @@ static uint8_t *svb_encode_scalar(const uint32_t *in,
 
 // Encode an array of a given length read from in to bout in streamvbyte format.
 // Returns the number of bytes written.
-size_t streamvbyte_encode(uint32_t *in, uint32_t count, uint8_t *out) {
+size_t streamvbyte_encode(const uint32_t *in, uint32_t count, uint8_t *out) {
 	uint8_t *keyPtr = out;
 	uint32_t keyLen = (count + 3) / 4; // 2-bits rounded to full byte
 	uint8_t *dataPtr = keyPtr + keyLen; // variable byte data after all keys

@@ -9,7 +9,7 @@
 
 // Encode an array of a given length read from in to bout in varint format.
 // Returns the number of bytes written.
-size_t streamvbyte_encode(uint32_t *in, uint32_t length, uint8_t *out);
+size_t streamvbyte_encode(const uint32_t *in, uint32_t length, uint8_t *out);
 
 // Read "length" 32-bit integers in varint format from in, storing the result in out.
 // Returns the number of bytes read.

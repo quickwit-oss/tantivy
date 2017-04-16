@@ -67,7 +67,7 @@ mod tests {
         posting_serializer.close_term().unwrap();
         posting_serializer.close().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
-        assert_eq!(read.len(), 13);
+        assert!(read.len() <= 16);
     }
     
     #[test]

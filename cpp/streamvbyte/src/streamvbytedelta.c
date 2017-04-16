@@ -344,7 +344,7 @@ static uint8_t *svb_encode_scalar_d1_init(const uint32_t *in,
 	return dataPtr; // pointer to first unused data byte
 }
 
-size_t streamvbyte_delta_encode(uint32_t *in, uint32_t count, uint8_t *out,
+size_t streamvbyte_delta_encode(const uint32_t *in, uint32_t count, uint8_t *out,
 		uint32_t prev) {
 	uint8_t *keyPtr = out;         // keys come immediately after 32-bit count
 	uint32_t keyLen = (count + 3) / 4; // 2-bits rounded to full byte
