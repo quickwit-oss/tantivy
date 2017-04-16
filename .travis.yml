@@ -1,0 +1,7 @@
+language: c
+sudo: false
+compiler:
+  - gcc
+  - clang
+
+script: make && ./unit
