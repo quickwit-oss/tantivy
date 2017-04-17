@@ -19,13 +19,13 @@ mod pack {
 
 pub use self::pack::{BlockEncoder, BlockDecoder};
 
-#[cfg(not(feature="simdcompression"))]
+#[cfg( any(not(feature="simdcompression"), target_env="msvc") )]
 mod vint {
     mod compression_vint_nosimd;
     pub use self::compression_vint_nosimd::*;
 }
 
-#[cfg(feature="simdcompression")]
+#[cfg( all(feature="simdcompression", not(target_env="msvc")) )]
 mod vint {
     mod compression_vint_simd;
     pub use self::compression_vint_simd::*;

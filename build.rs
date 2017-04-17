@@ -13,11 +13,7 @@ mod build {
             .file("cpp/simdcomp/src/simdcomputil.c")
             .file("cpp/simdcomp/src/simdpackedselect.c")
             .file("cpp/simdcomp/src/simdfor.c")
-            .file("cpp/simdcomp_wrapper.c")
-            .include("./cpp/streamvbyte/include")
-            .file("cpp/streamvbyte/src/streamvbyte.c")
-            .file("cpp/streamvbyte/src/streamvbytedelta.c")
-           ;
+            .file("cpp/simdcomp_wrapper.c");
 
         if !cfg!(debug_assertions) {
             config.opt_level(3);
@@ -35,6 +31,9 @@ mod build {
 
         if !cfg!(target_env = "msvc") {
             config
+                .include("./cpp/streamvbyte/include")
+                .file("cpp/streamvbyte/src/streamvbyte.c")
+                .file("cpp/streamvbyte/src/streamvbytedelta.c")
                 .flag("-msse4.1")
                 .flag("-march=native")
                 .flag("-std=c99");
