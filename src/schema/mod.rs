@@ -7,7 +7,7 @@ Tantivy has a very strict schema.
 The schema defines information about the fields your index contains, that is, for each field :
 
 * the field name (may only contain letters `[a-zA-Z]`, number `[0-9]`, and `_`)
-* the type of the field (currently only  `text` and `u32` are supported)
+* the type of the field (currently only  `text` and `u64` are supported)
 * how the field should be indexed / stored.
     
 This very last point is critical as it will enable / disable some of the functionality
@@ -64,17 +64,17 @@ let schema = schema_builder.build();
 
 
 
-## Setting a u32 field
+## Setting a u64 field
 
 ### Example
 
 ```
 use tantivy::schema::*;
 let mut schema_builder = SchemaBuilder::default();
-let num_stars_options = U32Options::default()
+let num_stars_options = U64Options::default()
     .set_stored()
     .set_indexed();
-schema_builder.add_u32_field("num_stars", num_stars_options);
+schema_builder.add_u64_field("num_stars", num_stars_options);
 let schema = schema_builder.build();
 ```
 
@@ -82,15 +82,15 @@ Just like for Text fields (see above),
 setting the field as stored defines whether the field will be
 returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called, 
 and setting the field as indexed means that we will be able perform queries such as `num_stars:10`.
-Note that unlike text fields, u32 can only be indexed in one way for the moment. 
+Note that unlike text fields, u64 can only be indexed in one way for the moment. 
 This may change when we will start supporting range queries.
 
-The `fast` option on the other hand is specific to u32 fields, and is only relevant 
+The `fast` option on the other hand is specific to u64 fields, and is only relevant 
 if you are implementing your own queries. This functionality is somewhat similar to Lucene's 
 `DocValues`.
 
-u32 that are indexed as fast will be stored in a special data structure that will
-make it possible to access the u32 value given the doc id rapidly. This is useful if the value of
+u64 that are indexed as fast will be stored in a special data structure that will
+make it possible to access the u64 value given the doc id rapidly. This is useful if the value of
 the field is required during scoring or collection for instance.
 
 */ 
@@ -104,7 +104,7 @@ mod field_entry;
 mod field_value;
 
 mod text_options;
-mod u32_options;
+mod u64_options;
 mod field;
 mod value;
 mod named_field_document;
@@ -129,10 +129,10 @@ pub use self::text_options::TEXT;
 pub use self::text_options::STRING;
 pub use self::text_options::STORED;
 
-pub use self::u32_options::U32Options;
-pub use self::u32_options::FAST;
-pub use self::u32_options::U32_INDEXED;
-pub use self::u32_options::U32_STORED;
+pub use self::u64_options::U64Options;
+pub use self::u64_options::FAST;
+pub use self::u64_options::U64_INDEXED;
+pub use self::u64_options::U64_STORED;
 
 use regex::Regex;
 

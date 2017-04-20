@@ -1,13 +1,13 @@
 use Score;
 use DocId;
-use fastfield::U32FastFieldReader;
+use fastfield::U64FastFieldReader;
 use postings::DocSet;
 use query::Scorer;
 use postings::Postings;
 
 pub struct TermScorer<TPostings> where TPostings: Postings {
     pub idf: Score,
-    pub fieldnorm_reader_opt: Option<U32FastFieldReader>,
+    pub fieldnorm_reader_opt: Option<U64FastFieldReader>,
     pub postings: TPostings,
 }
 
