@@ -4,32 +4,32 @@ use std::io;
 use schema::Value;
 use DocId;
 
-pub struct U32FastFieldsWriter {
-    field_writers: Vec<U32FastFieldWriter>,
+pub struct U64FastFieldsWriter {
+    field_writers: Vec<U64FastFieldWriter>,
 }
 
-impl U32FastFieldsWriter {
+impl U64FastFieldsWriter {
 
-    pub fn from_schema(schema: &Schema) -> U32FastFieldsWriter {
-        let u32_fields: Vec<Field> = schema.fields()
+    pub fn from_schema(schema: &Schema) -> U64FastFieldsWriter {
+        let u64_fields: Vec<Field> = schema.fields()
             .iter()
             .enumerate()
-            .filter(|&(_, field_entry)| field_entry.is_u32_fast()) 
+            .filter(|&(_, field_entry)| field_entry.is_u64_fast()) 
             .map(|(field_id, _)| Field(field_id as u32))
             .collect();
-        U32FastFieldsWriter::new(u32_fields)
+        U64FastFieldsWriter::new(u64_fields)
     }
 
-    pub fn new(fields: Vec<Field>) -> U32FastFieldsWriter {
-        U32FastFieldsWriter {
+    pub fn new(fields: Vec<Field>) -> U64FastFieldsWriter {
+        U64FastFieldsWriter {
             field_writers: fields
                 .into_iter()
-                .map(U32FastFieldWriter::new)
+                .map(U64FastFieldWriter::new)
                 .collect(),
         }
     }
     
-    pub fn get_field_writer(&mut self, field: Field) -> Option<&mut U32FastFieldWriter> {
+    pub fn get_field_writer(&mut self, field: Field) -> Option<&mut U64FastFieldWriter> {
         self.field_writers
             .iter_mut()
             .find(|field_writer| field_writer.field == field)
@@ -60,14 +60,14 @@ impl U32FastFieldsWriter {
     }
 }
 
-pub struct U32FastFieldWriter {
+pub struct U64FastFieldWriter {
     field: Field,
-    vals: Vec<u32>,
+    vals: Vec<u64>,
 }
 
-impl U32FastFieldWriter {
-    pub fn new(field: Field) -> U32FastFieldWriter {
-        U32FastFieldWriter {
+impl U64FastFieldWriter {
+    pub fn new(field: Field) -> U64FastFieldWriter {
+        U64FastFieldWriter {
             field: field,
             vals: Vec::new(),
         }
@@ -81,24 +81,24 @@ impl U32FastFieldWriter {
         let target = doc as usize + 1;
         debug_assert!(self.vals.len() <= target);
         while self.vals.len() < target {
-            self.add_val(0u32)
+            self.add_val(0u64)
         }
     }
     
-    pub fn add_val(&mut self, val: u32) {
+    pub fn add_val(&mut self, val: u64) {
         self.vals.push(val);
     }
     
-    fn extract_val(&self, doc: &Document) -> u32 {
+    fn extract_val(&self, doc: &Document) -> u64 {
         match doc.get_first(self.field) {
             Some(v) => {
                 match *v {
-                    Value::U32(ref val) => { *val }
-                    _ => { panic!("Expected a u32field, got {:?} ", v) }
+                    Value::U64(ref val) => { *val }
+                    _ => { panic!("Expected a u64field, got {:?} ", v) }
                 }
             },
             None => {
-                0u32
+                0u64
             }            
         }
     }
@@ -112,7 +112,7 @@ impl U32FastFieldWriter {
         let zero = 0;
         let min = *self.vals.iter().min().unwrap_or(&zero);
         let max = *self.vals.iter().max().unwrap_or(&min);
-        try!(serializer.new_u32_fast_field(self.field, min, max));
+        try!(serializer.new_u64_fast_field(self.field, min, max));
         for &val in &self.vals {
             try!(serializer.add_val(val));
         }

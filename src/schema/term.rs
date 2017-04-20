@@ -39,20 +39,20 @@ impl Term {
         Field(self.field_id())
     }
 
-    /// Builds a term given a field, and a u32-value
+    /// Builds a term given a field, and a u64-value
     ///
-    /// Assuming the term has a field id of 1, and a u32 value of 3234,
+    /// Assuming the term has a field id of 1, and a u64 value of 3234,
     /// the Term will have 8 bytes.
     /// 
-    /// The first four byte are dedicated to storing the field id as a u32.
-    /// The 4 following bytes are encoding the u32 value.
-    pub fn from_field_u32(field: Field, val: u32) -> Term {
-        const U32_TERM_LEN: usize = 4 + 4;
-        let mut buffer = allocate_vec(U32_TERM_LEN);
+    /// The first four byte are dedicated to storing the field id as a u64.
+    /// The 4 following bytes are encoding the u64 value.
+    pub fn from_field_u64(field: Field, val: u64) -> Term {
+        const U64_TERM_LEN: usize = 4 + 8;
+        let mut buffer = allocate_vec(U64_TERM_LEN);
         // we want BigEndian here to have lexicographic order
         // match the natural order of `(field, val)`
         BigEndian::write_u32(&mut buffer[0..4], field.0);
-        BigEndian::write_u32(&mut buffer[4..], val);
+        BigEndian::write_u64(&mut buffer[4..], val);
         Term(buffer)
     }
     
@@ -69,11 +69,11 @@ impl Term {
         Term(buffer)
     }
 
-    /// Assume the term is a u32 field.
+    /// Assume the term is a u64 field.
     ///
-    /// Panics if the term is not a u32 field.
-    pub fn get_u32(&self) -> u32 {
-        BigEndian::read_u32(&self.0[4..])
+    /// Panics if the term is not a u64 field.
+    pub fn get_u64(&self) -> u64 {
+        BigEndian::read_u64(&self.0[4..])
     }
     
     /// Builds a term from its byte representation.
@@ -88,7 +88,7 @@ impl Term {
     /// (this does not include the field.)
     ///
     /// If the term is a string, its value is utf-8 encoded.
-    /// If the term is a u32, its value is encoded according
+    /// If the term is a u64, its value is encoded according
     /// to `byteorder::LittleEndian`. 
     pub fn value(&self) -> &[u8] {
         &self.0[4..]
@@ -147,14 +147,18 @@ mod tests {
             assert_eq!(&term.as_slice()[4..], "test".as_bytes());
         }
         {
-            let term = Term::from_field_u32(count_field, 983u32);
+            let term = Term::from_field_u64(count_field, 983u64);
             assert_eq!(term.field(), count_field);
             assert_eq!(&term.as_slice()[0..4], &[0u8, 0u8, 0u8, 2u8]);
-            assert_eq!(term.as_slice().len(), 8);
+            assert_eq!(term.as_slice().len(), 4 + 8);
             assert_eq!(term.as_slice()[4], 0u8);
             assert_eq!(term.as_slice()[5], 0u8);
-            assert_eq!(term.as_slice()[6], (933u32 / 256u32) as u8);
-            assert_eq!(term.as_slice()[7], (983u32 % 256u32) as u8);
+            assert_eq!(term.as_slice()[6], 0u8);
+            assert_eq!(term.as_slice()[7], 0u8);
+            assert_eq!(term.as_slice()[8], 0u8);
+            assert_eq!(term.as_slice()[9], 0u8);
+            assert_eq!(term.as_slice()[10], (933u64 / 256u64) as u8);
+            assert_eq!(term.as_slice()[11], (983u64 % 256u64) as u8);
         }
                 
     }

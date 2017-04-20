@@ -23,7 +23,7 @@ mod tests {
     use collector::tests::TestCollector;
     use Index;
     use schema::*;
-    use fastfield::{U32FastFieldReader};
+    use fastfield::{U64FastFieldReader};
     use postings::SegmentPostingsOption;
 
     fn abs_diff(left: f32, right: f32) -> f32 {
@@ -111,7 +111,7 @@ mod tests {
         let occurs = vec!(Occur::Should, Occur::Should);
         let occur_filter = OccurFilter::new(&occurs);
        
-        let left_fieldnorms = U32FastFieldReader::from(vec!(100,200,300));
+        let left_fieldnorms = U64FastFieldReader::from(vec!(100,200,300));
         
         let left = VecPostings::from(vec!(1, 2, 3));
         let left_scorer = TermScorer {
@@ -120,7 +120,7 @@ mod tests {
             postings: left,
         };
         
-        let right_fieldnorms = U32FastFieldReader::from(vec!(15,25,35));
+        let right_fieldnorms = U64FastFieldReader::from(vec!(15,25,35));
         let right = VecPostings::from(vec!(1, 3, 8));
         
         let right_scorer = TermScorer {

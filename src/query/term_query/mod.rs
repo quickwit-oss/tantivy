@@ -14,7 +14,7 @@ mod tests {
     use query::Scorer;
     use query::term_query::TermScorer;
     use query::Query;
-    use fastfield::U32FastFieldReader;
+    use fastfield::U64FastFieldReader;
     use query::TermQuery;
     use Index;
     use schema::*;
@@ -55,7 +55,7 @@ mod tests {
        
     #[test]
     pub fn test_term_scorer() {
-        let left_fieldnorms = U32FastFieldReader::from(vec!(10, 4));
+        let left_fieldnorms = U64FastFieldReader::from(vec!(10, 4));
         assert_eq!(left_fieldnorms.get(0), 10);
         assert_eq!(left_fieldnorms.get(1), 4);
         let left = VecPostings::from(vec!(1));

@@ -26,8 +26,8 @@ impl Encodable for NamedFieldDocument {
                                     Value::Str(ref text) => {
                                         s.emit_str(text)
                                     },
-                                    Value::U32(ref val) => {
-                                        s.emit_u32(*val)
+                                    Value::U64(ref val) => {
+                                        s.emit_u64(*val)
                                     }
                                 }
                             })

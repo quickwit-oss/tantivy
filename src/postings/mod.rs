@@ -119,7 +119,7 @@ mod tests {
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.get(1), 2);
                 for i in 2 .. 1000 {
-                    assert_eq!(fieldnorm_reader.get(i), i + 1);
+                    assert_eq!(fieldnorm_reader.get(i), (i + 1) as u64);
                 }
             }
             {
