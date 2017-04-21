@@ -1,5 +1,5 @@
 use schema::TextOptions;
-use schema::U64Options;
+use schema::IntOptions;
 
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -33,7 +33,7 @@ impl FieldEntry {
     
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_u64(field_name: String, field_type: U64Options) -> FieldEntry {
+    pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
             field_type: FieldType::U64(field_type),
@@ -123,7 +123,7 @@ impl Decodable for FieldEntry {
             d.read_struct_field("options", 2, |d| {
                 match field_type.as_ref() {
                     "u64" => {
-                        let u64_options = try!(U64Options::decode(d));
+                        let u64_options = try!(IntOptions::decode(d));
                         Ok(FieldEntry::new_u64(name, u64_options))
                     }
                     "text" => {

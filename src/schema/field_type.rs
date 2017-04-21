@@ -1,5 +1,5 @@
 use schema::TextOptions;
-use schema::U64Options;
+use schema::IntOptions;
 
 use rustc_serialize::json::Json;
 use schema::Value;
@@ -23,8 +23,10 @@ pub enum ValueParsingError {
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),
-    /// U64 field type configuration
-    U64(U64Options),
+    /// Unsigned 64-bits integers field type configuration
+    U64(IntOptions),
+    // /// Signed 64-bits integers 64 field type configuration
+    // I64(IntOptions),
 }
 
 impl FieldType {

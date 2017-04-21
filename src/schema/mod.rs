@@ -71,7 +71,7 @@ let schema = schema_builder.build();
 ```
 use tantivy::schema::*;
 let mut schema_builder = SchemaBuilder::default();
-let num_stars_options = U64Options::default()
+let num_stars_options = IntOptions::default()
     .set_stored()
     .set_indexed();
 schema_builder.add_u64_field("num_stars", num_stars_options);
@@ -104,7 +104,7 @@ mod field_entry;
 mod field_value;
 
 mod text_options;
-mod u64_options;
+mod int_options;
 mod field;
 mod value;
 mod named_field_document;
@@ -129,10 +129,10 @@ pub use self::text_options::TEXT;
 pub use self::text_options::STRING;
 pub use self::text_options::STORED;
 
-pub use self::u64_options::U64Options;
-pub use self::u64_options::FAST;
-pub use self::u64_options::U64_INDEXED;
-pub use self::u64_options::U64_STORED;
+pub use self::int_options::IntOptions;
+pub use self::int_options::FAST;
+pub use self::int_options::U64_INDEXED;
+pub use self::int_options::U64_STORED;
 
 use regex::Regex;
 

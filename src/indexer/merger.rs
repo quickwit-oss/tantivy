@@ -311,7 +311,7 @@ mod tests {
                                  .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
                                  .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::U64Options::default().set_fast();
+        let score_fieldtype = schema::IntOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
 
@@ -432,7 +432,7 @@ mod tests {
             .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::U64Options::default().set_fast();
+        let score_fieldtype = schema::IntOptions::default().set_fast();
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
