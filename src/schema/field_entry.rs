@@ -1,5 +1,5 @@
 use schema::TextOptions;
-use schema::U32Options;
+use schema::IntOptions;
 
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -22,7 +22,7 @@ pub struct FieldEntry {
 
 impl FieldEntry {
     
-    /// Creates a new u32 field entry in the schema, given
+    /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
         FieldEntry {
@@ -31,12 +31,12 @@ impl FieldEntry {
         }
     }
     
-    /// Creates a new u32 field entry in the schema, given
+    /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_u32(field_name: String, field_type: U32Options) -> FieldEntry {
+    pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
-            field_type: FieldType::U32(field_type),
+            field_type: FieldType::U64(field_type),
         }
     }
     
@@ -54,14 +54,14 @@ impl FieldEntry {
     pub fn is_indexed(&self,) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
-            FieldType::U32(ref options) => options.is_indexed(),
+            FieldType::U64(ref options) => options.is_indexed(),
         }
     }
     
-    /// Returns true iff the field is a u32 fast field
-    pub fn is_u32_fast(&self,) -> bool {
+    /// Returns true iff the field is a u64 fast field
+    pub fn is_u64_fast(&self,) -> bool {
         match self.field_type {
-            FieldType::U32(ref options) => options.is_fast(),
+            FieldType::U64(ref options) => options.is_fast(),
             _ => false,
         }
     }
@@ -69,7 +69,7 @@ impl FieldEntry {
     /// Returns true iff the field is stored
     pub fn is_stored(&self,) -> bool {
         match self.field_type {
-            FieldType::U32(ref options) => {
+            FieldType::U64(ref options) => {
                 options.is_stored()
             }
             FieldType::Str(ref options) => {
@@ -96,9 +96,9 @@ impl Encodable for FieldEntry {
                         options.encode(s)
                     }));
                 }
-                FieldType::U32(ref options) => {
+                FieldType::U64(ref options) => {
                     try!(s.emit_struct_field("type", 1, |s| {
-                        s.emit_str("u32")
+                        s.emit_str("u64")
                     }));
                     try!(s.emit_struct_field("options", 2, |s| {
                         options.encode(s)
@@ -122,9 +122,9 @@ impl Decodable for FieldEntry {
             }));
             d.read_struct_field("options", 2, |d| {
                 match field_type.as_ref() {
-                    "u32" => {
-                        let u32_options = try!(U32Options::decode(d));
-                        Ok(FieldEntry::new_u32(name, u32_options))
+                    "u64" => {
+                        let u64_options = try!(IntOptions::decode(d));
+                        Ok(FieldEntry::new_u64(name, u64_options))
                     }
                     "text" => {
                         let text_options = try!(TextOptions::decode(d));

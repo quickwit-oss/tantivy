@@ -283,7 +283,7 @@ mod tests {
             let field = Field(1u32);
             DeleteOperation {
                 opstamp: i as u64,
-                term: Term::from_field_u32(field, i as u32)
+                term: Term::from_field_u64(field, i as u64)
             }
         };
 

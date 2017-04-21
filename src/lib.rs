@@ -438,9 +438,9 @@ mod tests {
 
 
     #[test]
-    fn test_indexed_u32() {
+    fn test_indexed_u64() {
         let mut schema_builder = SchemaBuilder::default();
-        let field = schema_builder.add_u32_field("text", U32_INDEXED);
+        let field = schema_builder.add_u64_field("text", U64_INDEXED);
         let schema = schema_builder.build();
         
         let index = Index::create_in_ram(schema);
@@ -451,7 +451,7 @@ mod tests {
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let term = Term::from_field_u32(field, 1u32);
+        let term = Term::from_field_u64(field, 1u64);
         let mut postings = searcher.segment_reader(0).read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);

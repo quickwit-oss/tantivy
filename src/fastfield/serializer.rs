@@ -14,13 +14,13 @@ use std::io::{self, Write, Seek, SeekFrom};
 /// the serializer.
 /// The serializer expects to receive the following calls.
 ///
-/// * `new_u32_fast_field(...)`
+/// * `new_u64_fast_field(...)`
 /// * `add_val(...)`
 /// * `add_val(...)`
 /// * `add_val(...)`
 /// * ...
 /// * `close_field()`
-/// * `new_u32_fast_field(...)`
+/// * `new_u64_fast_field(...)`
 /// * `add_val(...)`
 /// * ...
 /// * `close_field()`
@@ -29,7 +29,7 @@ pub struct FastFieldSerializer {
     write: WritePtr,
     written_size: usize,
     fields: Vec<(Field, u32)>,
-    min_value: u32,
+    min_value: u64,
     field_open: bool,
     bit_packer: BitPacker,
 }
@@ -50,8 +50,8 @@ impl FastFieldSerializer {
         })
     }
     
-    /// Start serializing a new u32 fast field
-    pub fn new_u32_fast_field(&mut self, field: Field, min_value: u32, max_value: u32) -> io::Result<()> {
+    /// Start serializing a new u64 fast field
+    pub fn new_u64_fast_field(&mut self, field: Field, min_value: u64, max_value: u64) -> io::Result<()> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
         }
@@ -68,14 +68,14 @@ impl FastFieldSerializer {
     }
 
 
-    /// Pushes a new value to the currently open u32 fast field. 
-    pub fn add_val(&mut self, val: u32) -> io::Result<()> {
-        let val_to_write: u32 = val - self.min_value;
+    /// Pushes a new value to the currently open u64 fast field. 
+    pub fn add_val(&mut self, val: u64) -> io::Result<()> {
+        let val_to_write: u64 = val - self.min_value;
         self.bit_packer.write(val_to_write, &mut self.write)?;
         Ok(())
     }
     
-    /// Close the u32 fast field. 
+    /// Close the u64 fast field. 
     pub fn close_field(&mut self,) -> io::Result<()> {
         if !self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Current field is already closed"));

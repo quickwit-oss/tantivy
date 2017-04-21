@@ -4,8 +4,14 @@ use common::serialize::BinarySerializable;
 use std::mem;
 
 
-pub fn compute_num_bits(amplitude: u32) -> u8 {
-    (32u32 - amplitude.leading_zeros()) as u8
+pub fn compute_num_bits(amplitude: u64) -> u8 {
+    let amplitude = (64u32 - amplitude.leading_zeros()) as u8;
+    if amplitude <= 64 - 8 {
+        amplitude
+    }
+    else {
+        64
+    }
 }
 
 pub struct BitPacker {
@@ -15,7 +21,7 @@ pub struct BitPacker {
     written_size: usize,
 }
 
-impl BitPacker {   
+impl BitPacker {
     
     pub fn new(num_bits: usize) -> BitPacker {
         BitPacker {
@@ -26,7 +32,7 @@ impl BitPacker {
         }
     }
     
-    pub fn write<TWrite: Write>(&mut self, val: u32, output: &mut TWrite) -> io::Result<()> {
+    pub fn write<TWrite: Write>(&mut self, val: u64, output: &mut TWrite) -> io::Result<()> {
         let val_u64 = val as u64;
         if self.mini_buffer_written + self.num_bits > 64 {
             self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
@@ -67,22 +73,29 @@ impl BitPacker {
 
 pub struct BitUnpacker {
     num_bits: usize,
-    mask: u32,
+    mask: u64,
     data_ptr: *const u8,
     data_len: usize, 
 }
 
 impl BitUnpacker {
     pub fn new(data: &[u8], num_bits: usize) -> BitUnpacker {
+        let mask: u64 =
+            if num_bits == 64 {
+                !0u64 
+            }
+            else {
+                 (1u64 << num_bits) - 1u64
+            };
         BitUnpacker {
             num_bits: num_bits,
-            mask: (1u32 << num_bits) - 1u32,
+            mask: mask,
             data_ptr: data.as_ptr(),
             data_len: data.len()
         }
     }
     
-    pub fn get(&self, idx: usize) -> u32 {
+    pub fn get(&self, idx: usize) -> u64 {
         if self.num_bits == 0 {
             return 0;
         }
@@ -101,7 +114,7 @@ impl BitUnpacker {
             }
             val_unshifted_unmasked = unsafe { mem::transmute::<[u8; 8], u64>(arr) };
         }
-        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u32;
+        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & self.mask)
     }
         
@@ -123,13 +136,14 @@ mod test {
         assert_eq!(compute_num_bits(4), 3u8);
         assert_eq!(compute_num_bits(255), 8u8);
         assert_eq!(compute_num_bits(256), 9u8);
+        assert_eq!(compute_num_bits(5_000_000_000), 33u8);
     }
     
     fn test_bitpacker_util(len: usize, num_bits: usize) {
         let mut data = Vec::new();
         let mut bitpacker = BitPacker::new(num_bits);
-        let max_val: u32 = (1 << num_bits) - 1;
-        let vals: Vec<u32> = (0u32..len as u32).map(|i| {
+        let max_val: u64 = (1 << num_bits) - 1;
+        let vals: Vec<u64> = (0u64..len as u64).map(|i| {
             if max_val == 0 {
                 0
             }

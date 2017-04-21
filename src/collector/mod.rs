@@ -74,7 +74,7 @@ pub mod tests {
     use Score;
     use core::SegmentReader;
     use SegmentLocalId;
-    use fastfield::U32FastFieldReader;
+    use fastfield::U64FastFieldReader;
     use schema::Field;
     
     /// Stores all of the doc ids.
@@ -125,9 +125,9 @@ pub mod tests {
     ///
     /// This collector is mainly useful for tests.
     pub struct FastFieldTestCollector {
-        vals: Vec<u32>,
+        vals: Vec<u64>,
         field: Field,
-        ff_reader: Option<U32FastFieldReader>,
+        ff_reader: Option<U64FastFieldReader>,
     }
 
     impl FastFieldTestCollector {
@@ -139,7 +139,7 @@ pub mod tests {
             }
         }
 
-        pub fn vals(self,) -> Vec<u32> {
+        pub fn vals(self,) -> Vec<u64> {
             self.vals
         }
     }

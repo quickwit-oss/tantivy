@@ -68,7 +68,7 @@ mod tests {
         posting_serializer.close_term().unwrap();
         posting_serializer.close().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
-        assert_eq!(read.len(), 13);
+        assert!(read.len() <= 16);
     }
     
     #[test]
@@ -120,7 +120,7 @@ mod tests {
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.get(1), 2);
                 for i in 2 .. 1000 {
-                    assert_eq!(fieldnorm_reader.get(i), i + 1);
+                    assert_eq!(fieldnorm_reader.get(i), (i + 1) as u64);
                 }
             }
             {

@@ -12,8 +12,6 @@ use std::sync::Arc;
 use super::*;
 use std::fmt;
 
-const MAX_NUM_FIELDS: usize = 255;
-
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
@@ -48,7 +46,7 @@ impl SchemaBuilder {
         SchemaBuilder::default()
     }
 
-    /// Adds a new u32 field.
+    /// Adds a new u64 field.
     /// Returns the associated field handle
     ///
     /// # Caution
@@ -58,12 +56,12 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id 
     /// but only the second one will be indexed  
-    pub fn add_u32_field(
+    pub fn add_u64_field(
             &mut self,
             field_name_str: &str, 
-            field_options: U32Options) -> Field {
+            field_options: IntOptions) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_u32(field_name, field_options);
+        let field_entry = FieldEntry::new_u64(field_name, field_options);
         self.add_field(field_entry)
     }
 
@@ -325,14 +323,15 @@ mod tests {
     use schema::*;
     use rustc_serialize::json;
     use schema::field_type::ValueParsingError;
+    use schema::schema::DocParsingError::NotJSON;
         
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = U32Options::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast(); 
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
-        schema_builder.add_u32_field("count", count_options);
+        schema_builder.add_u64_field("count", count_options);
         let schema = schema_builder.build();
         let schema_json: String = format!("{}", json::as_pretty_json(&schema));
         let expected = r#"[
@@ -354,7 +353,7 @@ mod tests {
   },
   {
     "name": "count",
-    "type": "u32",
+    "type": "u64",
     "options": {
       "indexed": false,
       "fast": true,
@@ -371,10 +370,10 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = U32Options::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast(); 
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
-        schema_builder.add_u32_field("count", count_options);
+        schema_builder.add_u64_field("count", count_options);
         let schema = schema_builder.build();
         let doc_json = r#"{
                 "title": "my title",
@@ -389,10 +388,10 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = U32Options::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast(); 
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
-        let count_field = schema_builder.add_u32_field("count", count_options);
+        let count_field = schema_builder.add_u64_field("count", count_options);
         let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();
@@ -406,7 +405,7 @@ mod tests {
             }"#).unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), "my title");
             assert_eq!(doc.get_first(author_field).unwrap().text(), "fulmicoton");
-            assert_eq!(doc.get_first(count_field).unwrap().u32_value(), 4);
+            assert_eq!(doc.get_first(count_field).unwrap().u64_value(), 4);
         }
         {
             let json_err = schema.parse_document(r#"{
@@ -478,10 +477,25 @@ mod tests {
             }"#);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
+                    assert!(false);
+                }
+                _ => {
+                    assert!(true);
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 50000000000000000000
+            }"#);
+            match json_err {
+                Err(NotJSON(_)) => {
                     assert!(true);
                 }
                 _ => {
-                    assert!(false);
+                    assert!(false)
                 }
             }
         }

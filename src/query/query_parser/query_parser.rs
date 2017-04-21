@@ -22,10 +22,9 @@ pub enum QueryParserError {
     /// `FieldDoesNotExist(field_name: String)`
     /// The query references a field that is not in the schema
     FieldDoesNotExist(String),
-    /// `ExpectedU32(field_name: String, field_value: String)`
-    /// The query contains a term for a `u32`-field, but the value
-    /// is not a u32.
-    ExpectedU32(String, String),
+    /// The query contains a term for a `u64`-field, but the value
+    /// is not a u64.
+    ExpectedU64(String, String),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
     AllButQueryForbidden,
     /// If no default field is declared, running a query without any
@@ -138,7 +137,7 @@ impl QueryParser {
         loop {
             if let Some(token) = token_iter.next() {
                 let text = token.to_string();
-                // TODO Handle u32
+                // TODO Handle u64
                 let term = Term::from_field_text(field, &text);
                 tokens.push(term);
             } else {

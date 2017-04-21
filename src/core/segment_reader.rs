@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::fmt;
 use schema::Field;
 use postings::{SegmentPostings, BlockSegmentPostings, SegmentPostingsOption};
-use fastfield::{U32FastFieldsReader, U32FastFieldReader};
+use fastfield::{U64FastFieldsReader, U64FastFieldReader};
 use schema::Schema;
 use schema::FieldType;
 use postings::FreqHandler;
@@ -41,8 +41,8 @@ pub struct SegmentReader {
     term_infos: Arc<TermDictionary<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
-    fast_fields_reader: Arc<U32FastFieldsReader>,
-    fieldnorms_reader: Arc<U32FastFieldsReader>,
+    fast_fields_reader: Arc<U64FastFieldsReader>,
+    fieldnorms_reader: Arc<U64FastFieldsReader>,
     delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
@@ -78,11 +78,11 @@ impl SegmentReader {
     }
 
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> Option<U32FastFieldReader> {
-        /// Returns the u32 fast value reader if the field
-        /// is a u32 field indexed as "fast".
+    pub fn get_fast_field_reader(&self, field: Field) -> Option<U64FastFieldReader> {
+        /// Returns the u64 fast value reader if the field
+        /// is a u64 field indexed as "fast".
         ///
-        /// Return None if the field is not a u32 field
+        /// Return None if the field is not a u64 field
         /// indexed with the fast option.
         ///
         /// # Panics
@@ -93,8 +93,8 @@ impl SegmentReader {
                 warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
                 None
             },
-            &FieldType::U32(ref u32_options) => {
-                if u32_options.is_fast() {
+            &FieldType::U64(ref u64_options) => {
+                if u64_options.is_fast() {
                     self.fast_fields_reader.get_field(field)
                 }
                 else {
@@ -112,7 +112,7 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in 
     /// the `.fieldnorm` file of the segment. 
-    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U32FastFieldReader> {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
         self.fieldnorms_reader.get_field(field) 
     }
         
@@ -138,10 +138,10 @@ impl SegmentReader {
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
-        let fast_fields_reader = try!(U32FastFieldsReader::open(fast_field_data));
+        let fast_fields_reader = try!(U64FastFieldsReader::open(fast_field_data));
         
         let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
-        let fieldnorms_reader = try!(U32FastFieldsReader::open(fieldnorms_data));
+        let fieldnorms_reader = try!(U64FastFieldsReader::open(fieldnorms_data));
         
         let positions_data = segment
             .open_read(SegmentComponent::POSITIONS)
@@ -274,7 +274,7 @@ impl SegmentReader {
                     _ => SegmentPostingsOption::NoFreq,
                 }
             }
-            FieldType::U32(_) => SegmentPostingsOption::NoFreq
+            FieldType::U64(_) => SegmentPostingsOption::NoFreq
         };
         self.read_postings(term, segment_posting_option)
     }

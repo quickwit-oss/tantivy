@@ -2,7 +2,7 @@ use common::bitpacker::compute_num_bits;
 use common::bitpacker::{BitPacker, BitUnpacker};
 use std::cmp;
 use std::io::Write;
-use super::NUM_DOCS_PER_BLOCK;
+use super::super::NUM_DOCS_PER_BLOCK;
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1; 
 

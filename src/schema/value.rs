@@ -10,8 +10,8 @@ use std::io::Read;
 pub enum Value {
     /// The str type is used for any text information.
     Str(String),
-    /// Unsigned 32-bits Integer `u32`
-    U32(u32),
+    /// Unsigned 32-bits Integer `u64`
+    U64(u64),
 }
 
 impl Value {
@@ -30,13 +30,13 @@ impl Value {
         }
     }
     
-    /// Returns the u32-value, provided the value is of the `U32` type.
+    /// Returns the u64-value, provided the value is of the `U64` type.
     ///
     /// # Panics
-    /// If the value is not of type `U32` 
-    pub fn u32_value(&self) -> u32 {
+    /// If the value is not of type `U64` 
+    pub fn u64_value(&self) -> u64 {
         match *self {
-            Value::U32(ref value) => {
+            Value::U64(ref value) => {
                *value
             }
             _ => {
@@ -53,9 +53,9 @@ impl From<String> for Value {
 }
 
 
-impl From<u32> for Value {
-    fn from(v: u32) -> Value {
-        Value::U32(v)
+impl From<u64> for Value {
+    fn from(v: u64) -> Value {
+        Value::U64(v)
     }
 }
 
@@ -66,7 +66,7 @@ impl<'a> From<&'a str> for Value {
 }
 
 const TEXT_CODE: u8 = 0;
-const U32_CODE: u8 = 1;
+const U64_CODE: u8 = 1;
 
 
 impl BinarySerializable for Value {
@@ -77,8 +77,8 @@ impl BinarySerializable for Value {
                 written_size += try!(TEXT_CODE.serialize(writer));
                 written_size += try!(text.serialize(writer));
             },
-            Value::U32(ref val) => {
-                written_size += try!(U32_CODE.serialize(writer));
+            Value::U64(ref val) => {
+                written_size += try!(U64_CODE.serialize(writer));
                 written_size += try!(val.serialize(writer));
             },            
         }
@@ -91,9 +91,9 @@ impl BinarySerializable for Value {
                 let text = try!(String::deserialize(reader));
                 Ok(Value::Str(text))
             }
-            U32_CODE => {
-                let value = try!(u32::deserialize(reader));
-                Ok(Value::U32(value))
+            U64_CODE => {
+                let value = try!(u64::deserialize(reader));
+                Ok(Value::U64(value))
             }
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidData, format!("No field type is associated with code {:?}", type_code)))

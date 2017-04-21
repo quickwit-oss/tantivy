@@ -110,7 +110,7 @@ pub mod tests {
         let data = generate_array(10_000, 0.1);
         let mut encoder = CompositeEncoder::new();
         let compressed = encoder.compress_unsorted(&data);
-        assert_eq!(compressed.len(), 19_790);
+        assert!(compressed.len() <= 19_794);
         let mut decoder = CompositeDecoder::new();
         let result = decoder.uncompress_unsorted(&compressed, data.len());
         for i in 0..data.len() {
@@ -123,7 +123,7 @@ pub mod tests {
         let data = generate_array(10_000, 0.1);
         let mut encoder = CompositeEncoder::new();
         let compressed = encoder.compress_sorted(&data);
-        assert_eq!(compressed.len(), 7_822);
+        assert!(compressed.len() <= 7_826);
         let mut decoder = CompositeDecoder::new();
         let result = decoder.uncompress_sorted(&compressed, data.len());
         for i in 0..data.len() {

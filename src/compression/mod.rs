@@ -4,16 +4,32 @@
 mod composite;
 pub use self::composite::{CompositeEncoder, CompositeDecoder};
 
-#[cfg(feature="simdcompression")]
-mod compression_simd;
-#[cfg(feature="simdcompression")]
-pub use self::compression_simd::{BlockEncoder, BlockDecoder};
-
 
 #[cfg(not(feature="simdcompression"))]
-mod compression_nosimd;
-#[cfg(not(feature="simdcompression"))]
-pub use self::compression_nosimd::{BlockEncoder, BlockDecoder};
+mod pack {
+    mod compression_pack_nosimd;
+    pub use self::compression_pack_nosimd::*;
+}
+
+#[cfg(feature="simdcompression")]
+mod pack {
+    mod compression_pack_simd;
+    pub use self::compression_pack_simd::*;
+}
+
+pub use self::pack::{BlockEncoder, BlockDecoder};
+
+#[cfg( any(not(feature="simdcompression"), target_env="msvc") )]
+mod vint {
+    mod compression_vint_nosimd;
+    pub use self::compression_vint_nosimd::*;
+}
+
+#[cfg( all(feature="simdcompression", not(target_env="msvc")) )]
+mod vint {
+    mod compression_vint_simd;
+    pub use self::compression_vint_simd::*;
+}
 
 
 pub trait VIntEncoder {
@@ -28,49 +44,14 @@ pub trait VIntDecoder {
 
 impl VIntEncoder for BlockEncoder {
     
-    fn compress_vint_sorted(&mut self, input: &[u32], mut offset: u32) -> &[u8] {
-        let mut byte_written = 0;
-        for &v in input {
-            let mut to_encode: u32 = v - offset;
-            offset = v;
-            loop {
-                let next_byte: u8 = (to_encode % 128u32) as u8;
-                to_encode /= 128u32;
-                if to_encode == 0u32 {
-                    self.output[byte_written] = next_byte | 128u8;
-                    byte_written += 1;
-                    break;
-                }
-                else {
-                    self.output[byte_written] = next_byte;
-                    byte_written += 1;
-                }
-            }
-        }
-        &self.output[..byte_written]
+    fn compress_vint_sorted(&mut self, input: &[u32], offset: u32) -> &[u8] {
+        vint::compress_sorted(input, &mut self.output, offset)
     }
     
     fn compress_vint_unsorted(&mut self, input: &[u32]) -> &[u8] {
-        let mut byte_written = 0;
-        for &v in input {
-            let mut to_encode: u32 = v;
-            loop {
-                let next_byte: u8 = (to_encode % 128u32) as u8;
-                to_encode /= 128u32;
-                if to_encode == 0u32 {
-                    self.output[byte_written] = next_byte | 128u8;
-                    byte_written += 1;
-                    break;
-                }
-                else {
-                    self.output[byte_written] = next_byte;
-                    byte_written += 1;
-                }
-            }
-        }
-        &self.output[..byte_written]
+        vint::compress_unsorted(input, &mut self.output)
     }
-} 
+}
 
 impl VIntDecoder for BlockDecoder {
     
@@ -79,52 +60,19 @@ impl VIntDecoder for BlockDecoder {
         compressed_data: &'a [u8],
         offset: u32,
         num_els: usize) -> &'a [u8] {
-        let mut read_byte = 0;
-        let mut result = offset;
-        for i in 0..num_els {
-            let mut shift = 0u32;
-            loop {
-                let cur_byte = compressed_data[read_byte];
-                read_byte += 1;
-                result += ((cur_byte % 128u8) as u32) << shift;
-                if cur_byte & 128u8 != 0u8 {
-                    break;
-                }
-                shift += 7;
-            }
-            self.output[i] = result;
-        }
         self.output_len = num_els;
-        &compressed_data[read_byte..]
+        vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
     }
     
     fn uncompress_vint_unsorted<'a>(
         &mut self,
         compressed_data: &'a [u8],
         num_els: usize) -> &'a [u8] {
-        let mut read_byte = 0;
-        for i in 0..num_els {
-            let mut result = 0u32;
-            let mut shift = 0u32;
-            loop {
-                let cur_byte = compressed_data[read_byte];
-                read_byte += 1;
-                result += ((cur_byte % 128u8) as u32) << shift;
-                if cur_byte & 128u8 != 0u8 {
-                    break;
-                }
-                shift += 7;
-            }
-            self.output[i] = result;
-        }
         self.output_len = num_els;
-        &compressed_data[read_byte..]
-    }
-    
+        vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
+    }   
 }
 
-    
-    
 
 pub const NUM_DOCS_PER_BLOCK: usize = 128; //< should be a power of 2 to let the compiler optimize.
 
@@ -224,7 +172,7 @@ pub mod tests {
     #[test]
     fn test_encode_vint() {
         {
-            let expected_length = 123;
+            let expected_length = 154;
             let mut encoder = BlockEncoder::new();
             let input: Vec<u32> = (0u32..123u32)
                 .map(|i| 4 + i * 7 / 2)
@@ -232,22 +180,12 @@ pub mod tests {
                 .collect();
             for offset in &[0u32, 1u32, 2u32] {
                 let encoded_data = encoder.compress_vint_sorted(&input, *offset);
-                assert_eq!(encoded_data.len(), expected_length);
+                assert!(encoded_data.len() <= expected_length);
                 let mut decoder = BlockDecoder::new();
                 let remaining_data = decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
                 assert_eq!(0, remaining_data.len());
                 assert_eq!(input, decoder.output_array());
             }
-        }
-        {
-            let mut encoder = BlockEncoder::new();
-            let input = vec!(3u32, 17u32, 187u32);
-            let encoded_data = encoder.compress_vint_sorted(&input, 0);
-            assert_eq!(encoded_data.len(), 4);
-            assert_eq!(encoded_data[0], 3u8 + 128u8);
-            assert_eq!(encoded_data[1], (17u8 - 3u8) + 128u8);
-            assert_eq!(encoded_data[2], (187u8 - 17u8 - 128u8));
-            assert_eq!(encoded_data[3], (1u8 + 128u8));
         }
     }
 
@@ -269,6 +207,29 @@ pub mod tests {
         let mut decoder = BlockDecoder::new(); 
         b.iter(|| {
             decoder.uncompress_block_sorted(compressed, 0u32);
+        });
+    }
+
+
+    const NUM_INTS_BENCH_VINT: usize = 10;
+
+    #[bench]
+    fn bench_compress_vint(b: &mut Bencher) {
+        let mut encoder = BlockEncoder::new();
+        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
+        b.iter(|| {
+            encoder.compress_vint_sorted(&data, 0u32);
+        });
+    }
+    
+    #[bench]
+    fn bench_uncompress_vint(b: &mut Bencher) {
+        let mut encoder = BlockEncoder::new();
+        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
+        let compressed = encoder.compress_vint_sorted(&data, 0u32);
+        let mut decoder = BlockDecoder::new(); 
+        b.iter(|| {
+            decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
         });
     }
 

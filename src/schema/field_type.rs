@@ -1,5 +1,5 @@
 use schema::TextOptions;
-use schema::U32Options;
+use schema::IntOptions;
 
 use rustc_serialize::json::Json;
 use schema::Value;
@@ -11,20 +11,22 @@ use schema::Value;
 pub enum ValueParsingError {
     /// Encounterred a numerical value that overflows or underflow its integer type.
     OverflowError(String),
-    /// The json node is not of the correct type. (e.g. 3 for a `Str` type or `"abc"` for a u32 type)
+    /// The json node is not of the correct type. (e.g. 3 for a `Str` type or `"abc"` for a u64 type)
     /// Tantivy will try to autocast values.  
     TypeError(String),
 }
 
 
-/// A `FieldType` describes the type (text, u32) of a field as well as 
+/// A `FieldType` describes the type (text, u64) of a field as well as 
 /// how it should be handled by tantivy.
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),
-    /// U32 field type configuration
-    U32(U32Options),
+    /// Unsigned 64-bits integers field type configuration
+    U64(IntOptions),
+    // /// Signed 64-bits integers 64 field type configuration
+    // I64(IntOptions),
 }
 
 impl FieldType {
@@ -41,20 +43,15 @@ impl FieldType {
                     FieldType::Str(_) => {
                         Ok(Value::Str(field_text.clone()))
                     }
-                    FieldType::U32(_) => {
-                        Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
+                    FieldType::U64(_) => {
+                        Err(ValueParsingError::TypeError(format!("Expected a u64 int, got {:?}", json)))
                     }
                 }
             }
             Json::U64(ref field_val_u64) => {
                 match *self {
-                    FieldType::U32(_) => {
-                        if *field_val_u64 > (u32::max_value() as u64) {
-                            Err(ValueParsingError::OverflowError(format!("Expected u32, but value {:?} overflows.", field_val_u64)))
-                        }
-                        else {
-                            Ok(Value::U32(*field_val_u64 as u32))
-                        }
+                    FieldType::U64(_) => {
+                        Ok(Value::U64(*field_val_u64 as u64))
                     }
                     _ => {
                         Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
@@ -62,7 +59,7 @@ impl FieldType {
                 }
             },
             _ => {
-                Err(ValueParsingError::TypeError(format!("Expected a string or a u32, got {:?}", json)))
+                Err(ValueParsingError::TypeError(format!("Expected a string or a u64, got {:?}", json)))
             }
         }
     }

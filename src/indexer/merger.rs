@@ -6,7 +6,7 @@ use core::SerializableSegment;
 use schema::FieldValue;
 use indexer::SegmentSerializer;
 use postings::PostingsSerializer;
-use fastfield::U32FastFieldReader;
+use fastfield::U64FastFieldReader;
 use itertools::Itertools;
 use postings::Postings;
 use postings::DocSet;
@@ -50,31 +50,31 @@ impl DeltaPositionComputer {
 }
 
 
-fn compute_min_max_val(u32_reader: &U32FastFieldReader, max_doc: DocId, delete_bitset: &DeleteBitSet) -> Option<(u32, u32)> {
+fn compute_min_max_val(u64_reader: &U64FastFieldReader, max_doc: DocId, delete_bitset: &DeleteBitSet) -> Option<(u64, u64)> {
     if max_doc == 0 {
         None
     }
     else if !delete_bitset.has_deletes() {
         // no deleted documents, 
         // we can use the previous min_val, max_val.
-        Some((u32_reader.min_val(), u32_reader.max_val()))
+        Some((u64_reader.min_val(), u64_reader.max_val()))
     }
     else {
         // some deleted documents,
         // we need to recompute the max / min
         (0..max_doc)
             .filter(|doc_id| !delete_bitset.is_deleted(*doc_id))
-            .map(|doc_id| u32_reader.get(doc_id))
+            .map(|doc_id| u64_reader.get(doc_id))
             .minmax()
             .into_option()
     }
 }
 
-fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Option<U32FastFieldReader> {
+fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
     segment_reader.get_fieldnorms_reader(field)
 }
 
-fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U32FastFieldReader> {
+fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
     segment_reader.get_fast_field_reader(field)
 }
 
@@ -113,37 +113,37 @@ impl IndexMerger {
                          .fields()
                          .iter()
                          .enumerate()
-                         .filter(|&(_, field_entry)| field_entry.is_u32_fast())
+                         .filter(|&(_, field_entry)| field_entry.is_u64_fast())
                          .map(|(field_id, _)| Field(field_id as u32))
                          .collect();
         self.generic_write_fast_field(fast_fields, &extract_fast_field_reader, fast_field_serializer)
     }
 
 
-    // used both to merge field norms and regular u32 fast fields.
+    // used both to merge field norms and regular u64 fast fields.
     fn generic_write_fast_field(&self,
         fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U32FastFieldReader>,
+        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U64FastFieldReader>,
         fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         
         for field in fields {
             
-            let mut u32_readers = vec!();
-            let mut min_val = u32::max_value();
-            let mut max_val = u32::min_value();
+            let mut u64_readers = vec!();
+            let mut min_val = u64::max_value();
+            let mut max_val = u64::min_value();
             
             for reader in &self.readers {
                 match field_reader_extractor(reader, field) {
-                    Some(u32_reader) => {
-                        if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(&u32_reader, reader.max_doc(), reader.delete_bitset()) {
+                    Some(u64_reader) => {
+                        if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset()) {
                             // the segment has some non-deleted documents
                             min_val = min(min_val, seg_min_val);
                             max_val = max(max_val, seg_max_val);
-                            u32_readers.push((reader.max_doc(), u32_reader, reader.delete_bitset()));
+                            u64_readers.push((reader.max_doc(), u64_reader, reader.delete_bitset()));
                         }        
                     }
                     None => {
-                        let error_msg = format!("Failed to find a u32_reader for field {:?}", field);
+                        let error_msg = format!("Failed to find a u64_reader for field {:?}", field);
                         error!("{}", error_msg);
                         return Err(Error::SchemaError(error_msg))
                     }
@@ -151,7 +151,7 @@ impl IndexMerger {
                 
             }
 
-            if u32_readers.is_empty() {
+            if u64_readers.is_empty() {
                 // we have actually zero documents.
                 min_val = 0;
                 max_val = 0;
@@ -159,11 +159,11 @@ impl IndexMerger {
 
             assert!(min_val <= max_val);
             
-            try!(fast_field_serializer.new_u32_fast_field(field, min_val, max_val));
-            for (max_doc, u32_reader, delete_bitset) in u32_readers {
+            try!(fast_field_serializer.new_u64_fast_field(field, min_val, max_val));
+            for (max_doc, u64_reader, delete_bitset) in u64_readers {
                 for doc_id in 0..max_doc {
                     if !delete_bitset.is_deleted(doc_id) {
-                        let val = u32_reader.get(doc_id);
+                        let val = u64_reader.get(doc_id);
                         try!(fast_field_serializer.add_val(val));
                     }
                 }
@@ -311,8 +311,8 @@ mod tests {
                                  .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
                                  .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::U32Options::default().set_fast();
-        let score_field = schema_builder.add_u32_field("score", score_fieldtype);
+        let score_fieldtype = schema::IntOptions::default().set_fast();
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
 
         {
@@ -322,19 +322,19 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
-                    doc.add_u32(score_field, 3);
+                    doc.add_u64(score_field, 3);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c");
-                    doc.add_u32(score_field, 5);
+                    doc.add_u64(score_field, 5);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d");
-                    doc.add_u32(score_field, 7);
+                    doc.add_u64(score_field, 7);
                     index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("committed");
@@ -345,13 +345,13 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
-                    doc.add_u32(score_field, 11);
+                    doc.add_u64(score_field, 11);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c g");
-                    doc.add_u32(score_field, 13);
+                    doc.add_u64(score_field, 13);
                     index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("Commit failed");
@@ -417,7 +417,7 @@ mod tests {
         }
     }
 
-    fn search_term(searcher: &Searcher, term: Term) ->  Vec<u32> {
+    fn search_term(searcher: &Searcher, term: Term) ->  Vec<u64> {
         let mut collector = FastFieldTestCollector::for_field(Field(1));
         let term_query = TermQuery::new(term, SegmentPostingsOption::NoFreq);
         searcher.search(&term_query, &mut collector).unwrap();
@@ -432,8 +432,8 @@ mod tests {
             .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::U32Options::default().set_fast();
-        let score_field = schema_builder.add_u32_field("score", score_fieldtype);
+        let score_fieldtype = schema::IntOptions::default().set_fast();
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             
