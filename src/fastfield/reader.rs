@@ -103,7 +103,8 @@ pub struct U64FastFieldsReader {
     field_offsets: HashMap<Field, (u32, u32)>,
 }
 
-
+unsafe impl Send for U64FastFieldReader {}
+unsafe impl Sync for U64FastFieldReader {}
 unsafe impl Send for U64FastFieldsReader {}
 unsafe impl Sync for U64FastFieldsReader {}
 

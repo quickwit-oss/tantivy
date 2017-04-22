@@ -248,20 +248,26 @@ pub struct StreamDictionaryStreamerBuilder<'a, V: 'a + BinarySerializable + Clon
     current_key: Vec<u8>,
 }
 
-fn get_offset<'a, V, P: Fn(&[u8])->bool>(predicate: P, mut streamer: StreamDictionaryStreamer<V>) -> (usize, Vec<u8>, usize)
+
+/// Returns offset information for the first 
+/// key in the stream matching a given predicate.
+///
+/// returns (start offset, the data required to load the value)
+fn get_offset<'a, V, P: Fn(&[u8])->bool>(predicate: P, mut streamer: StreamDictionaryStreamer<V>) -> (usize, Vec<u8>)
     where V: 'a + BinarySerializable + Clone + Default {
     let mut prev: &[u8] = streamer.cursor;
     
     let mut prev_data: Vec<u8> = streamer.current_key.clone();
+    
     while let Some((iter_key, _)) = streamer.next() {
         if !predicate(iter_key) {
-            return (prev.as_ptr() as usize, prev_data, streamer.cursor.as_ptr() as usize);
+            return (prev.as_ptr() as usize, prev_data);
         }
         prev = streamer.cursor;
         prev_data.clear();
         prev_data.extend_from_slice(iter_key);
     }
-    return (prev.as_ptr() as usize, prev_data, prev.as_ptr() as usize);
+    return (prev.as_ptr() as usize, prev_data);
 }
 
 impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerBuilder<'a, V> {
@@ -269,7 +275,7 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
         let target_key = bound.as_ref();
         let streamer = stream_before(&self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.lt(target_key) };
-        let (offset_before, current_key, _) = get_offset(smaller_than, streamer);
+        let (offset_before, current_key) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
         self.offset_from = offset_before;
         self
@@ -279,7 +285,7 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
         let target_key = bound.as_ref();
         let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.le(target_key) };
-        let (offset_before, current_key, _) = get_offset(smaller_than, streamer);
+        let (offset_before, current_key) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
         self.offset_from = offset_before;
         self
@@ -289,8 +295,8 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
         let target_key = bound.as_ref();
         let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.le(target_key) };
-        let (_, _, offset_after) = get_offset(smaller_than, streamer);
-        self.offset_to = offset_after;
+        let (offset_before, _) = get_offset(smaller_than, streamer);
+        self.offset_to = offset_before;
         self
     }
 
@@ -298,8 +304,8 @@ impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerB
         let target_key = bound.as_ref();
         let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| { k.lt(target_key) };
-        let (_, _, offset_after) = get_offset(smaller_than, streamer);
-        self.offset_to = offset_after;
+        let (offset_before, _) = get_offset(smaller_than, streamer);
+        self.offset_to = offset_before;
         self
     }
 
