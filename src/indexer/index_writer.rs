@@ -418,6 +418,12 @@ impl IndexWriter {
         Ok(())
     }
 
+    /// Detects and removes the files that
+    /// are not used by the index anymore.
+    pub fn garbage_collect_files(&mut self) -> Result<()> {
+        self.segment_updater.garbage_collect_files()
+    }
+
     /// Merges a given list of segments
     pub fn merge(&mut self, segment_ids: &[SegmentId]) -> impl Future<Item=SegmentMeta, Error=Canceled> {
         self.segment_updater.start_merge(segment_ids)
