@@ -264,18 +264,27 @@ impl SegmentUpdater {
         }
     }
 
+    pub fn garbage_collect_files(&self) -> Result<()> {
+        self.run_async(move |segment_updater| {
+            segment_updater.garbage_collect_files_exec();
+        }).wait()
+    }
+
+    fn garbage_collect_files_exec(&self)  {
+        let living_files = self.0.segment_manager.list_files();
+        let mut index = self.0.index.clone();
+        index.directory_mut().garbage_collect(living_files);
+    }
+
     pub fn commit(&self, opstamp: u64) -> Result<()> {
         self.run_async(move |segment_updater| {
-            let mut index = segment_updater.0.index.clone();
-
             if segment_updater.is_alive() {
                 let segment_entries = segment_updater
                     .purge_deletes(opstamp)
                     .expect("Failed purge deletes");
                 segment_updater.0.segment_manager.commit(segment_entries);
                 segment_updater.save_metas(opstamp);
-                let living_files = segment_updater.0.segment_manager.list_files();
-                index.directory_mut().garbage_collect(living_files);
+                segment_updater.garbage_collect_files_exec();
                 segment_updater.consider_merge_options();
             }
         }).wait()
