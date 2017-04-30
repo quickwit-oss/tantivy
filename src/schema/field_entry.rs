@@ -1,10 +1,7 @@
 use schema::TextOptions;
 use schema::U32Options;
 
-use rustc_serialize::Decodable;
-use rustc_serialize::Decoder;
-use rustc_serialize::Encodable;
-use rustc_serialize::Encoder;
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
@@ -79,35 +76,28 @@ impl FieldEntry {
     }
 }
 
+/*
+{ 
+    "name": "stuff",
+    "type": "text",
+    "options": {}
+}
+*/
 
+impl Serialize for FieldEntry {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut s = serializer.serialize_struct("field_entry", 3)?;
+        s.serialize_field("name", &self.name)?;
+        s.serialize_field("type", self.field_type.type_name())?;
 
-impl Encodable for FieldEntry {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("field_entry", 3, |s| {
-            try!(s.emit_struct_field("name", 0, |s| {
-                self.name.encode(s)
-            }));
-            match self.field_type {
-                FieldType::Str(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
-                        s.emit_str("text")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
-                        options.encode(s)
-                    }));
-                }
-                FieldType::U32(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
-                        s.emit_str("u32")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
-                        options.encode(s)
-                    }));
-                }
-            }
-            
-            Ok(())
-        })
+        match self.field_type {
+            FieldType::Str(ref options) => s.serialize_field("options", options)?,
+            FieldType::U32(ref options) => s.serialize_field("options", options)?
+        }
+        
+        s.end()
     }
 }
 

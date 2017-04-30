@@ -1,12 +1,8 @@
 use std::ops::BitOr;
-use rustc_serialize::Decodable;
-use rustc_serialize::Decoder;
-use rustc_serialize::Encodable;
-use rustc_serialize::Encoder;
 
 
 /// Define how a text field should be handled by tantivy.
-#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
+#[derive(Clone,Debug,PartialEq,Eq, Serialize, Deserialize)]
 pub struct TextOptions {
     indexing: TextIndexingOptions,
     stored: bool,
@@ -51,9 +47,10 @@ impl Default for TextOptions {
 
 
 /// Describe how a field should be indexed
-#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash)]
+#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash, Serialize, Deserialize)]
 pub enum TextIndexingOptions {
     /// Unindexed fields will not generate any postings. They will not be searchable either.
+    #[serde(rename="unindexed")]
     Unindexed,
     /// Untokenized means that the field text will not be split into tokens before being indexed.
     /// A field with the value "Hello world", will have the document suscribe to one single 
@@ -61,60 +58,24 @@ pub enum TextIndexingOptions {
     ///
     /// It will **not** be searchable if the user enter "hello" for instance.
     /// This can be useful for tags, or ids for instance.   
+    #[serde(rename="untokenized")]
     Untokenized,
     /// TokenizedNoFreq will tokenize the field value, and append the document doc id 
     /// to the posting lists associated to all of the tokens.
     /// The frequence of appearance of the term in the document however will be lost.
     /// The term frequency used in the TfIdf formula will always be 1.
+    #serde(rename="tokenize")}
     TokenizedNoFreq,
     /// TokenizedWithFreq will tokenize the field value, and encode
     /// both the docid and the term frequency in the posting lists associated to all
+    #[serde(rename="freq")]
     // of the tokens.
     TokenizedWithFreq,
     /// Like TokenizedWithFreq, but also encodes the positions of the 
     /// terms in a separate file. This option is required for phrase queries.
     /// Don't use this if you are certain you won't need it, the term positions file can be very big.
+    #[serde(rename="position")]
     TokenizedWithFreqAndPosition,
-}
-
-impl Encodable for TextIndexingOptions {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        let name = match *self {
-          TextIndexingOptions::Unindexed => {
-              "unindexed"
-          }
-          TextIndexingOptions::Untokenized => {
-              "untokenized"
-          }
-          TextIndexingOptions::TokenizedNoFreq => {
-              "tokenize"
-          }
-          TextIndexingOptions::TokenizedWithFreq => {
-              "freq"
-          }
-          TextIndexingOptions::TokenizedWithFreqAndPosition => {
-              "position"
-          }
-        };
-        s.emit_str(name)
-    }
-}
-
-impl Decodable for TextIndexingOptions {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        use self::TextIndexingOptions::*;
-        let option_name: String = try!(d.read_str());
-        Ok(match option_name.as_ref() {
-            "unindexed" => Unindexed,
-            "untokenized" => Untokenized,
-            "tokenize" => TokenizedNoFreq,
-            "freq" => TokenizedWithFreq,
-            "position" => TokenizedWithFreqAndPosition,
-            _ => {
-                return Err(d.error(&format!("Encoding option {:?} unknown", option_name)));
-            }
-        })
-    }
 }
 
 impl TextIndexingOptions {

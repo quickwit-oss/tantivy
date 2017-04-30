@@ -1,5 +1,4 @@
-use schema::TextOptions;
-use schema::U32Options;
+use schema::{TextOptions, U32Options};
 
 use rustc_serialize::json::Json;
 use schema::Value;
@@ -19,7 +18,7 @@ pub enum ValueParsingError {
 
 /// A `FieldType` describes the type (text, u32) of a field as well as 
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug)]
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),
@@ -28,6 +27,13 @@ pub enum FieldType {
 }
 
 impl FieldType {
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            FieldType::Str(_) => "text",
+            FieldType::U32(_) => "u32",
+        }
+    }
     
     /// Parses a field value from json, given the target FieldType.
     ///
