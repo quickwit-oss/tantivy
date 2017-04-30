@@ -64,7 +64,7 @@ pub enum TextIndexingOptions {
     /// to the posting lists associated to all of the tokens.
     /// The frequence of appearance of the term in the document however will be lost.
     /// The term frequency used in the TfIdf formula will always be 1.
-    #serde(rename="tokenize")}
+    #[serde(rename="tokenize")]
     TokenizedNoFreq,
     /// TokenizedWithFreq will tokenize the field value, and encode
     /// both the docid and the term frequency in the posting lists associated to all

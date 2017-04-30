@@ -28,13 +28,6 @@ pub enum FieldType {
 
 impl FieldType {
 
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            FieldType::Str(_) => "text",
-            FieldType::U32(_) => "u32",
-        }
-    }
-    
     /// Parses a field value from json, given the target FieldType.
     ///
     /// Tantivy will not try to cast values.
