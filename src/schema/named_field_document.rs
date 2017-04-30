@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 use schema::Value;
-use rustc_serialize::Encodable;
-use rustc_serialize::Encoder;
 
 
 
@@ -11,9 +9,11 @@ use rustc_serialize::Encoder;
 /// A `NamedFieldDocument` is a simple representation of a document
 /// as a `BTreeMap<String, Vec<Value>>`.
 ///
+#[derive(Serialize)]
 pub struct NamedFieldDocument(pub BTreeMap<String, Vec<Value>>);
 
-
+// TODO: Remove
+/*
 impl Encodable for NamedFieldDocument {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
         s.emit_struct("named_field_document", self.0.len(), |s| {
@@ -44,3 +44,4 @@ impl Encodable for NamedFieldDocument {
         })
     }
 }
+*/

@@ -1,7 +1,7 @@
 use std::ops::BitOr;
 
-/// Define how a u64 field should be handled by tantivy.
-#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
+/// Define how an int field should be handled by tantivy.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntOptions {
     indexed: bool,
     fast: bool,
