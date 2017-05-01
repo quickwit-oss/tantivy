@@ -204,8 +204,8 @@ impl ManagedDirectory {
                 .expect("Managed file lock poisoned");
             managed_paths = meta_informations_rlock.managed_paths.clone();
         }
-        let mut w = vec!();
-        try!(write!(&mut w, "{}\n", serde_json::to_string_pretty(&managed_paths)));
+        let mut w = try!(serde_json::to_vec(&managed_paths));
+        try!(write!(&mut w, "\n"));
         self.directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
         Ok(())
     }

@@ -10,7 +10,7 @@ use std::sync::PoisonError;
 use directory::error::{OpenReadError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
-
+use serde_json;
 
 
 
@@ -93,5 +93,11 @@ impl From<OpenDirectoryError> for Error {
             OpenDirectoryError::NotADirectory(directory_path) => 
                 Error::InvalidArgument(format!("{:?} is not a directory", directory_path)),
         }
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Error {
+        Error::IOError(error.into())
     }
 }

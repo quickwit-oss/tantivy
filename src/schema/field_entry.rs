@@ -3,6 +3,7 @@ use schema::U32Options;
 
 use std::fmt;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::ser::SerializeStruct;
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use schema::FieldType;
 
@@ -147,7 +148,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 Some(ty) => {
                                     match ty {
                                         "text" => field_type = Some(FieldType::Str(map.next_value()?)),
-                                        "u32" => field_type = Some(FieldType::U32(map.next_value()?))
+                                        "u32" => field_type = Some(FieldType::U32(map.next_value()?)),
+                                        _ => return Err(de::Error::custom(format!("Unrecognised type {}", ty)))
                                     }
                                 }
                             }

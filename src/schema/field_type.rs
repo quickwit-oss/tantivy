@@ -33,7 +33,7 @@ impl FieldType {
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the 
     /// target field is a `Str`, this method will return an Error. 
-    pub fn value_from_json(&self, json: &Value) -> Result<Value, ValueParsingError> {
+    pub fn value_from_json(&self, json: &JsonValue) -> Result<Value, ValueParsingError> {
         match *json {
             JsonValue::String(ref field_text) => {
                 match *self {

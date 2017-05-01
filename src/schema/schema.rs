@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use schema::field_type::ValueParsingError;
 use std::sync::Arc;
 
-use serde_json;
+use serde_json::{self, Value as JsonValue};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde::ser::SerializeSeq;
 use serde::de::{Visitor, SeqAccess};
 use super::*;
 use std::fmt;
@@ -218,7 +219,7 @@ impl Schema {
                     let field_entry = self.get_field_entry(field);
                     let field_type = field_entry.field_type();
                     match *json_value {
-                        Value::Array(ref json_items) => {
+                        JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
                                 let value = try!(
                                     field_type
@@ -281,7 +282,7 @@ impl<'de> Deserialize<'de> for Schema
                 formatter.write_str("struct Schema")
             }
 
-            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
                 where A: SeqAccess<'de>
             {
                 let mut schema = SchemaBuilder {
@@ -289,7 +290,7 @@ impl<'de> Deserialize<'de> for Schema
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
                 };
 
-                while let Some(value) = seq.next_entry()? {
+                while let Some(value) = seq.next_element()? {
                     schema.add_field(value);
                 }
 
