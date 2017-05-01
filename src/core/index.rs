@@ -1,10 +1,10 @@
 use Result;
 use Error;
+use serde_json;
 use schema::Schema;
 use std::sync::Arc;
 use std::borrow::BorrowMut;
 use std::fmt;
-use rustc_serialize::json;
 use core::SegmentId;
 use directory::{Directory, MmapDirectory, RAMDirectory};
 use indexer::index_writer::open_index_writer;
@@ -29,7 +29,7 @@ const NUM_SEARCHERS: usize = 12;
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
-    json::decode(&meta_string)
+    serde_json::from_str(&meta_string)
         .map_err(|e| Error::CorruptedFile(META_FILEPATH.clone(), Box::new(e)))
 }
 

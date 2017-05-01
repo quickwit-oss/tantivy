@@ -7,7 +7,7 @@ use schema::Value;
 
 
 /// `FieldValue` holds together a `Field` and its `Value`.
-#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct FieldValue {
     field: Field,
     value: Value,

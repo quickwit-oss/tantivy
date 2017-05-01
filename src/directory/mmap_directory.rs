@@ -53,7 +53,7 @@ fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadE
     
 }
 
-#[derive(Default,Clone,Debug,RustcDecodable,RustcEncodable)]
+#[derive(Default,Clone,Debug,Serialize,Deserialize)]
 pub struct CacheCounters {
     // Number of time the cache prevents to call `mmap`
     pub hit: usize,
@@ -65,7 +65,7 @@ pub struct CacheCounters {
     pub miss_weak: usize,
 }
 
-#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct CacheInfo {
     pub counters: CacheCounters,
     pub mmapped: Vec<PathBuf>,

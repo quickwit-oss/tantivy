@@ -1,14 +1,11 @@
 use std::collections::HashMap;
-
-use rustc_serialize::Decodable;
-use rustc_serialize::Encodable;
-use rustc_serialize::Decoder;
-use rustc_serialize::Encoder;
-use rustc_serialize::json;
-use rustc_serialize::json::Json;
 use std::collections::BTreeMap;
 use schema::field_type::ValueParsingError;
 use std::sync::Arc;
+
+use serde_json;
+use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde::de::{Visitor, SeqAccess};
 use super::*;
 use std::fmt;
 
@@ -196,12 +193,12 @@ impl Schema {
     ///
     /// Encoding a document cannot fail.
     pub fn to_json(&self, doc: &Document) -> String {
-        json::encode(&self.to_named_doc(doc)).unwrap()
+        serde_json::to_string(&self.to_named_doc(doc)).expect("doc encoding failed. This is a bug")
     }
 
     /// Build a document object from a json-object. 
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_node = try!(Json::from_str(doc_json));
+        let json_node = try!(serde_json::to_value(doc_json));
         let some_json_obj = json_node.as_object();
         if !some_json_obj.is_some() {
             let doc_json_sample: String =
@@ -221,7 +218,7 @@ impl Schema {
                     let field_entry = self.get_field_entry(field);
                     let field_type = field_entry.field_type();
                     match *json_value {
-                        Json::Array(ref json_items) => {
+                        Value::Array(ref json_items) => {
                             for json_item in json_items {
                                 let value = try!(
                                     field_type
@@ -257,30 +254,50 @@ impl fmt::Debug for Schema {
     }
 }
 
-impl Decodable for Schema {
-    fn decode<D: Decoder>(d: &mut D) -> Result  <Self, D::Error> {
-        let mut schema_builder = SchemaBuilder::default();
-        try!(d.read_seq(|d, num_fields| {
-            for _ in 0..num_fields {
-                let field_entry = try!(FieldEntry::decode(d));
-                schema_builder.add_field(field_entry);
-            }
-            Ok(())
-        }));
-        Ok(schema_builder.build())
+impl Serialize for Schema {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
+        for e in &self.0.fields {
+            seq.serialize_element(e)?;
+        }
+        seq.end()
     }
 }
 
-impl Encodable for Schema {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        try!(s.emit_seq(self.0.fields.len(),
-            |mut e| {
-                for (ord, field) in self.0.fields.iter().enumerate() {
-                    try!(e.emit_seq_elt(ord, |e| field.encode(e)));
+impl<'de> Deserialize<'de> for Schema
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        struct SchemaVisitor;
+
+        impl<'de> Visitor<'de> for SchemaVisitor
+        {
+            type Value = Schema;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct Schema")
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+                where A: SeqAccess<'de>
+            {
+                let mut schema = SchemaBuilder {
+                    fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
+                    fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
+                };
+
+                while let Some(value) = seq.next_entry()? {
+                    schema.add_field(value);
                 }
-                Ok(())
-            }));
-        Ok(())
+
+                Ok(schema.build())
+            }
+        }
+        
+        deserializer.deserialize_map(SchemaVisitor)
     }
 }
 
@@ -300,7 +317,7 @@ impl From<SchemaBuilder> for Schema {
 #[derive(Debug)]
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
-    NotJSON(json::ParserError),
+    NotJSON(serde_json::Error),
     /// The payload given is not a JSON Object (`{...}`).
     NotJSONObject(String),
     /// One of the value node could not be parsed.
@@ -309,8 +326,8 @@ pub enum DocParsingError {
     NoSuchFieldInSchema(String),
 }
 
-impl From<json::ParserError> for DocParsingError {
-    fn from(err: json::ParserError) -> DocParsingError {
+impl From<serde_json::Error> for DocParsingError {
+    fn from(err: serde_json::Error) -> DocParsingError {
         DocParsingError::NotJSON(err)
     }
 }

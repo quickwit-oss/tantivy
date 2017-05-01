@@ -33,7 +33,7 @@ itertools = "0.5.9"
 lz4 = "1.20"
 bit-set = "0.4.0"
 time = "0.1"
-uuid = { version = "0.4", features = ["v4", "rustc-serialize"] }
+uuid = { version = "0.5", features = ["v4", "serde"] }
 chan = "0.1"
 version = "2"
 crossbeam = "0.2"
