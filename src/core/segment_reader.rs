@@ -18,7 +18,7 @@ use std::fmt;
 use schema::Field;
 use postings::SegmentPostingsOption;
 use postings::SegmentPostings;
-use fastfield::{U64FastFieldsReader, U64FastFieldReader};
+use fastfield::{FastFieldsReader, FastFieldReader, U64FastFieldReader};
 use schema::Schema;
 use schema::FieldType;
 use postings::FreqHandler;
@@ -42,8 +42,8 @@ pub struct SegmentReader {
     term_infos: Arc<FstMap<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
-    fast_fields_reader: Arc<U64FastFieldsReader>,
-    fieldnorms_reader: Arc<U64FastFieldsReader>,
+    fast_fields_reader: Arc<FastFieldsReader>,
+    fieldnorms_reader: Arc<FastFieldsReader>,
     delete_bitset: DeleteBitSet,
     positions_data: ReadOnlySource,
     schema: Schema,
@@ -74,41 +74,48 @@ impl SegmentReader {
     }
 
     /// Accessor to a segment's fast field reader given a field.
-    pub fn get_fast_field_reader(&self, field: Field) -> Option<U64FastFieldReader> {
-        /// Returns the u64 fast value reader if the field
-        /// is a u64 field indexed as "fast".
-        ///
-        /// Return None if the field is not a u64 field
-        /// indexed with the fast option.
-        ///
-        /// # Panics
-        /// May panic if the index is corrupted.
+    ///
+    /// Returns the u64 fast value reader if the field
+    /// is a u64 field indexed as "fast".
+    ///
+    /// Return None if the field is not a u64 field
+    /// indexed with the fast option.
+    ///
+    /// # Panics
+    /// May panic if the index is corrupted.
+    /// TODO return Err
+    pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>(&self, field: Field) -> Option<TFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match field_entry.field_type() {
-            &FieldType::Str(_) => {
-                warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
-                None
-            },
-            &FieldType::U64(ref integer_options) => {
-                if integer_options.is_fast() {
-                    self.fast_fields_reader.get_field(field)
-                }
-                else {
-                    warn!("Field <{}> is not defined as a fast field.", field_entry.name());
-                    None
-                }
-            },
-            &FieldType::I64(ref integer_options) => {
-                panic!("not implemented");
-                // if integer_options.is_fast() {
-                //     self.fast_fields_reader.get_field(field)
-                // }
-                // else {
-                //     warn!("Field <{}> is not defined as a fast field.", field_entry.name());
-                //     None
-                // }
-            },
+        if !TFastFieldReader::is_enabled(field_entry.field_type()) {
+            None
         }
+        else {
+            self.fast_fields_reader.open_reader(field)
+        }
+        // match field_entry.field_type() {
+        //     &FieldType::Str(_) => {
+        //         warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
+        //         None
+        //     },
+        //     &FieldType::U64(ref integer_options) => {
+        //         if integer_options.is_fast() {
+        //             self.fast_fields_reader.open_reader(field)
+        //         }
+        //         else {
+        //             warn!("Field <{}> is not defined as a fast field.", field_entry.name());
+        //             None
+        //         }
+        //     },
+        //     &FieldType::I64(ref integer_options) => {
+        //         if integer_options.is_fast() {
+        //             self.fast_fields_reader.open_reader(field)
+        //         }
+        //         else {
+        //             warn!("Field <{}> is not defined as a fast field.", field_entry.name());
+        //             None
+        //         }
+        //     },
+        // }
     }
     
     /// Accessor to the segment's `Field norms`'s reader.
@@ -119,7 +126,7 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in 
     /// the `.fieldnorm` file of the segment. 
     pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
-        self.fieldnorms_reader.get_field(field) 
+        self.fieldnorms_reader.open_reader(field) 
     }
         
     /// Returns the number of documents containing the term.
@@ -144,10 +151,10 @@ impl SegmentReader {
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
         
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
-        let fast_fields_reader = try!(U64FastFieldsReader::open(fast_field_data));
+        let fast_fields_reader = try!(FastFieldsReader::open(fast_field_data));
         
         let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
-        let fieldnorms_reader = try!(U64FastFieldsReader::open(fieldnorms_data));
+        let fieldnorms_reader = try!(FastFieldsReader::open(fieldnorms_data));
         
         let positions_data = segment
             .open_read(SegmentComponent::POSITIONS)

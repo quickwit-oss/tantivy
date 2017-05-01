@@ -7,8 +7,10 @@
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
 
+#![cfg_attr(test, feature(rand))]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
+
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
 #![warn(missing_docs)]
@@ -200,6 +202,7 @@ mod tests {
     use schema::*;
     use DocSet;
     use IndexWriter;
+    use fastfield::FastFieldReader;
     use Postings;
 
     #[test]

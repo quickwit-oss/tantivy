@@ -75,6 +75,7 @@ pub mod tests {
     use core::SegmentReader;
     use SegmentLocalId;
     use fastfield::U64FastFieldReader;
+    use fastfield::FastFieldReader;
     use schema::Field;
     
     /// Stores all of the doc ids.

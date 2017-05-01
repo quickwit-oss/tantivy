@@ -16,7 +16,8 @@ mod serializer;
 pub mod delete;
 
 pub use self::writer::{U64FastFieldsWriter, U64FastFieldWriter};
-pub use self::reader::{U64FastFieldsReader, U64FastFieldReader};
+pub use self::reader::{FastFieldsReader, U64FastFieldReader};
+pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
 
 #[cfg(test)]
@@ -30,6 +31,7 @@ mod tests {
     use schema::FAST;
     use test::Bencher;
     use test;
+    use fastfield::FastFieldReader;
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
@@ -78,8 +80,8 @@ mod tests {
             assert_eq!(source.len(), 31 as usize);
         }
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
@@ -111,8 +113,8 @@ mod tests {
             assert_eq!(source.len(), 56 as usize);
         }
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u64);
             assert_eq!(fast_field_reader.get(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get(2), 3_052u64);
@@ -146,8 +148,8 @@ mod tests {
             assert_eq!(source.len(), 29 as usize);
         }
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u64);
             }
@@ -177,8 +179,8 @@ mod tests {
             assert_eq!(source.len(), 80037 as usize);
         }
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(fast_field_reader.get(doc), 5_000_000_000_000_000_000u64 + doc as u64 - 1u64);
@@ -212,8 +214,8 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             let mut a = 0u64;
             for _ in 0..n {
                 println!("i {}=> {} {}", a, fast_field_reader.get(a as u32), permutation[a as usize]);
@@ -266,8 +268,8 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             b.iter(|| {
                 let n = test::black_box(7000u32);
                 let mut a = 0u64;
@@ -296,8 +298,8 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-            let fast_field_reader = fast_field_readers.get_field(*FIELD).unwrap();
+            let fast_field_readers = FastFieldsReader::open(source).unwrap();
+            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
             b.iter(|| {
                 let n = test::black_box(1000u32);
                 let mut a = 0u32;

@@ -14,6 +14,7 @@ use core::TermIterator;
 use fastfield::delete::DeleteBitSet;
 use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
+use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
 use common::allocate_vec;

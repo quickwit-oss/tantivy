@@ -59,7 +59,7 @@ impl FieldEntry {
         }
     }
     
-    // Returns true iff the field is a u64 fast field
+    /// Returns true iff the field is a u64 fast field
     pub fn is_u64_fast(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => options.is_fast(),

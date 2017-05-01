@@ -11,7 +11,7 @@ use fastfield::FastFieldSerializer;
 use fastfield::U64FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
-
+use schema::FieldType;
 
 lazy_static! {
     static ref U64_FAST_FIELD_EMPTY: ReadOnlySource = {
@@ -21,8 +21,14 @@ lazy_static! {
 }
 
 
-pub trait FastFieldReader<T> {
-    fn get(&self, doc: DocId) -> T;
+pub trait FastFieldReader: Sized {
+    type ValueType;
+
+    fn get(&self, doc: DocId) -> Self::ValueType;
+
+    fn open(source: ReadOnlySource) -> Self;
+
+    fn is_enabled(field_type: &FieldType) -> bool;
 }
 
 pub struct U64FastFieldReader {
@@ -45,12 +51,34 @@ impl U64FastFieldReader {
     pub fn max_val(&self,) -> u64 {
         self.max_val
     }
+}
+
+impl FastFieldReader for U64FastFieldReader {
+    type ValueType = u64;
+    
+    fn get(&self, doc: DocId) -> u64 {
+        self.min_val + self.bit_unpacker.get(doc as usize)
+    }
+
+    fn is_enabled(field_type: &FieldType) -> bool {
+        match field_type {
+            &FieldType::U64(ref integer_options) => {
+                if integer_options.is_fast() {
+                    true
+                }
+                else {
+                    false
+                }
+            },
+            _ => false,
+        }
+    }
 
     /// Opens a new fast field reader given a read only source.
     ///
     /// # Panics
     /// Panics if the data is corrupted.
-    pub fn open(data: ReadOnlySource) -> U64FastFieldReader {
+    fn open(data: ReadOnlySource) -> U64FastFieldReader {
         let min_val: u64;
         let max_val: u64;
         let bit_unpacker: BitUnpacker;
@@ -72,9 +100,6 @@ impl U64FastFieldReader {
         }
     }
 
-    pub fn get(&self, doc: DocId) -> u64 {
-        self.min_val + self.bit_unpacker.get(doc as usize)
-    }
 }
 
 
@@ -97,18 +122,98 @@ impl From<Vec<u64>> for U64FastFieldReader {
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let fast_field_readers = U64FastFieldsReader::open(source).unwrap();
-        fast_field_readers.get_field(field).unwrap()
+        let fast_field_readers = FastFieldsReader::open(source).unwrap();
+        fast_field_readers.open_reader(field).unwrap()
      }
 }
 
-pub struct U64FastFieldsReader {
+
+
+pub struct I64FastFieldReader {
+    _data: ReadOnlySource,
+    bit_unpacker: BitUnpacker,
+    min_val: i64,
+    max_val: i64,
+}
+
+impl I64FastFieldReader {
+
+    pub fn empty() -> I64FastFieldReader {
+        // TODO implement
+        panic!("");
+        // I64FastFieldReader::open(I64_FAST_FIELD_EMPTY.clone())
+    }
+
+    pub fn min_val(&self,) -> i64 {
+        self.min_val
+    }
+
+    pub fn max_val(&self,) -> i64 {
+        self.max_val
+    }
+}
+
+impl FastFieldReader for I64FastFieldReader {
+    type ValueType = i64;
+    
+    fn get(&self, doc: DocId) -> i64 {
+        self.min_val + (self.bit_unpacker.get(doc as usize) as i64)
+    }
+    
+    /// Opens a new fast field reader given a read only source.
+    ///
+    /// # Panics
+    /// Panics if the data is corrupted.
+    fn open(data: ReadOnlySource) -> I64FastFieldReader {
+        let min_val: i64;
+        let max_val: i64;
+        let bit_unpacker: BitUnpacker;
+        
+        {
+            let mut cursor: &[u8] = data.as_slice();
+            min_val = i64::deserialize(&mut cursor).expect("Failed to read the min_val of fast field.");
+            let amplitude = u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
+            max_val = min_val + (amplitude as i64);
+            let num_bits = compute_num_bits(amplitude);
+            bit_unpacker = BitUnpacker::new(cursor, num_bits as usize)
+        }
+
+        I64FastFieldReader {
+            _data: data,
+            bit_unpacker: bit_unpacker,
+            min_val: min_val,
+            max_val: max_val,
+        }
+    }
+
+
+    fn is_enabled(field_type: &FieldType) -> bool {
+        match field_type {
+            &FieldType::I64(ref integer_options) => {
+                if integer_options.is_fast() {
+                    true
+                }
+                else {
+                    false
+                }
+            },
+            _ => false,
+        }
+    }
+
+}
+
+
+
+
+pub struct FastFieldsReader {
     source: ReadOnlySource,
     field_offsets: HashMap<Field, (u32, u32)>,
 }
 
-impl U64FastFieldsReader {
-    pub fn open(source: ReadOnlySource) -> io::Result<U64FastFieldsReader> {
+impl FastFieldsReader {
+
+    pub fn open(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
         let header_offset;
         let field_offsets: Vec<(Field, u32)>;
         {
@@ -132,12 +237,12 @@ impl U64FastFieldsReader {
             let (field, start_offset) = *field_start_offsets;
             field_offsets_map.insert(field, (start_offset, *stop_offset));
         }
-        Ok(U64FastFieldsReader {
+        Ok(FastFieldsReader {
             field_offsets: field_offsets_map,
             source: source,
         })
     }
-    
+
     /// Returns the u64 fast value reader if the field
     /// is a u64 field indexed as "fast".
     ///
@@ -146,12 +251,12 @@ impl U64FastFieldsReader {
     ///
     /// # Panics
     /// May panic if the index is corrupted.
-    pub fn get_field(&self, field: Field) -> Option<U64FastFieldReader> {
+    pub fn open_reader<FFReader: FastFieldReader>(&self, field: Field) -> Option<FFReader> {
         self.field_offsets
             .get(&field)
             .map(|&(start, stop)| {
                 let field_source = self.source.slice(start as usize, stop as usize);
-                U64FastFieldReader::open(field_source)
+                FFReader::open(field_source)
             })
     }
 }
