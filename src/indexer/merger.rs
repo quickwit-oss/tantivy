@@ -72,11 +72,15 @@ fn compute_min_max_val(u64_reader: &U64FastFieldReader, max_doc: DocId, delete_b
 }
 
 fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
-    segment_reader.get_fieldnorms_reader(field)
+    // TODO
+    // segment_reader.get_fieldnorms_reader(field)
+    panic!("extract_fieldnorm_reader");
 }
 
 fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
-    segment_reader.get_fast_field_reader(field)
+    // segment_reader.get_fast_field_reader(field)
+    // TODO
+    panic!("extract_fast_field_reader");
 }
 
 impl IndexMerger {
@@ -296,6 +300,7 @@ mod tests {
     use query::TermQuery;
     use schema::{Field, FieldValue};
     use core::Index;
+    use fastfield::U64FastFieldReader;
     use Searcher;
     use DocAddress;
     use collector::tests::FastFieldTestCollector;
@@ -507,11 +512,11 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
             assert_eq!(score_field_reader.min_val(), 1);
             assert_eq!(score_field_reader.max_val(), 3);
 
-            let score_field_reader = searcher.segment_reader(1).get_fast_field_reader(score_field).unwrap();
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(1).get_fast_field_reader(score_field).unwrap();
             assert_eq!(score_field_reader.min_val(), 4000);
             assert_eq!(score_field_reader.max_val(), 7000);
         }
@@ -533,7 +538,7 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
             assert_eq!(score_field_reader.min_val(), 3);
             assert_eq!(score_field_reader.max_val(), 7000);
         }
@@ -555,7 +560,7 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
             assert_eq!(score_field_reader.min_val(), 3);
             assert_eq!(score_field_reader.max_val(), 7000);
         }
@@ -578,7 +583,7 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
             assert_eq!(score_field_reader.min_val(), 6000);
             assert_eq!(score_field_reader.max_val(), 7000);
         }

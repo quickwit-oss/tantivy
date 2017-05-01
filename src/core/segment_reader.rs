@@ -5,6 +5,7 @@ use core::SegmentComponent;
 use schema::Term;
 use common::HasLen;
 use core::SegmentMeta;
+use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::delete::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
@@ -84,13 +85,17 @@ impl SegmentReader {
     /// # Panics
     /// May panic if the index is corrupted.
     /// TODO return Err
-    pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>(&self, field: Field) -> Option<TFastFieldReader> {
+    pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>(&self, field: Field) -> fastfield::Result<TFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         if !TFastFieldReader::is_enabled(field_entry.field_type()) {
-            None
+            Err(FastFieldNotAvailableError::new(field_entry))
         }
         else {
-            self.fast_fields_reader.open_reader(field)
+            Ok(
+                self.fast_fields_reader
+                .open_reader(field)
+                .expect("Fast field file corrupted.")
+            )
         }
         // match field_entry.field_type() {
         //     &FieldType::Str(_) => {

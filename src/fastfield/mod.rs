@@ -13,12 +13,14 @@
 mod reader;
 mod writer;
 mod serializer;
+mod error;
 pub mod delete;
 
 pub use self::writer::{U64FastFieldsWriter, U64FastFieldWriter};
 pub use self::reader::{FastFieldsReader, U64FastFieldReader};
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
+pub use self::error::{Result, FastFieldNotAvailableError};
 
 #[cfg(test)]
 mod tests {
