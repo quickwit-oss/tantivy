@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use schema::field_type::ValueParsingError;
 use std::sync::Arc;
 
-use serde_json::{self, Value as JsonValue};
+use serde_json::{self, Value as JsonValue, Map as JsonObject};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::ser::SerializeSeq;
 use serde::de::{Visitor, SeqAccess};
@@ -199,9 +199,7 @@ impl Schema {
 
     /// Build a document object from a json-object. 
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_node = try!(serde_json::to_value(doc_json));
-        let some_json_obj = json_node.as_object();
-        if !some_json_obj.is_some() {
+        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|e| {
             let doc_json_sample: String =
                 if doc_json.len() < 20 {
                     String::from(doc_json)
@@ -209,9 +207,9 @@ impl Schema {
                 else {
                     format!("{:?}...", &doc_json[0..20])
                 };
-            return Err(DocParsingError::NotJSONObject(doc_json_sample))
-        }
-        let json_obj = some_json_obj.unwrap();
+            DocParsingError::NotJSONObject(doc_json_sample)
+        })?;
+
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
             match self.get_field(field_name) {
@@ -398,6 +396,8 @@ mod tests {
                 "count": 4
         }"#;
         let doc = schema.parse_document(doc_json).unwrap();
+
+        println!("{}", schema.to_json(&doc));
         let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }
@@ -427,21 +427,6 @@ mod tests {
         {
             let json_err = schema.parse_document(r#"{
                 "title": "my title",
-                "author": "fulmicoton"
-                "count": 4
-            }"#);
-            match json_err {
-                Err(DocParsingError::NotJSON(__)) => {
-                    assert!(true);
-                }
-                _ => {
-                    assert!(false);
-                }
-            }
-        }
-        {
-            let json_err = schema.parse_document(r#"{
-                "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
                 "jambon": "bayonne" 
@@ -451,7 +436,7 @@ mod tests {
                     assert_eq!(field_name, "jambon");
                 }
                 _ => {
-                    assert!(false);
+                    panic!("expected additional field 'jambon' to fail but didn't");
                 }
             }
         }
@@ -467,7 +452,7 @@ mod tests {
                     assert!(true);
                 }
                 _ => {
-                    assert!(false);
+                    panic!("expected string of 5 to fail but didn't");
                 }
             }
         }
@@ -482,7 +467,7 @@ mod tests {
                     assert!(true);
                 }
                 _ => {
-                    assert!(false);
+                    panic!("expected -5 to fail but didn't");
                 }
             }
         }
@@ -497,7 +482,7 @@ mod tests {
                     assert!(true);
                 }
                 _ => {
-                    assert!(false);
+                    panic!("expected overflow but didn't");
                 }
             }
         }

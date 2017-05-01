@@ -60,7 +60,7 @@ impl FieldType {
                             Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
                         }
                     }
-                    _ => {
+                    FieldType::Str(_) => {
                         Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
                     }
                 }
