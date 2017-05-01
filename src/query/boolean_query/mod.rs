@@ -102,7 +102,7 @@ mod tests {
         }
         {
             let boolean_query = BooleanQuery::from(vec![(Occur::MustNot, make_term_query("d")),]);
-            assert_eq!(matching_docs(&boolean_query), Vec::new());
+            assert_eq!(matching_docs(&boolean_query), Vec::<u32>::new());
         }
     }
 

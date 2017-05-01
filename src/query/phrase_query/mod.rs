@@ -60,11 +60,14 @@ mod tests {
             searcher.search(&phrase_query, &mut test_collector).expect("search should succeed");
             test_collector.docs()
         };
+
+        let empty_vec = Vec::<u32>::new();
+
         assert_eq!(test_query(vec!("a", "b", "c")), vec!(2, 4));
         assert_eq!(test_query(vec!("a", "b")), vec!(1, 2, 3, 4));
         assert_eq!(test_query(vec!("b", "b")), vec!(0, 1));
-        assert_eq!(test_query(vec!("g", "ewrwer")), vec!());
-        assert_eq!(test_query(vec!("g", "a")), vec!());
+        assert_eq!(test_query(vec!("g", "ewrwer")), empty_vec);
+        assert_eq!(test_query(vec!("g", "a")), empty_vec);
     }
     
 }

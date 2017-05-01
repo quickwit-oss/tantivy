@@ -339,7 +339,7 @@ impl From<serde_json::Error> for DocParsingError {
 mod tests {
     
     use schema::*;
-    use rustc_serialize::json;
+    use serde_json;
     use schema::field_type::ValueParsingError;
         
     #[test]
@@ -350,7 +350,7 @@ mod tests {
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u32_field("count", count_options);
         let schema = schema_builder.build();
-        let schema_json: String = format!("{}", json::as_pretty_json(&schema));
+        let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         let expected = r#"[
   {
     "name": "title",

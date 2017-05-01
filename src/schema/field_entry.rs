@@ -178,18 +178,22 @@ mod tests {
 
     use super::*;
     use schema::TEXT;
-    use rustc_serialize::json;
+    use serde_json;
     
     #[test]
     fn test_json_serialization() {
         let field_value = FieldEntry::new_text(String::from("title"), TEXT);
-        assert_eq!(format!("{}", json::as_pretty_json(&field_value)), r#"{
+
+        let expected = r#"{
   "name": "title",
   "type": "text",
   "options": {
     "indexing": "position",
     "stored": false
   }
-}"#);
+}"#;
+        let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();
+
+        assert_eq!(expected, &field_value_json);
     }
 }
