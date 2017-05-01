@@ -20,6 +20,11 @@ lazy_static! {
     };
 }
 
+
+pub trait FastFieldReader<T> {
+    fn get(&self, doc: DocId) -> T;
+}
+
 pub struct U64FastFieldReader {
     _data: ReadOnlySource,
     bit_unpacker: BitUnpacker,
@@ -46,7 +51,6 @@ impl U64FastFieldReader {
     /// # Panics
     /// Panics if the data is corrupted.
     pub fn open(data: ReadOnlySource) -> U64FastFieldReader {
-        
         let min_val: u64;
         let max_val: u64;
         let bit_unpacker: BitUnpacker;

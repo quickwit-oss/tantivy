@@ -56,6 +56,24 @@ impl Term {
         Term(buffer)
     }
     
+    /// Builds a term given a field, and a u64-value
+    ///
+    /// Assuming the term has a field id of 1, and a u64 value of 3234,
+    /// the Term will have 8 bytes.
+    /// 
+    /// The first four byte are dedicated to storing the field id as a u64.
+    /// The 4 following bytes are encoding the u64 value.
+    pub fn from_field_i64(field: Field, val: i64) -> Term {
+        const I64_TERM_LEN: usize = 4 + 8;
+        let mut buffer = allocate_vec(I64_TERM_LEN);
+        // we want BigEndian here to have lexicographic order
+        // match the natural order of `(field, val)`
+        BigEndian::write_u32(&mut buffer[0..4], field.0);
+        BigEndian::write_i64(&mut buffer[4..], val);
+        Term(buffer)
+    }
+    
+
     /// Builds a term given a field, and a string value
     ///
     /// Assuming the term has a field id of 2, and a text value of "abc",

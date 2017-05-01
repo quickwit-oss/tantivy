@@ -25,8 +25,8 @@ pub enum FieldType {
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
     U64(IntOptions),
-    // /// Signed 64-bits integers 64 field type configuration
-    // I64(IntOptions),
+    /// Signed 64-bits integers 64 field type configuration
+    I64(IntOptions),
 }
 
 impl FieldType {
@@ -43,23 +43,44 @@ impl FieldType {
                     FieldType::Str(_) => {
                         Ok(Value::Str(field_text.clone()))
                     }
-                    FieldType::U64(_) => {
-                        Err(ValueParsingError::TypeError(format!("Expected a u64 int, got {:?}", json)))
+                    FieldType::U64(_) | FieldType::I64(_) => {
+                        Err(ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)))
                     }
                 }
             }
             Json::U64(ref field_val_u64) => {
                 match *self {
+                    FieldType::I64(_) => {
+                        if *field_val_u64 > (i64::max_value() as u64) {
+                            Err(ValueParsingError::OverflowError(format!("Value {:?} is too high for a i64.", field_val_u64)))
+                        }
+                        else {
+                            Ok(Value::I64(*field_val_u64 as i64))
+                        }
+                    }
                     FieldType::U64(_) => {
-                        Ok(Value::U64(*field_val_u64 as u64))
+                        Ok(Value::U64(*field_val_u64))
                     }
                     _ => {
                         Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
                     }
                 }
             },
+            Json::I64(ref field_val_i64) => {
+                match *self {
+                    FieldType::I64(_) => {
+                        Ok(Value::I64(* field_val_i64))
+                    }
+                    FieldType::U64(_) => {
+                        Err(ValueParsingError::TypeError(format!("Expected a positive integer, got {:?}", json)))
+                    }
+                    FieldType::Str(_) => {
+                        Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
+                    }
+                }
+            }
             _ => {
-                Err(ValueParsingError::TypeError(format!("Expected a string or a u64, got {:?}", json)))
+                Err(ValueParsingError::TypeError(format!("Json value not supported error {:?}. Expected {:?}", json, self)))
             }
         }
     }

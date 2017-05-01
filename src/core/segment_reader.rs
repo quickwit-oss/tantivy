@@ -89,14 +89,24 @@ impl SegmentReader {
                 warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
                 None
             },
-            &FieldType::U64(ref u64_options) => {
-                if u64_options.is_fast() {
+            &FieldType::U64(ref integer_options) => {
+                if integer_options.is_fast() {
                     self.fast_fields_reader.get_field(field)
                 }
                 else {
                     warn!("Field <{}> is not defined as a fast field.", field_entry.name());
                     None
                 }
+            },
+            &FieldType::I64(ref integer_options) => {
+                panic!("not implemented");
+                // if integer_options.is_fast() {
+                //     self.fast_fields_reader.get_field(field)
+                // }
+                // else {
+                //     warn!("Field <{}> is not defined as a fast field.", field_entry.name());
+                //     None
+                // }
             },
         }
     }
@@ -249,7 +259,7 @@ impl SegmentReader {
                     _ => SegmentPostingsOption::NoFreq,
                 }
             }
-            FieldType::U64(_) => SegmentPostingsOption::NoFreq
+            FieldType::U64(_) | FieldType::I64(_) => SegmentPostingsOption::NoFreq
         };
         self.read_postings(term, segment_posting_option)
     }

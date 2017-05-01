@@ -71,6 +71,16 @@ impl BinarySerializable for u64 {
     }
 }
 
+impl BinarySerializable for i64 {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        writer.write_i64::<Endianness>(*self)
+              .map(|_| 8)
+    }
+    fn deserialize(reader: &mut Read) -> io::Result<i64> {
+        reader.read_i64::<Endianness>()
+    }
+}
+
 
 impl BinarySerializable for u8 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {

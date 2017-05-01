@@ -65,6 +65,10 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 		FieldType::U64(_) => {
 			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
 		}
+		FieldType::I64(_) => {
+			// TODO Implement
+			panic!("Notimplemented yet");
+		}
 	}
 }
 
@@ -157,10 +161,18 @@ impl<'a> SegmentWriter<'a> {
 							field_norms_writer.add_val(num_tokens as u64)
 						});
 				}
-				FieldType::U64(ref u64_options) => {
-					if u64_options.is_indexed() {
+				FieldType::U64(ref int_option) => {
+					if int_option.is_indexed() {
 						for field_value in field_values {
 							let term = Term::from_field_u64(field_value.field(), field_value.value().u64_value());
+							field_posting_writer.suscribe(doc_id, 0, &term, self.heap);
+						}
+					}
+				}
+				FieldType::I64(ref int_option) => {
+					if int_option.is_indexed() {
+						for field_value in field_values {
+							let term = Term::from_field_i64(field_value.field(), field_value.value().i64_value());
 							field_posting_writer.suscribe(doc_id, 0, &term, self.heap);
 						}
 					}

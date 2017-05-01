@@ -55,10 +55,11 @@ impl FieldEntry {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
             FieldType::U64(ref options) => options.is_indexed(),
+            FieldType::I64(ref options) => options.is_indexed(),
         }
     }
     
-    /// Returns true iff the field is a u64 fast field
+    // Returns true iff the field is a u64 fast field
     pub fn is_u64_fast(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => options.is_fast(),
@@ -70,6 +71,9 @@ impl FieldEntry {
     pub fn is_stored(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => {
+                options.is_stored()
+            }
+            FieldType::I64(ref options) =>  {
                 options.is_stored()
             }
             FieldType::Str(ref options) => {
@@ -89,20 +93,28 @@ impl Encodable for FieldEntry {
             }));
             match self.field_type {
                 FieldType::Str(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
+                    s.emit_struct_field("type", 1, |s| {
                         s.emit_str("text")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
                         options.encode(s)
-                    }));
+                    })?;
                 }
                 FieldType::U64(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
+                    s.emit_struct_field("type", 1, |s| {
                         s.emit_str("u64")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
                         options.encode(s)
-                    }));
+                    })?;
+                }
+                FieldType::I64(ref options) => {
+                    s.emit_struct_field("type", 1, |s| {
+                        s.emit_str("i64")
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
+                        options.encode(s)
+                    })?;
                 }
             }
             
