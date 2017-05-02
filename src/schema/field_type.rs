@@ -1,7 +1,6 @@
-use schema::TextOptions;
-use schema::U32Options;
+use schema::{TextOptions, U32Options};
 
-use rustc_serialize::json::Json;
+use serde_json::Value as JsonValue;
 use schema::Value;
 
 
@@ -19,7 +18,7 @@ pub enum ValueParsingError {
 
 /// A `FieldType` describes the type (text, u32) of a field as well as 
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug)]
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),
@@ -28,15 +27,15 @@ pub enum FieldType {
 }
 
 impl FieldType {
-    
+
     /// Parses a field value from json, given the target FieldType.
     ///
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the 
     /// target field is a `Str`, this method will return an Error. 
-    pub fn value_from_json(&self, json: &Json) -> Result<Value, ValueParsingError> {
+    pub fn value_from_json(&self, json: &JsonValue) -> Result<Value, ValueParsingError> {
         match *json {
-            Json::String(ref field_text) => {
+            JsonValue::String(ref field_text) => {
                 match *self {
                     FieldType::Str(_) => {
                         Ok(Value::Str(field_text.clone()))
@@ -46,17 +45,22 @@ impl FieldType {
                     }
                 }
             }
-            Json::U64(ref field_val_u64) => {
+            JsonValue::Number(ref field_val_num) => {
                 match *self {
                     FieldType::U32(_) => {
-                        if *field_val_u64 > (u32::max_value() as u64) {
-                            Err(ValueParsingError::OverflowError(format!("Expected u32, but value {:?} overflows.", field_val_u64)))
+                        if let Some(field_val_u64) = field_val_num.as_u64() {
+                            if field_val_u64 > (u32::max_value() as u64) {
+                                Err(ValueParsingError::OverflowError(format!("Expected u32, but value {:?} overflows.", field_val_u64)))
+                            }
+                            else {
+                                Ok(Value::U32(field_val_u64 as u32))
+                            }
                         }
                         else {
-                            Ok(Value::U32(*field_val_u64 as u32))
+                            Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
                         }
                     }
-                    _ => {
+                    FieldType::Str(_) => {
                         Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
                     }
                 }

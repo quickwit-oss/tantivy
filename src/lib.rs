@@ -25,6 +25,9 @@
 extern crate lazy_static;
 
 #[macro_use]
+extern crate serde_derive;
+
+#[macro_use]
 extern crate log;
 
 #[macro_use]
@@ -34,10 +37,11 @@ extern crate byteorder;
 extern crate memmap;
 extern crate regex;
 extern crate tempfile;
-extern crate rustc_serialize;
 extern crate atomicwrites;
 extern crate tempdir;
+extern crate serde;
 extern crate bincode;
+extern crate serde_json;
 extern crate time;
 extern crate lz4;
 extern crate uuid;

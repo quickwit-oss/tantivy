@@ -1,10 +1,10 @@
 use schema::TextOptions;
 use schema::U32Options;
 
-use rustc_serialize::Decodable;
-use rustc_serialize::Decoder;
-use rustc_serialize::Encodable;
-use rustc_serialize::Encoder;
+use std::fmt;
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::ser::SerializeStruct;
+use serde::de::{self, Visitor, MapAccess};
 use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
@@ -79,63 +79,94 @@ impl FieldEntry {
     }
 }
 
+impl Serialize for FieldEntry {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut s = serializer.serialize_struct("field_entry", 3)?;
+        s.serialize_field("name", &self.name)?;
 
-
-impl Encodable for FieldEntry {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("field_entry", 3, |s| {
-            try!(s.emit_struct_field("name", 0, |s| {
-                self.name.encode(s)
-            }));
-            match self.field_type {
-                FieldType::Str(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
-                        s.emit_str("text")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
-                        options.encode(s)
-                    }));
-                }
-                FieldType::U32(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
-                        s.emit_str("u32")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
-                        options.encode(s)
-                    }));
-                }
+        match self.field_type {
+            FieldType::Str(ref options) => {
+                s.serialize_field("type", "text")?;
+                s.serialize_field("options", options)?;
+            },
+            FieldType::U32(ref options) => {
+                s.serialize_field("type", "u32")?;
+                s.serialize_field("options", options)?;
             }
-            
-            Ok(())
-        })
+        }
+        
+        s.end()
     }
 }
 
-impl Decodable for FieldEntry {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        d.read_struct("field_entry", 3, |d| {
-            let name = try!(d.read_struct_field("name", 0, |d| {
-                d.read_str()
-            }));
-            let field_type: String = try!(d.read_struct_field("type", 1, |d| {
-                d.read_str()
-            }));
-            d.read_struct_field("options", 2, |d| {
-                match field_type.as_ref() {
-                    "u32" => {
-                        let u32_options = try!(U32Options::decode(d));
-                        Ok(FieldEntry::new_u32(name, u32_options))
-                    }
-                    "text" => {
-                        let text_options = try!(TextOptions::decode(d));
-                        Ok(FieldEntry::new_text(name, text_options))
-                    }
-                    _ => {
-                        Err(d.error(&format!("Field type {:?} unknown", field_type)))
+impl<'de> Deserialize<'de> for FieldEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field { Name, Type, Options };
+
+        const FIELDS: &'static [&'static str] = &["name", "type", "options"];
+
+        struct FieldEntryVisitor;
+
+        impl<'de> Visitor<'de> for FieldEntryVisitor {
+            type Value = FieldEntry;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct FieldEntry")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<FieldEntry, V::Error>
+                where V: MapAccess<'de>
+            {
+                let mut name = None;
+                let mut ty = None;
+                let mut field_type = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Name => {
+                            if name.is_some() {
+                                return Err(de::Error::duplicate_field("name"));
+                            }
+                            name = Some(map.next_value()?);
+                        }
+                        Field::Type => {
+                            if ty.is_some() {
+                                return Err(de::Error::duplicate_field("type"));
+                            }
+                            ty = Some(map.next_value()?);
+                        }
+                        Field::Options => {
+                            match ty {
+                                None => return Err(de::Error::custom("The `type` field must be specified before `options`")),
+                                Some(ty) => {
+                                    match ty {
+                                        "text" => field_type = Some(FieldType::Str(map.next_value()?)),
+                                        "u32" => field_type = Some(FieldType::U32(map.next_value()?)),
+                                        _ => return Err(de::Error::custom(format!("Unrecognised type {}", ty)))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            })
-        })
+
+                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
+                ty.ok_or_else(|| de::Error::missing_field("ty"))?;
+                let field_type = field_type.ok_or_else(|| de::Error::missing_field("options"))?;
+
+                Ok(FieldEntry {
+                    name: name,
+                    field_type: field_type,
+                })
+            }
+        }
+
+        deserializer.deserialize_struct("field_entry", FIELDS, FieldEntryVisitor)
     }
 }
 
@@ -145,18 +176,31 @@ mod tests {
 
     use super::*;
     use schema::TEXT;
-    use rustc_serialize::json;
+    use serde_json;
     
     #[test]
     fn test_json_serialization() {
         let field_value = FieldEntry::new_text(String::from("title"), TEXT);
-        assert_eq!(format!("{}", json::as_pretty_json(&field_value)), r#"{
+
+        let expected = r#"{
   "name": "title",
   "type": "text",
   "options": {
     "indexing": "position",
     "stored": false
   }
-}"#);
+}"#;
+        let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();
+
+        assert_eq!(expected, &field_value_json);
+
+        let field_value: FieldEntry = serde_json::from_str(expected).unwrap();
+
+        assert_eq!("title", field_value.name);
+        
+        match field_value.field_type {
+            FieldType::Str(_) => assert!(true),
+            _ => panic!("expected FieldType::Str")
+        }
     }
 }

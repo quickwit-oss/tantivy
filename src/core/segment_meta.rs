@@ -3,7 +3,7 @@ use super::SegmentComponent;
 use std::path::PathBuf;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {
     num_deleted_docs: u32,
     opstamp: u64,
@@ -13,7 +13,7 @@ struct DeleteMeta {
 ///
 /// For instance the number of docs it contains,
 /// how many are deleted, etc.
-#[derive(Clone, Debug, RustcDecodable,RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,

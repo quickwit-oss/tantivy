@@ -1,7 +1,7 @@
 use std::ops::BitOr;
 
 /// Define how a U32 field should be handled by tantivy.
-#[derive(Clone,Debug,PartialEq,Eq, RustcDecodable, RustcEncodable)]
+#[derive(Clone,Debug,PartialEq,Eq, Serialize, Deserialize)]
 pub struct U32Options {
     indexed: bool,
     fast: bool,
