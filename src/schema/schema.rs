@@ -199,7 +199,7 @@ impl Schema {
 
     /// Build a document object from a json-object. 
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|e| {
+        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|_| {
             let doc_json_sample: String =
                 if doc_json.len() < 20 {
                     String::from(doc_json)
@@ -378,6 +378,13 @@ mod tests {
 ]"#;
         assert_eq!(schema_json, expected);        
         
+        let schema: Schema = serde_json::from_str(expected).unwrap();
+
+        let mut fields = schema.fields().iter();
+
+        assert_eq!("title", fields.next().unwrap().name());
+        assert_eq!("author", fields.next().unwrap().name());
+        assert_eq!("count", fields.next().unwrap().name());
     }
 
 
@@ -397,7 +404,6 @@ mod tests {
         }"#;
         let doc = schema.parse_document(doc_json).unwrap();
 
-        println!("{}", schema.to_json(&doc));
         let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }

@@ -4,7 +4,7 @@ use schema::U32Options;
 use std::fmt;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use serde::ser::SerializeStruct;
-use serde::de::{self, Visitor, SeqAccess, MapAccess};
+use serde::de::{self, Visitor, MapAccess};
 use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
@@ -109,8 +109,6 @@ impl<'de> Deserialize<'de> for FieldEntry {
         #[serde(field_identifier, rename_all = "lowercase")]
         enum Field { Name, Type, Options };
 
-        enum Options { Text(TextOptions), U32(U32Options) };
-
         const FIELDS: &'static [&'static str] = &["name", "type", "options"];
 
         struct FieldEntryVisitor;
@@ -158,7 +156,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                 }
 
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
-                let ty = ty.ok_or_else(|| de::Error::missing_field("ty"))?;
+                ty.ok_or_else(|| de::Error::missing_field("ty"))?;
                 let field_type = field_type.ok_or_else(|| de::Error::missing_field("options"))?;
 
                 Ok(FieldEntry {
@@ -195,5 +193,14 @@ mod tests {
         let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();
 
         assert_eq!(expected, &field_value_json);
+
+        let field_value: FieldEntry = serde_json::from_str(expected).unwrap();
+
+        assert_eq!("title", field_value.name);
+        
+        match field_value.field_type {
+            FieldType::Str(_) => assert!(true),
+            _ => panic!("expected FieldType::Str")
+        }
     }
 }
