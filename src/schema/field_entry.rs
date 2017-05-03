@@ -40,6 +40,16 @@ impl FieldEntry {
         }
     }
     
+    /// Creates a new i64 field entry in the schema, given
+    /// a name, and some options.
+    pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::I64(field_type),
+        }
+    }
+    
+
     /// Returns the name of the field
     pub fn name(&self,) -> &String {
         &self.name
@@ -59,10 +69,11 @@ impl FieldEntry {
         }
     }
     
-    /// Returns true iff the field is a u64 fast field
-    pub fn is_u64_fast(&self,) -> bool {
+    /// Returns true iff the field is a int (signed or unsigned) fast field
+    pub fn is_int_fast(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => options.is_fast(),
+            FieldType::I64(ref options) => options.is_fast(),
             _ => false,
         }
     }

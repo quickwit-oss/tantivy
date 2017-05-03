@@ -57,6 +57,11 @@ impl Document {
         self.add(FieldValue::new(field, Value::U64(value)));
     }
 
+    /// Add a u64 field
+    pub fn add_i64(&mut self, field: Field, value: i64) {
+        self.add(FieldValue::new(field, Value::I64(value)));
+    }
+
     /// Add a field value
     pub fn add(&mut self, field_value: FieldValue) {
         self.field_values.push(field_value);

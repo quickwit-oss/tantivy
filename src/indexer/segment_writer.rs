@@ -6,7 +6,7 @@ use schema::Term;
 use core::Segment;
 use core::SerializableSegment;
 use postings::PostingsWriter;
-use fastfield::U64FastFieldsWriter;
+use fastfield::FastFieldsWriter;
 use schema::Field;
 use schema::FieldEntry;
 use schema::FieldValue;
@@ -30,20 +30,20 @@ pub struct SegmentWriter<'a> {
     max_doc: DocId,
 	per_field_postings_writers: Vec<Box<PostingsWriter + 'a>>,
 	segment_serializer: SegmentSerializer,
-	fast_field_writers: U64FastFieldsWriter,
-	fieldnorms_writer: U64FastFieldsWriter,
+	fast_field_writers: FastFieldsWriter,
+	fieldnorms_writer: FastFieldsWriter,
 	doc_opstamps: Vec<u64>,
 }
 
 
-fn create_fieldnorms_writer(schema: &Schema) -> U64FastFieldsWriter {
+fn create_fieldnorms_writer(schema: &Schema) -> FastFieldsWriter {
 	let u64_fields: Vec<Field> = schema.fields()
 		.iter()
 		.enumerate()
 		.filter(|&(_, field_entry)| field_entry.is_indexed()) 
 		.map(|(field_id, _)| Field(field_id as u32))
 		.collect();
-	U64FastFieldsWriter::new(u64_fields)
+	FastFieldsWriter::new(u64_fields)
 }
 
 
@@ -99,7 +99,7 @@ impl<'a> SegmentWriter<'a> {
 			per_field_postings_writers: per_field_postings_writers,
 			fieldnorms_writer: create_fieldnorms_writer(schema),
 			segment_serializer: segment_serializer,
-			fast_field_writers: U64FastFieldsWriter::from_schema(schema),
+			fast_field_writers: FastFieldsWriter::from_schema(schema),
 			doc_opstamps: Vec::with_capacity(1_000),
 		})
 	}
@@ -217,8 +217,8 @@ impl<'a> SegmentWriter<'a> {
 
 // This method is used as a trick to workaround the borrow checker
 fn write<'a>(per_field_postings_writers: &[Box<PostingsWriter + 'a>],
-		 fast_field_writers: &U64FastFieldsWriter,
-		 fieldnorms_writer: &U64FastFieldsWriter,
+		 fast_field_writers: &FastFieldsWriter,
+		 fieldnorms_writer: &FastFieldsWriter,
 	  	 mut serializer: SegmentSerializer,
 		 heap: &'a Heap,) -> Result<()> {
 		for per_field_postings_writer in per_field_postings_writers {

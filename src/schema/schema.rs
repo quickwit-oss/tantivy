@@ -65,6 +65,25 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a new i64 field.
+    /// Returns the associated field handle
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name 
+    /// will result in the shadowing of the first 
+    /// by the second one.
+    /// The first field will get a field id 
+    /// but only the second one will be indexed
+     pub fn add_i64_field(
+            &mut self,
+            field_name_str: &str, 
+            field_options: IntOptions) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_i64(field_name, field_options);
+        self.add_field(field_entry)
+    }
+
     /// Adds a new text field.
     /// Returns the associated field handle
     ///

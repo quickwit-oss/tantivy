@@ -7,7 +7,6 @@
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
 
-#![cfg_attr(test, feature(rand))]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
 
@@ -93,7 +92,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 mod core;
 mod compression;
-mod fastfield;
+
 mod store;
 mod indexer;
 mod common;
@@ -113,6 +112,8 @@ pub mod collector;
 pub mod postings;
 /// Schema
 pub mod schema;
+// FastField module
+pub mod fastfield;
 
 
 pub use directory::Directory;

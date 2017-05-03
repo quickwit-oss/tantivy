@@ -8,48 +8,58 @@ use std::path::Path;
 use schema::FAST;
 use directory::{WritePtr, RAMDirectory, Directory};
 use fastfield::FastFieldSerializer;
-use fastfield::U64FastFieldsWriter;
+use fastfield::FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
-
-lazy_static! {
-    static ref U64_FAST_FIELD_EMPTY: ReadOnlySource = {
-        let u64_fast_field = U64FastFieldReader::from(Vec::new());
-        u64_fast_field._data.clone()
-    };
-}
+use common;
 
 
 pub trait FastFieldReader: Sized {
+
+    /// Type of the value stored in the fastfield.
     type ValueType;
 
+    /// Return the value associated to the given document.
+    ///
+    /// This accessor should return as fast as possible.
     fn get(&self, doc: DocId) -> Self::ValueType;
 
+
+    /// Opens a fast field given a source.
     fn open(source: ReadOnlySource) -> Self;
 
+    /// Returns true iff the given field_type makes
+    /// it possible to access the field values via a 
+    /// fastfield.
     fn is_enabled(field_type: &FieldType) -> bool;
 }
 
 pub struct U64FastFieldReader {
     _data: ReadOnlySource,
     bit_unpacker: BitUnpacker,
-    min_val: u64,
-    max_val: u64,
+    min_value: u64,
+    max_value: u64,
 }
 
 impl U64FastFieldReader {
 
-    pub fn empty() -> U64FastFieldReader {
-        U64FastFieldReader::open(U64_FAST_FIELD_EMPTY.clone())
-    }
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The min value does not take in account of possible
+    /// deleted document, and should be considered as a lower bound 
+    /// of the actual minimum value.
+    pub fn min_value(&self,) -> u64 {
+        self.min_value
+    }  
 
-    pub fn min_val(&self,) -> u64 {
-        self.min_val
-    }
-
-    pub fn max_val(&self,) -> u64 {
-        self.max_val
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound 
+    /// of the actual maximum value.
+    pub fn max_value(&self,) -> u64 {
+        self.max_value
     }
 }
 
@@ -57,19 +67,13 @@ impl FastFieldReader for U64FastFieldReader {
     type ValueType = u64;
     
     fn get(&self, doc: DocId) -> u64 {
-        self.min_val + self.bit_unpacker.get(doc as usize)
+        self.min_value + self.bit_unpacker.get(doc as usize)
     }
 
     fn is_enabled(field_type: &FieldType) -> bool {
         match field_type {
-            &FieldType::U64(ref integer_options) => {
-                if integer_options.is_fast() {
-                    true
-                }
-                else {
-                    false
-                }
-            },
+            &FieldType::U64(ref integer_options) => 
+                integer_options.is_fast(),
             _ => false,
         }
     }
@@ -79,15 +83,15 @@ impl FastFieldReader for U64FastFieldReader {
     /// # Panics
     /// Panics if the data is corrupted.
     fn open(data: ReadOnlySource) -> U64FastFieldReader {
-        let min_val: u64;
-        let max_val: u64;
+        let min_value: u64;
+        let max_value: u64;
         let bit_unpacker: BitUnpacker;
         
         {
             let mut cursor: &[u8] = data.as_slice();
-            min_val = u64::deserialize(&mut cursor).expect("Failed to read the min_val of fast field.");
+            min_value = u64::deserialize(&mut cursor).expect("Failed to read the min_value of fast field.");
             let amplitude = u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
-            max_val = min_val + amplitude;
+            max_value = min_value + amplitude;
             let num_bits = compute_num_bits(amplitude);
             bit_unpacker = BitUnpacker::new(cursor, num_bits as usize)
         }
@@ -95,8 +99,8 @@ impl FastFieldReader for U64FastFieldReader {
         U64FastFieldReader {
             _data: data,
             bit_unpacker: bit_unpacker,
-            min_val: min_val,
-            max_val: max_val,
+            min_value: min_value,
+            max_value: max_value,
         }
     }
 
@@ -113,7 +117,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
-            let mut fast_field_writers = U64FastFieldsWriter::from_schema(&schema);
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             for val in vals {
                 let mut fast_field_writer = fast_field_writers.get_field_writer(field).unwrap();
                 fast_field_writer.add_val(val);
@@ -130,26 +134,26 @@ impl From<Vec<u64>> for U64FastFieldReader {
 
 
 pub struct I64FastFieldReader {
-    _data: ReadOnlySource,
-    bit_unpacker: BitUnpacker,
-    min_val: i64,
-    max_val: i64,
+    underlying: U64FastFieldReader,
 }
 
 impl I64FastFieldReader {
-
-    pub fn empty() -> I64FastFieldReader {
-        // TODO implement
-        panic!("");
-        // I64FastFieldReader::open(I64_FAST_FIELD_EMPTY.clone())
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The min value does not take in account of possible
+    /// deleted document, and should be considered as a lower bound 
+    /// of the actual minimum value.
+    pub fn min_value(&self,) -> i64 {
+        common::u64_to_i64(self.underlying.min_value())
     }
 
-    pub fn min_val(&self,) -> i64 {
-        self.min_val
-    }
-
-    pub fn max_val(&self,) -> i64 {
-        self.max_val
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound 
+    /// of the actual maximum value.
+    pub fn max_value(&self,) -> i64 {
+        common::u64_to_i64(self.underlying.max_value())
     }
 }
 
@@ -157,7 +161,7 @@ impl FastFieldReader for I64FastFieldReader {
     type ValueType = i64;
     
     fn get(&self, doc: DocId) -> i64 {
-        self.min_val + (self.bit_unpacker.get(doc as usize) as i64)
+        common::u64_to_i64(self.underlying.get(doc))
     }
     
     /// Opens a new fast field reader given a read only source.
@@ -165,27 +169,10 @@ impl FastFieldReader for I64FastFieldReader {
     /// # Panics
     /// Panics if the data is corrupted.
     fn open(data: ReadOnlySource) -> I64FastFieldReader {
-        let min_val: i64;
-        let max_val: i64;
-        let bit_unpacker: BitUnpacker;
-        
-        {
-            let mut cursor: &[u8] = data.as_slice();
-            min_val = i64::deserialize(&mut cursor).expect("Failed to read the min_val of fast field.");
-            let amplitude = u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
-            max_val = min_val + (amplitude as i64);
-            let num_bits = compute_num_bits(amplitude);
-            bit_unpacker = BitUnpacker::new(cursor, num_bits as usize)
-        }
-
         I64FastFieldReader {
-            _data: data,
-            bit_unpacker: bit_unpacker,
-            min_val: min_val,
-            max_val: max_val,
+            underlying: U64FastFieldReader::open(data)
         }
     }
-
 
     fn is_enabled(field_type: &FieldType) -> bool {
         match field_type {
