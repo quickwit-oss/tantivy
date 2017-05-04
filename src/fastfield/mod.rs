@@ -14,8 +14,10 @@ mod reader;
 mod writer;
 mod serializer;
 mod error;
-pub mod delete;
+mod delete;
 
+pub use self::delete::write_delete_bitset;
+pub use self::delete::DeleteBitSet;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 pub use self::reader::{FastFieldsReader, U64FastFieldReader, I64FastFieldReader};
 pub use self::reader::FastFieldReader;
@@ -157,7 +159,6 @@ mod tests {
             }
         }
     }
-
 
      #[test]
      fn test_intfastfield_large_numbers() {

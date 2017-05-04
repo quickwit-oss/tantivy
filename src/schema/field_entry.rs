@@ -146,8 +146,12 @@ impl Decodable for FieldEntry {
             d.read_struct_field("options", 2, |d| {
                 match field_type.as_ref() {
                     "u64" => {
-                        let u64_options = try!(IntOptions::decode(d));
-                        Ok(FieldEntry::new_u64(name, u64_options))
+                        let int_options = try!(IntOptions::decode(d));
+                        Ok(FieldEntry::new_u64(name, int_options))
+                    }
+                    "i64" => {
+                        let int_options = try!(IntOptions::decode(d));
+                        Ok(FieldEntry::new_i64(name, int_options))
                     }
                     "text" => {
                         let text_options = try!(TextOptions::decode(d));

@@ -76,6 +76,12 @@ impl From<u64> for Value {
     }
 }
 
+impl From<i64> for Value {
+    fn from(v: i64) -> Value {
+        Value::I64(v)
+    }
+}
+
 impl<'a> From<&'a str> for Value {
     fn from(s: &'a str) -> Value {
         Value::Str(s.to_string())

@@ -6,6 +6,9 @@ use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
 
+/// Write a delete BitSet
+///
+/// where `delete_bitset` is the set of deleted `DocId`.
 pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {
     let max_doc = delete_bitset.capacity();
     let mut byte = 0u8;
@@ -29,15 +32,15 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
     writer.flush()
 }
 
+/// Set of deleted `DocId`s.
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: ReadOnlySource,
     len: usize,  
 }
 
+
 impl DeleteBitSet {
-
-
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
         let num_deleted: usize = data

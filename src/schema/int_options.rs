@@ -69,7 +69,7 @@ impl Default for IntOptions {
 
 /// Shortcut for a u64 fast field.
 ///
-/// Such a shortcut can be composed as follows `STORED | FAST | U64_INDEXED`
+/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
 pub const FAST: IntOptions = IntOptions {
     indexed: false,
     stored: false,
@@ -78,8 +78,8 @@ pub const FAST: IntOptions = IntOptions {
 
 /// Shortcut for a u64 indexed field.
 ///
-/// Such a shortcut can be composed as follows `STORED | FAST | U64_INDEXED`
-pub const U64_INDEXED: IntOptions = IntOptions {
+/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
+pub const INT_INDEXED: IntOptions = IntOptions {
     indexed: true,
     stored: false,
     fast: false,
@@ -87,8 +87,8 @@ pub const U64_INDEXED: IntOptions = IntOptions {
 
 /// Shortcut for a u64 stored field. 
 ///
-/// Such a shortcut can be composed as follows `STORED | FAST | U64_INDEXED`
-pub const U64_STORED: IntOptions = IntOptions {
+/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
+pub const INT_STORED: IntOptions = IntOptions {
     indexed: false,
     stored: true,
     fast: false,

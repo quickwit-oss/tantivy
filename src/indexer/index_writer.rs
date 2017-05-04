@@ -11,7 +11,7 @@ use datastruct::stacker::Heap;
 use directory::FileProtection;
 use Error;
 use Directory;
-use fastfield::delete::write_delete_bitset;
+use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use futures::Canceled;
 use futures::Future;

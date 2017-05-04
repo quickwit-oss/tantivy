@@ -1,5 +1,6 @@
 use std::fmt;
 
+use common;
 use common::BinarySerializable;
 use common::allocate_vec;
 use byteorder::{BigEndian, ByteOrder};
@@ -64,16 +65,10 @@ impl Term {
     /// The first four byte are dedicated to storing the field id as a u64.
     /// The 4 following bytes are encoding the u64 value.
     pub fn from_field_i64(field: Field, val: i64) -> Term {
-        const I64_TERM_LEN: usize = 4 + 8;
-        let mut buffer = allocate_vec(I64_TERM_LEN);
-        // we want BigEndian here to have lexicographic order
-        // match the natural order of `(field, val)`
-        BigEndian::write_u32(&mut buffer[0..4], field.0);
-        BigEndian::write_i64(&mut buffer[4..], val);
-        Term(buffer)
+        let val_u64: u64 = common::i64_to_u64(val);
+        Term::from_field_u64(field, val_u64)
     }
     
-
     /// Builds a term given a field, and a string value
     ///
     /// Assuming the term has a field id of 2, and a text value of "abc",

@@ -11,7 +11,7 @@ use itertools::Itertools;
 use postings::Postings;
 use postings::DocSet;
 use core::TermIterator;
-use fastfield::delete::DeleteBitSet;
+use fastfield::DeleteBitSet;
 use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
@@ -445,18 +445,18 @@ mod tests {
             index_writer.add_document(
                 doc!(
                     text_field => "a b d",
-                    score_field => 1
+                    score_field => 1u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "b c",
-                    score_field => 2
+                    score_field => 2u64
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(
                 doc!(
                     text_field => "c d",
-                    score_field => 3
+                    score_field => 3u64
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
@@ -473,24 +473,24 @@ mod tests {
             index_writer.add_document(
                 doc!(
                     text_field => "a d e",
-                    score_field => 4_000
+                    score_field => 4_000u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "e f",
-                    score_field => 5_000
+                    score_field => 5_000u64
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(
                 doc!(
                     text_field => "f g",
-                    score_field => 6_000
+                    score_field => 6_000u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "g h",
-                    score_field => 7_000
+                    score_field => 7_000u64
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();

@@ -66,11 +66,12 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
 		}
 		FieldType::I64(_) => {
-			// TODO Implement
-			panic!("Notimplemented yet");
+			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
 		}
 	}
 }
+
+// TODO test indexed i64 
 
 
 impl<'a> SegmentWriter<'a> {

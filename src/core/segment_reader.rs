@@ -6,7 +6,7 @@ use schema::Term;
 use common::HasLen;
 use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
-use fastfield::delete::DeleteBitSet;
+use fastfield::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
 use directory::ReadOnlySource;
@@ -97,30 +97,6 @@ impl SegmentReader {
                 .expect("Fast field file corrupted.")
             )
         }
-        // match field_entry.field_type() {
-        //     &FieldType::Str(_) => {
-        //         warn!("Field <{}> is not a fast field. It is a text field, and fast text fields are not supported yet.", field_entry.name());
-        //         None
-        //     },
-        //     &FieldType::U64(ref integer_options) => {
-        //         if integer_options.is_fast() {
-        //             self.fast_fields_reader.open_reader(field)
-        //         }
-        //         else {
-        //             warn!("Field <{}> is not defined as a fast field.", field_entry.name());
-        //             None
-        //         }
-        //     },
-        //     &FieldType::I64(ref integer_options) => {
-        //         if integer_options.is_fast() {
-        //             self.fast_fields_reader.open_reader(field)
-        //         }
-        //         else {
-        //             warn!("Field <{}> is not defined as a fast field.", field_entry.name());
-        //             None
-        //         }
-        //     },
-        // }
     }
     
     /// Accessor to the segment's `Field norms`'s reader.

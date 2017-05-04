@@ -88,7 +88,21 @@ impl FastFieldsWriter {
     }
 }
 
-
+/// Fast field writer for ints.
+/// The fast field writer just keeps the values in memory.
+/// 
+/// Only when the segment writer can be closed and
+/// persisted on disc, the fast field writer is 
+/// sent to a `FastFieldSerializer` via the `.serialize(...)`
+/// method.
+///
+/// We cannot serialize earlier as the values are 
+/// bitpacked and the number of bits required for bitpacking 
+/// can only been known once we have seen all of the values.
+/// 
+/// Both u64, and i64 use the same writer.
+/// i64 are just remapped to the `0..2^64 - 1`
+/// using `common::i64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
     vals: Vec<u64>,
@@ -96,6 +110,8 @@ pub struct IntFastFieldWriter {
 }
 
 impl IntFastFieldWriter {
+
+    /// Creates a new `IntFastFieldWriter`
     pub fn new(field: Field) -> IntFastFieldWriter {
         IntFastFieldWriter {
             field: field,
@@ -104,6 +120,10 @@ impl IntFastFieldWriter {
         }
     }
     
+    /// Sets the default value.
+    ///
+    /// This default value is recorded for documents if 
+    /// a document does not have any value.
     fn set_val_if_missing(&mut self, val_if_missing: u64) {
         self.val_if_missing = val_if_missing;
     }
@@ -125,6 +145,17 @@ impl IntFastFieldWriter {
         self.vals.push(val);
     }
     
+
+    /// Extract the value associated to the fast field for 
+    /// this document.
+    ///
+    /// i64 are remapped to u64 using the logic
+    /// in `common::i64_to_u64`.
+    ///
+    /// If the value is missing, then the default value is used
+    /// instead.
+    /// If the document has more than one value for the given field,
+    /// only the first one is taken in account.
     fn extract_val(&self, doc: &Document) -> u64 {
         match doc.get_first(self.field) {
             Some(v) => {
@@ -139,12 +170,15 @@ impl IntFastFieldWriter {
             }            
         }
     }
-    
+
+    /// Extract the fast field value from the document
+    /// (or use the default value) and records it.
     pub fn add_document(&mut self, doc: &Document) {
         let val = self.extract_val(doc);
         self.add_val(val);
     }
 
+    /// Push the fast fields value to the `FastFieldWriter`.
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
         let zero = 0;
         let min = *self.vals.iter().min().unwrap_or(&zero);

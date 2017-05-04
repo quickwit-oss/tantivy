@@ -2,7 +2,7 @@ use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen};
 use std::num::Wrapping;
-use fastfield::delete::DeleteBitSet;
+use fastfield::DeleteBitSet;
 
 
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
