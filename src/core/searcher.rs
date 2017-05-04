@@ -68,8 +68,8 @@ impl Searcher {
     }
     
     /// Returns the segment_reader associated with the given segment_ordinal
-    pub fn segment_reader(&self, segment_ord: usize) -> &SegmentReader {
-        &self.segment_readers[segment_ord]
+    pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
+        &self.segment_readers[segment_ord as usize]
     }
        
     /// Runs a query on the segment readers wrapped by the searcher
@@ -77,6 +77,7 @@ impl Searcher {
         query.search(self, collector)
     }
 }
+
 
 impl From<Vec<SegmentReader>> for Searcher {
     fn from(segment_readers: Vec<SegmentReader>) -> Searcher {

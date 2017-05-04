@@ -46,7 +46,7 @@ impl FastFieldsWriter {
             field_writers: field_writers,
         }
     }
-
+    
     pub fn new(fields: Vec<Field>) -> FastFieldsWriter {
         FastFieldsWriter {
             field_writers: fields
@@ -56,6 +56,7 @@ impl FastFieldsWriter {
         }
     }
     
+    /// Get the `FastFieldWriter` associated to a field.
     pub fn get_field_writer(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
         self.field_writers
@@ -63,15 +64,19 @@ impl FastFieldsWriter {
             .find(|field_writer| field_writer.field == field)
     }
     
+
+    /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in &mut self.field_writers {
             field_writer.add_document(doc);
         }
     }
 
+    /// Serializes all of the `FastFieldWriter`s by pushing them in 
+    /// order to the fast field serializer.
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
         for field_writer in &self.field_writers {
-            try!(field_writer.serialize(serializer));
+            field_writer.serialize(serializer)?;
         }
         Ok(())
     }
@@ -84,7 +89,6 @@ impl FastFieldsWriter {
         for field_writer in &mut self.field_writers {
             field_writer.fill_val_up_to(doc);
         }
-            
     }
 }
 
@@ -140,7 +144,12 @@ impl IntFastFieldWriter {
             self.add_val(val_if_missing);
         }
     }
-    
+
+    /// Records a new value.
+    ///
+    /// The n-th value being recorded is implicitely
+    /// associated to the document with the `DocId` n.
+    /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
         self.vals.push(val);
     }
