@@ -196,10 +196,6 @@ pub fn compute_deleted_bitset(
     Ok(might_have_changed)
 }
 
-
-// TODO skip delete operation before teh 
-// last delete opstamp
-
 /// Advance delete for the given segment up
 /// to the target opstamp.
 pub fn advance_deletes(

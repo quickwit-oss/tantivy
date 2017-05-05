@@ -374,12 +374,25 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             debug!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+            let mut file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
                     let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
-                    // TODO check unwrap
-                    advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp).unwrap();
+                    match advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp) {
+                        Ok(file_protection_opt_res) => {
+                            file_protection_opt = file_protection_opt_res;
+                        }
+                        Err(e) => {
+                            error!("Merge of {:?} was cancelled (advancing deletes failed): {:?}", before_merge_segment_ids, e);
+                            // ... cancel merge
+                            if cfg!(test) {
+                                panic!("Merge failed.");
+                            }
+                            segment_updater.cancel_merge(&before_merge_segment_ids, after_merge_segment_entry.segment_id());
+                            return;
+                        }
+                    }
                 }
             }
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);

@@ -79,12 +79,11 @@ impl SegmentReader {
     /// Returns the u64 fast value reader if the field
     /// is a u64 field indexed as "fast".
     ///
-    /// Return None if the field is not a u64 field
-    /// indexed with the fast option.
+    /// Return a FastFieldNotAvailableError if the field is not
+    /// declared as a fast field in the schema.
     ///
     /// # Panics
     /// May panic if the index is corrupted.
-    /// TODO return Err
     pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>(&self, field: Field) -> fastfield::Result<TFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         if !TFastFieldReader::is_enabled(field_entry.field_type()) {

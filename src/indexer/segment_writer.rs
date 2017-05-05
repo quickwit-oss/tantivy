@@ -71,9 +71,6 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 	}
 }
 
-// TODO test indexed i64 
-
-
 impl<'a> SegmentWriter<'a> {
 	
 	/// Creates a new `SegmentWriter`
