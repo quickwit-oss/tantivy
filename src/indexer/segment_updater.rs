@@ -374,14 +374,14 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             debug!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
-            let mut file_protection_opt = None;
+            let mut _file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
                     let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
                     match advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp) {
                         Ok(file_protection_opt_res) => {
-                            file_protection_opt = file_protection_opt_res;
+                            _file_protection_opt = file_protection_opt_res;
                         }
                         Err(e) => {
                             error!("Merge of {:?} was cancelled (advancing deletes failed): {:?}", before_merge_segment_ids, e);

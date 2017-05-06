@@ -31,6 +31,20 @@ pub enum FieldType {
 
 impl FieldType {
     
+    pub fn is_indexed(&self) -> bool {
+        match self {
+            &FieldType::Str(ref text_options) => {
+                text_options.get_indexing_options().is_indexed()
+            }
+            &FieldType::U64(ref int_options) => {
+                int_options.is_indexed()
+            }
+            &FieldType::I64(ref int_options) => {
+                int_options.is_indexed()
+            }
+        }
+    }
+
     /// Parses a field value from json, given the target FieldType.
     ///
     /// Tantivy will not try to cast values.

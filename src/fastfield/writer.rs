@@ -12,6 +12,7 @@ pub struct FastFieldsWriter {
 
 impl FastFieldsWriter {
 
+    /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let field_writers: Vec<IntFastFieldWriter> = schema
             .fields()
@@ -47,6 +48,9 @@ impl FastFieldsWriter {
         }
     }
     
+    /// Returns a `FastFieldsWriter` 
+    /// with a `IntFastFieldWriter` for each 
+    /// of the field given in argument.
     pub fn new(fields: Vec<Field>) -> FastFieldsWriter {
         FastFieldsWriter {
             field_writers: fields

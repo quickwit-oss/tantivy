@@ -107,7 +107,7 @@ impl SchemaBuilder {
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);
-        let field_name = field_entry.name().clone();
+        let field_name = field_entry.name().to_string();
         self.fields.push(field_entry);
         self.fields_map.insert(field_name, field);
         field
@@ -173,7 +173,7 @@ impl Schema {
     }
     
     /// Return the field name for a given `Field`.
-    pub fn get_field_name(&self, field: Field) -> &String {
+    pub fn get_field_name(&self, field: Field) -> &str {
         self.get_field_entry(field).name()
     }
     
@@ -205,7 +205,7 @@ impl Schema {
                 .map(|field_val| field_val.value() )
                 .cloned()
                 .collect();
-            field_map.insert(field_name.clone(), values);
+            field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
     }

@@ -2,8 +2,11 @@ Tantivy 0.4.0
 ==========================
 
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65)
-- 
-
+- QueryParser:
+  - Explicit error returned when searched for a term that is not indexed
+  - Searching for a int term via the query parser was broken `(age:1)`
+  - Searching for a non-indexed field returns an explicit Error
+  - Phrase query for non-tokenized field are not tokenized by the query parser.
 
 Tantivy 0.3.1
 ==========================

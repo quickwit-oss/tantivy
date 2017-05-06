@@ -10,8 +10,21 @@ fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
         let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
         phrase.or(word)
     };
-    let field = many1(letter());
-    let term_query = (field, char(':'), term_val()).map(|(field_name, _, phrase)| {
+
+    let negative_numbers = 
+        (char('-'), many1(satisfy(|c: char| c.is_numeric())))
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
+    
+    let field =
+        (
+            letter(),
+            many(satisfy(|c: char| c.is_alphanumeric() || c == '_'))
+        )
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
+
+    let term_val_with_field = negative_numbers.or(term_val());
+
+    let term_query = (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| {
         UserInputLiteral {
             field_name: Some(field_name),
             phrase: phrase,

@@ -16,7 +16,7 @@ impl FastFieldNotAvailableError {
     /// for which fast fields are not available.
     pub fn new(field_entry: &FieldEntry) -> FastFieldNotAvailableError {
         FastFieldNotAvailableError {
-            field_name: field_entry.name().clone(),
+            field_name: field_entry.name().to_string(),
         }
     }
 }
