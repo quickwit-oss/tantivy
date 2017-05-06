@@ -1,14 +1,25 @@
-/// Fast field module
-///
-/// Fast fields are the equivalent of `DocValues` in `Lucene`.
-/// Fast fields are stored in column-oriented fashion and allow fast
-/// random access given a `DocId`.
-///
-/// Their performance is comparable to that of an array lookup.
-/// They are useful when a field is required for all or most of
-/// the `DocSet` : for instance for scoring, grouping, filtering, or facetting.
-/// 
-/// Currently only u64 fastfield are supported.
+//! # Fast fields
+//!
+//! Fast fields are the equivalent of `DocValues` in `Lucene`.
+//! Fast fields is a non-compressed column-oriented fashion storage
+//! of `tantivy`.
+//! 
+//! It is designed for the fast random access of some document
+//! fields given a document id.
+//!
+//! `FastField` are useful when a field is required for all or most of
+//! the `DocSet` : for instance for scoring, grouping, filtering, or facetting.
+//! 
+//! 
+//! Fields have to be declared as `FAST` in the  schema.
+//! Currently only 64-bits integers (signed or unsigned) are
+//! supported.
+//!
+//! They are stored in a bitpacked fashion so that their
+//! memory usage is directly linear with the amplitude of the 
+//! values stored.
+//!
+//! Read access performance is comparable to that of an array lookup.
 
 mod reader;
 mod writer;

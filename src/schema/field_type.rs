@@ -31,6 +31,7 @@ pub enum FieldType {
 
 impl FieldType {
     
+    /// returns true iff the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match self {
             &FieldType::Str(ref text_options) => {

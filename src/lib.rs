@@ -92,7 +92,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 mod core;
 mod compression;
-
 mod store;
 mod indexer;
 mod common;
@@ -112,7 +111,7 @@ pub mod collector;
 pub mod postings;
 /// Schema
 pub mod schema;
-// FastField module
+
 pub mod fastfield;
 
 

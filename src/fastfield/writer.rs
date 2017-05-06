@@ -6,6 +6,7 @@ use DocId;
 use common;
 use schema::FieldType;
 
+/// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
     field_writers: Vec<IntFastFieldWriter>,
 }

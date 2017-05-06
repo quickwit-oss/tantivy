@@ -14,7 +14,10 @@ use common::bitpacker::BitUnpacker;
 use schema::FieldType;
 use common;
 
-
+/// Trait for accessing a fastfield.
+///
+/// Depending on the field type, a different
+/// fast field is required.
 pub trait FastFieldReader: Sized {
 
     /// Type of the value stored in the fastfield.
@@ -35,6 +38,7 @@ pub trait FastFieldReader: Sized {
     fn is_enabled(field_type: &FieldType) -> bool;
 }
 
+/// FastFieldReader for unsigned 64-bits integers.
 pub struct U64FastFieldReader {
     _data: ReadOnlySource,
     bit_unpacker: BitUnpacker,
@@ -131,8 +135,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
      }
 }
 
-
-
+/// FastFieldReader for signed 64-bits integers.
 pub struct I64FastFieldReader {
     underlying: U64FastFieldReader,
 }
@@ -192,7 +195,11 @@ impl FastFieldReader for I64FastFieldReader {
 
 
 
-
+/// The FastFieldsReader` is the datastructure containing
+/// all of the fast fields' data.
+///
+/// It contains a mapping that associated these fields to 
+/// the proper slice in the fastfield reader file.
 pub struct FastFieldsReader {
     source: ReadOnlySource,
     field_offsets: HashMap<Field, (u32, u32)>,
@@ -200,6 +207,11 @@ pub struct FastFieldsReader {
 
 impl FastFieldsReader {
 
+    /// Opens the `FastFieldsReader` file
+    ///
+    /// When opening the fast field reader, the
+    /// the list of the offset is read (as a footer of the 
+    /// data file).
     pub fn open(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
         let header_offset;
         let field_offsets: Vec<(Field, u32)>;
@@ -207,11 +219,11 @@ impl FastFieldsReader {
             let buffer = source.as_slice();
             {
                 let mut cursor = buffer;
-                header_offset = try!(u32::deserialize(&mut cursor));
+                header_offset = u32::deserialize(&mut cursor)?;
             }
             {
                 let mut cursor = &buffer[header_offset as usize..];
-                field_offsets = try!(Vec::deserialize(&mut cursor));    
+                field_offsets = Vec::deserialize(&mut cursor)?;    
             }
         }
         let mut end_offsets: Vec<u32> = field_offsets
