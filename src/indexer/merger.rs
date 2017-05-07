@@ -77,8 +77,8 @@ fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Opt
 
 fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
     segment_reader
-        .get_fast_field_reader(field)
-        .ok()
+        .fast_fields_reader()
+        .open_reader(field)
 }
 
 impl IndexMerger {
