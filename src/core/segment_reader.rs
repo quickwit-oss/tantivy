@@ -26,6 +26,8 @@ use schema::FieldType;
 use postings::FreqHandler;
 use schema::TextIndexingOptions;
 
+
+
 /// Entry point to access all of the datastructures of the `Segment`
 ///
 /// - term dictionary
@@ -78,6 +80,11 @@ impl SegmentReader {
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
         self.delete_bitset.len() as DocId
+    }
+
+    #[doc(hidden)]
+    pub fn fast_fields_reader(&self) -> &FastFieldsReader {
+        &*self.fast_fields_reader
     }
 
     /// Accessor to a segment's fast field reader given a field.
