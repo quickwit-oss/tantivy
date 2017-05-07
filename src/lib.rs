@@ -92,7 +92,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 mod core;
 mod compression;
-mod store;
+pub mod store;
 mod indexer;
 mod common;
 mod error;
