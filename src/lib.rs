@@ -94,7 +94,7 @@ mod core;
 mod compression;
 pub mod store;
 mod indexer;
-mod common;
+pub mod common;
 mod error;
 mod analyzer;
 pub mod datastruct;
