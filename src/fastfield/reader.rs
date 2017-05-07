@@ -46,6 +46,9 @@ pub struct U64FastFieldReader {
     max_value: u64,
 }
 
+unsafe impl Send for U64FastFieldReader {}
+unsafe impl Sync for U64FastFieldReader {}
+
 impl U64FastFieldReader {
 
     /// Returns the minimum value for this fast field.
@@ -139,6 +142,9 @@ impl From<Vec<u64>> for U64FastFieldReader {
 pub struct I64FastFieldReader {
     underlying: U64FastFieldReader,
 }
+
+unsafe impl Send for I64FastFieldReader {}
+unsafe impl Sync for I64FastFieldReader {}
 
 impl I64FastFieldReader {
     /// Returns the minimum value for this fast field.

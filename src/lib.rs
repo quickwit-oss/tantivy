@@ -97,7 +97,7 @@ mod indexer;
 mod common;
 mod error;
 mod analyzer;
-mod datastruct;
+pub mod datastruct;
 
 
 
