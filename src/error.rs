@@ -10,8 +10,7 @@ use std::sync::PoisonError;
 use directory::error::{OpenReadError, OpenWriteError, OpenDirectoryError};
 use query;
 use schema;
-
-
+use fastfield::FastFieldNotAvailableError;
 
 
 
@@ -38,7 +37,14 @@ pub enum Error {
     ErrorInThread(String),
     /// An Error appeared related to the lack of a field.
     SchemaError(String),
-    
+    /// Tried to access a fastfield reader for a field not configured accordingly.
+    FastFieldError(FastFieldNotAvailableError)
+}
+
+impl From<FastFieldNotAvailableError> for Error {
+    fn from(fastfield_error: FastFieldNotAvailableError) -> Error {
+        Error::FastFieldError(fastfield_error)
+    }
 }
 
 impl From<io::Error> for Error {

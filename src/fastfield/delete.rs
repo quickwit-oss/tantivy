@@ -6,6 +6,9 @@ use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
 
+/// Write a delete BitSet
+///
+/// where `delete_bitset` is the set of deleted `DocId`.
 pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {
     let max_doc = delete_bitset.capacity();
     let mut byte = 0u8;
@@ -29,14 +32,16 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
     writer.flush()
 }
 
+/// Set of deleted `DocId`s.
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: ReadOnlySource,
     len: usize,  
 }
 
-impl DeleteBitSet {
 
+impl DeleteBitSet {
+    /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
         let num_deleted: usize = data
             .as_slice()
@@ -49,6 +54,7 @@ impl DeleteBitSet {
         }
     }
 
+    /// Returns an empty delete bit set.
     pub fn empty() -> DeleteBitSet {
         DeleteBitSet {
             data: ReadOnlySource::empty(),
@@ -56,10 +62,12 @@ impl DeleteBitSet {
         }
     }
 
+    /// Returns true iff the segment has some deleted documents.
     pub fn has_deletes(&self) -> bool {
         self.len() > 0
     }
 
+    /// Returns true iff the document is deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false

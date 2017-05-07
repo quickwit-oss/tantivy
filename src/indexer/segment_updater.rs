@@ -264,18 +264,27 @@ impl SegmentUpdater {
         }
     }
 
+    pub fn garbage_collect_files(&self) -> Result<()> {
+        self.run_async(move |segment_updater| {
+            segment_updater.garbage_collect_files_exec();
+        }).wait()
+    }
+
+    fn garbage_collect_files_exec(&self)  {
+        let living_files = self.0.segment_manager.list_files();
+        let mut index = self.0.index.clone();
+        index.directory_mut().garbage_collect(living_files);
+    }
+
     pub fn commit(&self, opstamp: u64) -> Result<()> {
         self.run_async(move |segment_updater| {
-            let mut index = segment_updater.0.index.clone();
-
             if segment_updater.is_alive() {
                 let segment_entries = segment_updater
                     .purge_deletes(opstamp)
                     .expect("Failed purge deletes");
                 segment_updater.0.segment_manager.commit(segment_entries);
                 segment_updater.save_metas(opstamp);
-                let living_files = segment_updater.0.segment_manager.list_files();
-                index.directory_mut().garbage_collect(living_files);
+                segment_updater.garbage_collect_files_exec();
                 segment_updater.consider_merge_options();
             }
         }).wait()
@@ -365,12 +374,25 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             debug!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+            let mut _file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
                     let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
-                    // TODO check unwrap
-                    advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp).unwrap();
+                    match advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp) {
+                        Ok(file_protection_opt_res) => {
+                            _file_protection_opt = file_protection_opt_res;
+                        }
+                        Err(e) => {
+                            error!("Merge of {:?} was cancelled (advancing deletes failed): {:?}", before_merge_segment_ids, e);
+                            // ... cancel merge
+                            if cfg!(test) {
+                                panic!("Merge failed.");
+                            }
+                            segment_updater.cancel_merge(&before_merge_segment_ids, after_merge_segment_entry.segment_id());
+                            return;
+                        }
+                    }
                 }
             }
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);

@@ -1,4 +1,5 @@
 use Result;
+use datastruct::TermDictionaryBuilder;
 use super::TermInfo;
 use schema::Term;
 use schema::Field;
@@ -6,7 +7,6 @@ use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
 use schema::TextIndexingOptions;
-use datastruct::TermDictionaryBuilder;
 use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
 use DocId;
@@ -49,7 +49,7 @@ use common::BinarySerializable;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
-    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>, 
+    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>,
     postings_write: WritePtr,
     positions_write: WritePtr,
     written_bytes_postings: usize,
@@ -73,7 +73,7 @@ impl PostingsSerializer {
                positions_write: WritePtr,
                schema: Schema)
                -> Result<PostingsSerializer> {
-        let terms_fst_builder = try!(TermDictionaryBuilder::new(terms_write));
+        let terms_fst_builder = TermDictionaryBuilder::new(terms_write)?;
         Ok(PostingsSerializer {
             terms_fst_builder: terms_fst_builder,
             postings_write: postings_write,
@@ -109,13 +109,20 @@ impl PostingsSerializer {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         self.text_indexing_options = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-            FieldType::U64(ref u64_options) => {
-                if u64_options.is_indexed() {
+            FieldType::U64(ref int_options) => {
+                if int_options.is_indexed() {
                     TextIndexingOptions::Unindexed
                 } else {
                     TextIndexingOptions::Untokenized
                 }
             }
+            FieldType::I64(ref int_options) => {
+                if int_options.is_indexed() {
+                    TextIndexingOptions::Unindexed
+                } else {
+                    TextIndexingOptions::Untokenized
+                }
+            } 
         };
     }
 

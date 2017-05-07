@@ -40,8 +40,18 @@ impl FieldEntry {
         }
     }
     
+    /// Creates a new i64 field entry in the schema, given
+    /// a name, and some options.
+    pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::I64(field_type),
+        }
+    }
+    
+
     /// Returns the name of the field
-    pub fn name(&self,) -> &String {
+    pub fn name(&self,) -> &str {
         &self.name
     }
         
@@ -55,13 +65,15 @@ impl FieldEntry {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
             FieldType::U64(ref options) => options.is_indexed(),
+            FieldType::I64(ref options) => options.is_indexed(),
         }
     }
     
-    /// Returns true iff the field is a u64 fast field
-    pub fn is_u64_fast(&self,) -> bool {
+    /// Returns true iff the field is a int (signed or unsigned) fast field
+    pub fn is_int_fast(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => options.is_fast(),
+            FieldType::I64(ref options) => options.is_fast(),
             _ => false,
         }
     }
@@ -70,6 +82,9 @@ impl FieldEntry {
     pub fn is_stored(&self,) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => {
+                options.is_stored()
+            }
+            FieldType::I64(ref options) =>  {
                 options.is_stored()
             }
             FieldType::Str(ref options) => {
@@ -89,20 +104,28 @@ impl Encodable for FieldEntry {
             }));
             match self.field_type {
                 FieldType::Str(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
+                    s.emit_struct_field("type", 1, |s| {
                         s.emit_str("text")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
                         options.encode(s)
-                    }));
+                    })?;
                 }
                 FieldType::U64(ref options) => {
-                    try!(s.emit_struct_field("type", 1, |s| {
+                    s.emit_struct_field("type", 1, |s| {
                         s.emit_str("u64")
-                    }));
-                    try!(s.emit_struct_field("options", 2, |s| {
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
                         options.encode(s)
-                    }));
+                    })?;
+                }
+                FieldType::I64(ref options) => {
+                    s.emit_struct_field("type", 1, |s| {
+                        s.emit_str("i64")
+                    })?;
+                    s.emit_struct_field("options", 2, |s| {
+                        options.encode(s)
+                    })?;
                 }
             }
             
@@ -123,8 +146,12 @@ impl Decodable for FieldEntry {
             d.read_struct_field("options", 2, |d| {
                 match field_type.as_ref() {
                     "u64" => {
-                        let u64_options = try!(IntOptions::decode(d));
-                        Ok(FieldEntry::new_u64(name, u64_options))
+                        let int_options = try!(IntOptions::decode(d));
+                        Ok(FieldEntry::new_u64(name, int_options))
+                    }
+                    "i64" => {
+                        let int_options = try!(IntOptions::decode(d));
+                        Ok(FieldEntry::new_i64(name, int_options))
                     }
                     "text" => {
                         let text_options = try!(TextOptions::decode(d));

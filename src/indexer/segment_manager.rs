@@ -172,7 +172,6 @@ impl SegmentManager {
         // ... and we make sure the target segment entry
         // can be garbage collected.
         registers_lock.writing.remove(&after_merge_segment_id);
-        
     }
 
 

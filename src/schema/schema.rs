@@ -65,6 +65,25 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a new i64 field.
+    /// Returns the associated field handle
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name 
+    /// will result in the shadowing of the first 
+    /// by the second one.
+    /// The first field will get a field id 
+    /// but only the second one will be indexed
+     pub fn add_i64_field(
+            &mut self,
+            field_name_str: &str, 
+            field_options: IntOptions) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_i64(field_name, field_options);
+        self.add_field(field_entry)
+    }
+
     /// Adds a new text field.
     /// Returns the associated field handle
     ///
@@ -88,7 +107,7 @@ impl SchemaBuilder {
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);
-        let field_name = field_entry.name().clone();
+        let field_name = field_entry.name().to_string();
         self.fields.push(field_entry);
         self.fields_map.insert(field_name, field);
         field
@@ -154,7 +173,7 @@ impl Schema {
     }
     
     /// Return the field name for a given `Field`.
-    pub fn get_field_name(&self, field: Field) -> &String {
+    pub fn get_field_name(&self, field: Field) -> &str {
         self.get_field_entry(field).name()
     }
     
@@ -186,7 +205,7 @@ impl Schema {
                 .map(|field_val| field_val.value() )
                 .cloned()
                 .collect();
-            field_map.insert(field_name.clone(), values);
+            field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
     }

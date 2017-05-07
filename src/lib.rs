@@ -9,10 +9,10 @@
 
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(step_by))]
+
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
-// #![warn(missing_docs)]
-#![allow(unused_imports)]
+#![warn(missing_docs)]
 
 //! # `tantivy`
 //!
@@ -97,7 +97,7 @@ mod indexer;
 mod common;
 mod error;
 mod analyzer;
-pub mod datastruct;
+mod datastruct;
 
 
 
@@ -113,6 +113,7 @@ pub mod postings;
 pub mod schema;
 
 pub mod fastfield;
+
 
 pub use directory::Directory;
 pub use core::{Index, Segment, SegmentId, SegmentMeta, Searcher};
@@ -201,7 +202,9 @@ mod tests {
     use schema::*;
     use DocSet;
     use IndexWriter;
+    use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
     use Postings;
+
 
     #[test]
     fn test_indexing() {
@@ -440,19 +443,43 @@ mod tests {
     #[test]
     fn test_indexed_u64() {
         let mut schema_builder = SchemaBuilder::default();
-        let field = schema_builder.add_u64_field("text", U64_INDEXED);
+        let field = schema_builder.add_u64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
         
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         index_writer.add_document(
-            doc!(field=>1)
+            doc!(field=>1u64)
         );
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let term = Term::from_field_u64(field, 1u64);
         let mut postings = searcher.segment_reader(0).read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
+        assert!(postings.advance());
+        assert_eq!(postings.doc(), 0);
+        assert!(!postings.advance());
+    }
+
+    #[test]
+    fn test_indexed_i64() {
+        let mut schema_builder = SchemaBuilder::default();
+        let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
+        let schema = schema_builder.build();
+        
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let negative_val = -1i64;
+        index_writer.add_document(
+            doc!(value_field => negative_val)
+        );
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let term = Term::from_field_i64(value_field, negative_val);
+        let mut postings = searcher
+            .segment_reader(0)
+            .read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
@@ -630,5 +657,53 @@ mod tests {
         let values = document.get_all(other_text_field);
         assert_eq!(values.len(), 1);
         assert_eq!(values[0].text(), "short");
+    }
+
+    #[test]
+    fn test_wrong_fast_field_type() {
+        let mut schema_builder = SchemaBuilder::default();
+        let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
+        let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let stored_int_field = schema_builder.add_u64_field("text", INT_STORED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+        {
+            let document = doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64);
+            index_writer.add_document(document);
+            index_writer.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let segment_reader: &SegmentReader = searcher.segment_reader(0);
+        {
+            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(text_field);
+            assert!(fast_field_reader_res.is_err());
+        }
+        {
+            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(stored_int_field);
+            assert!(fast_field_reader_res.is_err());
+        }
+        {
+            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(fast_field_signed);
+            assert!(fast_field_reader_res.is_err());
+        }
+        {
+            let fast_field_reader_res = segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+            assert!(fast_field_reader_res.is_ok());
+            let fast_field_reader = fast_field_reader_res.unwrap();
+            assert_eq!(fast_field_reader.get(0), 4i64)
+        }
+        
+        {
+            let fast_field_reader_res = segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+            assert!(fast_field_reader_res.is_ok());
+            let fast_field_reader = fast_field_reader_res.unwrap();
+            assert_eq!(fast_field_reader.get(0), 4i64)
+        }
+        
     }
 }

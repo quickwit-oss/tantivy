@@ -4,6 +4,7 @@ use fastfield::U64FastFieldReader;
 use postings::DocSet;
 use query::Scorer;
 use postings::Postings;
+use fastfield::FastFieldReader;
 
 pub struct TermScorer<TPostings> where TPostings: Postings {
     pub idf: Score,

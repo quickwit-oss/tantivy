@@ -36,15 +36,13 @@ impl FieldValue {
 
 impl BinarySerializable for FieldValue {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let mut written_size = 0;
-        written_size += try!(self.field.serialize(writer));
-        written_size += try!(self.value.serialize(writer));
-        Ok(written_size)
+        Ok(self.field.serialize(writer)? + 
+           self.value.serialize(writer)?)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        let field = try!(Field::deserialize(reader));
-        let value = try!(Value::deserialize(reader));
+        let field = Field::deserialize(reader)?;
+        let value = Value::deserialize(reader)?;
         Ok(FieldValue::new(field, value))
     }
 }

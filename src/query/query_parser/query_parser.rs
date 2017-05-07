@@ -10,7 +10,9 @@ use postings::SegmentPostingsOption;
 use query::PhraseQuery;
 use analyzer::SimpleTokenizer;
 use analyzer::StreamingIterator;
-use schema::Term;
+use schema::{Term, FieldType};
+use std::str::FromStr;
+use std::num::ParseIntError;
 
 
 
@@ -24,15 +26,23 @@ pub enum QueryParserError {
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64`-field, but the value
     /// is not a u64.
-    ExpectedU64(String, String),
+    ExpectedInt(ParseIntError),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
     AllButQueryForbidden,
     /// If no default field is declared, running a query without any
     /// field specified is forbbidden.
     NoDefaultFieldDeclared,
+    /// The field searched for is not declared
+    /// as indexed in the schema.
+    FieldNotIndexed(String),
 }
 
 
+impl From<ParseIntError> for QueryParserError {
+    fn from(err: ParseIntError) -> QueryParserError {
+        QueryParserError::ExpectedInt(err)
+    }
+}
 
 /// Tantivy's Query parser
 ///
@@ -121,7 +131,7 @@ impl QueryParser {
     fn compute_logical_ast(&self,
                                user_input_ast: UserInputAST)
                                -> Result<LogicalAST, QueryParserError> {
-        let (occur, ast) = try!(self.compute_logical_ast_with_occur(user_input_ast));
+        let (occur, ast) = self.compute_logical_ast_with_occur(user_input_ast)?;
         if occur == Occur::MustNot {
             return Err(QueryParserError::AllButQueryForbidden);
         }
@@ -132,25 +142,51 @@ impl QueryParser {
                                     field: Field,
                                     phrase: &str)
                                     -> Result<Option<LogicalLiteral>, QueryParserError> {
-        let mut token_iter = self.analyzer.tokenize(phrase);
-        let mut tokens: Vec<Term> = Vec::new();
-        loop {
-            if let Some(token) = token_iter.next() {
-                let text = token.to_string();
-                // TODO Handle u64
-                let term = Term::from_field_text(field, &text);
-                tokens.push(term);
-            } else {
-                break;
+
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        if !field_type.is_indexed() {
+            let field_name = field_entry.name().to_string();
+            return Err(QueryParserError::FieldNotIndexed(field_name));
+        }
+        match field_type {
+            &FieldType::I64(_) => {
+                let val: i64 = i64::from_str(phrase)?;
+                let term = Term::from_field_i64(field, val);
+                return Ok(Some(LogicalLiteral::Term(term)));
+            }
+            &FieldType::U64(_) => {
+                let val: u64 = u64::from_str(phrase)?;
+                let term = Term::from_field_u64(field, val);
+                return Ok(Some(LogicalLiteral::Term(term)));
+            }
+            &FieldType::Str(ref str_options) => {
+                let mut terms: Vec<Term> = Vec::new();
+                if str_options.get_indexing_options().is_tokenized() {
+                    let mut token_iter = self.analyzer.tokenize(phrase);
+                    loop {
+                        if let Some(token) = token_iter.next() {
+                            let term = Term::from_field_text(field, token);
+                            terms.push(term);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    terms.push(Term::from_field_text(field, phrase));
+                }
+                if terms.is_empty() {
+                    return Ok(None);
+                }
+                else if terms.len() == 1 {
+                    return Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap())))
+                } else {
+                    return Ok(Some(LogicalLiteral::Phrase(terms)))
+                }
             }
         }
-        if tokens.is_empty() {
-            Ok(None)
-        } else if tokens.len() == 1 {
-            Ok(Some(LogicalLiteral::Term(tokens.into_iter().next().unwrap())))
-        } else {
-            Ok(Some(LogicalLiteral::Phrase(tokens)))
-        }
+        
     }
 
     fn default_occur(&self) -> Occur {
@@ -208,22 +244,22 @@ impl QueryParser {
                         asts.push(LogicalAST::Leaf(box ast));
                     }
                 }
-                let result_ast = if asts.len() == 0 {
-                    // this should never happen
-                    return Err(QueryParserError::SyntaxError); 
-                } else if asts.len() == 1 {
-                    asts[0].clone()
-                } else {
-                    LogicalAST::Clause(asts.into_iter()
-                        .map(|ast| (Occur::Should, ast))
-                        .collect())
-                };
+                let result_ast =
+                    if asts.len() == 0 {
+                        // this should never happen
+                        return Err(QueryParserError::SyntaxError); 
+                    } else if asts.len() == 1 {
+                        asts[0].clone()
+                    } else {
+                        LogicalAST::Clause(asts.into_iter()
+                            .map(|ast| (Occur::Should, ast))
+                            .collect())
+                    };
                 Ok((Occur::Should, result_ast))
             }
         }
     }
 }
-
 
 /// Compose two occur values.
 fn compose_occur(left: Occur, right: Occur) -> Occur {
@@ -269,16 +305,23 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
 
 #[cfg(test)]
 mod test {
-    use schema::{SchemaBuilder, TEXT};
+    use schema::{SchemaBuilder, Term, TEXT, STRING, STORED, INT_INDEXED};
+    use query::Query;
+    use schema::Field;
     use super::QueryParser;
     use super::QueryParserError;
     use super::super::logical_ast::*;
-    
     
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
+        schema_builder.add_i64_field("signed", INT_INDEXED);
+        schema_builder.add_u64_field("unsigned", INT_INDEXED);
+        schema_builder.add_text_field("notindexed_text", STORED);
+        schema_builder.add_text_field("notindexed_u64", STORED);
+        schema_builder.add_text_field("notindexed_i64", STORED);
+        schema_builder.add_text_field("nottokenized", STRING);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         QueryParser::new(schema, default_fields)
@@ -308,6 +351,64 @@ mod test {
     pub fn test_parse_query_simple() {
         let query_parser = make_query_parser();
         assert!(query_parser.parse_query("toto").is_ok()); 
+    }
+
+    #[test]
+    pub fn test_parse_nonindexed_field_yields_error() {
+        let query_parser = make_query_parser();
+        
+        let is_not_indexed_err = |query: &str| {
+            let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);
+            if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
+                Some(field_name.clone())
+            }
+            else {
+                None
+            }
+        };
+
+        assert_eq!(
+            is_not_indexed_err("notindexed_text:titi"),
+            Some(String::from("notindexed_text"))
+        );
+        assert_eq!(
+            is_not_indexed_err("notindexed_u64:23424"),
+            Some(String::from("notindexed_u64"))
+        );
+        assert_eq!(
+            is_not_indexed_err("notindexed_i64:-234324"),
+            Some(String::from("notindexed_i64"))
+        );
+    }
+
+
+    #[test]
+    pub fn test_parse_query_untokenized() {
+        test_parse_query_to_logical_ast_helper("nottokenized:\"wordone wordtwo\"",
+                                               "Term([0, 0, 0, 7, 119, 111, 114, 100, 111, 110, 101, 32, 119, 111, 114, 100, 116, 119, 111])",
+                                               false);
+    }
+
+    #[test]
+    pub fn test_parse_query_ints() {
+        let query_parser = make_query_parser();
+        assert!(query_parser.parse_query("signed:2324").is_ok()); 
+        assert!(query_parser.parse_query("signed:\"22\"").is_ok()); 
+        assert!(query_parser.parse_query("signed:\"-2234\"").is_ok());
+        assert!(query_parser.parse_query("signed:\"-9999999999999\"").is_ok());
+        assert!(query_parser.parse_query("signed:\"a\"").is_err());
+        assert!(query_parser.parse_query("signed:\"2a\"").is_err());
+        assert!(query_parser.parse_query("signed:\"18446744073709551615\"").is_err());
+        assert!(query_parser.parse_query("unsigned:\"2\"").is_ok());
+        assert!(query_parser.parse_query("unsigned:\"-2\"").is_err());
+        assert!(query_parser.parse_query("unsigned:\"18446744073709551615\"").is_ok());
+        test_parse_query_to_logical_ast_helper("unsigned:2324",
+                                               "Term([0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 9, 20])",
+                                               false);
+
+        test_parse_query_to_logical_ast_helper("signed:-2324",
+                                               &format!("{:?}", Term::from_field_i64(Field(2u32), -2324)),
+                                               false);
     }
     
 

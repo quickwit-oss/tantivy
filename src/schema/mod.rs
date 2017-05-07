@@ -131,8 +131,8 @@ pub use self::text_options::STORED;
 
 pub use self::int_options::IntOptions;
 pub use self::int_options::FAST;
-pub use self::int_options::U64_INDEXED;
-pub use self::int_options::U64_STORED;
+pub use self::int_options::INT_INDEXED;
+pub use self::int_options::INT_STORED;
 
 use regex::Regex;
 

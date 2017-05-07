@@ -19,6 +19,7 @@ mod tests {
     use Index;
     use schema::*;
     use postings::SegmentPostingsOption;
+    use fastfield::FastFieldReader;
 
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()

@@ -17,8 +17,13 @@ fn test_indexing() {
 
     let mut schema_builder = SchemaBuilder::default();
 
+<<<<<<< HEAD
     let id_field = schema_builder.add_u64_field("id", U64_INDEXED);
     let multiples_field = schema_builder.add_u64_field("multiples", U64_INDEXED);    
+=======
+    let id_field = schema_builder.add_u64_field("id", INT_INDEXED);
+    let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);    
+>>>>>>> master
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();

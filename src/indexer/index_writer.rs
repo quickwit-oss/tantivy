@@ -11,7 +11,7 @@ use datastruct::stacker::Heap;
 use directory::FileProtection;
 use Error;
 use Directory;
-use fastfield::delete::write_delete_bitset;
+use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use futures::Canceled;
 use futures::Future;
@@ -195,10 +195,6 @@ pub fn compute_deleted_bitset(
     }
     Ok(might_have_changed)
 }
-
-
-// TODO skip delete operation before teh 
-// last delete opstamp
 
 /// Advance delete for the given segment up
 /// to the target opstamp.
@@ -416,6 +412,12 @@ impl IndexWriter {
             try!(self.add_indexing_worker());
         }
         Ok(())
+    }
+
+    /// Detects and removes the files that
+    /// are not used by the index anymore.
+    pub fn garbage_collect_files(&mut self) -> Result<()> {
+        self.segment_updater.garbage_collect_files()
     }
 
     /// Merges a given list of segments

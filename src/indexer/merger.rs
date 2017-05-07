@@ -11,9 +11,10 @@ use itertools::Itertools;
 use postings::Postings;
 use postings::DocSet;
 use core::TermIterator;
-use fastfield::delete::DeleteBitSet;
+use fastfield::DeleteBitSet;
 use schema::{Schema, Field};
 use fastfield::FastFieldSerializer;
+use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
 use common::allocate_vec;
@@ -57,7 +58,7 @@ fn compute_min_max_val(u64_reader: &U64FastFieldReader, max_doc: DocId, delete_b
     else if !delete_bitset.has_deletes() {
         // no deleted documents, 
         // we can use the previous min_val, max_val.
-        Some((u64_reader.min_val(), u64_reader.max_val()))
+        Some((u64_reader.min_value(), u64_reader.max_value()))
     }
     else {
         // some deleted documents,
@@ -75,7 +76,9 @@ fn extract_fieldnorm_reader(segment_reader: &SegmentReader, field: Field) -> Opt
 }
 
 fn extract_fast_field_reader(segment_reader: &SegmentReader, field: Field) -> Option<U64FastFieldReader> {
-    segment_reader.get_fast_field_reader(field)
+    segment_reader
+        .get_fast_field_reader(field)
+        .ok()
 }
 
 impl IndexMerger {
@@ -113,7 +116,7 @@ impl IndexMerger {
                          .fields()
                          .iter()
                          .enumerate()
-                         .filter(|&(_, field_entry)| field_entry.is_u64_fast())
+                         .filter(|&(_, field_entry)| field_entry.is_int_fast())
                          .map(|(field_id, _)| Field(field_id as u32))
                          .collect();
         self.generic_write_fast_field(fast_fields, &extract_fast_field_reader, fast_field_serializer)
@@ -295,6 +298,7 @@ mod tests {
     use query::TermQuery;
     use schema::{Field, FieldValue};
     use core::Index;
+    use fastfield::U64FastFieldReader;
     use Searcher;
     use DocAddress;
     use collector::tests::FastFieldTestCollector;
@@ -441,18 +445,18 @@ mod tests {
             index_writer.add_document(
                 doc!(
                     text_field => "a b d",
-                    score_field => 1
+                    score_field => 1u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "b c",
-                    score_field => 2
+                    score_field => 2u64
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(
                 doc!(
                     text_field => "c d",
-                    score_field => 3
+                    score_field => 3u64
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
@@ -469,24 +473,24 @@ mod tests {
             index_writer.add_document(
                 doc!(
                     text_field => "a d e",
-                    score_field => 4_000
+                    score_field => 4_000u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "e f",
-                    score_field => 5_000
+                    score_field => 5_000u64
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(
                 doc!(
                     text_field => "f g",
-                    score_field => 6_000
+                    score_field => 6_000u64
                 ));
             index_writer.add_document(
                 doc!(
                     text_field => "g h",
-                    score_field => 7_000
+                    score_field => 7_000u64
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
@@ -506,13 +510,13 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
-            assert_eq!(score_field_reader.min_val(), 1);
-            assert_eq!(score_field_reader.max_val(), 3);
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_value(), 1);
+            assert_eq!(score_field_reader.max_value(), 3);
 
-            let score_field_reader = searcher.segment_reader(1).get_fast_field_reader(score_field).unwrap();
-            assert_eq!(score_field_reader.min_val(), 4000);
-            assert_eq!(score_field_reader.max_val(), 7000);
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(1).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_value(), 4000);
+            assert_eq!(score_field_reader.max_value(), 7000);
         }
         {   // merging the segments
             let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
@@ -532,9 +536,9 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
-            assert_eq!(score_field_reader.min_val(), 3);
-            assert_eq!(score_field_reader.max_val(), 7000);
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_value(), 3);
+            assert_eq!(score_field_reader.max_value(), 7000);
         }
         {   
             // test a commit with only deletes
@@ -554,9 +558,9 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
-            assert_eq!(score_field_reader.min_val(), 3);
-            assert_eq!(score_field_reader.max_val(), 7000);
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_value(), 3);
+            assert_eq!(score_field_reader.max_value(), 7000);
         }
         {   // Test merging a single segment in order to remove deletes.
             let segment_ids = index.searchable_segment_ids().expect("Searchable segments failed.");
@@ -577,9 +581,9 @@ mod tests {
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
-            let score_field_reader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
-            assert_eq!(score_field_reader.min_val(), 6000);
-            assert_eq!(score_field_reader.max_val(), 7000);
+            let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
+            assert_eq!(score_field_reader.min_value(), 6000);
+            assert_eq!(score_field_reader.max_value(), 7000);
         }
 
         {   // Test removing all docs
