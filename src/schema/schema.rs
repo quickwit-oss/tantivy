@@ -501,7 +501,7 @@ mod tests {
                 "popularity": 10
             }"#);
             match json_err {
-                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
                 }
                 _ => {
