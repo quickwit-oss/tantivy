@@ -226,7 +226,7 @@ impl Schema {
                 else {
                     format!("{:?}...", &doc_json[0..20])
                 };
-            DocParsingError::NotJSONObject(doc_json_sample)
+            DocParsingError::NotJSON(doc_json_sample)
         })?;
 
         let mut doc = Document::default();
@@ -335,21 +335,12 @@ impl From<SchemaBuilder> for Schema {
 #[derive(Debug)]
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
-    NotJSON(serde_json::Error),
-    /// The payload given is not a JSON Object (`{...}`).
-    NotJSONObject(String),
+    NotJSON(String),
     /// One of the value node could not be parsed.
     ValueError(String, ValueParsingError),
     /// The json-document contains a field that is not declared in the schema. 
     NoSuchFieldInSchema(String),
 }
-
-impl From<serde_json::Error> for DocParsingError {
-    fn from(err: serde_json::Error) -> DocParsingError {
-        DocParsingError::NotJSON(err)
-    }
-}
-
 
 
 #[cfg(test)]
@@ -358,7 +349,7 @@ mod tests {
     use schema::*;
     use serde_json;
     use schema::field_type::ValueParsingError;
-    use schema::schema::DocParsingError::{NotJSON, NotJSONObject};
+    use schema::schema::DocParsingError::NotJSON;
         
     #[test]
     pub fn test_schema_serialization() {
@@ -527,7 +518,7 @@ mod tests {
             }"#);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
-                    assert!(false);
+                    panic!("expected 9223372036854775808 to fit into u64, but it didn't");
                 }
                 _ => {
                     assert!(true);
@@ -539,14 +530,29 @@ mod tests {
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 50,
-                "popularity": 9223372036854775808,
+                "popularity": 9223372036854775808
             }"#);
             match json_err {
-                Err(NotJSON(_)) | Err(NotJSONObject(_)) => {
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
                 },
                 _ => {
-                    panic!("expected overflow but didn't");
+                    panic!("expected 9223372036854775808 to overflow i64, but it didn't");
+                }
+            }
+        }
+        {
+            let json_err = schema.parse_document(r#"{
+                "title": "my title",
+                "author": "fulmicoton",
+                "count": 50,
+            }"#);
+            match json_err {
+                Err(NotJSON(_)) => {
+                    assert!(true);
+                },
+                _ => {
+                    panic!("expected invalid JSON to fail parsing, but it didn't");
                 }
             }
         }

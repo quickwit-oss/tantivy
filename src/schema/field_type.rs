@@ -65,16 +65,11 @@ impl FieldType {
             JsonValue::Number(ref field_val_num) => {
                 match *self {
                     FieldType::I64(_) => {
-                        if let Some(field_val_u64) = field_val_num.as_u64() {
-                            if field_val_u64 > (i64::max_value() as u64) {
-                                Err(ValueParsingError::OverflowError(format!("Expected i64, but value {:?} overflows.", field_val_u64)))
-                            }
-                            else {
-                                Ok(Value::I64(field_val_u64 as i64))
-                            }
+                        if let Some(field_val_i64) = field_val_num.as_i64() {
+                            Ok(Value::I64(field_val_i64))
                         }
                         else {
-                            Err(ValueParsingError::TypeError(format!("Expected a u32 int, got {:?}", json)))
+                            Err(ValueParsingError::OverflowError(format!("Expected an i64 int, got {:?}", json)))
                         }
                     }
                     FieldType::U64(_) => {
@@ -82,7 +77,7 @@ impl FieldType {
                             Ok(Value::U64(field_val_u64))
                         }
                         else {
-                            Err(ValueParsingError::TypeError(format!("Expected a u64 int, got {:?}", json)))
+                            Err(ValueParsingError::TypeError(format!("Expected an u64 int, got {:?}", json)))
                         }
                     }
                     FieldType::Str(_) => {
