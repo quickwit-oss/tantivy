@@ -77,7 +77,7 @@ impl FieldType {
                             Ok(Value::U64(field_val_u64))
                         }
                         else {
-                            Err(ValueParsingError::TypeError(format!("Expected an u64 int, got {:?}", json)))
+                            Err(ValueParsingError::OverflowError(format!("Expected an u64 int, got {:?}", json)))
                         }
                     }
                     FieldType::Str(_) => {
