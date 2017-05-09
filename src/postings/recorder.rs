@@ -114,6 +114,7 @@ impl Recorder for TermFrequencyRecorder {
         self.current_tf = 0;
     }
 
+
     fn serialize(&self,
                  self_addr: u32,
                  serializer: &mut PostingsSerializer,
@@ -123,8 +124,14 @@ impl Recorder for TermFrequencyRecorder {
         loop {
             if let Some(doc) = doc_iter.next() {
                 if let Some(term_freq) = doc_iter.next() {
-                    try!(serializer.write_doc(doc, term_freq, &EMPTY_ARRAY));
+                    serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
                     continue;
+                }
+                else {
+                    // the last document has not been closed...
+                    // its term freq is self.current_tf.
+                    serializer.write_doc(doc, self.current_tf, &EMPTY_ARRAY)?;
+                    break;
                 }
             }
             break;
@@ -188,7 +195,8 @@ impl Recorder for TFAndPositionRecorder {
                         }
                     }
                     None => {
-                        panic!("This should never happen. Pleasee report the bug.");
+                        // the last document has not been closed...
+                        break;
                     }
                 }
             }

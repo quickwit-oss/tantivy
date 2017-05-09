@@ -1,9 +1,8 @@
 use std::fmt;
 
 use common;
-use common::BinarySerializable;
 use common::allocate_vec;
-use byteorder::{BigEndian, ByteOrder};
+use byteorder::{BigEndian, WriteBytesExt, ByteOrder};
 use super::Field;
 use std::str;
 
@@ -24,7 +23,7 @@ impl Term {
     /// Pre-allocate a term buffer. 
     pub fn allocate(field: Field, num_bytes: usize) -> Term {
         let mut term = Term(Vec::with_capacity(num_bytes));
-        field.serialize(&mut term.0).expect("Serializing term in a Vec should never fail");
+        term.0.write_u32::<BigEndian>(field.0).expect("serializing u32 to Vec<u8 should never fail>");
         term
     }
 

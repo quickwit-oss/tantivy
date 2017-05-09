@@ -78,15 +78,6 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     pub fn suscribe(&mut self, doc: DocId, term: &Term) {
         let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
         postings_writer.suscribe(&mut self.term_index, doc, 0u32, term, self.heap)
-        // let recorder: &mut Rec = self.term_index.get_or_create(term);
-        // let current_doc = recorder.current_doc();
-        // if current_doc != doc {
-        //     if current_doc != u32::max_value() {
-        //         recorder.close_doc(heap);
-        //     }
-        //     recorder.new_doc(doc, heap);
-        // }
-        // recorder.record_position(position, heap);
     }
 
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> Result<()> {
@@ -111,8 +102,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             }
         }
         offsets.push((Field(0), term_offsets.len()));
-        for i in 0..offsets.len() - 1 {
-            let (field, start) = offsets[i];    
+        for i in 0..(offsets.len() - 1) {
+            let (field, start) = offsets[i];
             let (_, stop) = offsets[i+1];
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
             postings_writer.serialize(
@@ -214,13 +205,6 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 
 impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
     
-    // TODO close documents before serialization.
-    // fn close(&mut self, heap: &Heap) {
-    //     for recorder in self.term_index.values_mut() {
-    //         recorder.close_doc(heap);
-    //     }
-    // }
-    
     fn suscribe(&mut self, term_index: &mut HashMap, doc: DocId, position: u32, term: &Term, heap: &Heap) {
         let recorder: &mut Rec = term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
@@ -240,7 +224,6 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         let mut term = Term::allocate(Field(0), 100);
         for &(term_bytes, addr) in term_addrs {
             let recorder: &mut Rec = self.heap.get_mut_ref(addr);
-            recorder.close_doc(heap);
             term.set_content(term_bytes);
             try!(serializer.new_term(&term));
             try!(recorder.serialize(addr, serializer, heap));
