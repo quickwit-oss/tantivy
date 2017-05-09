@@ -14,6 +14,11 @@ use std::str;
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 
+
+pub fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
+    Field(BigEndian::read_u32(&term_bytes[..4]))
+}
+
 impl Term {
     
     /// Pre-allocate a term buffer. 
@@ -29,15 +34,10 @@ impl Term {
         self.0.resize(content.len(), 0u8);
         (&mut self.0[..]).clone_from_slice(content);
     }
-    
-    /// Returns the field id.
-    fn field_id(&self,) -> u32 {
-        BigEndian::read_u32(&self.0[..4])
-    }
 
     /// Returns the field.
     pub fn field(&self,) -> Field {
-        Field(self.field_id())
+        extract_field_from_term_bytes(&self.0)
     }
 
     /// Builds a term given a field, and a u64-value

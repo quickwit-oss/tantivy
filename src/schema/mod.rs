@@ -109,7 +109,7 @@ mod field;
 mod value;
 mod named_field_document;
 
-
+pub use self::term::extract_field_from_term_bytes;
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;

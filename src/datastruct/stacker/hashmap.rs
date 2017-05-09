@@ -1,9 +1,5 @@
 use std::iter;
-use std::marker::PhantomData;
 use super::heap::{Heap, HeapAllocable, BytesRef};
-
-
-
 
 /// dbj2 hash function
 fn djb2(key: &[u8]) -> u64 {
@@ -57,17 +53,16 @@ pub enum Entry {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 ///
-pub struct HashMap<'a, V> where V: HeapAllocable {
+pub struct HashMap<'a> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
-    _phantom: PhantomData<V>,
     mask: usize,
     occupied: Vec<usize>,
 }
 
-impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
+impl<'a> HashMap<'a> {
 
-    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a, V> {
+    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
             .take(table_size)
@@ -75,7 +70,6 @@ impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
         HashMap {
             table: table.into_boxed_slice(),
             heap: heap,
-            _phantom: PhantomData,
             mask: table_size - 1,
             occupied: Vec::with_capacity(table_size / 2),
         }
@@ -100,7 +94,7 @@ impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
         addr
     }
     
-    pub fn iter<'b: 'a>(&'b self,) -> impl Iterator<Item=(&'a [u8], (u32, &'a V))> + 'b {
+    pub fn iter<'b: 'a>(&'b self,) -> impl Iterator<Item=(&'a [u8], u32)> + 'b {
         let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
@@ -109,23 +103,11 @@ impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
             .map(move |bucket: usize| {
                 let kv = table[bucket];
                 let addr = kv.value_addr;
-                let v: &V = heap.get_mut_ref::<V>(addr);
-                (heap.get_slice(kv.key), (addr, v))
+                (heap.get_slice(kv.key), addr)
             })
-            // .map(move |addr: u32| (heap.get_mut_ref::<V>(addr))  )
     }
 
-    pub fn values_mut<'b: 'a>(&'b self,) -> impl Iterator<Item=&'a mut V> + 'b {
-        let heap: &'a Heap = self.heap;
-        let table: &'b [KeyValue] = &self.table;
-        self.occupied
-            .iter()
-            .cloned()
-            .map(move |bucket: usize| table[bucket].value_addr)
-            .map(move |addr: u32| heap.get_mut_ref::<V>(addr))
-    }
-
-    pub fn get_or_create<S: AsRef<[u8]>>(&mut self, key: S) -> &mut V {
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let entry = self.lookup(key.as_ref());
         match entry {
             Entry::Occupied(addr) => {
@@ -183,7 +165,7 @@ mod tests {
     #[test]
     fn test_hash_map() {
         let heap = Heap::with_capacity(2_000_000);
-        let mut hash_map: HashMap<TestValue> = HashMap::new(18, &heap);
+        let mut hash_map: HashMap = HashMap::new(18, &heap);
         {
             {
             let v: &mut TestValue = hash_map.get_or_create("abc");
@@ -205,10 +187,18 @@ mod tests {
             let v: &mut TestValue = hash_map.get_or_create("abcd");
             assert_eq!(v.val, 4u32);
         }
-        let mut iter_values = hash_map.values_mut();
-        assert_eq!(iter_values.next().unwrap().val, 3u32);
-        assert_eq!(iter_values.next().unwrap().val, 4u32);
-        assert!(!iter_values.next().is_some());
+        let mut iter_values = hash_map.iter();
+        {
+            let (_, addr) = iter_values.next().unwrap();
+            let val: &TestValue = heap.get_ref(addr);
+            assert_eq!(val.val, 3u32);
+        }
+        {
+            let (_, addr) = iter_values.next().unwrap();
+            let val: &TestValue = heap.get_ref(addr);
+            assert_eq!(val.val, 4u32);
+        }
+        assert!(iter_values.next().is_none());
     }
 
     #[bench]

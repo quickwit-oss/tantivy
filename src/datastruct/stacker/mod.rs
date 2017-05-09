@@ -18,10 +18,10 @@ fn test_unrolled_linked_list() {
         ks.push(2);
         ks.push(3);
         for k in (1..5).map(|k| k * 100) {        
-            let mut hashmap: HashMap<ExpUnrolledLinkedList> = HashMap::new(10, &heap);
+            let mut hashmap: HashMap = HashMap::new(10, &heap);
             for j in 0..k {
                 for i in 0..500 {
-                    let mut list = hashmap.get_or_create(i.to_string());
+                    let mut list: &mut ExpUnrolledLinkedList = hashmap.get_or_create(i.to_string());
                     list.push(i*j, &heap);
                 }
             }

@@ -5,9 +5,126 @@ use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
 use analyzer::SimpleTokenizer;
-use schema::Field;
+use Result;
+use schema::{Schema, Field};
 use analyzer::StreamingIterator;
+use std::marker::PhantomData;
+use schema::extract_field_from_term_bytes;
+use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
+use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
+use schema::FieldEntry;
+use schema::FieldType;
+use schema::TextIndexingOptions;
+
+fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box<PostingsWriter + 'a> {
+	match *field_entry.field_type() {
+		FieldType::Str(ref text_options) => {
+			match text_options.get_indexing_options() {
+				TextIndexingOptions::TokenizedWithFreq => {
+					SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
+				}
+				TextIndexingOptions::TokenizedWithFreqAndPosition => {
+					SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
+				}
+				_ => {
+					SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+				}
+			}
+		} 
+		FieldType::U64(_) => {
+			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+		}
+		FieldType::I64(_) => {
+			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+		}
+	}
+}
+
+
+pub struct MultiFieldPostingsWriter<'a> {
+    heap: &'a Heap,
+    term_index: HashMap<'a>,
+    per_field_postings_writers: Vec<Box<PostingsWriter + 'a>>,
+}
+
+impl<'a> MultiFieldPostingsWriter<'a> {
+    pub fn new(schema: &Schema, heap: &'a Heap) -> MultiFieldPostingsWriter<'a> {
+        let capacity = heap.capacity();
+        let hashmap_size = hashmap_size_in_bits(capacity);
+        let term_index = HashMap::new(hashmap_size, heap);
+        
+        let mut per_field_postings_writers: Vec<_> = vec!();
+        for field_entry in schema.fields() {
+            let field_entry = posting_from_field_entry(&field_entry, heap);
+            per_field_postings_writers.push(field_entry);
+        }
+        MultiFieldPostingsWriter {
+            heap: heap,
+            term_index: term_index,
+            per_field_postings_writers: per_field_postings_writers
+        }
+    }
+
+
+    pub fn index_text(&mut self,
+                      doc: DocId,
+                      field: Field,
+                      field_values: &[&FieldValue])
+                      -> u32 {
+        let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
+        postings_writer.index_text(&mut self.term_index, doc, field, field_values, self.heap)
+    }
+
+    pub fn suscribe(&mut self, doc: DocId, term: &Term) {
+        let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
+        postings_writer.suscribe(&mut self.term_index, doc, 0u32, term, self.heap)
+        // let recorder: &mut Rec = self.term_index.get_or_create(term);
+        // let current_doc = recorder.current_doc();
+        // if current_doc != doc {
+        //     if current_doc != u32::max_value() {
+        //         recorder.close_doc(heap);
+        //     }
+        //     recorder.new_doc(doc, heap);
+        // }
+        // recorder.record_position(position, heap);
+    }
+
+    pub fn serialize(&self, serializer: &mut PostingsSerializer) -> Result<()> {
+        let mut term_offsets: Vec<(&[u8], u32)> = self.term_index
+                .iter()
+                .collect();
+        term_offsets.sort_by_key(|&(k, _v)| k);
+        
+        let mut offsets: Vec<(Field, usize)> = vec!();
+        let term_offsets_it = term_offsets
+            .iter()
+            .map(|&(ref key, _)| {
+                extract_field_from_term_bytes(&key)
+            })
+            .enumerate();
+        
+        let mut prev_field = Field(u32::max_value());
+        for (offset, field) in term_offsets_it {
+            if field != prev_field {
+                offsets.push((field, offset));
+                prev_field = field;
+            }
+        }
+        offsets.push((Field(0), term_offsets.len()));
+        for i in 0..offsets.len() - 1 {
+            let (field, start) = offsets[i];    
+            let (_, stop) = offsets[i+1];
+            let postings_writer = &self.per_field_postings_writers[field.0 as usize];
+            postings_writer.serialize(
+                &term_offsets[start..stop],
+                serializer,
+                self.heap)?;
+        }
+        Ok(())
+    }
+}
+
 
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
@@ -21,17 +138,15 @@ pub trait PostingsWriter {
     /// * term - the term
     /// * heap - heap used to store the postings informations as well as the terms
     /// in the hashmap.
-    fn suscribe(&mut self, doc: DocId, pos: u32, term: &Term, heap: &Heap);
+    fn suscribe(&mut self, term_index: &mut HashMap, doc: DocId, pos: u32, term: &Term, heap: &Heap);
     
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
-    fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
-
-    /// Closes all of the currently open `Recorder`'s.
-    fn close(&mut self, heap: &Heap);
-
+    fn serialize(&self, term_addrs: &[(&[u8], u32)], serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
+    
     /// Tokenize a text and suscribe all of its token.
     fn index_text<'a>(&mut self,
+                      term_index: &mut HashMap, 
                       doc_id: DocId,
                       field: Field,
                       field_values: &[&'a FieldValue],
@@ -46,7 +161,7 @@ pub trait PostingsWriter {
             // change when we get proper analyzers
             while let Some(token) = tokens.next() {
                 term.set_text(token);
-                self.suscribe(doc_id, pos, &term, heap);
+                self.suscribe(term_index, doc_id, pos, &term, heap);
                 pos += 1u32;
                 num_tokens += 1u32;
             }
@@ -61,7 +176,8 @@ pub trait PostingsWriter {
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
 pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
-    term_index: HashMap<'a, Rec>,
+    heap: &'a Heap,
+    _recorder_type: PhantomData<Rec>,
 }
 
 /// Given a `Heap` size, computes a relevant size for the `HashMap`.
@@ -81,9 +197,10 @@ fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
 impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
     /// constructor
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
-        let capacity = heap.capacity();
-        let hashmap_size = hashmap_size_in_bits(capacity);
-        SpecializedPostingsWriter { term_index: HashMap::new(hashmap_size, heap) }
+        SpecializedPostingsWriter {
+            heap: heap,
+            _recorder_type: PhantomData,
+        }
     }
 
     /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
@@ -93,16 +210,16 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 }
 
 impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
-    fn close(&mut self, heap: &Heap) {
-        for recorder in self.term_index.values_mut() {
-            recorder.close_doc(heap);
-        }
-    }
-
-
-    #[inline]
-    fn suscribe(&mut self, doc: DocId, position: u32, term: &Term, heap: &Heap) {
-        let mut recorder = self.term_index.get_or_create(term);
+    
+    // TODO close documents before serialization.
+    // fn close(&mut self, heap: &Heap) {
+    //     for recorder in self.term_index.values_mut() {
+    //         recorder.close_doc(heap);
+    //     }
+    // }
+    
+    fn suscribe(&mut self, term_index: &mut HashMap, doc: DocId, position: u32, term: &Term, heap: &Heap) {
+        let recorder: &mut Rec = term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
         if current_doc != doc {
             if current_doc != u32::max_value() {
@@ -113,14 +230,14 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         recorder.record_position(position, heap);
     }
 
-    fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
-        let mut term_offsets: Vec<(&[u8], (u32, &Rec))> = self.term_index
-            .iter()
-            .collect();
-        term_offsets.sort_by_key(|&(k, _v)| k);
+    fn serialize(&self,
+        term_addrs: &[(&[u8], u32)],
+        serializer: &mut PostingsSerializer, 
+        heap: &Heap) -> io::Result<()> {
         let mut term = Term::allocate(Field(0), 100);
-        for (term_bytes, (addr, recorder)) in term_offsets {
-            // sadly we are required to copy the data
+        for &(term_bytes, addr) in term_addrs {
+            let recorder: &mut Rec = self.heap.get_mut_ref(addr);
+            recorder.close_doc(heap);
             term.set_content(term_bytes);
             try!(serializer.new_term(&term));
             try!(recorder.serialize(addr, serializer, heap));
