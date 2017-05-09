@@ -1,4 +1,3 @@
-extern crate rustc_serialize;
 extern crate tantivy;
 extern crate tempdir;
 

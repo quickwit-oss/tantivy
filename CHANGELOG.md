@@ -2,6 +2,7 @@ Tantivy 0.4.0
 ==========================
 
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65)
+- Replacing rustc_serialize by serde. Kudos to @KodrAus and @lnicola
 - QueryParser:
   - Explicit error returned when searched for a term that is not indexed
   - Searching for a int term via the query parser was broken `(age:1)`
