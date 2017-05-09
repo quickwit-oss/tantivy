@@ -66,7 +66,6 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         }
     }
 
-
     pub fn index_text(&mut self,
                       doc: DocId,
                       field: Field,
@@ -122,6 +121,10 @@ impl<'a> MultiFieldPostingsWriter<'a> {
                 self.heap)?;
         }
         Ok(())
+    }
+
+    pub fn is_termdictionary_saturated(&self) -> bool {
+        self.term_index.is_saturated()
     }
 }
 

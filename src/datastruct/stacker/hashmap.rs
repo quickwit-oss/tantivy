@@ -81,6 +81,10 @@ impl<'a> HashMap<'a> {
         (hash as usize) & self.mask
     }
 
+    pub fn is_saturated(&self) -> bool {
+        self.table.len() < self.occupied.len() * 3
+    }
+
     fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
         self.heap.get_slice(bytes_ref)
     }

@@ -36,7 +36,7 @@ use std::thread;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
-pub const MARGIN_IN_BYTES: u32 = 10_000_000u32;
+pub const MARGIN_IN_BYTES: u32 = 1_000_000u32;
 
 // We impose the memory per thread to be at least 30 MB.
 pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
@@ -266,6 +266,11 @@ fn index_documents(heap: &mut Heap,
         try!(segment_writer.add_document(&doc, &schema));
         if segment_writer.is_buffer_full() {
             info!("Buffer limit reached, flushing segment with maxdoc={}.",
+                  segment_writer.max_doc());
+            break;
+        }
+        if segment_writer.is_termdictionary_saturated() {
+            info!("Term dic saturated, flushing segment with maxdoc={}.",
                   segment_writer.max_doc());
             break;
         }

@@ -97,6 +97,11 @@ impl<'a> SegmentWriter<'a> {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
 	
+	pub fn is_termdictionary_saturated(&self,) -> bool {
+		self.multifield_postings.is_termdictionary_saturated()
+	}
+	
+
 	/// Indexes a new document
 	///
 	/// As a user, you should rather use `IndexWriter`'s add_document.

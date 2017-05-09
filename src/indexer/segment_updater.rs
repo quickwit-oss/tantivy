@@ -309,8 +309,6 @@ impl SegmentUpdater {
         let merging_join_handle = thread::spawn(move || {
             
             // first we need to apply deletes to our segment.
-            info!("Start merge: {:?}", segment_ids_vec);
-            
             let merged_segment = segment_updater_clone.new_segment(); 
             let merged_segment_id = merged_segment.id();
             let merge_result = perform_merge(&segment_ids_vec, &segment_updater_clone, merged_segment, target_opstamp);
