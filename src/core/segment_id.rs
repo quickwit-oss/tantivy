@@ -1,6 +1,5 @@
 use uuid::Uuid;
 use std::fmt;
-use rustc_serialize::{Encoder, Decoder, Encodable, Decodable};
 use std::cmp::{Ordering, Ord};
 
 #[cfg(test)]
@@ -14,7 +13,7 @@ use std::sync::atomic;
 ///
 /// In unit test, for reproducability, the SegmentId are
 /// simply generated in an autoincrement fashion.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);
 
 
@@ -62,18 +61,6 @@ impl SegmentId {
     /// Returns a segment uuid string.
     pub fn uuid_string(&self,) -> String {
         self.0.simple().to_string()
-    }
-}
-
-impl Encodable for SegmentId {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        self.0.encode(s)
-    }
-}
-
-impl Decodable for SegmentId {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        Uuid::decode(d).map(SegmentId)
     }
 }
 

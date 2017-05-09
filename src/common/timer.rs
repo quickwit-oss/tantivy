@@ -33,7 +33,7 @@ impl<'a> Drop for OpenTimer<'a> {
 }
 
 /// Timing recording
-#[derive(Debug, RustcEncodable)]
+#[derive(Debug, Serialize)]
 pub struct Timing {
     name: &'static str,
     duration: i64,
@@ -41,7 +41,7 @@ pub struct Timing {
 }
 
 /// Timer tree
-#[derive(Debug, RustcEncodable)]
+#[derive(Debug, Serialize)]
 pub struct TimerTree {
     timings: Vec<Timing>,
 }
