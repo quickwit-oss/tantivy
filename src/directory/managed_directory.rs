@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use serde_json;
 use directory::error::{OpenReadError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
@@ -7,7 +8,6 @@ use Directory;
 use std::sync::{Arc, RwLock};
 use std::collections::HashSet;
 use std::io::Write;
-use rustc_serialize::json;
 use core::MANAGED_FILEPATH;
 use std::collections::HashMap;
 use std::fmt;
@@ -74,7 +74,7 @@ impl ManagedDirectory {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
-                let managed_files: HashSet<PathBuf> = json::decode(&managed_files_json)
+                let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
                     .map_err(|e| Error::CorruptedFile(MANAGED_FILEPATH.clone(), Box::new(e)))?;
                 Ok(ManagedDirectory {
                     directory: box directory,
@@ -204,8 +204,8 @@ impl ManagedDirectory {
                 .expect("Managed file lock poisoned");
             managed_paths = meta_informations_rlock.managed_paths.clone();
         }
-        let mut w = vec!();
-        try!(write!(&mut w, "{}\n", json::as_pretty_json(&managed_paths)));
+        let mut w = try!(serde_json::to_vec(&managed_paths));
+        try!(write!(&mut w, "\n"));
         self.directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
         Ok(())
     }

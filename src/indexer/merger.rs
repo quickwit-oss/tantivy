@@ -17,7 +17,6 @@ use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
-use common::allocate_vec;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -33,7 +32,7 @@ struct DeltaPositionComputer {
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
         DeltaPositionComputer { 
-            buffer: allocate_vec(512)
+            buffer: vec![0u32, 512]
         }
     }
 
@@ -440,6 +439,8 @@ mod tests {
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+
+        let empty_vec = Vec::<u64>::new();
             
         {   // a first commit
             index_writer.add_document(
@@ -502,11 +503,11 @@ mod tests {
             assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
             assert_eq!(searcher.segment_readers()[1].num_docs(), 2);
             assert_eq!(searcher.segment_readers()[1].max_doc(), 4);
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!(3));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!(3));
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             
@@ -529,11 +530,11 @@ mod tests {
             assert_eq!(searcher.num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!(3));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!(3));
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
@@ -551,11 +552,11 @@ mod tests {
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();
@@ -574,11 +575,11 @@ mod tests {
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].max_doc(), 2);
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), vec!());
-            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), vec!());
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "a")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "b")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "c")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "d")), empty_vec);
+            assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "e")), empty_vec);
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "f")), vec!(6_000));
             assert_eq!(search_term(&searcher, Term::from_field_text(text_field, "g")), vec!(6_000, 7_000));
             let score_field_reader: U64FastFieldReader = searcher.segment_reader(0).get_fast_field_reader(score_field).unwrap();

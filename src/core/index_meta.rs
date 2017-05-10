@@ -9,7 +9,7 @@ use core::SegmentMeta;
 /// * the index docstamp
 /// * the schema
 ///
-#[derive(Clone,Debug,RustcDecodable,RustcEncodable)]
+#[derive(Clone,Debug,Serialize, Deserialize)]
 pub struct IndexMeta {
     pub segments: Vec<SegmentMeta>,
     pub schema: Schema,

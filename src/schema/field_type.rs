@@ -1,7 +1,6 @@
-use schema::TextOptions;
-use schema::IntOptions;
+use schema::{TextOptions, IntOptions};
 
-use rustc_serialize::json::Json;
+use serde_json::Value as JsonValue;
 use schema::Value;
 
 
@@ -19,7 +18,7 @@ pub enum ValueParsingError {
 
 /// A `FieldType` describes the type (text, u64) of a field as well as 
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug)]
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),
@@ -30,7 +29,7 @@ pub enum FieldType {
 }
 
 impl FieldType {
-    
+
     /// returns true iff the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match self {
@@ -51,9 +50,9 @@ impl FieldType {
     /// Tantivy will not try to cast values.
     /// For instance, If the json value is the integer `3` and the 
     /// target field is a `Str`, this method will return an Error. 
-    pub fn value_from_json(&self, json: &Json) -> Result<Value, ValueParsingError> {
+    pub fn value_from_json(&self, json: &JsonValue) -> Result<Value, ValueParsingError> {
         match *json {
-            Json::String(ref field_text) => {
+            JsonValue::String(ref field_text) => {
                 match *self {
                     FieldType::Str(_) => {
                         Ok(Value::Str(field_text.clone()))
@@ -63,31 +62,23 @@ impl FieldType {
                     }
                 }
             }
-            Json::U64(ref field_val_u64) => {
+            JsonValue::Number(ref field_val_num) => {
                 match *self {
                     FieldType::I64(_) => {
-                        if *field_val_u64 > (i64::max_value() as u64) {
-                            Err(ValueParsingError::OverflowError(format!("Value {:?} is too high for a i64.", field_val_u64)))
+                        if let Some(field_val_i64) = field_val_num.as_i64() {
+                            Ok(Value::I64(field_val_i64))
                         }
                         else {
-                            Ok(Value::I64(*field_val_u64 as i64))
+                            Err(ValueParsingError::OverflowError(format!("Expected an i64 int, got {:?}", json)))
                         }
                     }
                     FieldType::U64(_) => {
-                        Ok(Value::U64(*field_val_u64))
-                    }
-                    _ => {
-                        Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))
-                    }
-                }
-            },
-            Json::I64(ref field_val_i64) => {
-                match *self {
-                    FieldType::I64(_) => {
-                        Ok(Value::I64(* field_val_i64))
-                    }
-                    FieldType::U64(_) => {
-                        Err(ValueParsingError::TypeError(format!("Expected a positive integer, got {:?}", json)))
+                        if let Some(field_val_u64) = field_val_num.as_u64() {
+                            Ok(Value::U64(field_val_u64))
+                        }
+                        else {
+                            Err(ValueParsingError::OverflowError(format!("Expected an u64 int, got {:?}", json)))
+                        }
                     }
                     FieldType::Str(_) => {
                         Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}", json)))

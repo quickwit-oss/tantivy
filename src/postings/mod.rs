@@ -21,6 +21,7 @@ pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAnd
 pub use self::serializer::PostingsSerializer;
 pub use self::postings_writer::PostingsWriter;
 pub use self::postings_writer::SpecializedPostingsWriter;
+pub use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
@@ -32,6 +33,7 @@ pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
+
 
 #[cfg(test)]
 mod tests {

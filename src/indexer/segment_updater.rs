@@ -23,7 +23,7 @@ use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use Result;
 use futures_cpupool::CpuFuture;
-use rustc_serialize::json;
+use serde_json;
 use indexer::delete_queue::DeleteCursor;
 use schema::Schema;
 use std::borrow::BorrowMut;
@@ -77,10 +77,10 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
         schema: schema,
         opstamp: opstamp,
     };
-    let mut w = vec!();
-    try!(write!(&mut w, "{}\n", json::as_pretty_json(&metas)));
+    let mut w = try!(serde_json::to_vec(&metas));
+    try!(write!(&mut w, "\n"));
     let res = directory.atomic_write(&META_FILEPATH, &w[..])?;
-    debug!("Saved metas {}", json::as_pretty_json(&metas));
+    debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
     Ok(res)
         
 }
@@ -309,8 +309,6 @@ impl SegmentUpdater {
         let merging_join_handle = thread::spawn(move || {
             
             // first we need to apply deletes to our segment.
-            info!("Start merge: {:?}", segment_ids_vec);
-            
             let merged_segment = segment_updater_clone.new_segment(); 
             let merged_segment_id = merged_segment.id();
             let merge_result = perform_merge(&segment_ids_vec, &segment_updater_clone, merged_segment, target_opstamp);

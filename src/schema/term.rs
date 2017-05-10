@@ -1,9 +1,7 @@
 use std::fmt;
 
 use common;
-use common::BinarySerializable;
-use common::allocate_vec;
-use byteorder::{BigEndian, ByteOrder};
+use byteorder::{BigEndian, WriteBytesExt, ByteOrder};
 use super::Field;
 use std::str;
 
@@ -14,12 +12,18 @@ use std::str;
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Term(Vec<u8>);
 
+/// Extract `field` from Term.
+#[doc(hidden)]
+pub fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
+    Field(BigEndian::read_u32(&term_bytes[..4]))
+}
+
 impl Term {
     
     /// Pre-allocate a term buffer. 
     pub fn allocate(field: Field, num_bytes: usize) -> Term {
         let mut term = Term(Vec::with_capacity(num_bytes));
-        field.serialize(&mut term.0).expect("Serializing term in a Vec should never fail");
+        term.0.write_u32::<BigEndian>(field.0).expect("serializing u32 to Vec<u8 should never fail>");
         term
     }
 
@@ -29,15 +33,10 @@ impl Term {
         self.0.resize(content.len(), 0u8);
         (&mut self.0[..]).clone_from_slice(content);
     }
-    
-    /// Returns the field id.
-    fn field_id(&self,) -> u32 {
-        BigEndian::read_u32(&self.0[..4])
-    }
 
     /// Returns the field.
     pub fn field(&self,) -> Field {
-        Field(self.field_id())
+        extract_field_from_term_bytes(&self.0)
     }
 
     /// Builds a term given a field, and a u64-value
@@ -49,7 +48,7 @@ impl Term {
     /// The 4 following bytes are encoding the u64 value.
     pub fn from_field_u64(field: Field, val: u64) -> Term {
         const U64_TERM_LEN: usize = 4 + 8;
-        let mut buffer = allocate_vec(U64_TERM_LEN);
+        let mut buffer = vec![0u8; U64_TERM_LEN];
         // we want BigEndian here to have lexicographic order
         // match the natural order of `(field, val)`
         BigEndian::write_u32(&mut buffer[0..4], field.0);
@@ -76,7 +75,7 @@ impl Term {
     /// The first byte is 2, and the three following bytes are the utf-8 
     /// representation of "abc".
     pub fn from_field_text(field: Field, text: &str) -> Term {
-        let mut buffer = allocate_vec(4 + text.len());
+        let mut buffer = vec![0u8; 4 + text.len()];
         BigEndian::write_u32(&mut buffer[0..4], field.0);
         buffer[4..].clone_from_slice(text.as_bytes());
         Term(buffer)
