@@ -60,6 +60,30 @@ pub struct HashMap<'a> {
     occupied: Vec<usize>,
 }
 
+struct QuadraticProbing {
+    hash: usize,
+    i: usize,
+    mask: usize,
+}
+
+impl QuadraticProbing {
+    fn compute(key: &[u8], mask: usize) -> QuadraticProbing {
+        let hash = djb2(key) as usize;
+        QuadraticProbing {
+            hash: hash,
+            i: 0,
+            mask: mask,
+        }
+    }
+
+    #[inline]
+    fn next(&mut self) -> usize {
+        self.i += 1;
+        (self.hash + self.i * self.i) & self.mask
+    }
+}
+
+
 impl<'a> HashMap<'a> {
 
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
@@ -75,14 +99,12 @@ impl<'a> HashMap<'a> {
         }
     }
 
-    #[inline]
-    fn bucket(&self, key: &[u8]) -> usize {
-        let hash: u64 = djb2(key);
-        (hash as usize) & self.mask
+    fn probe(&self, key: &[u8]) -> QuadraticProbing {
+        QuadraticProbing::compute(key, self.mask)
     }
 
     pub fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 3
+        self.table.len() < self.occupied.len() * 5
     }
 
     fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
@@ -127,8 +149,9 @@ impl<'a> HashMap<'a> {
     
     pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
         let key_bytes: &[u8] = key.as_ref();
-        let mut bucket = self.bucket(key_bytes);
+        let mut probe = self.probe(key_bytes);
         loop {
+            let bucket = probe.next();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 return Entry::Vacant(bucket);
@@ -136,7 +159,6 @@ impl<'a> HashMap<'a> {
             if self.get_key(kv.key) == key_bytes {
                 return Entry::Occupied(kv.value_addr);
             }
-            bucket = (bucket + 1) & self.mask;   
         }
     }
 }
@@ -171,12 +193,9 @@ mod tests {
         let heap = Heap::with_capacity(2_000_000);
         let mut hash_map: HashMap = HashMap::new(18, &heap);
         {
-            {
             let v: &mut TestValue = hash_map.get_or_create("abc");
             assert_eq!(v.val, 0u32);
             v.val = 3u32;
-            
-            }
         }
         {
             let v: &mut TestValue = hash_map.get_or_create("abcd");
