@@ -49,6 +49,9 @@ pub struct MultiFieldPostingsWriter<'a> {
 }
 
 impl<'a> MultiFieldPostingsWriter<'a> {
+
+    /// Create a new `MultiFieldPostingsWriter` given
+    /// a schema and a heap.
     pub fn new(schema: &Schema, heap: &'a Heap) -> MultiFieldPostingsWriter<'a> {
         let capacity = heap.capacity();
         let hashmap_size = hashmap_size_in_bits(capacity);
@@ -80,6 +83,10 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         postings_writer.suscribe(&mut self.term_index, doc, 0u32, term, self.heap)
     }
 
+
+    /// Serialize the inverted index.
+    /// It pushes all term, one field at a time, towards the 
+    /// postings serializer.
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> Result<()> {
         let mut term_offsets: Vec<(&[u8], u32)> = self.term_index
                 .iter()
@@ -114,7 +121,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         Ok(())
     }
 
-    pub fn is_termdictionary_saturated(&self) -> bool {
+    /// Return true iff the term dictionary is saturated.
+    pub fn is_termdic_saturated(&self) -> bool {
         self.term_index.is_saturated()
     }
 }

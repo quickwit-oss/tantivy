@@ -38,7 +38,7 @@ use std::thread;
 // in the heap goes below MARGIN_IN_BYTES.
 pub const MARGIN_IN_BYTES: u32 = 1_000_000u32;
 
-// We impose the memory per thread to be at least 30 MB.
+// We impose the memory per thread to be at least 3 MB.
 pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 
 // Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
@@ -264,12 +264,20 @@ fn index_documents(heap: &mut Heap,
     let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), &schema)?;
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, &schema));
+        // There is two possible conditions to close the segment.
+        // One is the memory arena dedicated to the segment is 
+        // getting full.
         if segment_writer.is_buffer_full() {
             info!("Buffer limit reached, flushing segment with maxdoc={}.",
                   segment_writer.max_doc());
             break;
         }
-        if segment_writer.is_termdictionary_saturated() {
+        // The second is the term dictionary hash table
+        // is reaching saturation.
+        //
+        // Tantivy does not resize its hashtable. When it reaches
+        // capacity, we just stop indexing new document.
+        if segment_writer.is_termdic_saturated() {
             info!("Term dic saturated, flushing segment with maxdoc={}.",
                   segment_writer.max_doc());
             break;

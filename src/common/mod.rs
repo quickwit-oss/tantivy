@@ -28,19 +28,6 @@ pub trait HasLen {
 }
 
 
-/// Creates an uninitialized Vec of a given usize
-///
-/// `allocate_vec` does an unsafe call to `set_len`
-/// as other solution are extremely slow in debug mode.
-pub fn allocate_vec<T>(capacity: usize) -> Vec<T> {
-    let mut v = Vec::with_capacity(capacity);
-    unsafe {
-        v.set_len(capacity);
-    }
-    v
-}
-
-
 const HIGHEST_BIT: u64 = 1 << 63;
 
 

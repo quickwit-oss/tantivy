@@ -76,6 +76,7 @@ impl Recorder for NothingRecorder {
     }
 }
 
+
 /// Recorder encoding document ids, and term frequencies
 #[repr(C, packed)]
 pub struct TermFrequencyRecorder {
@@ -95,6 +96,7 @@ impl HeapAllocable for TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
+
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -120,23 +122,22 @@ impl Recorder for TermFrequencyRecorder {
                  serializer: &mut PostingsSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
-        let mut doc_iter = self.stack.iter(self_addr, heap);
+        
+        // the last document has not been closed...
+        // its term freq is self.current_tf.
+        let mut doc_iter = self.stack
+            .iter(self_addr, heap)
+            .chain(Some(self.current_tf).into_iter());
+        
         loop {
             if let Some(doc) = doc_iter.next() {
                 if let Some(term_freq) = doc_iter.next() {
                     serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
                     continue;
                 }
-                else {
-                    // the last document has not been closed...
-                    // its term freq is self.current_tf.
-                    serializer.write_doc(doc, self.current_tf, &EMPTY_ARRAY)?;
-                    break;
-                }
             }
-            break;
+            return Ok(());
         }
-        Ok(())
     }
 }
 

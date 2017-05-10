@@ -97,8 +97,13 @@ impl<'a> SegmentWriter<'a> {
 		self.heap.num_free_bytes() <= MARGIN_IN_BYTES
 	}
 	
-	pub fn is_termdictionary_saturated(&self,) -> bool {
-		self.multifield_postings.is_termdictionary_saturated()
+	
+	/// Return true if the term dictionary hashmap is reaching capacity.
+	/// It is one of the condition that triggers a `SegmentWriter` to
+	/// be finalized.
+	#[doc(hidden)]
+	pub fn is_termdic_saturated(&self,) -> bool {
+		self.multifield_postings.is_termdic_saturated()
 	}
 	
 
