@@ -126,7 +126,6 @@ pub use schema::{Term, Document};
 pub use core::SegmentReader;
 pub use self::common::TimerTree;
 
-
 pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;

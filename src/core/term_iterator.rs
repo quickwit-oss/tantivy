@@ -176,9 +176,7 @@ mod tests {
         let mut term_it = searcher.terms();
         let mut terms = String::new();
         while let Some(term) = term_it.next() {
-            unsafe {
-                terms.push_str(term.text());
-            }
+            terms.push_str(term.text());
         }
         assert_eq!(terms, "abcdef");
     }

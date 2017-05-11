@@ -76,9 +76,6 @@ impl<'a> SegmentWriter<'a> {
 	/// Finalize consumes the `SegmentWriter`, so that it cannot 
 	/// be used afterwards.
 	pub fn finalize(self) -> Result<Vec<u64>> {
-		// for per_field_postings_writer in &mut self.per_field_postings_writers {
-		// 	per_field_postings_writer.close(self.heap);
-		// }
 		write(&self.multifield_postings,
 			  &self.fast_field_writers,
 			  &self.fieldnorms_writer,
@@ -149,7 +146,6 @@ impl<'a> SegmentWriter<'a> {
 						for field_value in field_values {
 							let term = Term::from_field_i64(field_value.field(), field_value.value().i64_value());
 							self.multifield_postings.suscribe(doc_id, &term);
-							// field_posting_writer.suscribe(term_index, doc_id, 0, &term, self.heap);
 						}
 					}
 				}
