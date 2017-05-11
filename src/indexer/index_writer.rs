@@ -120,7 +120,9 @@ pub fn open_index_writer(
 
     let delete_queue = DeleteQueue::new();
     
-    let stamper = Stamper::new(index.opstamp());
+    let current_opstamp = index.opstamp();
+
+    let stamper = Stamper::new(current_opstamp);
 
     let segment_updater = SegmentUpdater::new(index.clone(), 
                                               stamper.clone(),
@@ -143,7 +145,7 @@ pub fn open_index_writer(
 
         delete_queue: delete_queue,
 
-        committed_opstamp: index.opstamp(),
+        committed_opstamp: current_opstamp,
         stamper: stamper,
 
         generation: 0,
