@@ -39,7 +39,8 @@ pub trait PostingsWriter {
                       -> u32 {
         let mut pos = 0u32;
         let mut num_tokens: u32 = 0u32;
-        let mut term = Term::allocate(field, 100);
+        let mut term = unsafe { Term::with_capacity(100) };
+        term.set_field(field);
         for field_value in field_values {
             let mut tokens = SimpleTokenizer.tokenize(field_value.value().text());
             // right now num_tokens and pos are redundant, but it should
@@ -118,7 +119,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
             .iter()
             .collect();
         term_offsets.sort_by_key(|&(k, _v)| k);
-        let mut term = Term::allocate(Field(0), 100);
+        let mut term = unsafe { Term::with_capacity(100) };
         for (term_bytes, (addr, recorder)) in term_offsets {
             // sadly we are required to copy the data
             term.set_content(term_bytes);

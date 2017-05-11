@@ -17,7 +17,6 @@ use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
-use common::allocate_vec;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -33,7 +32,7 @@ struct DeltaPositionComputer {
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
         DeltaPositionComputer { 
-            buffer: allocate_vec(512)
+            buffer: vec![0u32; 512]
         }
     }
 

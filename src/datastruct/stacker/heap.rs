@@ -1,6 +1,5 @@
 use std::cell::UnsafeCell;
 use std::mem;
-use common::allocate_vec;
 use std::ptr;
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
@@ -109,7 +108,7 @@ struct InnerHeap {
 impl InnerHeap {
 
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
-        let buffer: Vec<u8> = allocate_vec(num_bytes);
+        let buffer: Vec<u8> = vec![0u8; num_bytes];
         InnerHeap {
             buffer: buffer,
             buffer_len: num_bytes as u32,
