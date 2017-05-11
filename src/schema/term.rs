@@ -99,8 +99,7 @@ impl Term {
     /// It is declared unsafe, as the term content
     /// is not initialized, and a call to `.field()`
     /// would panic.
-    #[doc(hidden)]
-    pub unsafe fn with_capacity(num_bytes: usize) -> Term {
+    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
         Term(Vec::with_capacity(num_bytes))
     }
 
