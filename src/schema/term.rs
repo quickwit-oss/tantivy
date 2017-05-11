@@ -43,6 +43,14 @@ impl Term {
         BigEndian::write_u32(&mut self.0[0..4], field.0);
     }
 
+    /// Returns the field.
+    pub fn set_field(&mut self, field: Field) {
+        if self.0.len() < 4 {
+            self.0.resize(4, 0u8);
+        }
+        BigEndian::write_u32(&mut self.0[0..4], field.0);
+    }
+
     /// Builds a term given a field, and a u64-value
     ///
     /// Assuming the term has a field id of 1, and a u64 value of 3234,

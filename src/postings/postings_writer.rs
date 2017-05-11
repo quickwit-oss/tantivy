@@ -232,15 +232,13 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         term_addrs: &[(&[u8], u32)],
         serializer: &mut PostingsSerializer, 
         heap: &Heap) -> io::Result<()> {
-        
         serializer.new_field(field);
         for &(term_bytes, addr) in term_addrs {
             let recorder: &mut Rec = self.heap.get_mut_ref(addr);
             try!(serializer.new_term(&term_bytes));
             try!(recorder.serialize(addr, serializer, heap));
             try!(serializer.close_term());
-        }
-        
+        }        
         Ok(())
     }
 }
