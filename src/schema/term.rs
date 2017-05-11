@@ -1,10 +1,13 @@
 use std::fmt;
 
 use common;
-use byteorder::{BigEndian, WriteBytesExt, ByteOrder};
+use byteorder::{BigEndian, ByteOrder};
 use super::Field;
 use std::str;
 
+
+/// Size (in bytes) of the buffer of a int field.
+const INT_TERM_LEN: usize = 4 + 8;
 
 /// Term represents the value that the token can take.
 ///
@@ -14,18 +17,11 @@ pub struct Term(Vec<u8>);
 
 /// Extract `field` from Term.
 #[doc(hidden)]
-pub fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
+pub(crate) fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
     Field(BigEndian::read_u32(&term_bytes[..4]))
 }
 
 impl Term {
-    
-    /// Pre-allocate a term buffer. 
-    pub fn allocate(field: Field, num_bytes: usize) -> Term {
-        let mut term = Term(Vec::with_capacity(num_bytes));
-        term.0.write_u32::<BigEndian>(field.0).expect("serializing u32 to Vec<u8 should never fail>");
-        term
-    }
 
     /// Set the content of the term.
     pub fn set_content(&mut self, content: &[u8]) {
@@ -39,6 +35,14 @@ impl Term {
         extract_field_from_term_bytes(&self.0)
     }
 
+    /// Returns the field.
+    pub fn set_field(&mut self, field: Field) {
+        if self.0.len() < 4 {
+            self.0.resize(4, 0u8);
+        }
+        BigEndian::write_u32(&mut self.0[0..4], field.0);
+    }
+
     /// Builds a term given a field, and a u64-value
     ///
     /// Assuming the term has a field id of 1, and a u64 value of 3234,
@@ -47,13 +51,21 @@ impl Term {
     /// The first four byte are dedicated to storing the field id as a u64.
     /// The 4 following bytes are encoding the u64 value.
     pub fn from_field_u64(field: Field, val: u64) -> Term {
-        const U64_TERM_LEN: usize = 4 + 8;
-        let mut buffer = vec![0u8; U64_TERM_LEN];
-        // we want BigEndian here to have lexicographic order
-        // match the natural order of `(field, val)`
-        BigEndian::write_u32(&mut buffer[0..4], field.0);
-        BigEndian::write_u64(&mut buffer[4..], val);
-        Term(buffer)
+        let mut term = Term(vec![0u8; INT_TERM_LEN]);
+        term.set_field(field);
+        term.set_u64(val);
+        term
+    }
+
+    /// Sets a u64 value in the term.
+    /// 
+    /// U64 are serialized using (8-byte) BigEndian
+    /// representation.
+    /// The use of BigEndian has the benefit of preserving
+    /// the natural order of the values.    
+    pub fn set_u64(&mut self, val: u64) {
+        self.0.resize(INT_TERM_LEN, 0u8);
+        BigEndian::write_u64(&mut self.0[4..], val);
     }
     
     /// Builds a term given a field, and a u64-value
@@ -75,10 +87,21 @@ impl Term {
     /// The first byte is 2, and the three following bytes are the utf-8 
     /// representation of "abc".
     pub fn from_field_text(field: Field, text: &str) -> Term {
-        let mut buffer = vec![0u8; 4 + text.len()];
-        BigEndian::write_u32(&mut buffer[0..4], field.0);
-        buffer[4..].clone_from_slice(text.as_bytes());
-        Term(buffer)
+        let buffer = Vec::with_capacity(4 + text.len());
+        let mut term = Term(buffer);
+        term.set_field(field);
+        term.set_text(text);
+        term
+    }
+
+    /// Creates a new Term with an empty buffer, 
+    /// but with a given capacity.
+    ///
+    /// It is declared unsafe, as the term content
+    /// is not initialized, and a call to `.field()`
+    /// would panic.
+    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
+        Term(Vec::with_capacity(num_bytes))
     }
 
     /// Assume the term is a u64 field.
@@ -112,8 +135,8 @@ impl Term {
     /// If the value is not valid utf-8. This may happen
     /// if the index is corrupted or if you try to 
     /// call this method on a non-string type.
-    pub unsafe fn text(&self) -> &str {
-        str::from_utf8_unchecked(self.value())
+    pub fn text(&self) -> &str {
+        str::from_utf8(self.value()).expect("Term does not contain valid utf-8.")
     }
 
     /// Set the texts only, keeping the field untouched. 

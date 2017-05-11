@@ -17,16 +17,15 @@ mod docset;
 mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
-pub use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
+use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 pub use self::serializer::PostingsSerializer;
-pub use self::postings_writer::PostingsWriter;
-pub use self::postings_writer::SpecializedPostingsWriter;
-pub use self::postings_writer::MultiFieldPostingsWriter;
+pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
+
 pub use self::segment_postings::SegmentPostings;
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
@@ -61,8 +60,8 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
         let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
-        let term = Term::from_field_text(text_field, "abc");
-        posting_serializer.new_term(&term).unwrap();
+        posting_serializer.new_field(text_field);
+        posting_serializer.new_term("abc".as_bytes()).unwrap();
         for doc_id in 0u32..3u32 {
             let positions = vec!(1,2,3,2);
             posting_serializer.write_doc(doc_id, 2, &positions).unwrap();

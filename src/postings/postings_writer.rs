@@ -114,6 +114,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let (_, stop) = offsets[i+1];
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
             postings_writer.serialize(
+                field,
                 &term_offsets[start..stop],
                 serializer,
                 self.heap)?;
@@ -144,7 +145,7 @@ pub trait PostingsWriter {
     
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
-    fn serialize(&self, term_addrs: &[(&[u8], u32)], serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
+    fn serialize(&self, field: Field, term_addrs: &[(&[u8], u32)], serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
     
     /// Tokenize a text and suscribe all of its token.
     fn index_text<'a>(&mut self,
@@ -156,7 +157,8 @@ pub trait PostingsWriter {
                       -> u32 {
         let mut pos = 0u32;
         let mut num_tokens: u32 = 0u32;
-        let mut term = Term::allocate(field, 100);
+        let mut term = unsafe { Term::with_capacity(100) };
+        term.set_field(field);
         for field_value in field_values {
             let mut tokens = SimpleTokenizer.tokenize(field_value.value().text());
             // right now num_tokens and pos are redundant, but it should
@@ -226,17 +228,19 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     }
 
     fn serialize(&self,
+        field: Field,
         term_addrs: &[(&[u8], u32)],
         serializer: &mut PostingsSerializer, 
         heap: &Heap) -> io::Result<()> {
-        let mut term = Term::allocate(Field(0), 100);
+        
+        serializer.new_field(field);
         for &(term_bytes, addr) in term_addrs {
             let recorder: &mut Rec = self.heap.get_mut_ref(addr);
-            term.set_content(term_bytes);
-            try!(serializer.new_term(&term));
+            try!(serializer.new_term(&term_bytes));
             try!(recorder.serialize(addr, serializer, heap));
             try!(serializer.close_term());
         }
+        
         Ok(())
     }
 }

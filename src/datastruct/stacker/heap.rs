@@ -45,11 +45,6 @@ impl Heap {
     pub fn capacity(&self,) -> u32 {
         self.inner().capacity()
     }
-    
-    /// Return the amount of memory that has been allocated so far. 
-    pub fn len(&self,) -> u32 {
-        self.inner().len()
-    }
         
     /// Return amount of free space, in bytes.
     pub fn num_free_bytes(&self,) -> u32 {
@@ -90,10 +85,6 @@ impl Heap {
     pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
         self.inner().get_mut_ref(addr)
     }
-
-    pub fn get_ref<Item>(&self, addr: u32) -> &Item {
-        self.inner().get_mut_ref(addr)
-    }
 }
 
 
@@ -108,8 +99,9 @@ struct InnerHeap {
 impl InnerHeap {
 
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
+        let buffer: Vec<u8> = vec![0u8; num_bytes];
         InnerHeap {
-            buffer: vec![0u8; num_bytes],
+            buffer: buffer,
             buffer_len: num_bytes as u32,
             next_heap: None,
             used: 0u32,
@@ -123,10 +115,6 @@ impl InnerHeap {
 
     pub fn capacity(&self,) -> u32 {
         self.buffer.len() as u32
-    }
-
-    pub fn len(&self,) -> u32 {
-        self.used
     }
     
     // Returns the number of free bytes. If the buffer
@@ -194,8 +182,6 @@ impl InnerHeap {
             unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
         }
     }
-
-
 
     fn get_mut_ref<Item>(&mut self, addr: u32) -> &mut Item {
         if addr >= self.buffer_len {

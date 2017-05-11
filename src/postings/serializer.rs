@@ -1,7 +1,6 @@
 use Result;
 use datastruct::FstMapBuilder;
 use super::TermInfo;
-use schema::Term;
 use schema::Field;
 use schema::FieldEntry;
 use schema::FieldType;
@@ -30,7 +29,7 @@ use common::BinarySerializable;
 ///
 /// The serializer expects to receive the following calls
 /// in this order :
-///
+/// * `set_field(...)`
 /// * `new_term(...)`
 /// * `write_doc(...)`
 /// * `write_doc(...)`
@@ -41,6 +40,8 @@ use common::BinarySerializable;
 /// * `write_doc(...)`
 /// * ...
 /// * `close_term()`
+/// * `set_field(...)`
+/// * ...
 /// * `close()`
 ///
 /// Terms have to be pushed in a lexicographically-sorted order.
@@ -105,7 +106,11 @@ impl PostingsSerializer {
                                 segment.schema())
     }
 
-    fn load_indexing_options(&mut self, field: Field) {
+    /// Must be called before starting pushing terms of 
+    /// a given field.
+    ///
+    /// Loads the indexing options for the given field.
+    pub fn new_field(&mut self, field: Field) {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         self.text_indexing_options = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => text_options.get_indexing_options(),
@@ -130,13 +135,11 @@ impl PostingsSerializer {
     /// * term - the term. It needs to come after the previous term according
     ///   to the lexicographical order.
     /// * doc_freq - return the number of document containing the term.
-    pub fn new_term(&mut self, term: &Term) -> io::Result<()> {
+    pub fn new_term(&mut self, term: &[u8]) -> io::Result<()> {
         if self.term_open {
             panic!("Called new_term, while the previous term was not closed.");
         }
         self.term_open = true;
-        // TODO avoid load indexing options all the time.
-        self.load_indexing_options(term.field());
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();
@@ -146,7 +149,7 @@ impl PostingsSerializer {
             postings_offset: self.written_bytes_postings as u32,
             positions_offset: self.written_bytes_positions as u32,
         };
-        self.terms_fst_builder.insert_key(term.as_slice())
+        self.terms_fst_builder.insert_key(term)
     }
 
     /// Finish the serialization for this term postings.

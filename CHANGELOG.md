@@ -1,6 +1,6 @@
 Tantivy 0.4.0
 ==========================
-
+- Raise the limit of number of fields (previously 256 fields)
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65)
 - Replacing rustc_serialize by serde. Kudos to @KodrAus and @lnicola
 - QueryParser:
@@ -13,7 +13,6 @@ Tantivy 0.3.1
 ==========================
 
 - Expose a method to trigger files garbage collection
-- Raise the limit of number of fields (previously 256 fields)
 
 
 Tantivy 0.3

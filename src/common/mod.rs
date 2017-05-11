@@ -27,7 +27,6 @@ pub trait HasLen {
     }
 }
 
-
 const HIGHEST_BIT: u64 = 1 << 63;
 
 

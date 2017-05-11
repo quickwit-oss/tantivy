@@ -22,3 +22,4 @@ build: false
 
 test_script:
   - REM SET RUST_LOG=tantivy,test & cargo test --verbose
+  - REM SET RUST_LOG=tantivy,test & cargo run --example simple_search

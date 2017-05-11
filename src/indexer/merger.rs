@@ -32,7 +32,7 @@ struct DeltaPositionComputer {
 impl DeltaPositionComputer {
     fn new() -> DeltaPositionComputer {
         DeltaPositionComputer { 
-            buffer: vec![0u32, 512]
+            buffer: vec![0u32; 512]
         }
     }
 
@@ -201,6 +201,8 @@ impl IndexMerger {
             }
             merged_doc_id_map.push(segment_local_map);
         }
+
+        let mut field = Field(u32::max_value());
         
         while merged_terms.advance() {
             // Create the total list of doc ids
@@ -231,15 +233,19 @@ impl IndexMerger {
                 
                 // We can now serialize this postings, by pushing each document to the
                 // postings serializer.                
-                
                 for (segment_ord, mut segment_postings) in segment_postings {
                     let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
                     while segment_postings.advance() {
                         if let Some(remapped_doc_id) = old_to_new_doc_id[segment_postings.doc() as usize] {
                             if !term_written {
+                                let current_field = term.field();
+                                if current_field != field {
+                                    postings_serializer.new_field(current_field);
+                                    field = current_field;
+                                }
                                 // we make sure to only write the term iff
                                 // there is at least one document.
-                                postings_serializer.new_term(&term)?;
+                                postings_serializer.new_term(term.as_slice())?;
                                 term_written = true;
                             }
                             let delta_positions: &[u32] =
