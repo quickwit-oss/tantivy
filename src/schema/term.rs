@@ -18,7 +18,7 @@ pub struct Term(Vec<u8>);
 impl Term {
 
     /// Set the content of the term.
-    pub fn set_content(&mut self, content: &[u8]) {
+    pub(crate) fn set_content(&mut self, content: &[u8]) {
         assert!(content.len() >= 4);
         self.0.resize(content.len(), 0u8);
         (&mut self.0[..]).clone_from_slice(content);
@@ -114,7 +114,7 @@ impl Term {
     ///
     /// If you want to build a field for a given `str`,
     /// you want to use `from_field_text`.
-    pub fn from_bytes(data: &[u8]) -> Term {
+    pub(crate) fn from_bytes(data: &[u8]) -> Term {
         Term(Vec::from(data))
     }
 
