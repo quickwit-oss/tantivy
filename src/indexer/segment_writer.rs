@@ -197,6 +197,7 @@ fn write<'a>(
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
 		try!(serializer.close());
+
 		Ok(())
 }
 
