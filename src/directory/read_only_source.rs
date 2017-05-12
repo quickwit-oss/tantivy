@@ -1,7 +1,7 @@
 use fst::raw::MmapReadOnly;
 use std::ops::Deref;
-use std::io::Cursor;
 use super::shared_vec_slice::SharedVecSlice;
+use common::HasLen;
 
 
 /// Read object that represents files in tantivy.
@@ -28,11 +28,6 @@ impl Deref for ReadOnlySource {
 
 impl ReadOnlySource {
 
-    /// Returns the len of the read-only source
-    pub fn len(&self,) -> usize {
-        self.as_slice().len()
-    }
-
     /// Creates an empty ReadOnlySource
     pub fn empty() -> ReadOnlySource {
         ReadOnlySource::Anonymous(SharedVecSlice::empty())
@@ -48,12 +43,6 @@ impl ReadOnlySource {
                 shared_vec.as_slice()
             },
         }
-    }
-
-
-    /// Creates a cursor over the data.
-    pub fn cursor<'a>(&'a self) -> Cursor<&'a [u8]> {
-        Cursor::new(&*self)
     }
 
     /// Creates a ReadOnlySource that is just a 
@@ -76,6 +65,12 @@ impl ReadOnlySource {
                 ReadOnlySource::Anonymous(shared_vec.slice(from_offset, to_offset))
             },
         }
+    }
+}
+
+impl HasLen for ReadOnlySource {
+    fn len(&self,) -> usize {
+        self.as_slice().len()
     }
 }
 

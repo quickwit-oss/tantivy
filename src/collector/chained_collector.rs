@@ -1,55 +1,56 @@
+use Result;
 use collector::Collector;
 use SegmentLocalId;
 use SegmentReader;
-use std::io;
-use ScoredDoc;
+use DocId;
+use Score;
 
 
+/// Collector that does nothing.
+/// This is used in the chain Collector and will hopefully 
+/// be optimized away by the compiler. 
 pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
-    #[inline(always)]
-    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> io::Result<()> {
+    #[inline]
+    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         Ok(())
     }
-    #[inline(always)]
-    fn collect(&mut self, _: ScoredDoc) {}
+    #[inline]
+    fn collect(&mut self, _doc: DocId, _score: Score) {}
 }
 
+/// Zero-cost abstraction used to collect on multiple collectors.
+/// This contraption is only usable if the type of your collectors
+/// are known at compile time.
 pub struct ChainedCollector<Left: Collector, Right: Collector> {
     left: Left,
     right: Right
 }
 
 impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> { 
-
-    pub fn start() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
-        ChainedCollector {
-            left: DoNothingCollector,
-            right: DoNothingCollector
-        }
-    }
-
-    pub fn add<'b, C: Collector>(self, new_collector: &'b mut C) -> ChainedCollector<Self, MutRefCollector<'b, C>> {
+    /// Adds a collector
+    pub fn push<C: Collector>(self, new_collector: &mut C) -> ChainedCollector<Self, &mut C> {
         ChainedCollector {
             left: self,
-            right: MutRefCollector(new_collector),
+            right: new_collector,
         }
     }
 }
 
 impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Right> {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
+    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()> {
         try!(self.left.set_segment(segment_local_id, segment));
         try!(self.right.set_segment(segment_local_id, segment));
         Ok(())
     }
 
-    fn collect(&mut self, scored_doc: ScoredDoc) {
-        self.left.collect(scored_doc);
-        self.right.collect(scored_doc);
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.left.collect(doc, score);
+        self.right.collect(doc, score);
     }
 }
 
+/// Creates a `ChainedCollector`
 pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
     ChainedCollector {
         left: DoNothingCollector,
@@ -57,36 +58,24 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
     }
 }
 
-pub struct MutRefCollector<'a, C: Collector + 'a>(&'a mut C);
-
-impl<'a, C: Collector> Collector for MutRefCollector<'a, C> {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> io::Result<()> {
-        self.0.set_segment(segment_local_id, segment)
-    }
-
-    fn collect(&mut self, scored_doc: ScoredDoc) {
-        self.0.collect(scored_doc)
-    }
-}
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use ScoredDoc;
     use collector::{Collector, CountCollector, TopCollector};
 
     #[test]
     fn test_chained_collector() {
         let mut top_collector = TopCollector::with_limit(2);
-        let mut count_collector = CountCollector::new();
+        let mut count_collector = CountCollector::default();
         {
             let mut collectors = chain()
-                .add(&mut top_collector)
-                .add(&mut count_collector);
-            collectors.collect(ScoredDoc(0.2, 1));
-            collectors.collect(ScoredDoc(0.1, 2));
-            collectors.collect(ScoredDoc(0.5, 3));
+                .push(&mut top_collector)
+                .push(&mut count_collector);
+            collectors.collect(1, 0.2);
+            collectors.collect(2, 0.1);
+            collectors.collect(3, 0.5);
         }
         assert_eq!(count_collector.count(), 3);
         assert!(top_collector.at_capacity());

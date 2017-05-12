@@ -1,22 +1,14 @@
-
-use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ReadBytesExt, WriteBytesExt};
+use byteorder::LittleEndian as Endianness;
 use std::fmt;
 use std::io::Write;
 use std::io::Read;
 use std::io;
 use common::VInt;
-use byteorder;
 
 pub trait BinarySerializable : fmt::Debug + Sized {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize>;
     fn deserialize(reader: &mut Read) -> io::Result<Self>;
-}
-
-fn convert_byte_order_error(byteorder_error: byteorder::Error) -> io::Error {
-    match byteorder_error {
-        byteorder::Error::UnexpectedEOF => io::Error::new(io::ErrorKind::InvalidData, "Reached EOF unexpectedly"),
-        byteorder::Error::Io(e) => e,
-    }
 }
 
 impl BinarySerializable for () {
@@ -59,40 +51,44 @@ impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for
 
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u32::<NativeEndian>(self.clone())
+        writer.write_u32::<Endianness>(*self)
               .map(|_| 4)
-              .map_err(convert_byte_order_error)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<u32> {
-        reader.read_u32::<NativeEndian>()
-              .map_err(convert_byte_order_error)
+        reader.read_u32::<Endianness>()
     }
 }
 
 
 impl BinarySerializable for u64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u64::<NativeEndian>(self.clone())
+        writer.write_u64::<Endianness>(*self)
               .map(|_| 8)
-              .map_err(convert_byte_order_error)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u64> {
-        reader.read_u64::<NativeEndian>()
-              .map_err(convert_byte_order_error)
+        reader.read_u64::<Endianness>()
+    }
+}
+
+impl BinarySerializable for i64 {
+    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+        writer.write_i64::<Endianness>(*self)
+              .map(|_| 8)
+    }
+    fn deserialize(reader: &mut Read) -> io::Result<i64> {
+        reader.read_i64::<Endianness>()
     }
 }
 
 
 impl BinarySerializable for u8 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        // TODO error
-        try!(writer.write_u8(self.clone()).map_err(convert_byte_order_error));
+        try!(writer.write_u8(*self));
         Ok(1)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u8> {
         reader.read_u8()
-              .map_err(convert_byte_order_error)
     }
 }
 
@@ -117,13 +113,12 @@ impl BinarySerializable for String {
 #[cfg(test)]
 mod test {
 
-    use std::io::Cursor;
     use common::VInt;
     use super::*;
 
     fn serialize_test<T: BinarySerializable + Eq>(v: T, num_bytes: usize) {
         let mut buffer: Vec<u8> = Vec::new();
-        
+
         if num_bytes != 0 {
             assert_eq!(v.serialize(&mut buffer).unwrap(), num_bytes);
             assert_eq!(buffer.len(), num_bytes);
@@ -131,7 +126,7 @@ mod test {
         else {
             v.serialize(&mut buffer).unwrap();
         }
-        let mut cursor = Cursor::new(&buffer[..]);
+        let mut cursor = &buffer[..];
         let deser = T::deserialize(&mut cursor).unwrap();
         assert_eq!(deser, v);
     }

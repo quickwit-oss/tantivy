@@ -1,7 +1,11 @@
 use std::iter;
 use std::marker::PhantomData;
-use super::heap::{Heap, BytesRef};
+use super::heap::{Heap, HeapAllocable, BytesRef};
 
+
+
+
+/// dbj2 hash function
 fn djb2(key: &[u8]) -> u64 {
     let mut state: u64 = 5381; 
     for &b in key {
@@ -19,6 +23,13 @@ impl Default for BytesRef {
     }
 }
 
+/// `KeyValue` is the item stored in the hash table.
+/// The key is actually a `BytesRef` object stored in an external heap.
+/// The `value_addr` also points to an address in the heap.
+///
+/// The key and the value are actually stored contiguously.
+/// For this reason, the (start, stop) information is actually redundant
+/// and can be simplified in the future 
 #[derive(Copy, Clone, Default)]
 struct KeyValue {
     key: BytesRef,
@@ -31,7 +42,22 @@ impl KeyValue {
     }
 }
 
-pub struct HashMap<'a, V> where V: From<u32> {
+pub enum Entry {
+    Vacant(usize),
+    Occupied(u32),
+}
+
+
+/// Customized `HashMap` with string keys
+/// 
+/// This `HashMap` takes String as keys. Keys are
+/// stored in a user defined heap.
+///
+/// The quirky API has the benefit of avoiding
+/// the computation of the hash of the key twice,
+/// or copying the key as long as there is no insert.
+///
+pub struct HashMap<'a, V> where V: HeapAllocable {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     _phantom: PhantomData<V>,
@@ -39,13 +65,7 @@ pub struct HashMap<'a, V> where V: From<u32> {
     occupied: Vec<usize>,
 }
 
-pub enum Entry {
-    Vacant(usize),
-    Occupied(u32),
-}
-
-
-impl<'a, V> HashMap<'a, V> where V: From<u32> {
+impl<'a, V> HashMap<'a, V> where V: HeapAllocable {
 
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a, V> {
         let table_size = 1 << num_bucket_power_of_2;
@@ -61,7 +81,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn bucket(&self, key: &[u8]) -> usize {
         let hash: u64 = djb2(key);
         (hash as usize) & self.mask
@@ -81,7 +101,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
     }
     
     pub fn iter<'b: 'a>(&'b self,) -> impl Iterator<Item=(&'a [u8], (u32, &'a V))> + 'b {
-        let heap: &'a Heap = &self.heap;
+        let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
@@ -96,7 +116,7 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
     }
 
     pub fn values_mut<'b: 'a>(&'b self,) -> impl Iterator<Item=&'a mut V> + 'b {
-        let heap: &'a Heap = &self.heap;
+        let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
@@ -112,13 +132,13 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
                 self.heap.get_mut_ref(addr)
             }
             Entry::Vacant(bucket) => {
-                let (addr, val): (u32, &mut V) = self.heap.new();
+                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 self.set_bucket(key.as_ref(), bucket, addr);
                 val
             }
         }
     }
-
+    
     pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
         let key_bytes: &[u8] = key.as_ref();
         let mut bucket = self.bucket(key_bytes);
@@ -140,10 +160,10 @@ impl<'a, V> HashMap<'a, V> where V: From<u32> {
 mod tests {
     
     use super::*;
-    use super::super::heap::Heap;
+    use super::super::heap::{Heap, HeapAllocable};
     use super::djb2;
     use test::Bencher;
-    use std::hash::SipHasher;
+    use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
     struct TestValue {
@@ -151,8 +171,8 @@ mod tests {
         _addr: u32,
     }
 
-    impl From<u32> for TestValue {
-        fn from(addr: u32) -> TestValue {
+    impl HeapAllocable for TestValue {
+        fn with_addr(addr: u32) -> TestValue {
             TestValue {
                 val: 0u32,
                 _addr: addr,
@@ -203,7 +223,7 @@ mod tests {
     fn bench_siphasher(bench: &mut Bencher) {
         let v = String::from("abwer");
         bench.iter(|| {
-            let mut h = SipHasher::new();
+            let mut h = DefaultHasher::new();
             h.write(v.as_bytes());
             h.finish()
         });

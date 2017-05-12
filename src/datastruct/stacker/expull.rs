@@ -1,5 +1,5 @@
 use std::mem;
-use super::heap::Heap;
+use super::heap::{Heap, HeapAllocable};
 
 
 #[inline]
@@ -43,7 +43,7 @@ impl ExpUnrolledLinkedList {
             // and we need to add 1u32 to store the pointer
             // to the next element.
             let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>(); 
-            let new_block_addr: u32 = heap.allocate(new_block_size);
+            let new_block_addr: u32 = heap.allocate_space(new_block_size);
             heap.set(self.end, &new_block_addr);
             self.end = new_block_addr;     
         }
@@ -53,8 +53,8 @@ impl ExpUnrolledLinkedList {
 }
 
 
-impl From<u32> for ExpUnrolledLinkedList {
-    fn from(addr: u32) -> ExpUnrolledLinkedList {
+impl HeapAllocable for ExpUnrolledLinkedList {
+    fn with_addr(addr: u32) -> ExpUnrolledLinkedList {
         let last_addr = addr + mem::size_of::<u32>() as u32 * 2u32;
         ExpUnrolledLinkedList {
             len: 0u32,
@@ -66,22 +66,6 @@ impl From<u32> for ExpUnrolledLinkedList {
         }
     }
 }
-
-
-
-impl Default for ExpUnrolledLinkedList {
-    fn default() -> ExpUnrolledLinkedList {
-        ExpUnrolledLinkedList {
-            len: 0u32,
-            end: 0u32,
-            val0: 0u32,
-            val1: 0u32,
-            val2: 0u32,
-            next: 0u32,
-        }
-    }
-}
-
 
 pub struct ExpUnrolledLinkedListIterator<'a> {
     heap: &'a Heap,
@@ -130,7 +114,7 @@ mod tests {
     #[test]
     fn test_stack() {
         let heap = Heap::with_capacity(1_000_000);
-        let (addr, stack) = heap.new::<ExpUnrolledLinkedList>();
+        let (addr, stack) = heap.allocate_object::<ExpUnrolledLinkedList>();
         stack.push(1u32, &heap);
         stack.push(2u32, &heap);
         stack.push(4u32, &heap);
@@ -167,7 +151,7 @@ mod tests {
         bench.iter(|| {
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {
-                let (_, stack) = heap.new::<ExpUnrolledLinkedList>();
+                let (_, stack) = heap.allocate_object::<ExpUnrolledLinkedList>();
                 stacks.push(stack);
             }
             for s in 0..NUM_STACK {

@@ -18,29 +18,22 @@ pub trait StreamingIterator<'a, T> {
 
 impl<'a, 'b> TokenIter<'b> {
     fn consume_token(&'a mut self) -> Option<&'a str> {
-        loop {
-            match self.chars.next() {
-                Some(c) => {
-                    if c.is_alphanumeric() {
-                        append_char_lowercase(c, &mut self.term_buffer);
-                    }
-                    else {
-                        break;
-                    }
-                },
-                None => {
-                    break;
-                }
+        for c in &mut self.chars { 
+            if c.is_alphanumeric() {
+                append_char_lowercase(c, &mut self.term_buffer);
+            }
+            else {
+                break;
             }
         }
-        return Some(&self.term_buffer);
+        Some(&self.term_buffer)
     }
 }
 
 
 impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
     
-    #[inline(always)]
+    #[inline]
     fn next(&'a mut self,) -> Option<&'a str> {
         self.term_buffer.clear();
         // skipping non-letter characters.
@@ -63,9 +56,6 @@ pub struct SimpleTokenizer;
 
 
 impl SimpleTokenizer {
-    pub fn new() -> SimpleTokenizer {
-        SimpleTokenizer
-    }
 
     pub fn tokenize<'a>(&self, text: &'a str) -> TokenIter<'a> {
         TokenIter {
@@ -78,7 +68,7 @@ impl SimpleTokenizer {
 
 #[test]
 fn test_tokenizer() {
-    let simple_tokenizer = SimpleTokenizer::new();
+    let simple_tokenizer = SimpleTokenizer;
     let mut term_reader = simple_tokenizer.tokenize("hello, happy tax payer!");
     assert_eq!(term_reader.next().unwrap(), "hello");
     assert_eq!(term_reader.next().unwrap(), "happy");
@@ -90,7 +80,7 @@ fn test_tokenizer() {
 
 #[test]
 fn test_tokenizer_empty() {
-    let simple_tokenizer = SimpleTokenizer::new();
+    let simple_tokenizer = SimpleTokenizer;
     let mut term_reader = simple_tokenizer.tokenize("");
     assert_eq!(term_reader.next(), None);
 }

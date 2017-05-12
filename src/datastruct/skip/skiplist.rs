@@ -1,13 +1,13 @@
 use common::BinarySerializable;
-use std::io::Cursor;
-use std::io::SeekFrom;
-use std::io::Seek;
 use std::marker::PhantomData;
 use DocId;
+use std::cmp::max;
 
+static EMPTY: [u8; 0] = [];
 
 struct Layer<'a, T> {
-    cursor: Cursor<&'a [u8]>,
+    data: &'a [u8],
+    cursor: &'a [u8],
     next_id: DocId,
     _phantom_: PhantomData<T>,
 }
@@ -23,51 +23,41 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
         else {
             let cur_val = T::deserialize(&mut self.cursor).unwrap();
             let cur_id = self.next_id;
-            self.next_id =
-                match u32::deserialize(&mut self.cursor) {
-                    Ok(val) => val,
-                    Err(_) => u32::max_value()
-                };
+            self.next_id = u32::deserialize(&mut self.cursor).unwrap_or(u32::max_value());
             Some((cur_id, cur_val))
         }
     }
 }
 
-
-static EMPTY: [u8; 0] = [];
-
-impl<'a, T: BinarySerializable> Layer<'a, T> {
-
-    fn read(mut cursor: Cursor<&'a [u8]>) -> Layer<'a, T> {
-        // TODO error handling?
-        let next_id = match u32::deserialize(&mut cursor) {
-            Ok(val) => val,
-            Err(_) => u32::max_value(),
-        };
+impl<'a, T: BinarySerializable> From<&'a [u8]> for Layer<'a, T> {
+    fn from(data: &'a [u8]) -> Layer<'a, T> {
+        let mut cursor = data; 
+        let next_id = u32::deserialize(&mut cursor).unwrap_or(u32::max_value());
         Layer {
+            data: data,
             cursor: cursor,
             next_id: next_id,
             _phantom_: PhantomData,
         }
     }
+}
+
+impl<'a, T: BinarySerializable> Layer<'a, T> {
 
     fn empty() -> Layer<'a, T> {
         Layer {
-            cursor: Cursor::new(&EMPTY),
+            data: &EMPTY,
+            cursor: &EMPTY,
             next_id: DocId::max_value(),
             _phantom_: PhantomData,
         }
     }
 
-
     fn seek_offset(&mut self, offset: usize)  {
-        self.cursor.seek(SeekFrom::Start(offset as u64)).unwrap();
-        self.next_id = match u32::deserialize(&mut self.cursor) {
-            Ok(val) => val,
-            Err(_) => u32::max_value(),
-        };
+        self.cursor = &self.data[offset..];
+        self.next_id = u32::deserialize(&mut self.cursor).unwrap_or(u32::max_value());
     }
-
+    
     // Returns the last element (key, val)
     // such that (key < doc_id)
     //
@@ -104,52 +94,44 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
 
     pub fn seek(&mut self, doc_id: DocId) -> Option<(DocId, T)> {
         let mut next_layer_skip: Option<(DocId, u32)> = None;
-        for skip_layer_id in 0..self.skip_layers.len() {
-            let mut skip_layer: &mut Layer<'a, u32> = &mut self.skip_layers[skip_layer_id];
-            match next_layer_skip {
-                 Some((_, offset)) => { skip_layer.seek_offset(offset as usize); },
-                 None => {}
-             };
-             next_layer_skip = skip_layer.seek(doc_id);
+        for skip_layer in &mut self.skip_layers {
+            if let Some((_, offset)) = next_layer_skip {
+                skip_layer.seek_offset(offset as usize);
+            }
+            next_layer_skip = skip_layer.seek(doc_id);
          }
-         match next_layer_skip {
-             Some((_, offset)) => { self.data_layer.seek_offset(offset as usize); },
-             None => {}
-         };
+         if let Some((_, offset)) = next_layer_skip {
+             self.data_layer.seek_offset(offset as usize);
+         }
          self.data_layer.seek(doc_id)
     }
 
-    pub fn read(data: &'a [u8]) -> SkipList<'a, T> {
-        let mut cursor = Cursor::new(data);
-        let offsets: Vec<u32> = Vec::deserialize(&mut cursor).unwrap();
+    
+}
+
+
+impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
+    
+    fn from(mut data: &'a [u8]) -> SkipList<'a, T> {
+        let offsets: Vec<u32> = Vec::deserialize(&mut data).unwrap();
         let num_layers = offsets.len();
-        let start_position = cursor.position() as usize;
-        let layers_data: &[u8] = &data[start_position..data.len()];
+        let layers_data: &[u8] = data;
         let data_layer: Layer<'a, T> =
             if num_layers == 0 { Layer::empty() }
             else {
                 let first_layer_data: &[u8] = &layers_data[..offsets[0] as usize];
-                let first_layer_cursor = Cursor::new(first_layer_data);
-                Layer::read(first_layer_cursor)
+                Layer::from(first_layer_data)
             };
-        let mut skip_layers =
-            if num_layers > 0 {
-                offsets.iter()
-                    .zip(&offsets[1..])
-                    .map(|(start, stop)| {
-                        let layer_data: &[u8] = &layers_data[*start as usize..*stop as usize];
-                        let cursor = Cursor::new(layer_data);
-                        Layer::read(cursor)
-                    })
-                    .collect()
-            }
-            else {
-                Vec::new()
-            };
-        skip_layers.reverse();
+        let skip_layers = (0..max(1, num_layers) - 1)
+            .map(|i| (offsets[i] as usize, offsets[i + 1] as usize))
+            .map(|(start, stop)| {
+                Layer::from(&layers_data[start..stop])
+            })
+            .collect();
         SkipList {
             skip_layers: skip_layers,
             data_layer: data_layer,
         }
     }
+
 }

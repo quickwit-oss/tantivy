@@ -1,9 +1,9 @@
-use compression::SIMDBlockEncoder;
-use compression::SIMDBlockDecoder;
+use super::{BlockEncoder, BlockDecoder};
 use super::NUM_DOCS_PER_BLOCK;
+use compression::{VIntEncoder, VIntDecoder};
 
 pub struct CompositeEncoder {
-    block_encoder: SIMDBlockEncoder,
+    block_encoder: BlockEncoder,
     output: Vec<u8>,
 }
 
@@ -11,7 +11,7 @@ impl CompositeEncoder {
     
     pub fn new() -> CompositeEncoder {
         CompositeEncoder {
-            block_encoder: SIMDBlockEncoder::new(),
+            block_encoder: BlockEncoder::new(),
             output: Vec::with_capacity(500_000),
         }
     }
@@ -22,7 +22,7 @@ impl CompositeEncoder {
         let mut offset = 0u32;
         for i in 0..num_blocks {
             let vals_slice = &vals[i * NUM_DOCS_PER_BLOCK .. (i + 1) * NUM_DOCS_PER_BLOCK];
-            let block_compressed = self.block_encoder.compress_block_sorted(&vals_slice, offset);
+            let block_compressed = self.block_encoder.compress_block_sorted(vals_slice, offset);
             offset = vals_slice[NUM_DOCS_PER_BLOCK - 1];
             self.output.extend_from_slice(block_compressed);
         }
@@ -36,7 +36,7 @@ impl CompositeEncoder {
         let num_blocks = vals.len() / NUM_DOCS_PER_BLOCK;
         for i in 0..num_blocks {
             let vals_slice = &vals[i * NUM_DOCS_PER_BLOCK .. (i + 1) * NUM_DOCS_PER_BLOCK];
-            let block_compressed = self.block_encoder.compress_block_unsorted(&vals_slice);
+            let block_compressed = self.block_encoder.compress_block_unsorted(vals_slice);
             self.output.extend_from_slice(block_compressed);
         }
         let vint_compressed = self.block_encoder.compress_vint_unsorted(&vals[num_blocks * NUM_DOCS_PER_BLOCK..]);
@@ -47,7 +47,7 @@ impl CompositeEncoder {
 
 
 pub struct CompositeDecoder {
-    block_decoder: SIMDBlockDecoder,
+    block_decoder: BlockDecoder,
     vals: Vec<u32>,
 }
 
@@ -55,7 +55,7 @@ pub struct CompositeDecoder {
 impl CompositeDecoder {
     pub fn new() -> CompositeDecoder {
         CompositeDecoder {
-            block_decoder: SIMDBlockDecoder::new(),
+            block_decoder: BlockDecoder::new(),
             vals: Vec::with_capacity(500_000),
         }    
     }
@@ -110,7 +110,7 @@ pub mod tests {
         let data = generate_array(10_000, 0.1);
         let mut encoder = CompositeEncoder::new();
         let compressed = encoder.compress_unsorted(&data);
-        assert_eq!(compressed.len(), 19_790);
+        assert!(compressed.len() <= 19_794);
         let mut decoder = CompositeDecoder::new();
         let result = decoder.uncompress_unsorted(&compressed, data.len());
         for i in 0..data.len() {
@@ -123,7 +123,7 @@ pub mod tests {
         let data = generate_array(10_000, 0.1);
         let mut encoder = CompositeEncoder::new();
         let compressed = encoder.compress_sorted(&data);
-        assert_eq!(compressed.len(), 7_822);
+        assert!(compressed.len() <= 7_826);
         let mut decoder = CompositeDecoder::new();
         let result = decoder.uncompress_sorted(&compressed, data.len());
         for i in 0..data.len() {

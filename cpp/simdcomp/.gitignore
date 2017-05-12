@@ -1,0 +1,9 @@
+Makefile.in
+lib*
+unit*
+*.o
+src/*.lo
+src/*.o
+src/.deps
+src/.dirstamp
+src/.libs

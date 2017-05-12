@@ -8,6 +8,10 @@ pub struct OpenTimer<'a> {
 }
 
 impl<'a> OpenTimer<'a> {
+    /// Starts timing a new named subtask
+    ///
+    /// The timer is stopped automatically 
+    /// when the `OpenTimer` is dropped.
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
             name: name,
@@ -28,29 +32,28 @@ impl<'a> Drop for OpenTimer<'a> {
     }
 }
 
-#[derive(Debug, RustcEncodable)]
+/// Timing recording
+#[derive(Debug, Serialize)]
 pub struct Timing {
     name: &'static str,
     duration: i64,
     depth: u32,
 }
 
-#[derive(Debug, RustcEncodable)]
+/// Timer tree
+#[derive(Debug, Serialize)]
 pub struct TimerTree {
     timings: Vec<Timing>,
 }
 
 impl TimerTree {
-    pub fn new() -> TimerTree {
-        TimerTree {
-            timings: Vec::new(),
-        }
-    }
-    
+        
+    /// Returns the total time elapsed in microseconds 
     pub fn total_time(&self,) -> i64 {
         self.timings.last().unwrap().duration
     }
     
+    /// Open a new named subtask
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
             name: name,
@@ -61,6 +64,13 @@ impl TimerTree {
     }
 }
 
+impl Default for TimerTree {
+    fn default() -> TimerTree {
+        TimerTree {
+            timings: Vec::new(),
+        }
+    }
+}
 
 
 #[cfg(test)]
@@ -70,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_timer() {
-        let mut timer_tree = TimerTree::new();
+        let mut timer_tree = TimerTree::default();
         {
             let mut a = timer_tree.open("a");
             {

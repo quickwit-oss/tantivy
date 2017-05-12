@@ -19,7 +19,7 @@ mod tests {
         let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
         skip_list_builder.insert(2, &3).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<u32> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next(), Some((2, 3)));
     }
 
@@ -28,7 +28,7 @@ mod tests {
         let mut output: Vec<u8> = Vec::new();
         let skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<u32> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<u32> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next(), None);
     }
 
@@ -42,7 +42,7 @@ mod tests {
         skip_list_builder.insert(7, &()).unwrap();
         skip_list_builder.insert(9, &()).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (2, ()));
         assert_eq!(skip_list.next().unwrap(), (3, ()));
         assert_eq!(skip_list.next().unwrap(), (5, ()));
@@ -61,7 +61,7 @@ mod tests {
         skip_list_builder.insert(7, &()).unwrap();
         skip_list_builder.insert(9, &()).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (2, ()));
         skip_list.seek(5);
         assert_eq!(skip_list.next().unwrap(), (5, ()));
@@ -79,7 +79,7 @@ mod tests {
         skip_list_builder.insert(5, &()).unwrap();
         skip_list_builder.insert(6, &()).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (2, ()));
         skip_list.seek(6);
         assert_eq!(skip_list.next().unwrap(), (6, ()));
@@ -96,7 +96,7 @@ mod tests {
         skip_list_builder.insert(7, &()).unwrap();
         skip_list_builder.insert(9, &()).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (2, ()));
         skip_list.seek(10);
         assert_eq!(skip_list.next(), None);
@@ -111,7 +111,7 @@ mod tests {
         }
         skip_list_builder.insert(1004, &()).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        let mut skip_list: SkipList<()> = SkipList::read(&mut output);
+        let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (0, ()));
         skip_list.seek(431);
         assert_eq!(skip_list.next().unwrap(), (431,()) );

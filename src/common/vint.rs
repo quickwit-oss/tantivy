@@ -11,13 +11,13 @@ pub struct VInt(pub u64);
 
 impl VInt {
     pub fn val(&self,) -> u64 {
-        self.0.clone()
+        self.0
     }
 }
 
 impl BinarySerializable for VInt {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        let mut remaining = self.0.clone();
+        let mut remaining = self.0;
         let mut written: usize = 0;
         let mut buffer = [0u8; 10];
         loop {

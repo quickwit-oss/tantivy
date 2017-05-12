@@ -1,41 +1,27 @@
-use std::vec::IntoIter;
-
 #[derive(Copy, Clone)]
 pub enum SegmentComponent {
-    INFO,
     POSTINGS,
     POSITIONS,
     FASTFIELDS,
     FIELDNORMS,
     TERMS,
     STORE,
+    DELETE
 }
 
 impl SegmentComponent {
-    pub fn values() -> IntoIter<SegmentComponent> {
-        vec!(
-            SegmentComponent::INFO,
+    
+    pub fn iterator() -> impl Iterator<Item=&'static SegmentComponent> {
+        static SEGMENT_COMPONENTS: [SegmentComponent;  7] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,
             SegmentComponent::FASTFIELDS,
             SegmentComponent::FIELDNORMS,
             SegmentComponent::TERMS,
             SegmentComponent::STORE,
-        ).into_iter()
+            SegmentComponent::DELETE
+        ];
+        SEGMENT_COMPONENTS.into_iter()
     }
     
-    pub fn path_suffix(&self)-> &'static str {
-        match *self {
-            SegmentComponent::POSITIONS => ".pos",
-            SegmentComponent::INFO => ".info",
-            SegmentComponent::POSTINGS => ".idx",
-            SegmentComponent::TERMS => ".term",
-            SegmentComponent::STORE => ".store",
-            SegmentComponent::FASTFIELDS => ".fast",
-            SegmentComponent::FIELDNORMS => ".fieldnorm",
-        }
-    }
 }
-
-
-    

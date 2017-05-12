@@ -1,27 +1,26 @@
+/// Query module
+/// 
+/// The query module regroups all of tantivy's query objects
+///
+
 mod query;
-mod multi_term_query;
-mod multi_term_accumulator;
-mod similarity_explainer;
+mod boolean_query;
 mod scorer;
-mod query_parser;
-mod explanation;
-mod tfidf;
 mod occur;
-mod daat_multiterm_scorer;
-mod similarity;
+mod weight;
+mod occur_filter;
+mod term_query;
+mod query_parser;
+mod phrase_query;
 
-pub use self::similarity::Similarity;
-
-pub use self::daat_multiterm_scorer::DAATMultiTermScorer;
-
+pub use self::boolean_query::BooleanQuery;
+pub use self::occur_filter::OccurFilter;
 pub use self::occur::Occur;
-pub use self::query::Query;
-pub use self::multi_term_query::MultiTermQuery;
-pub use self::similarity_explainer::SimilarityExplainer;
-pub use self::tfidf::TfIdf;
-
-pub use self::scorer::Scorer;
+pub use self::phrase_query::PhraseQuery;
+pub use self::query_parser::QueryParserError;
 pub use self::query_parser::QueryParser;
-pub use self::explanation::Explanation;
-pub use self::multi_term_accumulator::MultiTermAccumulator;
-pub use self::query_parser::ParsingError;
+pub use self::query::Query;
+pub use self::scorer::EmptyScorer;
+pub use self::scorer::Scorer;
+pub use self::term_query::TermQuery;
+pub use self::weight::Weight;

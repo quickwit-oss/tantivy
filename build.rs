@@ -1,28 +1,59 @@
-extern crate gcc;
+#[cfg(feature = "simdcompression")]
+mod build {
+    extern crate gcc;
 
+    pub fn build() {
+        let mut config = gcc::Config::new();
+        config
+            .include("./cpp/simdcomp/include")
+            .file("cpp/simdcomp/src/avxbitpacking.c")
+            .file("cpp/simdcomp/src/simdintegratedbitpacking.c")
+            .file("cpp/simdcomp/src/simdbitpacking.c")
+            .file("cpp/simdcomp/src/simdpackedsearch.c")
+            .file("cpp/simdcomp/src/simdcomputil.c")
+            .file("cpp/simdcomp/src/simdpackedselect.c")
+            .file("cpp/simdcomp/src/simdfor.c")
+            .file("cpp/simdcomp_wrapper.c");
 
-use std::process::Command;
+        if !cfg!(debug_assertions) {
+            config.opt_level(3);
+
+            if cfg!(target_env = "msvc") {
+                config
+                    .define("NDEBUG", None)
+                    .flag("/Gm-")
+                    .flag("/GS-")
+                    .flag("/Gy")
+                    .flag("/Oi")
+                    .flag("/GL");
+            }
+        }
+
+        if !cfg!(target_env = "msvc") {
+            config
+                .include("./cpp/streamvbyte/include")
+                .file("cpp/streamvbyte/src/streamvbyte.c")
+                .file("cpp/streamvbyte/src/streamvbytedelta.c")
+                .flag("-msse4.1")
+                .flag("-march=native")
+                .flag("-std=c99");
+        }
+
+        config.compile("libsimdcomp.a");
+
+        // Workaround for linking static libraries built with /GL
+        // https://github.com/rust-lang/rust/issues/26003
+        if !cfg!(debug_assertions) && cfg!(target_env = "msvc") {
+            println!("cargo:rustc-link-lib=dylib=simdcomp");
+        }
+    }
+}
+
+#[cfg(not(feature = "simdcompression"))]
+mod build {
+    pub fn build() {}
+}
 
 fn main() {
-    Command::new("make")
-        .current_dir("cpp/simdcomp")
-        .output()
-        .unwrap_or_else(|e| { panic!("Failed to make simdcomp: {}", e) });
-    
-    gcc::Config::new()
-                .cpp(true)
-                .flag("-std=c++11")
-                .flag("-O3")
-                .flag("-mssse3")
-                .include("./cpp/simdcomp/include")
-                .object("cpp/simdcomp/avxbitpacking.o")
-                .object("cpp/simdcomp/simdintegratedbitpacking.o")
-                .object("cpp/simdcomp/simdbitpacking.o")
-                .object("cpp/simdcomp/simdpackedsearch.o")
-                .object("cpp/simdcomp/simdcomputil.o")
-                .object("cpp/simdcomp/simdpackedselect.o")
-                .object("cpp/simdcomp/simdfor.o")
-                .file("cpp/simdcomp_wrapper.cpp")
-                .compile("libsimdcomp.a");
-    println!("cargo:rustc-flags=-l dylib=stdc++");
+    build::build();
 }

@@ -1,65 +1,44 @@
 use std::borrow::Borrow;
 use postings::docset::DocSet;
 
-
-
-
-// Postings trait defines all of the information
-// associated with a term.
-// 
-// List of docids, term freqs and positions.
-//
-// It's main implementation is SegmentPostings,
-// but some other implementation mocking SegmentPostings exists,
-// in order to help merging segment or for testing.  
+/// Postings (also called inverted list)
+///
+/// For a given term, it is the list of doc ids of the doc
+/// containing the term. Optionally, for each document,
+/// it may also give access to the term frequency
+/// as well as the list of term positions.
+///
+/// Its main implementation is `SegmentPostings`,
+/// but other implementations mocking `SegmentPostings` exist,
+/// for merging segments or for testing.
 pub trait Postings: DocSet {
-    fn term_freq(&self,) -> u32;
+    /// Returns the term frequency
+    fn term_freq(&self) -> u32;
+    /// Returns the list of positions of the term, expressed as a list of
+    /// token ordinals.
     fn positions(&self) -> &[u32];
 }
 
 impl<TPostings: Postings> Postings for Box<TPostings> {
-
-    fn term_freq(&self,) -> u32 {
+    fn term_freq(&self) -> u32 {
         let unboxed: &TPostings = self.borrow();
         unboxed.term_freq()
     }
-    
+
     fn positions(&self) -> &[u32] {
         let unboxed: &TPostings = self.borrow();
         unboxed.positions()
     }
-
 }
 
 impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
-
-    fn term_freq(&self,) -> u32 {
+    fn term_freq(&self) -> u32 {
         let unref: &TPostings = *self;
         unref.term_freq()
     }
-   
+
     fn positions(&self) -> &[u32] {
         let unref: &TPostings = *self;
         unref.positions()
-    }
-
-}
-
-pub trait HasLen {
-    fn len(&self,) -> usize;
-}
-
-impl<THasLen: HasLen> HasLen for Box<THasLen> {
-     fn len(&self,) -> usize {
-         let unboxed: &THasLen = self.borrow();
-        unboxed.borrow().len()
-     }
-}
-
-
-impl<'a> HasLen for &'a HasLen {
-    fn len(&self,) -> usize {
-        let unref: &HasLen = *self;
-        unref.len()
     }
 }

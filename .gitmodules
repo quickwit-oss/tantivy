@@ -1,3 +1,0 @@
-[submodule "cpp/simdcomp"]
-	path = cpp/simdcomp
-	url = git@github.com:lemire/simdcomp.git
