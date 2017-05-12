@@ -98,8 +98,7 @@ impl<'a> SegmentWriter<'a> {
 	/// Return true if the term dictionary hashmap is reaching capacity.
 	/// It is one of the condition that triggers a `SegmentWriter` to
 	/// be finalized.
-	#[doc(hidden)]
-	pub fn is_termdic_saturated(&self,) -> bool {
+	pub(crate) fn is_termdic_saturated(&self,) -> bool {
 		self.multifield_postings.is_termdic_saturated()
 	}
 	
@@ -195,9 +194,6 @@ fn write<'a>(
 	  	mut serializer: SegmentSerializer) -> Result<()> {
 		
 		try!(multifield_postings.serialize(serializer.get_postings_serializer()));
-		// for per_field_postings_writer in per_field_postings_writers {
-		// 	try!(per_field_postings_writer.serialize(serializer.get_postings_serializer(), heap));
-		// }
 		try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
 		try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
 		try!(serializer.close());

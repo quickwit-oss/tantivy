@@ -192,6 +192,14 @@ impl SegmentReader {
     }
 
 
+    pub fn postings_data(&self, offset: usize) -> &[u8] {
+        &self.postings_data[offset..]
+    }
+
+    pub fn get_block_postings(&self) -> BlockSegmentPostings {
+        BlockSegmentPostings::from_data(0, &self.postings_data[..], FreqHandler::new_without_freq())
+    }
+
     pub fn read_block_postings_from_terminfo(&self, term_info: &TermInfo, field_type: &FieldType) -> Option<BlockSegmentPostings> {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];

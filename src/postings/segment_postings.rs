@@ -34,6 +34,16 @@ impl<'a> BlockSegmentPostings<'a> {
         }
     }
 
+    pub fn reset(&mut self, len: usize, data: &'a [u8]) {
+        let num_binpacked_blocks: usize = (len as usize) / NUM_DOCS_PER_BLOCK;
+        let num_vint_docs = (len as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
+        self.num_binpacked_blocks = num_binpacked_blocks;
+        self.num_vint_docs = num_vint_docs;
+        self.remaining_data = data;
+        self.doc_offset = 0;
+        self.len = len;
+    }
+
     pub fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
     }
@@ -93,6 +103,7 @@ pub struct SegmentPostings<'a> {
 }
 
 impl<'a> SegmentPostings<'a> {
+
 
     /// Reads a Segment postings from an &[u8]
     ///

@@ -85,6 +85,10 @@ impl Heap {
     pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
         self.inner().get_mut_ref(addr)
     }
+
+    pub fn get_ref<Item>(&self, addr: u32) -> &Item {
+        self.inner().get_mut_ref(addr)
+    }
 }
 
 
