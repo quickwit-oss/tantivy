@@ -202,7 +202,7 @@ impl IndexMerger {
             merged_doc_id_map.push(segment_local_map);
         }
 
-        let mut field = Field(u32::max_value());
+        let mut last_field: Option<Field> = None;
         
         while merged_terms.advance() {
             // Create the total list of doc ids
@@ -239,10 +239,11 @@ impl IndexMerger {
                         if let Some(remapped_doc_id) = old_to_new_doc_id[segment_postings.doc() as usize] {
                             if !term_written {
                                 let current_field = term.field();
-                                if current_field != field {
+                                if last_field != Some(current_field) {
                                     postings_serializer.new_field(current_field);
-                                    field = current_field;
+                                    last_field = Some(current_field);
                                 }
+                                
                                 // we make sure to only write the term iff
                                 // there is at least one document.
                                 postings_serializer.new_term(term.as_slice())?;

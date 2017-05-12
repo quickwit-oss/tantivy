@@ -80,8 +80,14 @@ impl Heap {
     pub fn set<Item>(&self, addr: u32, val: &Item) {
         self.inner().set(addr, val);
     }
-    
-    /// Returns a mutable reference for an object at a given Item.
+
+    /// Returns a reference to an `Item` at a given `addr`.
+    #[cfg(test)]
+    pub fn get_ref<Item>(&self, addr: u32) -> &Item {
+        self.inner().get_mut_ref(addr)
+    }
+
+    /// Returns a mutable reference to an `Item` at a given `addr`.
     pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
         self.inner().get_mut_ref(addr)
     }

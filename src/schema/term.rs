@@ -16,7 +16,6 @@ const INT_TERM_LEN: usize = 4 + 8;
 pub struct Term(Vec<u8>);
 
 /// Extract `field` from Term.
-#[doc(hidden)]
 pub(crate) fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
     Field(BigEndian::read_u32(&term_bytes[..4]))
 }
