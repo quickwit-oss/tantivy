@@ -7,6 +7,7 @@ use std::io;
 use Directory;
 use std::sync::{Arc, RwLock};
 use std::collections::HashSet;
+use std::sync::RwLockWriteGuard;
 use std::io::Write;
 use core::MANAGED_FILEPATH;
 use std::collections::HashMap;
@@ -65,6 +66,16 @@ impl Drop for FileProtection {
     fn drop(&mut self) {
         unprotect_file_from_delete(&self.directory, &*self.path);
     }
+}
+
+/// Saves the file containing the list of existing files
+/// that were created by tantivy.
+fn save_managed_paths(directory: &mut Directory, wlock: &RwLockWriteGuard<MetaInformation>) -> io::Result<()> {
+    let managed_paths = wlock.managed_paths.clone();
+    let mut w = serde_json::to_vec(&managed_paths)?;
+    write!(&mut w, "\n")?;
+    directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
+    Ok(())
 }
 
 impl ManagedDirectory {
@@ -154,16 +165,16 @@ impl ManagedDirectory {
         if !deleted_files.is_empty() {
             // update the list of managed files by removing 
             // the file that were removed.
+            let mut meta_informations_wlock = self.meta_informations
+                .write()
+                .expect("Managed directory wlock poisoned (2).");
             {
-                let mut meta_informations_wlock = self.meta_informations
-                    .write()
-                    .expect("Managed directory wlock poisoned (2).");
                 let managed_paths_write = &mut meta_informations_wlock.managed_paths;
                 for delete_file in &deleted_files {
                     managed_paths_write.remove(delete_file);
                 }
             }
-            if let Err(_) = self.save_managed_paths() {
+            if let Err(_) = save_managed_paths(self.directory.as_mut(), &meta_informations_wlock) {
                 error!("Failed to save the list of managed files.");
             }
         }
@@ -193,23 +204,6 @@ impl ManagedDirectory {
         }
     }
 
-
-    /// Saves the file containing the list of existing files
-    /// that were created by tantivy.
-    fn save_managed_paths(&mut self,) -> io::Result<()> {
-        let managed_paths;
-        {
-            let meta_informations_rlock = self.meta_informations
-                .read()
-                .expect("Managed file lock poisoned");
-            managed_paths = meta_informations_rlock.managed_paths.clone();
-        }
-        let mut w = try!(serde_json::to_vec(&managed_paths));
-        try!(write!(&mut w, "\n"));
-        self.directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
-        Ok(())
-    }
-
     /// Registers a file as managed
     /// 
     /// This method must be called before the file is 
@@ -218,14 +212,12 @@ impl ManagedDirectory {
     /// will not lead to garbage files that will 
     /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
-        let has_changed = {
-            let mut meta_wlock = self.meta_informations
+        let mut meta_wlock = self.meta_informations
                 .write()
                 .expect("Managed file lock poisoned");
-            meta_wlock.managed_paths.insert(filepath.to_owned())
-        };
+        let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
         if has_changed {
-            self.save_managed_paths()?;
+            save_managed_paths(self.directory.as_mut(), &meta_wlock)?;
         }
         Ok(())
     }
