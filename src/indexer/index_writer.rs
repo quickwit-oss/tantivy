@@ -356,6 +356,11 @@ impl IndexWriter {
         result
     }
 
+    #[doc(hidden)]
+    pub fn new_segment(&self) -> Segment {
+        self.segment_updater.new_segment()
+    }
+
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
     ///
@@ -427,6 +432,12 @@ impl IndexWriter {
             try!(self.add_indexing_worker());
         }
         Ok(())
+    }
+
+    pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
+        let delete_cursor = self.delete_queue.cursor();
+        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
+        self.segment_updater.add_segment(self.generation, segment_entry);
     }
 
     /// Detects and removes the files that

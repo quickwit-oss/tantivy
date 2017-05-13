@@ -120,7 +120,7 @@ pub mod fastfield;
 
 
 pub use directory::Directory;
-pub use core::{Index, Segment, SegmentId, SegmentMeta, Searcher};
+pub use core::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, Searcher};
 pub use indexer::IndexWriter;
 pub use schema::{Term, Document};
 pub use core::SegmentReader;
