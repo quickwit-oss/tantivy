@@ -204,5 +204,11 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
         println!("{}", schema.to_json(&retrieved_doc));
     }
 
+    // Wait for indexing and merging threads to shut down.
+    // Usually this isn't needed, but in `main` we try to
+    // delete the temporary directory and that fails on
+    // Windows if the files are still open.
+    index_writer.wait_merging_threads();
+
     Ok(())
 }
