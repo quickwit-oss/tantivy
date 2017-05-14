@@ -10,8 +10,39 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
+
+// See https://github.com/crossbeam-rs/crossbeam/issues/91
+struct NonLeakingMsQueue<T> {
+    underlying_queue: MsQueue<T>
+}
+
+impl<T> Default for NonLeakingMsQueue<T> {
+    fn default() -> NonLeakingMsQueue<T> {
+        NonLeakingMsQueue {
+            underlying_queue: MsQueue::new(),
+        }
+    }
+}
+
+impl<T> NonLeakingMsQueue<T> {
+
+    fn pop(&self,) -> T {
+        self.underlying_queue.pop()
+    }
+
+    fn push(&self, el: T) {
+        self.underlying_queue.push(el);
+    }
+}
+
+impl<T> Drop for NonLeakingMsQueue<T> {
+    fn drop(&mut self) {
+        while let Some(_popped_item_to_be_dropped) = self.underlying_queue.try_pop() {}
+    }
+}
+
 pub struct Pool<T> {
-    queue: Arc<MsQueue<GenerationItem<T>>>,
+    queue: Arc<NonLeakingMsQueue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
     next_generation: AtomicUsize,
 }
@@ -20,7 +51,7 @@ impl<T> Pool<T> {
     
     pub fn new() -> Pool<T> {
         Pool {
-            queue: Arc::new(MsQueue::new()),
+            queue: Arc::default(),
             freshest_generation: AtomicUsize::default(),
             next_generation: AtomicUsize::default(),
         }
@@ -57,7 +88,7 @@ impl<T> Pool<T> {
         self.freshest_generation.load(Ordering::Acquire)
     }
 
-    pub fn acquire(&self,) -> LeasedItem<T> {
+    pub fn acquire(&self) -> LeasedItem<T> {
         let generation = self.generation();
         loop {
             let gen_item = self.queue.pop();
@@ -80,7 +111,7 @@ impl<T> Pool<T> {
 
 pub struct LeasedItem<T> {
     gen_item: Option<GenerationItem<T>>,
-    recycle_queue: Arc<MsQueue<GenerationItem<T>>>,
+    recycle_queue: Arc<NonLeakingMsQueue<GenerationItem<T>>>,
 }
 
 impl<T> Deref for LeasedItem<T> {
