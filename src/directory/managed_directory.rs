@@ -140,13 +140,14 @@ impl ManagedDirectory {
                         deleted_files.push(file_to_delete);
                     }
                     Err(file_error) => {
-                        error!("Failed to delete {:?}", file_to_delete);
                         match file_error {
                             DeleteError::FileDoesNotExist(_) => {
                                 deleted_files.push(file_to_delete);
                             }
                             DeleteError::IOError(_) => {
                                 if !cfg!(target_os = "windows") {
+                                    // On windows, delete is expected to fail if the file
+                                    // is mmapped.
                                     error!("Failed to delete {:?}", file_to_delete);
                                 }
                             }
