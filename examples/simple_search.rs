@@ -208,7 +208,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Usually this isn't needed, but in `main` we try to
     // delete the temporary directory and that fails on
     // Windows if the files are still open.
-    index_writer.wait_merging_threads();
+    index_writer.wait_merging_threads()?;
 
     Ok(())
 }
