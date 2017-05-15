@@ -157,19 +157,8 @@ impl<'a> DocSet for SegmentPostings<'a> {
             if doc < target {
                 start = mid + 1;
                 count -= step + 1;
-            } else if doc > target {
-                count = step;
             } else {
-                self.set_within_block(mid);
-
-                if !self.delete_bitset.is_deleted(doc) {
-                    return SkipResult::Reached;
-                }
-
-                if self.advance() {
-                    return SkipResult::OverStep;
-                }
-                return SkipResult::End;
+                count = step;
             }
         }
 
