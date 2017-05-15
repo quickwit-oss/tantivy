@@ -34,7 +34,7 @@ pub use common::HasLen;
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use schema::{Document, TEXT, STRING, SchemaBuilder, Term};
     use core::SegmentComponent;
@@ -48,9 +48,10 @@ mod tests {
     use schema::Field;
     use test::Bencher;
     use indexer::operation::AddOperation;
+    use tests;
     use rand::{XorShiftRng, Rng, SeedableRng};
-    
-        
+
+
     #[test]
     pub fn test_position_write() {
         let mut schema_builder = SchemaBuilder::default();
@@ -70,7 +71,7 @@ mod tests {
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert!(read.len() <= 16);
     }
-    
+
     #[test]
     pub fn test_position_and_fieldnorm() {
         let mut schema_builder = SchemaBuilder::default();
@@ -87,7 +88,7 @@ mod tests {
                 doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
                 let op = AddOperation {
                     opstamp: 0u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -96,7 +97,7 @@ mod tests {
                 doc.add_text(text_field, "b a");
                 let op = AddOperation {
                     opstamp: 1u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -107,7 +108,7 @@ mod tests {
                 doc.add_text(text_field, &text);
                 let op = AddOperation {
                     opstamp: 2u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -164,7 +165,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     pub fn test_position_and_fieldnorm2() {
         let mut schema_builder = SchemaBuilder::default();
@@ -196,7 +197,7 @@ mod tests {
         assert_eq!(term_scorer.doc(), 1u32);
         assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
     }
-    
+
     #[test]
     fn test_intersection() {
         {
@@ -219,8 +220,8 @@ mod tests {
             assert!(!intersection.advance());
         }
     }
-    
-    
+
+
     lazy_static! {
         static ref TERM_A: Term = {
             let field = Field(0);
@@ -234,10 +235,10 @@ mod tests {
             let mut schema_builder = SchemaBuilder::default();
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
-            
+
             let seed: &[u32; 4] = &[1, 2, 3, 4];
             let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-            
+
             let index = Index::create_in_ram(schema);
             let mut count_a = 0;
             let mut count_b = 0;
@@ -266,18 +267,18 @@ mod tests {
             index
         };
     }
-    
+
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
-        
+
         b.iter(|| {
             let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
             while segment_postings.advance() {}
         });
-    }    
-    
+    }
+
     #[bench]
     fn bench_segment_intersection(b: &mut Bencher) {
         let searcher = INDEX.searcher();
@@ -288,5 +289,51 @@ mod tests {
             let mut intersection = IntersectionDocSet::from(vec!(segment_postings_a, segment_postings_b));
             while intersection.advance() {}
         });
-    }    
+    }
+
+    fn bench_skip_next(p: f32, b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let docs = tests::sample(segment_reader.num_docs(), p);
+
+        let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+        let mut existing_docs = Vec::new();
+        for doc in &docs {
+            if *doc >= segment_postings.doc() {
+                existing_docs.push(*doc);
+                if segment_postings.skip_next(*doc) == SkipResult::End {
+                    break;
+                }
+            }
+        }
+
+        b.iter(|| {
+            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            for doc in &existing_docs {
+                if segment_postings.skip_next(*doc) == SkipResult::End {
+                    break;
+                }
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_skip_next_p01(b: &mut Bencher) {
+        bench_skip_next(0.001, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p1(b: &mut Bencher) {
+        bench_skip_next(0.01, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p10(b: &mut Bencher) {
+        bench_skip_next(0.1, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p90(b: &mut Bencher) {
+        bench_skip_next(0.9, b);
+    }
 }
