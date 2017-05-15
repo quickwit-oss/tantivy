@@ -1,6 +1,7 @@
 use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder};
 use DocId;
 use postings::{Postings, FreqHandler, DocSet, HasLen, SkipResult};
+use std::cmp;
 use std::num::Wrapping;
 use fastfield::DeleteBitSet;
 
@@ -149,9 +150,23 @@ impl<'a> DocSet for SegmentPostings<'a> {
         debug_assert!(target >= self.block_decoder.output(pos));
         debug_assert!(target <= self.block_decoder.output(self.block_len - 1));
 
-        // we're in the right block, do a binary search
+        // we're in the right block now, start with an exponential search
         let mut start = pos;
-        let mut count = self.block_len - start;
+        let mut end = self.block_len;
+        let mut count = 1;
+        loop {
+            let new = start + count;
+            if new < end && self.block_decoder.output(new) < target {
+                start = new;
+                count *= 2;
+            } else {
+                break;
+            }
+        }
+        end = cmp::min(start + count, end);
+
+        // now do a binary search
+        let mut count = end - start;
         while count > 0 {
             let step = count / 2;
             let mid = start + step;
