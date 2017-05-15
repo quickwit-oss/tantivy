@@ -111,3 +111,16 @@ impl BlockDecoder {
 }
 
 
+#[cfg(test)]
+mod tests {
+
+    use super::BlockEncoder;
+
+    #[test]
+    fn test_all_docs_compression_len() {
+        let data: Vec<u32> = (0u32..128u32).collect();
+        let mut encoder = BlockEncoder::new();
+        let compressed = encoder.compress_block_sorted(&data, 0u32);
+        assert_eq!(compressed.len(), 17);
+    }
+}
