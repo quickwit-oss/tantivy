@@ -14,6 +14,8 @@ const EMPTY_DATA: [u8; 0] = [0u8; 0];
 /// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings<'a> {
     len: usize,
+    // Removing this makes the code slower
+    // See https://github.com/tantivy-search/tantivy/issues/89
     block_len: usize,
     doc_offset: u32,
     block_decoder: BlockDecoder,
