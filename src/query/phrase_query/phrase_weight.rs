@@ -14,26 +14,22 @@ pub struct PhraseWeight {
 
 impl From<Vec<Term>> for PhraseWeight {
     fn from(phrase_terms: Vec<Term>) -> PhraseWeight {
-        PhraseWeight {
-            phrase_terms: phrase_terms
-        }
+        PhraseWeight { phrase_terms: phrase_terms }
     }
 }
 
 impl Weight for PhraseWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let mut term_postings_list = Vec::new();
-        for term in &self.phrase_terms {            
-            let term_postings_option = reader.read_postings(term, SegmentPostingsOption::FreqAndPositions);
+        for term in &self.phrase_terms {
+            let term_postings_option =
+                reader.read_postings(term, SegmentPostingsOption::FreqAndPositions);
             if let Some(term_postings) = term_postings_option {
                 term_postings_list.push(term_postings);
-            }
-            else {
+            } else {
                 return Ok(box EmptyScorer);
             }
         }
-        Ok(box PhraseScorer {
-            intersection_docset: IntersectionDocSet::from(term_postings_list),
-        })
+        Ok(box PhraseScorer { intersection_docset: IntersectionDocSet::from(term_postings_list) })
     }
 }

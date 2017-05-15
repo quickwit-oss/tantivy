@@ -4,7 +4,7 @@ use DocId;
 
 // Doc to opstamp is used to identify which
 // document should be deleted.
-// 
+//
 // Since the docset matching the query of a delete operation
 // is not computed right when the delete operation is received,
 // we need to find a way to evaluate, for each document,
@@ -14,13 +14,13 @@ use DocId;
 //
 // The doc to opstamp mapping stores precisely an array
 // indexed by doc id and storing the opstamp of the document.
-// 
+//
 // This mapping is (for the moment) stricly increasing
 // because of the way document id are allocated.
 #[derive(Clone)]
 pub enum DocToOpstampMapping {
     WithMap(Arc<Vec<u64>>),
-    None
+    None,
 }
 
 impl From<Vec<u64>> for DocToOpstampMapping {
@@ -30,9 +30,8 @@ impl From<Vec<u64>> for DocToOpstampMapping {
 }
 
 impl DocToOpstampMapping {
-    
     /// Given an opstamp return the limit doc id L
-    /// such that all doc id D such that 
+    /// such that all doc id D such that
     // D >= L iff opstamp(D) >= than `target_opstamp`.
     //
     // The edge case opstamp = some doc opstamp is in practise
@@ -58,23 +57,24 @@ mod tests {
     #[test]
     fn test_doc_to_opstamp_mapping_none() {
         let doc_to_opstamp_mapping = DocToOpstampMapping::None;
-        assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(1), u32::max_value());
+        assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(1),
+                   u32::max_value());
     }
 
     #[test]
     fn test_doc_to_opstamp_mapping_complex() {
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec!());
+            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(2u64), 0);
         }
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec!(1u64));
+            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![1u64]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(2u64), 1);
         }
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec!(1u64, 12u64, 17u64, 23u64));
+            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![1u64, 12u64, 17u64, 23u64]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             for i in 2u64..13u64 {
                 assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(i), 1);

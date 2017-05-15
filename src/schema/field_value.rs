@@ -14,7 +14,6 @@ pub struct FieldValue {
 }
 
 impl FieldValue {
-    
     /// Constructor
     pub fn new(field: Field, value: Value) -> FieldValue {
         FieldValue {
@@ -22,22 +21,21 @@ impl FieldValue {
             value: value,
         }
     }
-    
-    /// Field accessor 
+
+    /// Field accessor
     pub fn field(&self) -> Field {
         self.field
     }
 
     /// Value accessor
-    pub fn value(&self,) -> &Value {
+    pub fn value(&self) -> &Value {
         &self.value
     }
 }
 
 impl BinarySerializable for FieldValue {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        Ok(self.field.serialize(writer)? + 
-           self.value.serialize(writer)?)
+        Ok(self.field.serialize(writer)? + self.value.serialize(writer)?)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
@@ -46,4 +44,3 @@ impl BinarySerializable for FieldValue {
         Ok(FieldValue::new(field, value))
     }
 }
-

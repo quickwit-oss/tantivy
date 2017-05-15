@@ -13,8 +13,7 @@ struct LayerBuilder<T: BinarySerializable> {
 }
 
 impl<T: BinarySerializable> LayerBuilder<T> {
-
-    fn written_size(&self,) -> usize {
+    fn written_size(&self) -> usize {
         self.buffer.len()
     }
 
@@ -42,8 +41,9 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         Ok(if self.remaining == 0 {
                self.remaining = self.period;
                Some((doc_id, offset))
-           }
-           else { None })
+           } else {
+               None
+           })
     }
 }
 
@@ -56,7 +56,6 @@ pub struct SkipListBuilder<T: BinarySerializable> {
 
 
 impl<T: BinarySerializable> SkipListBuilder<T> {
-
     pub fn new(period: usize) -> SkipListBuilder<T> {
         SkipListBuilder {
             period: period,
@@ -78,11 +77,13 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         let mut skip_pointer = try!(self.data_layer.insert(doc_id, dest));
         loop {
             skip_pointer = match skip_pointer {
-                Some((skip_doc_id, skip_offset)) =>
-                    try!(self
-                        .get_skip_layer(layer_id)
-                        .insert(skip_doc_id, &skip_offset)),
-                None => { return Ok(()); }
+                Some((skip_doc_id, skip_offset)) => {
+                    try!(self.get_skip_layer(layer_id)
+                             .insert(skip_doc_id, &skip_offset))
+                }
+                None => {
+                    return Ok(());
+                }
             };
             layer_id += 1;
         }

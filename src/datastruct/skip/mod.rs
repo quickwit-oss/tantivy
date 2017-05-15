@@ -114,9 +114,9 @@ mod tests {
         let mut skip_list: SkipList<()> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next().unwrap(), (0, ()));
         skip_list.seek(431);
-        assert_eq!(skip_list.next().unwrap(), (431,()) );
+        assert_eq!(skip_list.next().unwrap(), (431, ()));
         skip_list.seek(1003);
-        assert_eq!(skip_list.next().unwrap(), (1004,()) );
+        assert_eq!(skip_list.next().unwrap(), (1004, ()));
         assert_eq!(skip_list.next(), None);
     }
 

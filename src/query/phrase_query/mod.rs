@@ -9,7 +9,7 @@ pub use self::phrase_scorer::PhraseScorer;
 
 #[cfg(test)]
 mod tests {
-        
+
     use super::*;
     use core::Index;
     use schema::FieldValue;
@@ -18,30 +18,35 @@ mod tests {
 
     #[test]
     pub fn test_phrase_query() {
-                
+
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {   // 0
+            {
+                // 0
                 let doc = doc!(text_field=>"b b b d c g c");
                 index_writer.add_document(doc);
             }
-            {   // 1
+            {
+                // 1
                 let doc = doc!(text_field=>"a b b d c g c");
                 index_writer.add_document(doc);
             }
-            {   // 2
+            {
+                // 2
                 let doc = doc!(text_field=>"a b a b c");
                 index_writer.add_document(doc);
             }
-            {   // 3
+            {
+                // 3
                 let doc = doc!(text_field=>"c a b a d ga a");
                 index_writer.add_document(doc);
             }
-            {   // 4
+            {
+                // 4
                 let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc);
             }
@@ -57,17 +62,19 @@ mod tests {
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::from(terms);
-            searcher.search(&phrase_query, &mut test_collector).expect("search should succeed");
+            searcher
+                .search(&phrase_query, &mut test_collector)
+                .expect("search should succeed");
             test_collector.docs()
         };
 
         let empty_vec = Vec::<u32>::new();
 
-        assert_eq!(test_query(vec!("a", "b", "c")), vec!(2, 4));
-        assert_eq!(test_query(vec!("a", "b")), vec!(1, 2, 3, 4));
-        assert_eq!(test_query(vec!("b", "b")), vec!(0, 1));
-        assert_eq!(test_query(vec!("g", "ewrwer")), empty_vec);
-        assert_eq!(test_query(vec!("g", "a")), empty_vec);
+        assert_eq!(test_query(vec!["a", "b", "c"]), vec![2, 4]);
+        assert_eq!(test_query(vec!["a", "b"]), vec![1, 2, 3, 4]);
+        assert_eq!(test_query(vec!["b", "b"]), vec![0, 1]);
+        assert_eq!(test_query(vec!["g", "ewrwer"]), empty_vec);
+        assert_eq!(test_query(vec!["g", "a"]), empty_vec);
     }
-    
+
 }

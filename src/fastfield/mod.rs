@@ -3,20 +3,20 @@
 //! Fast fields are the equivalent of `DocValues` in `Lucene`.
 //! Fast fields is a non-compressed column-oriented fashion storage
 //! of `tantivy`.
-//! 
+//!
 //! It is designed for the fast random access of some document
 //! fields given a document id.
 //!
 //! `FastField` are useful when a field is required for all or most of
 //! the `DocSet` : for instance for scoring, grouping, filtering, or facetting.
-//! 
-//! 
+//!
+//!
 //! Fields have to be declared as `FAST` in the  schema.
 //! Currently only 64-bits integers (signed or unsigned) are
 //! supported.
 //!
 //! They are stored in a bitpacked fashion so that their
-//! memory usage is directly linear with the amplitude of the 
+//! memory usage is directly linear with the amplitude of the
 //! values stored.
 //!
 //! Read access performance is comparable to that of an array lookup.
@@ -67,13 +67,13 @@ mod tests {
         doc.add_u64(field, value);
         fast_field_writers.add_document(&doc);
     }
-     
+
     #[test]
     pub fn test_fastfield() {
-        let test_fastfield = U64FastFieldReader::from(vec!(100,200,300));
+        let test_fastfield = U64FastFieldReader::from(vec![100, 200, 300]);
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
-        assert_eq!(test_fastfield.get(2), 300); 
+        assert_eq!(test_fastfield.get(2), 300);
     }
 
     #[test]
@@ -96,7 +96,8 @@ mod tests {
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
@@ -129,7 +130,8 @@ mod tests {
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 4u64);
             assert_eq!(fast_field_reader.get(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get(2), 3_052u64);
@@ -141,9 +143,9 @@ mod tests {
             assert_eq!(fast_field_reader.get(8), 215u64);
         }
     }
-    
-     #[test]
-     fn test_intfastfield_null_amplitude() {
+
+    #[test]
+    fn test_intfastfield_null_amplitude() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
 
@@ -164,18 +166,19 @@ mod tests {
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u64);
             }
         }
     }
 
-     #[test]
-     fn test_intfastfield_large_numbers() {
+    #[test]
+    fn test_intfastfield_large_numbers() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
-        
+
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::new(write).unwrap();
@@ -183,7 +186,9 @@ mod tests {
             // forcing the amplitude to be high
             add_single_field_doc(&mut fast_field_writers, *FIELD, 0u64);
             for i in 0u64..10_000u64 {
-                add_single_field_doc(&mut fast_field_writers, *FIELD, 5_000_000_000_000_000_000u64 + i);
+                add_single_field_doc(&mut fast_field_writers,
+                                     *FIELD,
+                                     5_000_000_000_000_000_000u64 + i);
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -194,10 +199,12 @@ mod tests {
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
-                assert_eq!(fast_field_reader.get(doc), 5_000_000_000_000_000_000u64 + doc as u64 - 1u64);
+                assert_eq!(fast_field_reader.get(doc),
+                           5_000_000_000_000_000_000u64 + doc as u64 - 1u64);
             }
         }
     }
@@ -229,7 +236,8 @@ mod tests {
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: I64FastFieldReader = fast_field_readers.open_reader(i64_field).unwrap();
+            let fast_field_reader: I64FastFieldReader =
+                fast_field_readers.open_reader(i64_field).unwrap();
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
@@ -255,11 +263,12 @@ mod tests {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        
+
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: I64FastFieldReader = fast_field_readers.open_reader(i64_field).unwrap();
+            let fast_field_reader: I64FastFieldReader =
+                fast_field_readers.open_reader(i64_field).unwrap();
             assert_eq!(fast_field_reader.get(0u32), 0i64);
         }
     }
@@ -291,10 +300,14 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             let mut a = 0u64;
             for _ in 0..n {
-                println!("i {}=> {} {}", a, fast_field_reader.get(a as u32), permutation[a as usize]);
+                println!("i {}=> {} {}",
+                         a,
+                         fast_field_reader.get(a as u32),
+                         permutation[a as usize]);
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
                 a = fast_field_reader.get(a as u32);
             }
@@ -305,26 +318,26 @@ mod tests {
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-            let n = test::black_box(7000u32);
-            let mut a = 0u64;
-            for i in (0u32..n).step_by(7) {
-                a ^= permutation[i as usize];
-            }
-            a
-        });
+                   let n = test::black_box(7000u32);
+                   let mut a = 0u64;
+                   for i in (0u32..n).step_by(7) {
+                       a ^= permutation[i as usize];
+                   }
+                   a
+               });
     }
 
     #[bench]
     fn bench_intfastfield_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-            let n = test::black_box(1000u32);
-            let mut a = 0u64;
-            for _ in 0u32..n {
-                a = permutation[a as usize];
-            }
-            a
-        });
+                   let n = test::black_box(1000u32);
+                   let mut a = 0u64;
+                   for _ in 0u32..n {
+                       a = permutation[a as usize];
+                   }
+                   a
+               });
     }
 
     #[bench]
@@ -345,15 +358,16 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             b.iter(|| {
-                let n = test::black_box(7000u32);
-                let mut a = 0u64;
-                for i in (0u32..n).step_by(7) {
-                    a ^= fast_field_reader.get(i);
-                }
-                a
-            });
+                       let n = test::black_box(7000u32);
+                       let mut a = 0u64;
+                       for i in (0u32..n).step_by(7) {
+                           a ^= fast_field_reader.get(i);
+                       }
+                       a
+                   });
         }
     }
 
@@ -375,15 +389,16 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
-            let fast_field_reader: U64FastFieldReader = fast_field_readers.open_reader(*FIELD).unwrap();
+            let fast_field_reader: U64FastFieldReader =
+                fast_field_readers.open_reader(*FIELD).unwrap();
             b.iter(|| {
-                let n = test::black_box(1000u32);
-                let mut a = 0u32;
-                for _ in 0u32..n {
-                    a = fast_field_reader.get(a) as u32;
-                }
-                a
-            });
+                       let n = test::black_box(1000u32);
+                       let mut a = 0u32;
+                       for _ in 0u32..n {
+                           a = fast_field_reader.get(a) as u32;
+                       }
+                       a
+                   });
         }
     }
 }

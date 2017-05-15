@@ -8,31 +8,30 @@ use std::io;
 use std::marker::Sync;
 
 /// Write-once read many (WORM) abstraction for where
-/// tantivy's data should be stored. 
+/// tantivy's data should be stored.
 ///
 /// There are currently two implementations of `Directory`
-/// 
+///
 /// - The [`MMapDirectory`](struct.MmapDirectory.html), this
-/// should be your default choice. 
-/// - The [`RAMDirectory`](struct.RAMDirectory.html), which 
+/// should be your default choice.
+/// - The [`RAMDirectory`](struct.RAMDirectory.html), which
 /// should be used mostly for tests.
-/// 
+///
 pub trait Directory: fmt::Debug + Send + Sync + 'static {
-
     /// Opens a virtual file for read.
-    /// 
+    ///
     /// Once a virtual file is open, its data may not
     /// change.
     ///
     /// Specifically, subsequent writes or flushes should
-    /// have no effect on the returned `ReadOnlySource` object. 
+    /// have no effect on the returned `ReadOnlySource` object.
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
 
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual
     /// existing ReadOnlySource pointing to it.
-    /// 
+    ///
     /// Removing a nonexistent file, yields a
     /// `DeleteError::DoesNotExist`.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError>;
@@ -40,18 +39,18 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     /// Returns true iff the file exists
     fn exists(&self, path: &Path) -> bool;
 
-    /// Opens a writer for the *virtual file* associated with 
+    /// Opens a writer for the *virtual file* associated with
     /// a Path.
     ///
     /// Right after this call, the file should be created
-    /// and any subsequent call to `open_read` for the 
+    /// and any subsequent call to `open_read` for the
     /// same path should return a `ReadOnlySource`.
-    /// 
+    ///
     /// Write operations may be aggressively buffered.
     /// The client of this trait is responsible for calling flush
-    /// to ensure that subsequent `read` operations 
+    /// to ensure that subsequent `read` operations
     /// will take into account preceding `write` operations.
-    /// 
+    ///
     /// Flush operation should also be persistent.
     ///
     /// The user shall not rely on `Drop` triggering `flush`.
@@ -60,7 +59,7 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     ///
     /// The file may not previously exist.
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
-    
+
     /// Reads the full content file that has been written using
     /// atomic_write.
     ///
@@ -68,17 +67,13 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
 
     /// Atomically replace the content of a file with data.
-    /// 
+    ///
     /// This calls ensure that reads can never *observe*
     /// a partially written file.
-    /// 
+    ///
     /// The file may or may not previously exist.
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
-        
-    /// Clones the directory and boxes the clone 
+
+    /// Clones the directory and boxes the clone
     fn box_clone(&self) -> Box<Directory>;
-
 }
-
-
-

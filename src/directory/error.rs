@@ -4,7 +4,7 @@ use std::io;
 /// Error that may occur when opening a directory
 #[derive(Debug)]
 pub enum OpenDirectoryError {
-    /// The underlying directory does not exists. 
+    /// The underlying directory does not exists.
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
     NotADirectory(PathBuf),
@@ -14,9 +14,9 @@ pub enum OpenDirectoryError {
 #[derive(Debug)]
 pub enum OpenWriteError {
     /// Our directory is WORM, writing an existing file is forbidden.
-    /// Checkout the `Directory` documentation. 
+    /// Checkout the `Directory` documentation.
     FileAlreadyExists(PathBuf),
-    /// Any kind of IO error that happens when 
+    /// Any kind of IO error that happens when
     /// writing in the underlying IO device.
     IOError(io::Error),
 }
@@ -32,7 +32,7 @@ impl From<io::Error> for OpenWriteError {
 pub enum OpenReadError {
     /// The file does not exists.
     FileDoesNotExist(PathBuf),
-    /// Any kind of IO error that happens when 
+    /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     IOError(io::Error),
 }
@@ -43,10 +43,10 @@ pub enum OpenReadError {
 pub enum DeleteError {
     /// The file does not exists.
     FileDoesNotExist(PathBuf),
-    /// Any kind of IO error that happens when 
+    /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     IOError(io::Error),
-    /// The file may not be deleted because it is 
+    /// The file may not be deleted because it is
     /// protected.
     FileProtected(PathBuf),
 }

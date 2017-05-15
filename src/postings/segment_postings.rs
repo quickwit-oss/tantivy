@@ -27,15 +27,20 @@ impl<'a> SegmentPostings<'a> {
     fn load_next_block(&mut self) {
         let num_remaining_docs = self.len - self.cur.0;
         if num_remaining_docs >= NUM_DOCS_PER_BLOCK {
-            self.remaining_data = self.block_decoder
-                .uncompress_block_sorted(self.remaining_data, self.doc_offset);
+            self.remaining_data =
+                self.block_decoder
+                    .uncompress_block_sorted(self.remaining_data, self.doc_offset);
             self.remaining_data = self.freq_handler.read_freq_block(self.remaining_data);
             self.doc_offset = self.block_decoder.output(NUM_DOCS_PER_BLOCK - 1);
             self.block_len = NUM_DOCS_PER_BLOCK;
         } else {
-            self.remaining_data = self.block_decoder
-                .uncompress_vint_sorted(self.remaining_data, self.doc_offset, num_remaining_docs);
-            self.freq_handler.read_freq_vint(self.remaining_data, num_remaining_docs);
+            self.remaining_data =
+                self.block_decoder
+                    .uncompress_vint_sorted(self.remaining_data,
+                                            self.doc_offset,
+                                            num_remaining_docs);
+            self.freq_handler
+                .read_freq_vint(self.remaining_data, num_remaining_docs);
             self.block_len = num_remaining_docs;
         }
     }
@@ -49,7 +54,8 @@ impl<'a> SegmentPostings<'a> {
     pub fn from_data(len: u32,
                      data: &'a [u8],
                      delete_bitset: &'a DeleteBitSet,
-                     freq_handler: FreqHandler) -> SegmentPostings<'a> {
+                     freq_handler: FreqHandler)
+                     -> SegmentPostings<'a> {
         SegmentPostings {
             len: len as usize,
             block_len: len as usize,

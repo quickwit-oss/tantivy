@@ -63,7 +63,7 @@ mod tests {
         let term = Term::from_field_text(text_field, "abc");
         posting_serializer.new_term(&term).unwrap();
         for doc_id in 0u32..3u32 {
-            let positions = vec!(1,2,3,2);
+            let positions = vec![1, 2, 3, 2];
             posting_serializer.write_doc(doc_id, 2, &positions).unwrap();
         }
         posting_serializer.close_term().unwrap();
@@ -81,7 +81,8 @@ mod tests {
         let segment = index.new_segment();
         let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema)
+                .unwrap();
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "a b a c a d a a.");
@@ -120,7 +121,7 @@ mod tests {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.get(1), 2);
-                for i in 2 .. 1000 {
+                for i in 2..1000 {
                     assert_eq!(fieldnorm_reader.get(i), (i + 1) as u64);
                 }
             }
@@ -139,7 +140,7 @@ mod tests {
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 1u32);
                 assert_eq!(postings_a.term_freq(), 1);
-                for i in 2u32 .. 1000u32 {
+                for i in 2u32..1000u32 {
                     assert!(postings_a.advance());
                     assert_eq!(postings_a.term_freq(), 1);
                     assert_eq!(postings_a.positions(), [i]);
@@ -151,7 +152,7 @@ mod tests {
                 let term_e = Term::from_field_text(text_field, "e");
                 let mut postings_e = segment_reader.read_postings_all_info(&term_e).unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
-                for i in 2u32 .. 1000u32 {
+                for i in 2u32..1000u32 {
                     assert!(postings_e.advance());
                     assert_eq!(postings_e.term_freq(), i);
                     let positions = postings_e.positions();
@@ -187,7 +188,8 @@ mod tests {
             assert!(index_writer.commit().is_ok());
         }
         index.load_searchers().unwrap();
-        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"), SegmentPostingsOption::NoFreq);
+        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"),
+                                        SegmentPostingsOption::NoFreq);
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
         term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
@@ -201,9 +203,9 @@ mod tests {
     #[test]
     fn test_intersection() {
         {
-            let left = VecPostings::from(vec!(1, 3, 9));
-            let right = VecPostings::from(vec!(3, 4, 9, 18));
-            let mut intersection = IntersectionDocSet::from(vec!(left, right));
+            let left = VecPostings::from(vec![1, 3, 9]);
+            let right = VecPostings::from(vec![3, 4, 9, 18]);
+            let mut intersection = IntersectionDocSet::from(vec![left, right]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
             assert!(intersection.advance());
@@ -211,10 +213,10 @@ mod tests {
             assert!(!intersection.advance());
         }
         {
-            let a = VecPostings::from(vec!(1, 3, 9));
-            let b = VecPostings::from(vec!(3, 4, 9, 18));
-            let c = VecPostings::from(vec!(1, 5, 9, 111));
-            let mut intersection = IntersectionDocSet::from(vec!(a, b, c));
+            let a = VecPostings::from(vec![1, 3, 9]);
+            let b = VecPostings::from(vec![3, 4, 9, 18]);
+            let c = VecPostings::from(vec![1, 5, 9, 111]);
+            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.advance());
@@ -274,9 +276,11 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
 
         b.iter(|| {
-            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            while segment_postings.advance() {}
-        });
+                   let mut segment_postings = segment_reader
+                       .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                       .unwrap();
+                   while segment_postings.advance() {}
+               });
     }
 
     #[bench]
@@ -284,9 +288,14 @@ mod tests {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
-            let segment_postings_a = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            let segment_postings_b = segment_reader.read_postings(&*TERM_B, SegmentPostingsOption::NoFreq).unwrap();
-            let mut intersection = IntersectionDocSet::from(vec!(segment_postings_a, segment_postings_b));
+            let segment_postings_a = segment_reader
+                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let segment_postings_b = segment_reader
+                .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let mut intersection = IntersectionDocSet::from(vec![segment_postings_a,
+                                                                 segment_postings_b]);
             while intersection.advance() {}
         });
     }
@@ -296,7 +305,9 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let docs = tests::sample(segment_reader.num_docs(), p);
 
-        let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+        let mut segment_postings = segment_reader
+            .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+            .unwrap();
         let mut existing_docs = Vec::new();
         for doc in &docs {
             if *doc >= segment_postings.doc() {
@@ -308,7 +319,9 @@ mod tests {
         }
 
         b.iter(|| {
-            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            let mut segment_postings = segment_reader
+                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .unwrap();
             for doc in &existing_docs {
                 if segment_postings.skip_next(*doc) == SkipResult::End {
                     break;

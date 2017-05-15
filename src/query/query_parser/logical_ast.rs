@@ -9,9 +9,9 @@ pub enum LogicalLiteral {
 }
 
 #[derive(Clone)]
-pub enum LogicalAST{
+pub enum LogicalAST {
     Clause(Vec<(Occur, LogicalAST)>),
-    Leaf(Box<LogicalLiteral>)  
+    Leaf(Box<LogicalLiteral>),
 }
 
 fn occur_letter(occur: Occur) -> &'static str {
@@ -28,8 +28,7 @@ impl fmt::Debug for LogicalAST {
             LogicalAST::Clause(ref clause) => {
                 if clause.is_empty() {
                     try!(write!(formatter, "<emptyclause>"));
-                }
-                else {
+                } else {
                     let (ref occur, ref subquery) = clause[0];
                     try!(write!(formatter, "({}{:?}", occur_letter(*occur), subquery));
                     for &(ref occur, ref subquery) in &clause[1..] {
@@ -39,9 +38,7 @@ impl fmt::Debug for LogicalAST {
                 }
                 Ok(())
             }
-            LogicalAST::Leaf(ref literal) => {
-                write!(formatter, "{:?}", literal)
-            }
+            LogicalAST::Leaf(ref literal) => write!(formatter, "{:?}", literal),
         }
     }
 }
@@ -55,12 +52,8 @@ impl From<LogicalLiteral> for LogicalAST {
 impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            LogicalLiteral::Term(ref term) => {
-                write!(formatter, "{:?}", term)
-            },
-            LogicalLiteral::Phrase(ref terms) => {
-                write!(formatter, "\"{:?}\"", terms)
-            }
+            LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
+            LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),
         }
     }
 }

@@ -1,13 +1,13 @@
 use super::*;
-use itertools::Itertools;    
+use itertools::Itertools;
 
 /// Tantivy's Document is the object that can
-/// be indexed and then searched for.  
-/// 
+/// be indexed and then searched for.
+///
 /// Documents are fundamentally a collection of unordered couple `(field, value)`.
 /// In this list, one field may appear more than once.
-/// 
-/// 
+///
+///
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
@@ -30,25 +30,24 @@ impl PartialEq for Document {
 impl Eq for Document {}
 
 impl Document {
-    
     /// Creates a new, empty document object
     pub fn new() -> Document {
         Document::default()
     }
 
     /// Returns the number of `(field, value)` pairs.
-    pub fn len(&self,) -> usize {
+    pub fn len(&self) -> usize {
         self.field_values.len()
     }
-        
+
     /// Returns true iff the document contains no fields.
-    pub fn is_empty(&self,) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.field_values.is_empty()
     }
-    
+
     /// Add a text field.
     pub fn add_text(&mut self, field: Field, text: &str) {
-        let value = Value::Str(String::from(text)); 
+        let value = Value::Str(String::from(text));
         self.add(FieldValue::new(field, value));
     }
 
@@ -66,29 +65,27 @@ impl Document {
     pub fn add(&mut self, field_value: FieldValue) {
         self.field_values.push(field_value);
     }
-    
+
     /// field_values accessor
     pub fn field_values(&self) -> &[FieldValue] {
         &self.field_values
     }
-    
+
     /// Sort and groups the field_values by field.
     ///
-    /// The result of this method is not cached and is 
+    /// The result of this method is not cached and is
     /// computed on the fly when this method is called.
     pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&FieldValue>)> {
-         let mut field_values:  Vec<&FieldValue> = self.field_values().iter().collect();
-         field_values.sort_by_key(|field_value| field_value.field());
-         field_values
+        let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
+        field_values.sort_by_key(|field_value| field_value.field());
+        field_values
             .into_iter()
             .group_by(|field_value| field_value.field())
             .into_iter()
-            .map(|(key, group)| {
-                (key, group.into_iter().collect())
-            })
+            .map(|(key, group)| (key, group.into_iter().collect()))
             .collect::<Vec<(Field, Vec<&FieldValue>)>>()
     }
-    
+
     /// Returns all of the `FieldValue`s associated the given field
     pub fn get_all(&self, field: Field) -> Vec<&Value> {
         self.field_values
@@ -110,9 +107,7 @@ impl Document {
 
 impl From<Vec<FieldValue>> for Document {
     fn from(field_values: Vec<FieldValue>) -> Document {
-        Document {
-            field_values: field_values
-        }
+        Document { field_values: field_values }
     }
 }
 
@@ -121,7 +116,7 @@ impl From<Vec<FieldValue>> for Document {
 mod tests {
 
     use schema::*;
-    
+
     #[test]
     fn test_doc() {
         let mut schema_builder = SchemaBuilder::default();
@@ -130,5 +125,5 @@ mod tests {
         doc.add_text(text_field, "My title");
         assert_eq!(doc.field_values().len(), 1);
     }
-    
+
 }

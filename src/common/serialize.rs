@@ -6,7 +6,7 @@ use std::io::Read;
 use std::io;
 use common::VInt;
 
-pub trait BinarySerializable : fmt::Debug + Sized {
+pub trait BinarySerializable: fmt::Debug + Sized {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize>;
     fn deserialize(reader: &mut Read) -> io::Result<Self>;
 }
@@ -45,14 +45,13 @@ impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for
         Ok(try!(self.0.serialize(write)) + try!(self.1.serialize(write)))
     }
     fn deserialize(reader: &mut Read) -> io::Result<Self> {
-        Ok( (try!(Left::deserialize(reader)), try!(Right::deserialize(reader))) )
+        Ok((try!(Left::deserialize(reader)), try!(Right::deserialize(reader))))
     }
 }
 
 impl BinarySerializable for u32 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u32::<Endianness>(*self)
-              .map(|_| 4)
+        writer.write_u32::<Endianness>(*self).map(|_| 4)
     }
 
     fn deserialize(reader: &mut Read) -> io::Result<u32> {
@@ -63,8 +62,7 @@ impl BinarySerializable for u32 {
 
 impl BinarySerializable for u64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_u64::<Endianness>(*self)
-              .map(|_| 8)
+        writer.write_u64::<Endianness>(*self).map(|_| 8)
     }
     fn deserialize(reader: &mut Read) -> io::Result<u64> {
         reader.read_u64::<Endianness>()
@@ -73,8 +71,7 @@ impl BinarySerializable for u64 {
 
 impl BinarySerializable for i64 {
     fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-        writer.write_i64::<Endianness>(*self)
-              .map(|_| 8)
+        writer.write_i64::<Endianness>(*self).map(|_| 8)
     }
     fn deserialize(reader: &mut Read) -> io::Result<i64> {
         reader.read_i64::<Endianness>()
@@ -104,7 +101,9 @@ impl BinarySerializable for String {
     fn deserialize(reader: &mut Read) -> io::Result<String> {
         let string_length = try!(VInt::deserialize(reader)).val() as usize;
         let mut result = String::with_capacity(string_length);
-        try!(reader.take(string_length as u64).read_to_string(&mut result));
+        try!(reader
+                 .take(string_length as u64)
+                 .read_to_string(&mut result));
         Ok(result)
     }
 }
@@ -122,8 +121,7 @@ mod test {
         if num_bytes != 0 {
             assert_eq!(v.serialize(&mut buffer).unwrap(), num_bytes);
             assert_eq!(buffer.len(), num_bytes);
-        }
-        else {
+        } else {
             v.serialize(&mut buffer).unwrap();
         }
         let mut cursor = &buffer[..];
@@ -147,15 +145,15 @@ mod test {
     #[test]
     fn test_serialize_string() {
         serialize_test(String::from(""), 1);
-        serialize_test(String::from("ぽよぽよ"), 1 + 3*4);
-        serialize_test(String::from("富士さん見える。"), 1 + 3*8);
+        serialize_test(String::from("ぽよぽよ"), 1 + 3 * 4);
+        serialize_test(String::from("富士さん見える。"), 1 + 3 * 8);
     }
 
     #[test]
     fn test_serialize_vec() {
         let v: Vec<u8> = Vec::new();
         serialize_test(v, 1);
-        serialize_test(vec!(1u32, 3u32), 1 + 4*2);
+        serialize_test(vec![1u32, 3u32], 1 + 4 * 2);
     }
 
     #[test]
