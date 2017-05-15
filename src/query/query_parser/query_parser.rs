@@ -92,10 +92,10 @@ impl QueryParser {
             analyzer: box SimpleTokenizer,
         }
     }
-    
+
     /// Set the default way to compose queries to a conjunction.
     ///
-    /// By default a , 
+    /// By default a ,
     pub fn set_conjunction_by_default(&mut self) {
         self.conjunction_by_default = true;
     }
@@ -114,11 +114,11 @@ impl QueryParser {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
     }
-    
+
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
-        let (user_input_ast, _remaining) =
-            parse_to_ast(query).map_err(|_| QueryParserError::SyntaxError)?;
+        let (user_input_ast, _remaining) = parse_to_ast(query)
+            .map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -127,10 +127,10 @@ impl QueryParser {
             .get_field(field_name)
             .ok_or_else(|| QueryParserError::FieldDoesNotExist(String::from(field_name)))
     }
-    
+
     fn compute_logical_ast(&self,
-                               user_input_ast: UserInputAST)
-                               -> Result<LogicalAST, QueryParserError> {
+                           user_input_ast: UserInputAST)
+                           -> Result<LogicalAST, QueryParserError> {
         let (occur, ast) = self.compute_logical_ast_with_occur(user_input_ast)?;
         if occur == Occur::MustNot {
             return Err(QueryParserError::AllButQueryForbidden);
@@ -172,21 +172,19 @@ impl QueryParser {
                             break;
                         }
                     }
-                }
-                else {
+                } else {
                     terms.push(Term::from_field_text(field, phrase));
                 }
                 if terms.is_empty() {
                     return Ok(None);
-                }
-                else if terms.len() == 1 {
-                    return Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap())))
+                } else if terms.len() == 1 {
+                    return Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap())));
                 } else {
-                    return Ok(Some(LogicalLiteral::Phrase(terms)))
+                    return Ok(Some(LogicalLiteral::Phrase(terms)));
                 }
             }
         }
-        
+
     }
 
     fn default_occur(&self) -> Occur {
@@ -198,8 +196,8 @@ impl QueryParser {
     }
 
     fn compute_logical_ast_with_occur(&self,
-                                        user_input_ast: UserInputAST)
-                                        -> Result<(Occur, LogicalAST), QueryParserError> {
+                                      user_input_ast: UserInputAST)
+                                      -> Result<(Occur, LogicalAST), QueryParserError> {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
@@ -244,17 +242,14 @@ impl QueryParser {
                         asts.push(LogicalAST::Leaf(box ast));
                     }
                 }
-                let result_ast =
-                    if asts.len() == 0 {
-                        // this should never happen
-                        return Err(QueryParserError::SyntaxError); 
-                    } else if asts.len() == 1 {
-                        asts[0].clone()
-                    } else {
-                        LogicalAST::Clause(asts.into_iter()
-                            .map(|ast| (Occur::Should, ast))
-                            .collect())
-                    };
+                let result_ast = if asts.len() == 0 {
+                    // this should never happen
+                    return Err(QueryParserError::SyntaxError);
+                } else if asts.len() == 1 {
+                    asts[0].clone()
+                } else {
+                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
+                };
                 Ok((Occur::Should, result_ast))
             }
         }
@@ -292,7 +287,8 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
 fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
     match logical_ast {
         LogicalAST::Clause(clause) => {
-            let occur_subqueries = clause.into_iter()
+            let occur_subqueries = clause
+                .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
                 .collect::<Vec<_>>();
             box BooleanQuery::from(occur_subqueries)
@@ -311,7 +307,7 @@ mod test {
     use super::QueryParser;
     use super::QueryParserError;
     use super::super::logical_ast::*;
-    
+
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
         let title = schema_builder.add_text_field("title", TEXT);
@@ -331,7 +327,7 @@ mod test {
     fn parse_query_to_logical_ast(query: &str,
                                   default_conjunction: bool)
                                   -> Result<LogicalAST, QueryParserError> {
-        let mut query_parser = make_query_parser();                       
+        let mut query_parser = make_query_parser();
         if default_conjunction {
             query_parser.set_conjunction_by_default();
         }
@@ -345,40 +341,33 @@ mod test {
         let query_str = format!("{:?}", query);
         assert_eq!(query_str, expected);
     }
-    
-    
+
+
     #[test]
     pub fn test_parse_query_simple() {
         let query_parser = make_query_parser();
-        assert!(query_parser.parse_query("toto").is_ok()); 
+        assert!(query_parser.parse_query("toto").is_ok());
     }
 
     #[test]
     pub fn test_parse_nonindexed_field_yields_error() {
         let query_parser = make_query_parser();
-        
+
         let is_not_indexed_err = |query: &str| {
             let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);
             if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
                 Some(field_name.clone())
-            }
-            else {
+            } else {
                 None
             }
         };
 
-        assert_eq!(
-            is_not_indexed_err("notindexed_text:titi"),
-            Some(String::from("notindexed_text"))
-        );
-        assert_eq!(
-            is_not_indexed_err("notindexed_u64:23424"),
-            Some(String::from("notindexed_u64"))
-        );
-        assert_eq!(
-            is_not_indexed_err("notindexed_i64:-234324"),
-            Some(String::from("notindexed_i64"))
-        );
+        assert_eq!(is_not_indexed_err("notindexed_text:titi"),
+                   Some(String::from("notindexed_text")));
+        assert_eq!(is_not_indexed_err("notindexed_u64:23424"),
+                   Some(String::from("notindexed_u64")));
+        assert_eq!(is_not_indexed_err("notindexed_i64:-234324"),
+                   Some(String::from("notindexed_i64")));
     }
 
 
@@ -392,25 +381,32 @@ mod test {
     #[test]
     pub fn test_parse_query_ints() {
         let query_parser = make_query_parser();
-        assert!(query_parser.parse_query("signed:2324").is_ok()); 
-        assert!(query_parser.parse_query("signed:\"22\"").is_ok()); 
+        assert!(query_parser.parse_query("signed:2324").is_ok());
+        assert!(query_parser.parse_query("signed:\"22\"").is_ok());
         assert!(query_parser.parse_query("signed:\"-2234\"").is_ok());
-        assert!(query_parser.parse_query("signed:\"-9999999999999\"").is_ok());
+        assert!(query_parser
+                    .parse_query("signed:\"-9999999999999\"")
+                    .is_ok());
         assert!(query_parser.parse_query("signed:\"a\"").is_err());
         assert!(query_parser.parse_query("signed:\"2a\"").is_err());
-        assert!(query_parser.parse_query("signed:\"18446744073709551615\"").is_err());
+        assert!(query_parser
+                    .parse_query("signed:\"18446744073709551615\"")
+                    .is_err());
         assert!(query_parser.parse_query("unsigned:\"2\"").is_ok());
         assert!(query_parser.parse_query("unsigned:\"-2\"").is_err());
-        assert!(query_parser.parse_query("unsigned:\"18446744073709551615\"").is_ok());
+        assert!(query_parser
+                    .parse_query("unsigned:\"18446744073709551615\"")
+                    .is_ok());
         test_parse_query_to_logical_ast_helper("unsigned:2324",
                                                "Term([0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 9, 20])",
                                                false);
 
         test_parse_query_to_logical_ast_helper("signed:-2324",
-                                               &format!("{:?}", Term::from_field_i64(Field(2u32), -2324)),
+                                               &format!("{:?}",
+                                                       Term::from_field_i64(Field(2u32), -2324)),
                                                false);
     }
-    
+
 
     #[test]
     pub fn test_parse_query_to_ast_disjunction() {
@@ -424,7 +420,9 @@ mod test {
                                                "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) -(Term([0, 0, 0, 0, 116, \
                                                 105, 116, 105]) Term([0, 0, 0, 1, 116, 105, 116, 105])))",
                                                false);
-        assert_eq!(parse_query_to_logical_ast("-title:toto", false).err().unwrap(),
+        assert_eq!(parse_query_to_logical_ast("-title:toto", false)
+                       .err()
+                       .unwrap(),
                    QueryParserError::AllButQueryForbidden);
         test_parse_query_to_logical_ast_helper("title:a b",
                                                "(Term([0, 0, 0, 0, 97]) (Term([0, 0, 0, 0, 98]) Term([0, 0, 0, 1, 98])))",
@@ -436,7 +434,9 @@ mod test {
 
     #[test]
     pub fn test_parse_query_to_ast_conjunction() {
-        test_parse_query_to_logical_ast_helper("title:toto", "Term([0, 0, 0, 0, 116, 111, 116, 111])", true);
+        test_parse_query_to_logical_ast_helper("title:toto",
+                                               "Term([0, 0, 0, 0, 116, 111, 116, 111])",
+                                               true);
         test_parse_query_to_logical_ast_helper("+title:toto",
                                                "Term([0, 0, 0, 0, 116, 111, 116, 111])",
                                                true);
@@ -444,7 +444,9 @@ mod test {
                                                "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) -(Term([0, 0, 0, 0, 116, \
                                                 105, 116, 105]) Term([0, 0, 0, 1, 116, 105, 116, 105])))",
                                                true);
-        assert_eq!(parse_query_to_logical_ast("-title:toto", true).err().unwrap(),
+        assert_eq!(parse_query_to_logical_ast("-title:toto", true)
+                       .err()
+                       .unwrap(),
                    QueryParserError::AllButQueryForbidden);
         test_parse_query_to_logical_ast_helper("title:a b",
                                                "(+Term([0, 0, 0, 0, 97]) +(Term([0, 0, 0, 0, 98]) Term([0, 0, 0, 1, 98])))",

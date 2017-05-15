@@ -9,10 +9,10 @@ use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
-/// 
-/// It consists of 
-/// - a field name 
-/// - a field type, itself wrapping up options describing 
+///
+/// It consists of
+/// - a field name
+/// - a field type, itself wrapping up options describing
 /// how the field should be indexed.
 #[derive(Clone, Debug)]
 pub struct FieldEntry {
@@ -21,7 +21,6 @@ pub struct FieldEntry {
 }
 
 impl FieldEntry {
-    
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
@@ -30,7 +29,7 @@ impl FieldEntry {
             field_type: FieldType::Str(field_type),
         }
     }
-    
+
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
@@ -39,7 +38,7 @@ impl FieldEntry {
             field_type: FieldType::U64(field_type),
         }
     }
-    
+
     /// Creates a new i64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
@@ -48,48 +47,42 @@ impl FieldEntry {
             field_type: FieldType::I64(field_type),
         }
     }
-    
+
 
     /// Returns the name of the field
-    pub fn name(&self,) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
-        
+
     /// Returns the field type
-    pub fn field_type(&self,) -> &FieldType {
+    pub fn field_type(&self) -> &FieldType {
         &self.field_type
     }
-    
+
     /// Returns true iff the field is indexed
-    pub fn is_indexed(&self,) -> bool {
+    pub fn is_indexed(&self) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
             FieldType::U64(ref options) => options.is_indexed(),
             FieldType::I64(ref options) => options.is_indexed(),
         }
     }
-    
+
     /// Returns true iff the field is a int (signed or unsigned) fast field
-    pub fn is_int_fast(&self,) -> bool {
+    pub fn is_int_fast(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options) => options.is_fast(),
             FieldType::I64(ref options) => options.is_fast(),
             _ => false,
         }
     }
-    
+
     /// Returns true iff the field is stored
-    pub fn is_stored(&self,) -> bool {
+    pub fn is_stored(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) => {
-                options.is_stored()
-            }
-            FieldType::I64(ref options) =>  {
-                options.is_stored()
-            }
-            FieldType::Str(ref options) => {
-                options.is_stored()
-            }
+            FieldType::U64(ref options) => options.is_stored(),
+            FieldType::I64(ref options) => options.is_stored(),
+            FieldType::Str(ref options) => options.is_stored(),
         }
     }
 }
@@ -105,17 +98,17 @@ impl Serialize for FieldEntry {
             FieldType::Str(ref options) => {
                 s.serialize_field("type", "text")?;
                 s.serialize_field("options", options)?;
-            },
+            }
             FieldType::U64(ref options) => {
                 s.serialize_field("type", "u64")?;
                 s.serialize_field("options", options)?;
-            },
+            }
             FieldType::I64(ref options) => {
                 s.serialize_field("type", "i64")?;
                 s.serialize_field("options", options)?;
             }
         }
-        
+
         s.end()
     }
 }
@@ -126,7 +119,11 @@ impl<'de> Deserialize<'de> for FieldEntry {
     {
         #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field { Name, Type, Options };
+        enum Field {
+            Name,
+            Type,
+            Options,
+        };
 
         const FIELDS: &'static [&'static str] = &["name", "type", "options"];
 
@@ -161,13 +158,24 @@ impl<'de> Deserialize<'de> for FieldEntry {
                         }
                         Field::Options => {
                             match ty {
-                                None => return Err(de::Error::custom("The `type` field must be specified before `options`")),
+                                None => {
+                                    return Err(de::Error::custom("The `type` field must be specified before `options`",),)
+                                }
                                 Some(ty) => {
                                     match ty {
-                                        "text" => field_type = Some(FieldType::Str(map.next_value()?)),
-                                        "u64" => field_type = Some(FieldType::U64(map.next_value()?)),
-                                        "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
-                                        _ => return Err(de::Error::custom(format!("Unrecognised type {}", ty)))
+                                        "text" => {
+                                            field_type = Some(FieldType::Str(map.next_value()?))
+                                        }
+                                        "u64" => {
+                                            field_type = Some(FieldType::U64(map.next_value()?))
+                                        }
+                                        "i64" => {
+                                            field_type = Some(FieldType::I64(map.next_value()?))
+                                        }
+                                        _ => {
+                                            return Err(de::Error::custom(format!("Unrecognised type {}",
+                                                                                 ty)))
+                                        }
                                     }
                                 }
                             }
@@ -177,12 +185,13 @@ impl<'de> Deserialize<'de> for FieldEntry {
 
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
                 ty.ok_or_else(|| de::Error::missing_field("ty"))?;
-                let field_type = field_type.ok_or_else(|| de::Error::missing_field("options"))?;
+                let field_type = field_type
+                    .ok_or_else(|| de::Error::missing_field("options"))?;
 
                 Ok(FieldEntry {
-                    name: name,
-                    field_type: field_type,
-                })
+                       name: name,
+                       field_type: field_type,
+                   })
             }
         }
 
@@ -197,7 +206,7 @@ mod tests {
     use super::*;
     use schema::TEXT;
     use serde_json;
-    
+
     #[test]
     fn test_json_serialization() {
         let field_value = FieldEntry::new_text(String::from("title"), TEXT);
@@ -217,10 +226,10 @@ mod tests {
         let field_value: FieldEntry = serde_json::from_str(expected).unwrap();
 
         assert_eq!("title", field_value.name);
-        
+
         match field_value.field_type {
             FieldType::Str(_) => assert!(true),
-            _ => panic!("expected FieldType::Str")
+            _ => panic!("expected FieldType::Str"),
         }
     }
 }

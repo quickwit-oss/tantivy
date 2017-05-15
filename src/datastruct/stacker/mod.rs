@@ -17,12 +17,12 @@ fn test_unrolled_linked_list() {
         let mut ks: Vec<usize> = (1..5).map(|k| k * 100).collect();
         ks.push(2);
         ks.push(3);
-        for k in (1..5).map(|k| k * 100) {        
+        for k in (1..5).map(|k| k * 100) {
             let mut hashmap: HashMap<ExpUnrolledLinkedList> = HashMap::new(10, &heap);
             for j in 0..k {
                 for i in 0..500 {
                     let mut list = hashmap.get_or_create(i.to_string());
-                    list.push(i*j, &heap);
+                    list.push(i * j, &heap);
                 }
             }
             for i in 0..500 {
@@ -31,7 +31,7 @@ fn test_unrolled_linked_list() {
                         let v: &mut ExpUnrolledLinkedList = heap.get_mut_ref(addr);
                         let mut it = v.iter(addr, &heap);
                         for j in 0..k {
-                            assert_eq!(it.next().unwrap(), i*j);
+                            assert_eq!(it.next().unwrap(), i * j);
                         }
                         assert!(!it.next().is_some());
                     }
@@ -41,6 +41,6 @@ fn test_unrolled_linked_list() {
                 }
             }
         }
-        
+
     }
 }

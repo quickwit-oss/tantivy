@@ -22,7 +22,7 @@ pub trait PostingsWriter {
     /// * heap - heap used to store the postings informations as well as the terms
     /// in the hashmap.
     fn suscribe(&mut self, doc: DocId, pos: u32, term: &Term, heap: &Heap);
-    
+
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()>;
@@ -115,9 +115,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     }
 
     fn serialize(&self, serializer: &mut PostingsSerializer, heap: &Heap) -> io::Result<()> {
-        let mut term_offsets: Vec<(&[u8], (u32, &Rec))> = self.term_index
-            .iter()
-            .collect();
+        let mut term_offsets: Vec<(&[u8], (u32, &Rec))> = self.term_index.iter().collect();
         term_offsets.sort_by_key(|&(k, _v)| k);
         let mut term = unsafe { Term::with_capacity(100) };
         for (term_bytes, (addr, recorder)) in term_offsets {

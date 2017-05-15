@@ -37,8 +37,6 @@ pub struct SchemaBuilder {
 
 
 impl SchemaBuilder {
-    
-
     /// Create a new `SchemaBuilder`
     pub fn new() -> SchemaBuilder {
         SchemaBuilder::default()
@@ -49,15 +47,12 @@ impl SchemaBuilder {
     ///
     /// # Caution
     ///
-    /// Appending two fields with the same name 
-    /// will result in the shadowing of the first 
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
     /// by the second one.
-    /// The first field will get a field id 
-    /// but only the second one will be indexed  
-    pub fn add_u64_field(
-            &mut self,
-            field_name_str: &str, 
-            field_options: IntOptions) -> Field {
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_u64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_u64(field_name, field_options);
         self.add_field(field_entry)
@@ -68,15 +63,12 @@ impl SchemaBuilder {
     ///
     /// # Caution
     ///
-    /// Appending two fields with the same name 
-    /// will result in the shadowing of the first 
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
     /// by the second one.
-    /// The first field will get a field id 
+    /// The first field will get a field id
     /// but only the second one will be indexed
-     pub fn add_i64_field(
-            &mut self,
-            field_name_str: &str, 
-            field_options: IntOptions) -> Field {
+    pub fn add_i64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_i64(field_name, field_options);
         self.add_field(field_entry)
@@ -87,21 +79,18 @@ impl SchemaBuilder {
     ///
     /// # Caution
     ///
-    /// Appending two fields with the same name 
-    /// will result in the shadowing of the first 
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
     /// by the second one.
-    /// The first field will get a field id 
-    /// but only the second one will be indexed  
-    pub fn add_text_field(
-            &mut self,
-            field_name_str: &str, 
-            field_options: TextOptions) -> Field {
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_text_field(&mut self, field_name_str: &str, field_options: TextOptions) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_text(field_name, field_options);
         self.add_field(field_entry)
     }
-    
-    
+
+
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);
@@ -110,15 +99,15 @@ impl SchemaBuilder {
         self.fields_map.insert(field_name, field);
         field
     }
-    
-    
+
+
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
-    pub fn build(self,) -> Schema {
+    pub fn build(self) -> Schema {
         Schema(Arc::new(InnerSchema {
-            fields: self.fields,
-            fields_map: self.fields_map,
-        }))
+                            fields: self.fields,
+                            fields_map: self.fields_map,
+                        }))
     }
 }
 
@@ -135,7 +124,7 @@ impl Default for SchemaBuilder {
 #[derive(Debug)]
 struct InnerSchema {
     fields: Vec<FieldEntry>,
-    fields_map: HashMap<String, Field>,  // transient
+    fields_map: HashMap<String, Field>, // transient
 }
 
 
@@ -164,22 +153,21 @@ struct InnerSchema {
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {
-        
     /// Return the `FieldEntry` associated to a `Field`.
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
         &self.0.fields[field.0 as usize]
     }
-    
+
     /// Return the field name for a given `Field`.
     pub fn get_field_name(&self, field: Field) -> &str {
         self.get_field_entry(field).name()
     }
-    
+
     /// Return the list of all the `Field`s.
-    pub fn fields(&self,) -> &[FieldEntry] {
+    pub fn fields(&self) -> &[FieldEntry] {
         &self.0.fields
     }
-    
+
     /// Returns the field options associated with a given name.
     ///
     /// # Panics
@@ -192,7 +180,7 @@ impl Schema {
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
         self.0.fields_map.get(field_name).cloned()
     }
-    
+
     /// Create a named document off the doc.
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
@@ -200,34 +188,33 @@ impl Schema {
             let field_name = self.get_field_name(field);
             let values: Vec<Value> = field_values
                 .into_iter()
-                .map(|field_val| field_val.value() )
+                .map(|field_val| field_val.value())
                 .cloned()
                 .collect();
             field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
     }
-    
-    
-    /// Encode the schema in JSON. 
+
+
+    /// Encode the schema in JSON.
     ///
     /// Encoding a document cannot fail.
     pub fn to_json(&self, doc: &Document) -> String {
         serde_json::to_string(&self.to_named_doc(doc)).expect("doc encoding failed. This is a bug")
     }
 
-    /// Build a document object from a json-object. 
+    /// Build a document object from a json-object.
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|_| {
-            let doc_json_sample: String =
-                if doc_json.len() < 20 {
-                    String::from(doc_json)
-                }
-                else {
-                    format!("{:?}...", &doc_json[0..20])
-                };
-            DocParsingError::NotJSON(doc_json_sample)
-        })?;
+        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json)
+            .map_err(|_| {
+                         let doc_json_sample: String = if doc_json.len() < 20 {
+                             String::from(doc_json)
+                         } else {
+                             format!("{:?}...", &doc_json[0..20])
+                         };
+                         DocParsingError::NotJSON(doc_json_sample)
+                     })?;
 
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
@@ -238,31 +225,29 @@ impl Schema {
                     match *json_value {
                         JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
-                                let value = try!(
-                                    field_type
-                                     .value_from_json(&json_item)
-                                     .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
-                                );
+                                let value = try!(field_type
+                                                     .value_from_json(&json_item)
+                                                     .map_err(|e| {
+                                    DocParsingError::ValueError(field_name.clone(), e)
+                                }));
                                 doc.add(FieldValue::new(field, value));
                             }
                         }
                         _ => {
-                            let value = try!(
-                                field_type
-                                 .value_from_json(&json_value)
-                                 .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))
-                            );
+                            let value = try!(field_type
+                                                 .value_from_json(&json_value)
+                                                 .map_err(|e| {
+                                DocParsingError::ValueError(field_name.clone(), e)
+                            }));
                             doc.add(FieldValue::new(field, value));
                         }
-                        
+
                     }
                 }
-                None => {
-                    return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone()))
-                }
+                None => return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone())),
             }
         }
-        Ok(doc)    
+        Ok(doc)
     }
 }
 
@@ -284,15 +269,13 @@ impl Serialize for Schema {
     }
 }
 
-impl<'de> Deserialize<'de> for Schema
-{
+impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
     {
         struct SchemaVisitor;
 
-        impl<'de> Visitor<'de> for SchemaVisitor
-        {
+        impl<'de> Visitor<'de> for SchemaVisitor {
             type Value = Schema;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -314,7 +297,7 @@ impl<'de> Deserialize<'de> for Schema
                 Ok(schema.build())
             }
         }
-        
+
         deserializer.deserialize_map(SchemaVisitor)
     }
 }
@@ -330,7 +313,7 @@ impl From<SchemaBuilder> for Schema {
 
 
 
-/// Error that may happen when deserializing 
+/// Error that may happen when deserializing
 /// a document from JSON.
 #[derive(Debug)]
 pub enum DocParsingError {
@@ -338,24 +321,24 @@ pub enum DocParsingError {
     NotJSON(String),
     /// One of the value node could not be parsed.
     ValueError(String, ValueParsingError),
-    /// The json-document contains a field that is not declared in the schema. 
+    /// The json-document contains a field that is not declared in the schema.
     NoSuchFieldInSchema(String),
 }
 
 
 #[cfg(test)]
 mod tests {
-    
+
     use schema::*;
     use serde_json;
     use schema::field_type::ValueParsingError;
     use schema::schema::DocParsingError::NotJSON;
-        
+
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast(); 
-        let popularity_options = IntOptions::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast();
+        let popularity_options = IntOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -400,8 +383,8 @@ mod tests {
 ]"#;
         println!("{}", schema_json);
         println!("{}", expected);
-        assert_eq!(schema_json, expected);        
-        
+        assert_eq!(schema_json, expected);
+
         let schema: Schema = serde_json::from_str(expected).unwrap();
 
         let mut fields = schema.fields().iter();
@@ -413,11 +396,11 @@ mod tests {
     }
 
 
-    
+
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast();
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -432,11 +415,11 @@ mod tests {
         let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }
-    
+
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast(); 
+        let count_options = IntOptions::default().set_stored().set_fast();
         let popularity_options = IntOptions::default().set_stored().set_fast();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
@@ -448,12 +431,14 @@ mod tests {
             assert!(doc.field_values().is_empty());
         }
         {
-            let doc = schema.parse_document(r#"{
+            let doc = schema
+                .parse_document(r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10
-            }"#).unwrap();
+            }"#)
+                .unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), "my title");
             assert_eq!(doc.get_first(author_field).unwrap().text(), "fulmicoton");
             assert_eq!(doc.get_first(count_field).unwrap().u64_value(), 4);
@@ -535,7 +520,7 @@ mod tests {
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
-                },
+                }
                 _ => {
                     panic!("expected 9223372036854775808 to overflow i64, but it didn't");
                 }
@@ -550,7 +535,7 @@ mod tests {
             match json_err {
                 Err(NotJSON(_)) => {
                     assert!(true);
-                },
+                }
                 _ => {
                     panic!("expected invalid JSON to fail parsing, but it didn't");
                 }

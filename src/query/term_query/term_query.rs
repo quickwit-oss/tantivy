@@ -13,7 +13,7 @@ use std::any::Any;
 /// The score associated is defined as
 /// `idf` *  sqrt(`term_freq` / `field norm`)
 /// in which :
-/// * idf        - inverse document frequency. 
+/// * idf        - inverse document frequency.
 /// * term_freq  - number of occurrences of the term in the field
 /// * field norm - number of tokens in the field.
 #[derive(Debug)]
@@ -31,9 +31,9 @@ impl TermQuery {
         }
     }
 
-    
+
     /// Returns a weight object.
-    /// 
+    ///
     /// While `.weight(...)` returns a boxed trait object,
     /// this method return a specific implementation.
     /// This is useful for optimization purpose.
@@ -55,5 +55,4 @@ impl Query for TermQuery {
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         Ok(box self.specialized_weight(searcher))
     }
-    
 }

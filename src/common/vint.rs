@@ -5,12 +5,12 @@ use std::io::Read;
 
 
 
-///   Wrapper over a `u64` that serializes as a variable int. 
+///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 
 impl VInt {
-    pub fn val(&self,) -> u64 {
+    pub fn val(&self) -> u64 {
         self.0
     }
 }
@@ -27,8 +27,7 @@ impl BinarySerializable for VInt {
                 buffer[written] = next_byte | 128u8;
                 written += 1;
                 break;
-            }
-            else {
+            } else {
                 buffer[written] = next_byte;
                 written += 1;
             }
@@ -50,12 +49,9 @@ impl BinarySerializable for VInt {
                     }
                     shift += 7;
                 }
-                _ => {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "Reach end of buffer"))
-                }
+                _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Reach end of buffer")),
             }
         }
         Ok(VInt(result))
     }
 }
-

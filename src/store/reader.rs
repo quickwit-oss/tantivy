@@ -34,14 +34,14 @@ impl StoreReader {
             let total_buffer = self.data.as_slice();
             let mut cursor = &total_buffer[block_offset..];
             let block_length = u32::deserialize(&mut cursor).unwrap();
-            let block_array: &[u8] =
-                &total_buffer[(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
+            let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..
+                                      (block_offset + 4 + block_length as usize)];
             let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
             *self.current_block_offset.borrow_mut() = usize::max_value();
             try!(lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ()));
             *self.current_block_offset.borrow_mut() = block_offset;
         }
-        Ok(()) 
+        Ok(())
     }
 
     pub fn get(&self, doc_id: DocId) -> Result<Document> {

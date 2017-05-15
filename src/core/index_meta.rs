@@ -2,9 +2,9 @@ use schema::Schema;
 use core::SegmentMeta;
 
 /// Meta information about the `Index`.
-/// 
+///
 /// This object is serialized on disk in the `meta.json` file.
-/// It keeps information about 
+/// It keeps information about
 /// * the searchable segments,
 /// * the index docstamp
 /// * the schema
@@ -19,7 +19,7 @@ pub struct IndexMeta {
 impl IndexMeta {
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
-            segments: vec!(),
+            segments: vec![],
             schema: schema,
             opstamp: 0u64,
         }

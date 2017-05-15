@@ -10,7 +10,7 @@ pub struct OpenTimer<'a> {
 impl<'a> OpenTimer<'a> {
     /// Starts timing a new named subtask
     ///
-    /// The timer is stopped automatically 
+    /// The timer is stopped automatically
     /// when the `OpenTimer` is dropped.
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
@@ -23,12 +23,17 @@ impl<'a> OpenTimer<'a> {
 }
 
 impl<'a> Drop for OpenTimer<'a> {
-    fn drop(&mut self,) {
-        self.timer_tree.timings.push(Timing     {
-            name: self.name,
-            duration: self.start.to(PreciseTime::now()).num_microseconds().unwrap(),
-            depth: self.depth,
-        });
+    fn drop(&mut self) {
+        self.timer_tree
+            .timings
+            .push(Timing {
+                      name: self.name,
+                      duration: self.start
+                          .to(PreciseTime::now())
+                          .num_microseconds()
+                          .unwrap(),
+                      depth: self.depth,
+                  });
     }
 }
 
@@ -47,12 +52,11 @@ pub struct TimerTree {
 }
 
 impl TimerTree {
-        
-    /// Returns the total time elapsed in microseconds 
-    pub fn total_time(&self,) -> i64 {
+    /// Returns the total time elapsed in microseconds
+    pub fn total_time(&self) -> i64 {
         self.timings.last().unwrap().duration
     }
-    
+
     /// Open a new named subtask
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
@@ -66,9 +70,7 @@ impl TimerTree {
 
 impl Default for TimerTree {
     fn default() -> TimerTree {
-        TimerTree {
-            timings: Vec::new(),
-        }
+        TimerTree { timings: Vec::new() }
     }
 }
 

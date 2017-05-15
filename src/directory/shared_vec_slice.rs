@@ -4,12 +4,11 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct SharedVecSlice {
     pub data: Arc<Vec<u8>>,
-    pub start: usize, 
-    pub len: usize
+    pub start: usize,
+    pub len: usize,
 }
 
 impl SharedVecSlice {
-
     pub fn empty() -> SharedVecSlice {
         SharedVecSlice::new(Arc::new(Vec::new()))
     }
@@ -23,11 +22,11 @@ impl SharedVecSlice {
         }
     }
 
-    pub fn as_slice(&self,) -> &[u8] {
+    pub fn as_slice(&self) -> &[u8] {
         &self.data[self.start..self.start + self.len]
     }
 
-    pub fn slice(&self, from_offset: usize, to_offset:usize) -> SharedVecSlice {
+    pub fn slice(&self, from_offset: usize, to_offset: usize) -> SharedVecSlice {
         SharedVecSlice {
             data: self.data.clone(),
             start: self.start + from_offset,

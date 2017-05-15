@@ -26,8 +26,8 @@ impl fmt::Debug for Segment {
 }
 
 /// Creates a new segment given an `Index` and a `SegmentId`
-/// 
-/// The function is here to make it private outside `tantivy`. 
+///
+/// The function is here to make it private outside `tantivy`.
 pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
     Segment {
         index: index,
@@ -36,9 +36,8 @@ pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
 }
 
 impl Segment {
-    
     /// Returns our index's schema.
-    pub fn schema(&self,) -> Schema {
+    pub fn schema(&self) -> Schema {
         self.index.schema()
     }
 
@@ -53,13 +52,13 @@ impl Segment {
     }
 
     /// Returns the segment's id.
-    pub fn id(&self,) -> SegmentId {
+    pub fn id(&self) -> SegmentId {
         self.meta.id()
     }
 
     /// Returns the relative path of a component of our segment.
-    ///  
-    /// It just joins the segment id with the extension 
+    ///
+    /// It just joins the segment id with the extension
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.meta.relative_path(component)
@@ -77,14 +76,18 @@ impl Segment {
     }
 
     /// Open one of the component file for a *regular* read.
-    pub fn open_read(&self, component: SegmentComponent) -> result::Result<ReadOnlySource, OpenReadError> {
+    pub fn open_read(&self,
+                     component: SegmentComponent)
+                     -> result::Result<ReadOnlySource, OpenReadError> {
         let path = self.relative_path(component);
         let source = try!(self.index.directory().open_read(&path));
         Ok(source)
     }
 
     /// Open one of the component file for *regular* write.
-    pub fn open_write(&mut self, component: SegmentComponent) -> result::Result<WritePtr, OpenWriteError> {
+    pub fn open_write(&mut self,
+                      component: SegmentComponent)
+                      -> result::Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
         let write = try!(self.index.directory_mut().open_write(&path));
         Ok(write)
@@ -114,10 +117,10 @@ mod tests {
         let mut index = Index::create_in_ram(SchemaBuilder::new().build());
         let segment = index.new_segment();
         let path = segment.relative_path(SegmentComponent::POSTINGS);
-        
+
         let directory = index.directory_mut();
-        directory.atomic_write(&*path, &vec!(0u8)).unwrap();
-        
+        directory.atomic_write(&*path, &vec![0u8]).unwrap();
+
         let living_files = HashSet::new();
         {
             let _file_protection = segment.protect_from_delete(SegmentComponent::POSTINGS);

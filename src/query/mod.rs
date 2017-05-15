@@ -1,5 +1,5 @@
 /// Query module
-/// 
+///
 /// The query module regroups all of tantivy's query objects
 ///
 

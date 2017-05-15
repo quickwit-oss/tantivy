@@ -11,7 +11,7 @@ pub enum Value {
     /// Unsigned 64-bits Integer `u64`
     U64(u64),
     /// Signed 64-bits Integer `i64`
-    I64(i64)
+    I64(i64),
 }
 
 impl Serialize for Value {
@@ -26,15 +26,13 @@ impl Serialize for Value {
     }
 }
 
-impl<'de> Deserialize<'de> for Value
-{
+impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
     {
         struct ValueVisitor;
 
-        impl<'de> Visitor<'de> for ValueVisitor
-        {
+        impl<'de> Visitor<'de> for ValueVisitor {
             type Value = Value;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -57,7 +55,7 @@ impl<'de> Deserialize<'de> for Value
                 Ok(Value::Str(v))
             }
         }
-        
+
         deserializer.deserialize_any(ValueVisitor)
     }
 }
@@ -66,45 +64,33 @@ impl Value {
     /// Returns the text value, provided the value is of the `Str` type.
     ///
     /// # Panics
-    /// If the value is not of type `Str` 
+    /// If the value is not of type `Str`
     pub fn text(&self) -> &str {
         match *self {
-            Value::Str(ref text) => {
-               text
-            }
-            _ => {
-                panic!("This is not a text field.")
-            }
+            Value::Str(ref text) => text,
+            _ => panic!("This is not a text field."),
         }
     }
-    
+
     /// Returns the u64-value, provided the value is of the `U64` type.
     ///
     /// # Panics
-    /// If the value is not of type `U64` 
+    /// If the value is not of type `U64`
     pub fn u64_value(&self) -> u64 {
         match *self {
-            Value::U64(ref value) => {
-               *value
-            }
-            _ => {
-                panic!("This is not a text field.")
-            }
+            Value::U64(ref value) => *value,
+            _ => panic!("This is not a text field."),
         }
     }
 
     /// Returns the i64-value, provided the value is of the `I64` type.
     ///
     /// # Panics
-    /// If the value is not of type `I64` 
+    /// If the value is not of type `I64`
     pub fn i64_value(&self) -> i64 {
         match *self {
-            Value::I64(ref value) => {
-               *value
-            }
-            _ => {
-                panic!("This is not a text field.")
-            }
+            Value::I64(ref value) => *value,
+            _ => panic!("This is not a text field."),
         }
     }
 }
@@ -150,15 +136,15 @@ mod binary_serialize {
                 Value::Str(ref text) => {
                     written_size += try!(TEXT_CODE.serialize(writer));
                     written_size += try!(text.serialize(writer));
-                },
+                }
                 Value::U64(ref val) => {
                     written_size += try!(U64_CODE.serialize(writer));
                     written_size += try!(val.serialize(writer));
-                },            
+                }            
                 Value::I64(ref val) => {
                     written_size += try!(I64_CODE.serialize(writer));
                     written_size += try!(val.serialize(writer));
-                },            
+                }            
             }
             Ok(written_size)
         }
@@ -178,9 +164,11 @@ mod binary_serialize {
                     Ok(Value::I64(value))
                 }
                 _ => {
-                    Err(io::Error::new(io::ErrorKind::InvalidData, format!("No field type is associated with code {:?}", type_code)))
+                    Err(io::Error::new(io::ErrorKind::InvalidData,
+                                       format!("No field type is associated with code {:?}",
+                                               type_code)))
                 }
-            }      
+            }
         }
     }
 }

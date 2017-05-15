@@ -8,11 +8,11 @@ use std::fmt;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SegmentState {
     Ready,
-    InMerge,        
+    InMerge,
 }
 
 impl SegmentState {
-    pub fn letter_code(&self,) -> char {
+    pub fn letter_code(&self) -> char {
         match *self {
             SegmentState::InMerge => 'M',
             SegmentState::Ready => 'R',
@@ -21,12 +21,12 @@ impl SegmentState {
 }
 
 
-/// A segment entry describes the state of 
+/// A segment entry describes the state of
 /// a given segment, at a given instant.
 ///
 /// In addition to segment meta,
 /// it contains a few transient states
-/// - state expresses whether the segment is already in the 
+/// - state expresses whether the segment is already in the
 /// middle of a merge
 /// - delete_bitset is a bitset describing
 /// documents that were deleted during the commit
@@ -40,16 +40,14 @@ pub struct SegmentEntry {
     state: SegmentState,
     delete_bitset: Option<BitSet>,
     delete_cursor: DeleteCursor,
-
 }
 
 impl SegmentEntry {
-
-
     /// Create a new `SegmentEntry`
-    pub fn new(segment_meta: SegmentMeta, 
+    pub fn new(segment_meta: SegmentMeta,
                delete_cursor: DeleteCursor,
-               delete_bitset: Option<BitSet>) -> SegmentEntry {
+               delete_bitset: Option<BitSet>)
+               -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             state: SegmentState::Ready,
@@ -62,7 +60,7 @@ impl SegmentEntry {
     /// Return a reference to the segment entry deleted bitset.
     ///
     /// `DocId` in this bitset are flagged as deleted.
-    pub fn delete_bitset(&self,) -> Option<&BitSet> {
+    pub fn delete_bitset(&self) -> Option<&BitSet> {
         self.delete_bitset.as_ref()
     }
 
@@ -77,7 +75,7 @@ impl SegmentEntry {
         &mut self.delete_cursor
     }
 
-    /// Return the `SegmentEntry`. 
+    /// Return the `SegmentEntry`.
     ///
     /// The state describes whether the segment is available for
     /// a merge or not.
@@ -89,7 +87,7 @@ impl SegmentEntry {
     pub fn segment_id(&self) -> SegmentId {
         self.meta.id()
     }
-    
+
 
     /// Accessor to the `SegmentMeta`
     pub fn meta(&self) -> &SegmentMeta {
@@ -99,9 +97,9 @@ impl SegmentEntry {
 
     /// Mark the `SegmentEntry` as in merge.
     ///
-    /// Only segments that are not already 
+    /// Only segments that are not already
     /// in a merge are elligible for future merge.
-    pub fn start_merge(&mut self,) {
+    pub fn start_merge(&mut self) {
         self.state = SegmentState::InMerge;
     }
 
@@ -110,14 +108,14 @@ impl SegmentEntry {
     /// If a merge fails, it is important to switch
     /// the segment back to a idle state, so that it
     /// may be elligible for future merges.
-    pub fn cancel_merge(&mut self,) {
+    pub fn cancel_merge(&mut self) {
         self.state = SegmentState::Ready;
     }
 
 
     /// Returns true iff a segment should
     /// be considered for a merge.
-    pub fn is_ready(&self,) -> bool {
+    pub fn is_ready(&self) -> bool {
         self.state == SegmentState::Ready
     }
 }

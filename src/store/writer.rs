@@ -67,7 +67,8 @@ impl StoreWriter {
             try!(self.write_and_compress_block());
         }
         let header_offset: u64 = self.written;
-        try!(self.offset_index_writer.write::<Box<Write>>(&mut self.writer));
+        try!(self.offset_index_writer
+                 .write::<Box<Write>>(&mut self.writer));
         try!(header_offset.serialize(&mut self.writer));
         try!(self.doc.serialize(&mut self.writer));
         self.writer.flush()

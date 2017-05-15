@@ -75,22 +75,22 @@ impl PostingsSerializer {
                -> Result<PostingsSerializer> {
         let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
         Ok(PostingsSerializer {
-            terms_fst_builder: terms_fst_builder,
-            postings_write: postings_write,
-            positions_write: positions_write,
-            written_bytes_postings: 0,
-            written_bytes_positions: 0,
-            last_doc_id_encoded: 0u32,
-            positions_encoder: CompositeEncoder::new(),
-            block_encoder: BlockEncoder::new(),
-            doc_ids: Vec::new(),
-            term_freqs: Vec::new(),
-            position_deltas: Vec::new(),
-            schema: schema,
-            text_indexing_options: TextIndexingOptions::Unindexed,
-            term_open: false,
-            current_term_info: TermInfo::default(),
-        })
+               terms_fst_builder: terms_fst_builder,
+               postings_write: postings_write,
+               positions_write: positions_write,
+               written_bytes_postings: 0,
+               written_bytes_positions: 0,
+               last_doc_id_encoded: 0u32,
+               positions_encoder: CompositeEncoder::new(),
+               block_encoder: BlockEncoder::new(),
+               doc_ids: Vec::new(),
+               term_freqs: Vec::new(),
+               position_deltas: Vec::new(),
+               schema: schema,
+               text_indexing_options: TextIndexingOptions::Unindexed,
+               term_open: false,
+               current_term_info: TermInfo::default(),
+           })
     }
 
 
@@ -155,7 +155,8 @@ impl PostingsSerializer {
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
 
-            self.terms_fst_builder.insert_value(&self.current_term_info)?;
+            self.terms_fst_builder
+                .insert_value(&self.current_term_info)?;
 
             if !self.doc_ids.is_empty() {
                 // we have doc ids waiting to be written
@@ -165,8 +166,9 @@ impl PostingsSerializer {
                 // In that case, the remaining part is encoded
                 // using variable int encoding.
                 {
-                    let block_encoded = self.block_encoder
-                        .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                    let block_encoded =
+                        self.block_encoder
+                            .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
                     self.written_bytes_postings += block_encoded.len();
                     try!(self.postings_write.write_all(block_encoded));
                     self.doc_ids.clear();
@@ -186,7 +188,7 @@ impl PostingsSerializer {
             // end of the term, at which point they are compressed and written.
             if self.text_indexing_options.is_position_enabled() {
                 self.written_bytes_positions += try!(VInt(self.position_deltas.len() as u64)
-                    .serialize(&mut self.positions_write));
+                                                         .serialize(&mut self.positions_write));
                 let positions_encoded: &[u8] = self.positions_encoder
                     .compress_unsorted(&self.position_deltas[..]);
                 try!(self.positions_write.write_all(positions_encoded));
@@ -224,8 +226,9 @@ impl PostingsSerializer {
         if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
             {
                 // encode the doc ids
-                let block_encoded: &[u8] = self.block_encoder
-                    .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                let block_encoded: &[u8] =
+                    self.block_encoder
+                        .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 try!(self.postings_write.write_all(block_encoded));
                 self.written_bytes_postings += block_encoded.len();

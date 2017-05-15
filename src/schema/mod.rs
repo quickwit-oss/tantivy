@@ -93,7 +93,8 @@ u64 that are indexed as fast will be stored in a special data structure that wil
 make it possible to access the u64 value given the doc id rapidly. This is useful if the value of
 the field is required during scoring or collection for instance.
 
-*/ 
+*/
+
 
 mod schema;
 mod term;

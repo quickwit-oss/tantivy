@@ -12,8 +12,7 @@ use Score;
 #[derive(Clone, Copy)]
 struct GlobalScoredDoc {
     score: Score,
-    doc_address: DocAddress
-    
+    doc_address: DocAddress,
 }
 
 impl PartialOrd for GlobalScoredDoc {
@@ -25,10 +24,10 @@ impl PartialOrd for GlobalScoredDoc {
 impl Ord for GlobalScoredDoc {
     #[inline]
     fn cmp(&self, other: &GlobalScoredDoc) -> Ordering {
-        other.score.partial_cmp(&self.score)
-        .unwrap_or(
-            other.doc_address.cmp(&self.doc_address)
-        )
+        other
+            .score
+            .partial_cmp(&self.score)
+            .unwrap_or(other.doc_address.cmp(&self.doc_address))
     }
 }
 
@@ -53,7 +52,6 @@ pub struct TopCollector {
 }
 
 impl TopCollector {
-
     /// Creates a top collector, with a number of documents equal to "limit".
     ///
     /// # Panics
@@ -68,9 +66,9 @@ impl TopCollector {
             segment_id: 0,
         }
     }
-    
+
     /// Returns K best documents sorted in decreasing order.
-    /// 
+    ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn docs(&self) -> Vec<DocAddress> {
@@ -81,30 +79,27 @@ impl TopCollector {
     }
 
     /// Returns K best ScoredDocument sorted in decreasing order.
-    /// 
+    ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
-        let mut scored_docs: Vec<GlobalScoredDoc> = self.heap
-            .iter()
-            .cloned()
-            .collect();
+        let mut scored_docs: Vec<GlobalScoredDoc> = self.heap.iter().cloned().collect();
         scored_docs.sort();
-        scored_docs.into_iter()
-            .map(|GlobalScoredDoc {score, doc_address}| (score, doc_address))
+        scored_docs
+            .into_iter()
+            .map(|GlobalScoredDoc { score, doc_address }| (score, doc_address))
             .collect()
     }
 
     /// Return true iff at least K documents have gone through
     /// the collector.
     #[inline]
-    pub fn at_capacity(&self, ) -> bool {
+    pub fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
     }
 }
 
 impl Collector for TopCollector {
-
     fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         self.segment_id = segment_id;
         Ok(())
@@ -113,17 +108,21 @@ impl Collector for TopCollector {
     fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: GlobalScoredDoc = *self.heap.peek().expect("Top collector with size 0 is forbidden");
+            let limit_doc: GlobalScoredDoc =
+                *self.heap
+                     .peek()
+                     .expect("Top collector with size 0 is forbidden");
             if limit_doc.score < score {
-                let mut mut_head = self.heap.peek_mut().expect("Top collector with size 0 is forbidden");
+                let mut mut_head = self.heap
+                    .peek_mut()
+                    .expect("Top collector with size 0 is forbidden");
                 mut_head.score = score;
-                mut_head.doc_address = DocAddress(self.segment_id, doc);               
+                mut_head.doc_address = DocAddress(self.segment_id, doc);
             }
-        }
-        else {
+        } else {
             let wrapped_doc = GlobalScoredDoc {
                 score: score,
-                doc_address: DocAddress(self.segment_id, doc)
+                doc_address: DocAddress(self.segment_id, doc),
             };
             self.heap.push(wrapped_doc);
         }
@@ -147,13 +146,12 @@ mod tests {
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
         assert!(!top_collector.at_capacity());
-        let score_docs: Vec<(Score, DocId)> = top_collector.score_docs()
+        let score_docs: Vec<(Score, DocId)> = top_collector
+            .score_docs()
             .into_iter()
             .map(|(score, doc_address)| (score, doc_address.doc()))
             .collect();
-        assert_eq!(score_docs, vec!(
-            (0.8, 1), (0.3, 5), (0.2, 3),
-        ));
+        assert_eq!(score_docs, vec![(0.8, 1), (0.3, 5), (0.2, 3)]);
     }
 
     #[test]
@@ -171,9 +169,7 @@ mod tests {
                 .into_iter()
                 .map(|(score, doc_address)| (score, doc_address.doc()))
                 .collect();
-            assert_eq!(score_docs, vec!(
-                (0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)
-            ));
+            assert_eq!(score_docs, vec![(0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)]);
         }
         {
             let docs: Vec<DocId> = top_collector
@@ -181,7 +177,7 @@ mod tests {
                 .into_iter()
                 .map(|doc_address| doc_address.doc())
                 .collect();
-            assert_eq!(docs, vec!(7, 1, 5, 3));
+            assert_eq!(docs, vec![7, 1, 5, 3]);
         }
 
 

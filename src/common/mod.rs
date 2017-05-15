@@ -19,10 +19,10 @@ pub fn make_io_err(msg: String) -> io::Error {
 /// Has length trait
 pub trait HasLen {
     /// Return length
-    fn len(&self,) -> usize;
-    
+    fn len(&self) -> usize;
+
     /// Returns true iff empty.
-    fn is_empty(&self,) -> bool {
+    fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
@@ -32,13 +32,13 @@ const HIGHEST_BIT: u64 = 1 << 63;
 
 /// Maps `i64` to `u64` so that
 /// `-2^63 .. 2^63-1` is mapped
-///     to 
+///     to
 /// `0 .. 2^64`
 /// in that order.
 ///
 /// This is more suited than simply casting (`val as u64`)
 /// because of bitpacking.
-/// 
+///
 /// Imagine a list of `i64` ranging from -10 to 10.
 /// When casting negative values, the negative values are projected
 /// to values over 2^63, and all values end up requiring 64 bits.
@@ -47,7 +47,7 @@ pub fn i64_to_u64(val: i64) -> u64 {
     (val as u64) ^ HIGHEST_BIT
 }
 
-/// Reverse the mapping given by 
+/// Reverse the mapping given by
 /// `i64_to_u64`.
 #[inline(always)]
 pub fn u64_to_i64(val: u64) -> i64 {

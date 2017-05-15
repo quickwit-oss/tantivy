@@ -37,10 +37,11 @@ impl Query for BooleanQuery {
     }
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let sub_weights = try!(self.subqueries
-            .iter()
-            .map(|&(ref _occur, ref subquery)| subquery.weight(searcher))
-            .collect());
+        let sub_weights =
+            try!(self.subqueries
+                     .iter()
+                     .map(|&(ref _occur, ref subquery)| subquery.weight(searcher))
+                     .collect());
         let occurs: Vec<Occur> = self.subqueries
             .iter()
             .map(|&(ref occur, ref _subquery)| *occur)
@@ -54,11 +55,13 @@ impl BooleanQuery {
     /// Helper method to create a boolean query matching a given list of terms.
     /// The resulting query is a disjunction of the terms.
     pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
-        let occur_term_queries: Vec<(Occur, Box<Query>)> = terms.into_iter()
+        let occur_term_queries: Vec<(Occur, Box<Query>)> = terms
+            .into_iter()
             .map(|term| {
-                let term_query: Box<Query> = box TermQuery::new(term, SegmentPostingsOption::Freq);
-                (Occur::Should, term_query)
-            })
+                     let term_query: Box<Query> = box TermQuery::new(term,
+                                                                     SegmentPostingsOption::Freq);
+                     (Occur::Should, term_query)
+                 })
             .collect();
         BooleanQuery::from(occur_term_queries)
     }

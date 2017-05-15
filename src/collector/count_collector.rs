@@ -6,7 +6,7 @@ use SegmentReader;
 use SegmentLocalId;
 
 /// `CountCollector` collector only counts how many
-/// documents match the query.  
+/// documents match the query.
 pub struct CountCollector {
     count: usize,
 }
@@ -14,20 +14,18 @@ pub struct CountCollector {
 impl CountCollector {
     /// Returns the count of documents that were
     /// collected.
-    pub fn count(&self,) -> usize {
+    pub fn count(&self) -> usize {
         self.count
     }
 }
 
 impl Default for CountCollector {
     fn default() -> CountCollector {
-        CountCollector {count: 0,
-        }
+        CountCollector { count: 0 }
     }
 }
 
 impl Collector for CountCollector {
-
     fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         Ok(())
     }
@@ -47,11 +45,11 @@ mod tests {
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-            let mut count_collector = CountCollector::default();
-            for doc in 0..1_000_000 {
-                count_collector.collect(doc, 1f32);
-            }
-            count_collector.count()
-        });
+                   let mut count_collector = CountCollector::default();
+                   for doc in 0..1_000_000 {
+                       count_collector.collect(doc, 1f32);
+                   }
+                   count_collector.count()
+               });
     }
 }

@@ -153,11 +153,10 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self
-            .searchable_segment_metas()?
-            .into_iter()
-            .map(|segment_meta| self.segment(segment_meta))
-            .collect())
+        Ok(self.searchable_segment_metas()?
+               .into_iter()
+               .map(|segment_meta| self.segment(segment_meta))
+               .collect())
     }
 
     #[doc(hidden)]
@@ -186,13 +185,13 @@ impl Index {
     pub fn searchable_segment_metas(&self) -> Result<Vec<SegmentMeta>> {
         Ok(load_metas(self.directory())?.segments)
     }
-    
+
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
         Ok(self.searchable_segment_metas()?
                .iter()
                .map(|segment_meta| segment_meta.id())
-               .collect())          
+               .collect())
     }
 
     /// Creates a new generation of searchers after
@@ -203,9 +202,9 @@ impl Index {
     pub fn load_searchers(&self) -> Result<()> {
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = try!(searchable_segments
-                .into_iter()
-                .map(SegmentReader::open)
-                .collect());
+                                                           .into_iter()
+                                                           .map(SegmentReader::open)
+                                                           .collect());
         let searchers = (0..NUM_SEARCHERS)
             .map(|_| Searcher::from(segment_readers.clone()))
             .collect();

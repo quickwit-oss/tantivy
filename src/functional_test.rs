@@ -18,7 +18,7 @@ fn test_indexing() {
     let mut schema_builder = SchemaBuilder::default();
 
     let id_field = schema_builder.add_u64_field("id", INT_INDEXED);
-    let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);    
+    let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();
@@ -41,14 +41,11 @@ fn test_indexing() {
             let searcher = index.searcher();
             // check that everything is correct.
             check_index_content(&searcher, &committed_docs);
-        }
-        else {
-            if committed_docs.remove(&random_val) ||
-               uncommitted_docs.remove(&random_val) {
+        } else {
+            if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
                 let doc_id_term = Term::from_field_u64(id_field, random_val);
                 index_writer.delete_term(doc_id_term);
-            }
-            else {
+            } else {
                 uncommitted_docs.insert(random_val);
                 let mut doc = Document::new();
                 doc.add_u64(id_field, random_val);
