@@ -140,11 +140,11 @@ mod binary_serialize {
                 Value::U64(ref val) => {
                     written_size += try!(U64_CODE.serialize(writer));
                     written_size += try!(val.serialize(writer));
-                }            
+                }
                 Value::I64(ref val) => {
                     written_size += try!(I64_CODE.serialize(writer));
                     written_size += try!(val.serialize(writer));
-                }            
+                }
             }
             Ok(written_size)
         }

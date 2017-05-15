@@ -122,7 +122,7 @@ impl PostingsSerializer {
                 } else {
                     TextIndexingOptions::Untokenized
                 }
-            } 
+            }
         };
     }
 

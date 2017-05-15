@@ -35,13 +35,14 @@ use super::segment_updater::SegmentUpdater;
 use std::thread;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
-// in the heap goes below MARGIN_IN_BYTES.
+// in the heap goes below `MARGIN_IN_BYTES`.
 pub const MARGIN_IN_BYTES: u32 = 10_000_000u32;
 
 // We impose the memory per thread to be at least 30 MB.
 pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 
-// Add document will block if the number of docs waiting in the queue to be indexed reaches PIPELINE_MAX_SIZE_IN_DOCS
+// Add document will block if the number of docs waiting in the queue to be indexed
+// reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type DocumentSender = chan::Sender<AddOperation>;
@@ -595,7 +596,8 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let index_writer = index.writer(40_000_000).unwrap();
         assert_eq!(format!("{:?}", index_writer.get_merge_policy()),
-                   "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, level_log_size: 0.75 }");
+                   "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
+                    level_log_size: 0.75 }");
         let merge_policy = box NoMergePolicy::default();
         index_writer.set_merge_policy(merge_policy);
         assert_eq!(format!("{:?}", index_writer.get_merge_policy()),

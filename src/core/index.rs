@@ -48,8 +48,11 @@ impl Index {
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
         let ram_directory = RAMDirectory::create();
-        let directory = ManagedDirectory::new(ram_directory).expect("Creating a managed directory from a brand new RAM directory should never fail.");
-        Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail") // unwrap is ok here
+        // unwrap is ok here
+        let directory = ManagedDirectory::new(ram_directory)
+            .expect("Creating a managed directory from a brand new RAM directory \
+                     should never fail.");
+        Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail")
     }
 
     /// Creates a new index in a given filepath.

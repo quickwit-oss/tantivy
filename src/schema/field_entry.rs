@@ -159,7 +159,9 @@ impl<'de> Deserialize<'de> for FieldEntry {
                         Field::Options => {
                             match ty {
                                 None => {
-                                    return Err(de::Error::custom("The `type` field must be specified before `options`",),)
+                                    let msg = "The `type` field must be \
+                                               specified before `options`";
+                                    return Err(de::Error::custom(msg));
                                 }
                                 Some(ty) => {
                                     match ty {
@@ -173,8 +175,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                             field_type = Some(FieldType::I64(map.next_value()?))
                                         }
                                         _ => {
-                                            return Err(de::Error::custom(format!("Unrecognised type {}",
-                                                                                 ty)))
+                                            let msg = format!("Unrecognised type {}", ty);
+                                            return Err(de::Error::custom(msg));
                                         }
                                     }
                                 }

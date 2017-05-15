@@ -10,7 +10,8 @@ use schema::Value;
 pub enum ValueParsingError {
     /// Encounterred a numerical value that overflows or underflow its integer type.
     OverflowError(String),
-    /// The json node is not of the correct type. (e.g. 3 for a `Str` type or `"abc"` for a u64 type)
+    /// The json node is not of the correct type.
+    /// (e.g. 3 for a `Str` type or `"abc"` for a u64 type)
     /// Tantivy will try to autocast values.
     TypeError(String),
 }
@@ -61,28 +62,29 @@ impl FieldType {
                         if let Some(field_val_i64) = field_val_num.as_i64() {
                             Ok(Value::I64(field_val_i64))
                         } else {
-                            Err(ValueParsingError::OverflowError(format!("Expected an i64 int, got {:?}",
-                                                                         json)))
+                            let msg = format!("Expected an i64 int, got {:?}", json);
+                            Err(ValueParsingError::OverflowError(msg))
                         }
                     }
                     FieldType::U64(_) => {
                         if let Some(field_val_u64) = field_val_num.as_u64() {
                             Ok(Value::U64(field_val_u64))
                         } else {
-                            Err(ValueParsingError::OverflowError(format!("Expected an u64 int, got {:?}",
-                                                                         json)))
+                            let msg = format!("Expected a u64 int, got {:?}", json);
+                            Err(ValueParsingError::OverflowError(msg))
                         }
                     }
                     FieldType::Str(_) => {
-                        Err(ValueParsingError::TypeError(format!("Expected a string, got {:?}",
-                                                                 json)))
+                        let msg = format!("Expected a string, got {:?}", json);
+                        Err(ValueParsingError::TypeError(msg))
                     }
                 }
             }
             _ => {
-                Err(ValueParsingError::TypeError(format!("Json value not supported error {:?}. Expected {:?}",
-                                                         json,
-                                                         self)))
+                let msg = format!("Json value not supported error {:?}. Expected {:?}",
+                                  json,
+                                  self);
+                Err(ValueParsingError::TypeError(msg))
             }
         }
     }

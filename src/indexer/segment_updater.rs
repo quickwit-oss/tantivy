@@ -117,9 +117,10 @@ fn perform_merge(segment_ids: &[SegmentId],
             }
             segment_entries.push(segment_entry);
         } else {
-            error!("Error, had to abort merge as some of the segment is not managed anymore.a");
-            return Err(Error::InvalidArgument(format!("Segment {:?} requested for merge is not managed.",
-                                                      segment_id)));
+            error!("Error, had to abort merge as some of the segment is not managed anymore.");
+            let msg = format!("Segment {:?} requested for merge is not managed.",
+                              segment_id);
+            return Err(Error::InvalidArgument(msg));
         }
     }
 
@@ -390,24 +391,30 @@ impl SegmentUpdater {
             if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater.0.index.opstamp();
                 if delete_operation.opstamp < committed_opstamp {
-                    let segment = segment_updater.0.index.segment(after_merge_segment_entry.meta().clone());
-                    match advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp) {
+                    let index = &segment_updater.0.index;
+                    let segment = index.segment(after_merge_segment_entry.meta().clone());
+                    match advance_deletes(segment,
+                                          &mut after_merge_segment_entry,
+                                          committed_opstamp) {
                         Ok(file_protection_opt_res) => {
                             _file_protection_opt = file_protection_opt_res;
                         }
                         Err(e) => {
-                            error!("Merge of {:?} was cancelled (advancing deletes failed): {:?}", before_merge_segment_ids, e);
+                            error!("Merge of {:?} was cancelled (advancing deletes failed): {:?}",
+                                   before_merge_segment_ids, e);
                             // ... cancel merge
                             if cfg!(test) {
                                 panic!("Merge failed.");
                             }
-                            segment_updater.cancel_merge(&before_merge_segment_ids, after_merge_segment_entry.segment_id());
+                            segment_updater.cancel_merge(&before_merge_segment_ids,
+                                                         after_merge_segment_entry.segment_id());
                             return;
                         }
                     }
                 }
             }
-            segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids, after_merge_segment_entry);
+            segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids,
+                                                        after_merge_segment_entry);
             segment_updater.consider_merge_options();
             segment_updater.save_metas(segment_updater.0.index.opstamp());
         }).wait()

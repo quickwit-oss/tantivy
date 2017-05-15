@@ -170,7 +170,7 @@ impl IntFastFieldWriter {
                     _ => panic!("Expected a u64field, got {:?} ", v),
                 }
             }
-            None => self.val_if_missing,            
+            None => self.val_if_missing,
         }
     }
 

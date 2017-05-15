@@ -270,9 +270,12 @@ impl Directory for MmapDirectory {
 
         let mut mmap_cache = self.mmap_cache
             .write()
-            .map_err(|_| OpenReadError::IOError(
-                make_io_err(format!("Failed to acquired write lock on mmap cache while reading {:?}", path))
-            ))?;
+            .map_err(|_| {
+                         let msg = format!("Failed to acquired write lock \
+                                            on mmap cache while reading {:?}",
+                                           path);
+                         OpenReadError::IOError(make_io_err(msg))
+                     })?;
 
         Ok(mmap_cache
                .get_mmap(full_path)?
@@ -290,12 +293,12 @@ impl Directory for MmapDirectory {
             .create_new(true)
             .open(full_path);
 
-        let mut file = try!(open_res.map_err(|err| if err.kind() ==
-                                                      io::ErrorKind::AlreadyExists {
-            OpenWriteError::FileAlreadyExists(PathBuf::from(path))
-        } else {
-                                                 OpenWriteError::IOError(err)
-                                             }));
+        let mut file = open_res
+            .map_err(|err| if err.kind() == io::ErrorKind::AlreadyExists {
+                         OpenWriteError::FileAlreadyExists(PathBuf::from(path))
+                     } else {
+                         OpenWriteError::IOError(err)
+                     })?;
 
         // making sure the file is created.
         try!(file.flush());
@@ -311,11 +314,14 @@ impl Directory for MmapDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
-        let mut mmap_cache = try!(self.mmap_cache
+        let mut mmap_cache = self.mmap_cache
             .write()
-            .map_err(|_| 
-                 DeleteError::IOError(make_io_err(format!("Failed to acquired write lock on mmap cache while deleting {:?}", path))))
-        );
+            .map_err(|_| {
+                         let msg = format!("Failed to acquired write lock \
+                                            on mmap cache while deleting {:?}",
+                                           path);
+                         DeleteError::IOError(make_io_err(msg))
+                     })?;
         // Removing the entry in the MMap cache.
         // The munmap will appear on Drop,
         // when the last reference is gone.

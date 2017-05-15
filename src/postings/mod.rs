@@ -85,8 +85,9 @@ mod tests {
                 .unwrap();
             {
                 let mut doc = Document::default();
+                // checking that position works if the field has two values
                 doc.add_text(text_field, "a b a c a d a a.");
-                doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
+                doc.add_text(text_field, "d d d d a");
                 let op = AddOperation {
                     opstamp: 0u64,
                     document: doc,

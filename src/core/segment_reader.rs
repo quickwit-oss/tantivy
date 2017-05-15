@@ -108,7 +108,8 @@ impl SegmentReader {
     /// Accessor to the segment's `Field norms`'s reader.
     ///
     /// Field norms are the length (in tokens) of the fields.
-    /// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
+    /// It is used in the computation of the [TfIdf]
+    /// (https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
@@ -190,8 +191,9 @@ impl SegmentReader {
     /// the requested options, the returned `SegmentPostings` the method does not fail
     /// and returns a `SegmentPostings` with as much information as possible.
     ///
-    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a `TextIndexingOptions`
-    /// that does not index position will return a `SegmentPostings` with `DocId`s and frequencies.
+    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a
+    /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
+    /// with `DocId`s and frequencies.
     pub fn read_postings(&self,
                          term: &Term,
                          option: SegmentPostingsOption)
@@ -215,8 +217,8 @@ impl SegmentReader {
                     }
                     SegmentPostingsOption::FreqAndPositions => {
                         if indexing_options == TextIndexingOptions::TokenizedWithFreqAndPosition {
-                            let offseted_position_data = &self.positions_data[term_info.positions_offset as
-                                                          usize..];
+                            let offset = term_info.positions_offset as usize;
+                            let offseted_position_data = &self.positions_data[offset..];
                             FreqHandler::new_with_freq_and_position(offseted_position_data)
                         } else if indexing_options.is_termfreq_enabled() {
                             FreqHandler::new_with_freq()

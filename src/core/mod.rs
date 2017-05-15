@@ -27,7 +27,7 @@ lazy_static! {
     /// The meta file contains all the information about the list of segments and the schema
     /// of the index.
     pub static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");
-    
+
     /// The managed file contains a list of files that were created by the tantivy
     /// and will therefore be garbage collected when they are deemed useless by tantivy.
     ///
