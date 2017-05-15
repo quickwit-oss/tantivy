@@ -31,7 +31,6 @@ script:
     travis-cargo bench &&
     travis-cargo doc
   - cargo run --example simple_search
-  - cargo rust 
 after_success:
   - bash ./script/build-doc.sh
   - travis-cargo doc-upload
