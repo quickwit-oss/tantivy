@@ -16,7 +16,7 @@
 
 //! # `tantivy`
 //!
-//! Tantivy is a search engine library. 
+//! Tantivy is a search engine library.
 //! Think `Lucene`, but in Rust.
 //!
 //! A good place for you to get started is to check out
@@ -138,14 +138,14 @@ pub use core::TermIterator;
 /// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
     if cfg!(feature="simdcompression") {
-        concat!(version!(), "-simd")  
+        concat!(version!(), "-simd")
     }
     else {
-        concat!(version!(), "-nosimd") 
+        concat!(version!(), "-nosimd")
     }
 }
 
-/// Tantivy's makes it possible to personalize when 
+/// Tantivy's makes it possible to personalize when
 /// the indexer should merge its segments
 pub mod merge_policy {
     pub use indexer::MergePolicy;
@@ -167,7 +167,7 @@ pub type Score = f32;
 pub type SegmentLocalId = u32;
 
 impl DocAddress {
-    
+
     /// Return the segment ordinal.
     /// The segment ordinal is an id identifying the segment
     /// hosting the document. It is only meaningful, in the context
@@ -175,7 +175,7 @@ impl DocAddress {
     pub fn segment_ord(&self,) -> SegmentLocalId {
         self.0
     }
-        
+
     /// Return the segment local `DocId`
     pub fn doc(&self,) -> DocId {
         self.1
@@ -183,12 +183,12 @@ impl DocAddress {
 }
 
 
-/// `DocAddress` contains all the necessary information 
+/// `DocAddress` contains all the necessary information
 /// to identify a document given a `Searcher` object.
-/// 
-/// It consists in an id identifying its segment, and 
+///
+/// It consists in an id identifying its segment, and
 /// its segment-local `DocId`.
-/// 
+///
 /// The id used for the segment is actually an ordinal
 /// in the list of segment hold by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -208,7 +208,32 @@ mod tests {
     use IndexWriter;
     use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
     use Postings;
+    use rand::{XorShiftRng, Rng, SeedableRng};
 
+    fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        (0..u32::max_value())
+            .filter(|_| rng.next_f32()< ratio)
+            .take(n)
+            .collect()
+    }
+
+    pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
+        generate_array_with_seed(n, ratio, 4)
+    }
+
+    fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        (0..n)
+            .filter(|_| rng.next_f32() < ratio)
+            .collect()
+    }
+
+    pub fn sample(n: u32, ratio: f32) -> Vec<u32> {
+        sample_with_seed(n, ratio, 4)
+    }
 
     #[test]
     fn test_indexing() {
@@ -275,8 +300,8 @@ mod tests {
             assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
-    
-    
+
+
     #[test]
     fn test_fieldnorm() {
         let mut schema_builder = SchemaBuilder::default();
@@ -406,14 +431,14 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            { 
+            {
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc);
             }
-            {   
+            {
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
-            index_writer = index_writer.rollback().unwrap();   
+            index_writer = index_writer.rollback().unwrap();
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
         }
@@ -449,7 +474,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_u64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
-        
+
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         index_writer.add_document(
@@ -470,7 +495,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
-        
+
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         let negative_val = -1i64;
@@ -495,15 +520,15 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        
+
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
-        
+
         let add_document = |index_writer: &mut IndexWriter, val: &'static str| {
             let doc = doc!(text_field=>val);
             index_writer.add_document(doc);
         };
-        
+
         let remove_document = |index_writer: &mut IndexWriter, val: &'static str| {
             let delterm = Term::from_field_text(text_field, val);
             index_writer.delete_term(delterm);
@@ -701,13 +726,13 @@ mod tests {
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
-        
+
         {
             let fast_field_reader_res = segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
-        
+
     }
 }

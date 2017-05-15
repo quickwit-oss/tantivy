@@ -43,18 +43,18 @@ pub trait VIntDecoder {
 }
 
 impl VIntEncoder for BlockEncoder {
-    
+
     fn compress_vint_sorted(&mut self, input: &[u32], offset: u32) -> &[u8] {
         vint::compress_sorted(input, &mut self.output, offset)
     }
-    
+
     fn compress_vint_unsorted(&mut self, input: &[u32]) -> &[u8] {
         vint::compress_unsorted(input, &mut self.output)
     }
 }
 
 impl VIntDecoder for BlockDecoder {
-    
+
     fn uncompress_vint_sorted<'a>(
         &mut self,
         compressed_data: &'a [u8],
@@ -63,14 +63,14 @@ impl VIntDecoder for BlockDecoder {
         self.output_len = num_els;
         vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
     }
-    
+
     fn uncompress_vint_unsorted<'a>(
         &mut self,
         compressed_data: &'a [u8],
         num_els: usize) -> &'a [u8] {
         self.output_len = num_els;
         vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
-    }   
+    }
 }
 
 
@@ -79,24 +79,9 @@ pub const NUM_DOCS_PER_BLOCK: usize = 128; //< should be a power of 2 to let the
 #[cfg(test)]
 pub mod tests {
 
-    use rand::Rng;
-    use rand::SeedableRng;
-    use rand::XorShiftRng;
     use super::*;
+    use tests;
     use test::Bencher;
-    
-    fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0..u32::max_value())
-            .filter(|_| rng.next_f32()< ratio)
-            .take(n)
-            .collect()
-    }
-
-    pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
-        generate_array_with_seed(n, ratio, 4)
-    }
 
     #[test]
     fn test_encode_sorted_block() {
@@ -105,7 +90,7 @@ pub mod tests {
         let compressed_data = encoder.compress_block_sorted(&vals, 0);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 0);    
+            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 0);
             assert_eq!(remaining_data.len(), 0);
         }
         for i in 0..128 {
@@ -120,14 +105,14 @@ pub mod tests {
         let compressed_data = encoder.compress_block_sorted(&vals, 10);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 10);    
+            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 10);
             assert_eq!(remaining_data.len(), 0);
         }
         for i in 0..128 {
             assert_eq!(vals[i], decoder.output(i));
         }
     }
-    
+
     #[test]
     fn test_encode_sorted_block_with_junk() {
         let mut compressed: Vec<u8> = Vec::new();
@@ -139,7 +124,7 @@ pub mod tests {
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);    
+            let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);
             assert_eq!(remaining_data.len(), 1);
             assert_eq!(remaining_data[0], 173u8);
         }
@@ -159,7 +144,7 @@ pub mod tests {
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_unsorted(&compressed);    
+            let remaining_data = decoder.uncompress_block_unsorted(&compressed);
             assert_eq!(remaining_data.len(), 1);
             assert_eq!(remaining_data[0], 173u8);
         }
@@ -167,8 +152,8 @@ pub mod tests {
             assert_eq!(vals[i], decoder.output(i));
         }
     }
-    
-    
+
+
     #[test]
     fn test_encode_vint() {
         {
@@ -193,18 +178,18 @@ pub mod tests {
     #[bench]
     fn bench_compress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        let data = tests::generate_array(NUM_DOCS_PER_BLOCK, 0.1);
         b.iter(|| {
             encoder.compress_block_sorted(&data, 0u32);
         });
     }
-    
+
     #[bench]
     fn bench_uncompress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        let data = tests::generate_array(NUM_DOCS_PER_BLOCK, 0.1);
         let compressed = encoder.compress_block_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new(); 
+        let mut decoder = BlockDecoder::new();
         b.iter(|| {
             decoder.uncompress_block_sorted(compressed, 0u32);
         });
@@ -216,18 +201,18 @@ pub mod tests {
     #[bench]
     fn bench_compress_vint(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
+        let data = tests::generate_array(NUM_INTS_BENCH_VINT, 0.001);
         b.iter(|| {
             encoder.compress_vint_sorted(&data, 0u32);
         });
     }
-    
+
     #[bench]
     fn bench_uncompress_vint(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
+        let data = tests::generate_array(NUM_INTS_BENCH_VINT, 0.001);
         let compressed = encoder.compress_vint_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new(); 
+        let mut decoder = BlockDecoder::new();
         b.iter(|| {
             decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
         });
