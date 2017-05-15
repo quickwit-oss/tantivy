@@ -22,13 +22,16 @@ before_script:
   - |
     pip install 'travis-cargo<0.2' --user &&
     export PATH=$HOME/.local/bin:$PATH
+  - (cargo install rustfmt || true)
 script:
+  - cargo fmt -- --write-mode=diff
   - |
     travis-cargo build &&
     travis-cargo test &&
     travis-cargo bench &&
     travis-cargo doc
   - cargo run --example simple_search
+  - cargo rust 
 after_success:
   - bash ./script/build-doc.sh
   - travis-cargo doc-upload
