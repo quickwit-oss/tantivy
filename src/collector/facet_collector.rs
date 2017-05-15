@@ -92,21 +92,21 @@ mod tests {
     use super::*;
     use collector::FacetCollector;
     use query::QueryParser;
-	use schema::{self, Document};
-	use Index;
+    use schema::{self, Document};
+    use Index;
 
     #[test]
     // create 10 documents, set num field value to 0 or 1 for even/odd ones
     // make sure we have facet counters correctly filled
     fn test_facet_collector_results() {
-		let mut schema_builder = schema::SchemaBuilder::new();
-		let num_field = schema_builder.add_u64_field(
+        let mut schema_builder = schema::SchemaBuilder::new();
+        let num_field = schema_builder.add_u64_field(
             "num",
             schema::IntOptions::default()
                 .set_fast()
                 .set_indexed()
             );
-		let text_field = schema_builder.add_text_field(
+        let text_field = schema_builder.add_text_field(
             "text",
             schema::TextOptions::default()
                 //.set_stored()
@@ -114,19 +114,19 @@ mod tests {
             );
 
         let schema = schema_builder.build();
-		let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema.clone());
 
         {
- 			let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-			{
+             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
                 for i in 1..11 {
-				    let mut doc = Document::default();
-				    doc.add_u64(num_field, i % 2);
-				    doc.add_text(text_field, "text");
-				    index_writer.add_document(doc);
+                    let mut doc = Document::default();
+                    doc.add_u64(num_field, i % 2);
+                    doc.add_text(text_field, "text");
+                    index_writer.add_document(doc);
                 }
-			}
-			assert_eq!(index_writer.commit().unwrap(), 10u64);
+            }
+            assert_eq!(index_writer.commit().unwrap(), 10u64);
         }
 
         index.load_searchers().unwrap();
