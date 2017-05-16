@@ -70,9 +70,7 @@ impl SegmentRegister {
     }
 
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
-        self.segment_states
-            .get(&segment_id)
-            .map(|segment_entry| segment_entry.clone())
+        self.segment_states.get(&segment_id).cloned()
     }
 
     pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
