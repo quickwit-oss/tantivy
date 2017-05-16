@@ -36,7 +36,7 @@ pub use common::HasLen;
 mod tests {
 
     use super::*;
-    use schema::{Document, TEXT, STRING, SchemaBuilder, Term};
+    use schema::{Document, INT_INDEXED, TEXT, STRING, SchemaBuilder, Term};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
@@ -198,6 +198,171 @@ mod tests {
         assert!(term_scorer.advance());
         assert_eq!(term_scorer.doc(), 1u32);
         assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
+    }
+
+    #[test]
+    fn test_skip_next() {
+        let term_0 = Term::from_field_u64(Field(0), 0);
+        let term_1 = Term::from_field_u64(Field(0), 1);
+        let term_2 = Term::from_field_u64(Field(0), 2);
+
+        let num_docs = 300u32;
+
+        let index = {
+            let mut schema_builder = SchemaBuilder::default();
+            let value_field = schema_builder.add_u64_field("value", INT_INDEXED);
+            let schema = schema_builder.build();
+
+            let index = Index::create_in_ram(schema);
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+                for i in 0..num_docs {
+                    let mut doc = Document::default();
+                    doc.add_u64(value_field, 2);
+                    doc.add_u64(value_field, (i % 2) as u64);
+
+                    index_writer.add_document(doc);
+                }
+                assert!(index_writer.commit().is_ok());
+            }
+            index.load_searchers().unwrap();
+
+            index
+        };
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // check that the basic usage works
+        for i in 0..num_docs - 1 {
+            for j in i + 1..num_docs {
+                let mut segment_postings = segment_reader
+                    .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                    .unwrap();
+
+                assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i);
+
+                assert_eq!(segment_postings.skip_next(j), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), j);
+            }
+        }
+
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            // check that `skip_next` advances the iterator
+            assert!(segment_postings.advance());
+            assert_eq!(segment_postings.doc(), 0);
+
+            assert_eq!(segment_postings.skip_next(1), SkipResult::Reached);
+            assert_eq!(segment_postings.doc(), 1);
+
+            assert_eq!(segment_postings.skip_next(1), SkipResult::OverStep);
+            assert_eq!(segment_postings.doc(), 2);
+
+            // check that going beyond the end is handled
+            assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
+        }
+
+        // check that filtering works
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            for i in 0..num_docs / 2 {
+                assert_eq!(segment_postings.skip_next(i * 2), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i * 2);
+            }
+
+            let mut segment_postings = segment_reader
+                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            for i in 0..num_docs / 2 - 1 {
+                assert_eq!(segment_postings.skip_next(i * 2 + 1), SkipResult::OverStep);
+                assert_eq!(segment_postings.doc(), (i + 1) * 2);
+            }
+        }
+
+        // delete some of the documents
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.delete_term(term_0);
+
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // make sure seeking still works
+        for i in 0..num_docs {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            if i % 2 == 0 {
+                assert_eq!(segment_postings.skip_next(i), SkipResult::OverStep);
+                assert_eq!(segment_postings.doc(), i + 1);
+            } else {
+                assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i);
+            }
+        }
+
+        // now try with a longer sequence
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            let mut last = 2; // start from 5 to avoid seeking to 3 twice
+            let mut cur = 3;
+            loop {
+                match segment_postings.skip_next(cur) {
+                    SkipResult::End => break,
+                    SkipResult::Reached => assert_eq!(segment_postings.doc(), cur),
+                    SkipResult::OverStep => assert_eq!(segment_postings.doc(), cur + 1),
+                }
+
+                let next = cur + last;
+                last = cur;
+                cur = next;
+            }
+
+            assert_eq!(cur, 377);
+        }
+
+        // delete everything else
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.delete_term(term_1);
+
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // finally, check that it's empty
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            assert_eq!(segment_postings.skip_next(0), SkipResult::End);
+
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
+        }
     }
 
     #[test]
