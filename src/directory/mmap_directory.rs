@@ -30,7 +30,7 @@ fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadE
         OpenReadError::IOError(err)
     };
     let file = File::open(&full_path).map_err(convert_file_error)?;
-    let meta_data = file.metadata().map_err(|e| OpenReadError::IOError(e))?;
+    let meta_data = file.metadata().map_err(OpenReadError::IOError)?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
         // to mmap the file, so we return an anonymous mmap_cache
@@ -327,7 +327,7 @@ impl Directory for MmapDirectory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => self.sync_directory().map_err(|e| DeleteError::IOError(e)),
+            Ok(_) => self.sync_directory().map_err(DeleteError::IOError),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
                     Err(DeleteError::FileDoesNotExist(path.to_owned()))
@@ -349,7 +349,7 @@ impl Directory for MmapDirectory {
         match File::open(&full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer)
-                    .map_err(|e| OpenReadError::IOError(e))?;
+                    .map_err(OpenReadError::IOError)?;
                 Ok(buffer)
             }
             Err(e) => {
