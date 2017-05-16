@@ -40,8 +40,7 @@ impl DocToOpstampMapping {
         match *self {
             DocToOpstampMapping::WithMap(ref doc_opstamps) => {
                 match doc_opstamps.binary_search(&target_opstamp) {
-                    Ok(doc_id) => doc_id as DocId,
-                    Err(doc_id) => doc_id as DocId,
+                    Ok(doc_id) | Err(doc_id) => doc_id as DocId,
                 }
             }
             DocToOpstampMapping::None => DocId::max_value(),
