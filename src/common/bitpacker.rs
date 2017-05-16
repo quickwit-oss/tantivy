@@ -117,9 +117,8 @@ impl BitUnpacker {
         let addr = (idx * self.num_bits) / 8;
         let bit_shift = idx * self.num_bits - addr * 8;
         let val_unshifted_unmasked: u64;
-        if addr + 8 <= self.data_len {
-            val_unshifted_unmasked =
-                unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) };
+        val_unshifted_unmasked = if addr + 8 <= self.data_len {
+            unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) }
         } else {
             let mut arr = [0u8; 8];
             if addr < self.data_len {
@@ -127,8 +126,8 @@ impl BitUnpacker {
                     arr[i] = unsafe { *self.data_ptr.offset((addr + i) as isize) };
                 }
             }
-            val_unshifted_unmasked = unsafe { mem::transmute::<[u8; 8], u64>(arr) };
-        }
+            unsafe { mem::transmute::<[u8; 8], u64>(arr) }
+        };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & self.mask)
     }
