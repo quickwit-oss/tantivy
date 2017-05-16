@@ -175,13 +175,7 @@ impl FastFieldReader for I64FastFieldReader {
 
     fn is_enabled(field_type: &FieldType) -> bool {
         match field_type {
-            &FieldType::I64(ref integer_options) => {
-                if integer_options.is_fast() {
-                    true
-                } else {
-                    false
-                }
-            }
+            &FieldType::I64(ref integer_options) => integer_options.is_fast(),
             _ => false,
         }
     }
