@@ -19,6 +19,7 @@ pub struct Heap {
     inner: UnsafeCell<InnerHeap>,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
 impl Heap {
     /// Creates a new heap with a given capacity
     pub fn with_capacity(num_bytes: usize) -> Heap {
