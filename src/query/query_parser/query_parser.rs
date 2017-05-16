@@ -273,7 +273,7 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
             } else {
                 Occur::MustNot
             }
-        }  
+        }
     }
 }
 
@@ -374,7 +374,8 @@ mod test {
     #[test]
     pub fn test_parse_query_untokenized() {
         test_parse_query_to_logical_ast_helper("nottokenized:\"wordone wordtwo\"",
-                                               "Term([0, 0, 0, 7, 119, 111, 114, 100, 111, 110, 101, 32, 119, 111, 114, 100, 116, 119, 111])",
+                                               "Term([0, 0, 0, 7, 119, 111, 114, 100, 111, 110, \
+                                               101, 32, 119, 111, 114, 100, 116, 119, 111])",
                                                false);
     }
 
@@ -417,18 +418,21 @@ mod test {
                                                "Term([0, 0, 0, 0, 116, 111, 116, 111])",
                                                false);
         test_parse_query_to_logical_ast_helper("+title:toto -titi",
-                                               "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) -(Term([0, 0, 0, 0, 116, \
-                                                105, 116, 105]) Term([0, 0, 0, 1, 116, 105, 116, 105])))",
+                                               "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) \
+                                                 -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
+                                                   Term([0, 0, 0, 1, 116, 105, 116, 105])))",
                                                false);
         assert_eq!(parse_query_to_logical_ast("-title:toto", false)
                        .err()
                        .unwrap(),
                    QueryParserError::AllButQueryForbidden);
         test_parse_query_to_logical_ast_helper("title:a b",
-                                               "(Term([0, 0, 0, 0, 97]) (Term([0, 0, 0, 0, 98]) Term([0, 0, 0, 1, 98])))",
+                                               "(Term([0, 0, 0, 0, 97]) (Term([0, 0, 0, 0, 98]) \
+                                                 Term([0, 0, 0, 1, 98])))",
                                                false);
         test_parse_query_to_logical_ast_helper("title:\"a b\"",
-                                               "\"[Term([0, 0, 0, 0, 97]), Term([0, 0, 0, 0, 98])]\"",
+                                               "\"[Term([0, 0, 0, 0, 97]), \
+                                                   Term([0, 0, 0, 0, 98])]\"",
                                                false);
     }
 
@@ -441,18 +445,22 @@ mod test {
                                                "Term([0, 0, 0, 0, 116, 111, 116, 111])",
                                                true);
         test_parse_query_to_logical_ast_helper("+title:toto -titi",
-                                               "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) -(Term([0, 0, 0, 0, 116, \
-                                                105, 116, 105]) Term([0, 0, 0, 1, 116, 105, 116, 105])))",
+                                               "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) \
+                                                 -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
+                                                   Term([0, 0, 0, 1, 116, 105, 116, 105])))",
                                                true);
         assert_eq!(parse_query_to_logical_ast("-title:toto", true)
                        .err()
                        .unwrap(),
                    QueryParserError::AllButQueryForbidden);
         test_parse_query_to_logical_ast_helper("title:a b",
-                                               "(+Term([0, 0, 0, 0, 97]) +(Term([0, 0, 0, 0, 98]) Term([0, 0, 0, 1, 98])))",
+                                               "(+Term([0, 0, 0, 0, 97]) \
+                                                 +(Term([0, 0, 0, 0, 98]) \
+                                                   Term([0, 0, 0, 1, 98])))",
                                                true);
         test_parse_query_to_logical_ast_helper("title:\"a b\"",
-                                               "\"[Term([0, 0, 0, 0, 97]), Term([0, 0, 0, 0, 98])]\"",
+                                               "\"[Term([0, 0, 0, 0, 97]), \
+                                                   Term([0, 0, 0, 0, 98])]\"",
                                                true);
     }
 }

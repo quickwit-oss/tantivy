@@ -142,7 +142,8 @@ impl InnerHeap {
             addr
         } else {
             if self.next_heap.is_none() {
-                warn!("Exceeded heap size. The margin was apparently unsufficient. The segment will be committed right after indexing this very last document.",);
+                warn!("Exceeded heap size. The margin was apparently unsufficient. The segment \
+                       will be committed right after indexing this very last document.");
                 self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
             }
             self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len

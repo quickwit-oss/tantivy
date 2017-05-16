@@ -4,12 +4,12 @@
 # Schema definition
 
 Tantivy has a very strict schema.
-The schema defines information about the fields your index contains, that is, for each field :
+The schema defines information about the fields your index contains, that is, for each field:
 
 * the field name (may only contain letters `[a-zA-Z]`, number `[0-9]`, and `_`)
 * the type of the field (currently only  `text` and `u64` are supported)
 * how the field should be indexed / stored.
-    
+
 This very last point is critical as it will enable / disable some of the functionality
 for your index.
 
@@ -38,15 +38,18 @@ let schema = schema_builder.build();
 We can split the problem of generating a search result page into two phases :
 
 * identifying the list of 10 or so documents to be displayed (Conceptually `query -> doc_ids[]`)
-* for each of these documents, retrieving the information required to generate the serp page. (`doc_ids[] -> Document[]`)
+* for each of these documents, retrieving the information required to generate the serp page.
+  (`doc_ids[] -> Document[]`)
 
-In the first phase, the ability to search for documents by the given field is determined by the [`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
-[`TextOptions`](struct.TextOptions.html).
+In the first phase, the ability to search for documents by the given field is determined by the
+[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our [`TextOptions`]
+(struct.TextOptions.html).
 
-The effect of each possible setting is described more in detail [`TextIndexingOptions`](enum.TextIndexingOptions.html).
+The effect of each possible setting is described more in detail [`TextIndexingOptions`]
+(enum.TextIndexingOptions.html).
 
-On the other hand setting the field as stored or not determines whether the field should be returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc)
-is called.
+On the other hand setting the field as stored or not determines whether the field should be returned
+when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called.
 
 ### Shortcuts
 
@@ -60,7 +63,7 @@ use tantivy::schema::*;
 let mut schema_builder = SchemaBuilder::default();
 schema_builder.add_text_field("title_options", TEXT | STORED);
 let schema = schema_builder.build();
-``` 
+```
 
 
 
@@ -80,13 +83,13 @@ let schema = schema_builder.build();
 
 Just like for Text fields (see above),
 setting the field as stored defines whether the field will be
-returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called, 
+returned when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called,
 and setting the field as indexed means that we will be able perform queries such as `num_stars:10`.
-Note that unlike text fields, u64 can only be indexed in one way for the moment. 
+Note that unlike text fields, u64 can only be indexed in one way for the moment.
 This may change when we will start supporting range queries.
 
-The `fast` option on the other hand is specific to u64 fields, and is only relevant 
-if you are implementing your own queries. This functionality is somewhat similar to Lucene's 
+The `fast` option on the other hand is specific to u64 fields, and is only relevant
+if you are implementing your own queries. This functionality is somewhat similar to Lucene's
 `DocValues`.
 
 u64 that are indexed as fast will be stored in a special data structure that will

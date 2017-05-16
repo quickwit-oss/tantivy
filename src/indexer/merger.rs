@@ -218,7 +218,8 @@ impl IndexMerger {
             // segment are stacked so that :
             // - Segment 0's doc ids become doc id [0, seg.max_doc]
             // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
-            // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc, seg0.max_doc + seg1.max_doc + seg2.max_doc]
+            // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
+            //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
             let term = merged_terms.term();
             let mut term_written = false;

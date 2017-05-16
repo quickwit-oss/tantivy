@@ -33,7 +33,8 @@ use std::any::Any;
 /// - a `Weight` is this recipe tied to a specific `Searcher`. It may for instance
 /// hold statistics about the different term of the query. It is created by the query.
 /// - a `Scorer` is a cursor over the set of matching documents, for a specific
-/// [`SegmentReader`](../struct.SegmentReader.html). It is created by the [`Weight`](./trait.Weight.html).
+/// [`SegmentReader`](../struct.SegmentReader.html). It is created by the
+/// [`Weight`](./trait.Weight.html).
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, `Weight` and `Scorer`.

@@ -93,16 +93,17 @@ impl InnerDirectory {
         self.0
             .read()
             .map_err(|_| {
-                let io_err = make_io_err(format!("Failed to acquire read lock for the directory, when trying to read {:?}", path));
-                OpenReadError::IOError(io_err)
-            })
+                         let msg = format!("Failed to acquire read lock for the \
+                                            directory when trying to read {:?}",
+                                           path);
+                         let io_err = make_io_err(msg);
+                         OpenReadError::IOError(io_err)
+                     })
             .and_then(|readable_map| {
                 readable_map
-                .get(path)
-                .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-                .map(|data| {
-                    ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
-                })
+                    .get(path)
+                    .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
+                    .map(|data| ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
             })
     }
 
@@ -110,19 +111,16 @@ impl InnerDirectory {
         self.0
             .write()
             .map_err(|_| {
-                let io_err = make_io_err(format!("Failed to acquire write lock for the directory, when trying to delete {:?}", path));
-                DeleteError::IOError(io_err)
-            })
-            .and_then(|mut writable_map| {
-                match writable_map.remove(path) {
-                    Some(_) => {
-                        Ok(())
-                    },
-                    None => {
-                        Err(DeleteError::FileDoesNotExist(PathBuf::from(path)))
-                    }
-                }
-            })
+                         let msg = format!("Failed to acquire write lock for the \
+                                            directory when trying to delete {:?}",
+                                           path);
+                         let io_err = make_io_err(msg);
+                         DeleteError::IOError(io_err)
+                     })
+            .and_then(|mut writable_map| match writable_map.remove(path) {
+                          Some(_) => Ok(()),
+                          None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+                      })
     }
 
     fn exists(&self, path: &Path) -> bool {

@@ -450,7 +450,7 @@ mod tests {
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10,
-                "jambon": "bayonne" 
+                "jambon": "bayonne"
             }"#);
             match json_err {
                 Err(DocParsingError::NoSuchFieldInSchema(field_name)) => {
@@ -467,7 +467,7 @@ mod tests {
                 "author": "fulmicoton",
                 "count": "5",
                 "popularity": "10",
-                "jambon": "bayonne" 
+                "jambon": "bayonne"
             }"#);
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {

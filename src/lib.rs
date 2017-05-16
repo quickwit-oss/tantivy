@@ -20,7 +20,9 @@
 //! Think `Lucene`, but in Rust.
 //!
 //! A good place for you to get started is to check out
-//! the example code ( [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) / [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
+//! the example code (
+//! [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) /
+//! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
 
 #[macro_use]
 extern crate lazy_static;
@@ -701,7 +703,9 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document = doc!(text_field => "tantivy", text_field => "some other value", other_text_field => "short");
+        let document = doc!(text_field => "tantivy",
+                            text_field => "some other value",
+                            other_text_field => "short");
         assert_eq!(document.len(), 3);
         let values = document.get_all(text_field);
         assert_eq!(values.len(), 2);

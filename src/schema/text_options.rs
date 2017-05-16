@@ -70,7 +70,8 @@ pub enum TextIndexingOptions {
     TokenizedWithFreq,
     /// Like TokenizedWithFreq, but also encodes the positions of the
     /// terms in a separate file. This option is required for phrase queries.
-    /// Don't use this if you are certain you won't need it, the term positions file can be very big.
+    /// Don't use this if you are certain you won't need it, the term positions file
+    /// can be very big.
     #[serde(rename="position")]
     TokenizedWithFreqAndPosition,
 }

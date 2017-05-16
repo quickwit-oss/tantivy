@@ -57,7 +57,7 @@ mod tests {
             schema_builder.add_u64_field("field", FAST);
             schema_builder.build()
         };
-        static ref FIELD: Field = { 
+        static ref FIELD: Field = {
             SCHEMA.get_field("field").unwrap()
         };
     }

@@ -46,6 +46,8 @@ mod build {
         if !cfg!(debug_assertions) && cfg!(target_env = "msvc") {
             println!("cargo:rustc-link-lib=dylib=simdcomp");
         }
+
+        println!("cargo:rerun-if-changed=cpp");
     }
 }
 
