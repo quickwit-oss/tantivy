@@ -175,7 +175,7 @@ impl ManagedDirectory {
                     managed_paths_write.remove(delete_file);
                 }
             }
-            if let Err(_) = save_managed_paths(self.directory.as_mut(), &meta_informations_wlock) {
+            if save_managed_paths(self.directory.as_mut(), &meta_informations_wlock).is_err() {
                 error!("Failed to save the list of managed files.");
             }
         }
