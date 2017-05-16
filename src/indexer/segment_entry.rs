@@ -24,16 +24,16 @@ impl SegmentState {
 /// A segment entry describes the state of
 /// a given segment, at a given instant.
 ///
-/// In addition to segment meta,
+/// In addition to segment `meta`,
 /// it contains a few transient states
-/// - state expresses whether the segment is already in the
+/// - `state` expresses whether the segment is already in the
 /// middle of a merge
-/// - delete_bitset is a bitset describing
+/// - `delete_bitset` is a bitset describing
 /// documents that were deleted during the commit
 /// itself.
-/// - Delete cursor, is the position in the delete queue.
+/// - `delete_cursor` is the position in the delete queue.
 /// Deletes happening before the cursor are reflected either
-/// in the .del file or in the delete_bitset.
+/// in the .del file or in the `delete_bitset`.
 #[derive(Clone)]
 pub struct SegmentEntry {
     meta: SegmentMeta,

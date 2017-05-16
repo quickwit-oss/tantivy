@@ -22,5 +22,5 @@ pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_policy::{NoMergePolicy, MergeCandidate, MergePolicy};
 pub use self::segment_manager::SegmentManager;
 
-/// Alias for the default merge policy, which is the LogMergePolicy.
+/// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;

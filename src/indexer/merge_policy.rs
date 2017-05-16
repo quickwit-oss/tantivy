@@ -9,7 +9,7 @@ use std::fmt::Debug;
 pub struct MergeCandidate(pub Vec<SegmentId>);
 
 
-/// The Merge policy defines which segments should be merged.
+/// The `MergePolicy` defines which segments should be merged.
 ///
 /// Every time a the list of segments changes, the segment updater
 /// asks the merge policy if some segments should be merged.
@@ -52,7 +52,7 @@ pub mod tests {
     use core::SegmentMeta;
 
 
-    /// Merge policy useful for test purposes.
+    /// `MergePolicy` useful for test purposes.
     ///
     /// Everytime there is more than one segment,
     /// it will suggest to merge them.

@@ -37,7 +37,7 @@ pub trait FastFieldReader: Sized {
     fn is_enabled(field_type: &FieldType) -> bool;
 }
 
-/// FastFieldReader for unsigned 64-bits integers.
+/// `FastFieldReader` for unsigned 64-bits integers.
 pub struct U64FastFieldReader {
     _data: ReadOnlySource,
     bit_unpacker: BitUnpacker,
@@ -133,7 +133,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
     }
 }
 
-/// FastFieldReader for signed 64-bits integers.
+/// `FastFieldReader` for signed 64-bits integers.
 pub struct I64FastFieldReader {
     underlying: U64FastFieldReader,
 }
@@ -189,7 +189,7 @@ impl FastFieldReader for I64FastFieldReader {
 
 
 
-/// The FastFieldsReader` is the datastructure containing
+/// The `FastFieldsReader` is the datastructure containing
 /// all of the fast fields' data.
 ///
 /// It contains a mapping that associated these fields to

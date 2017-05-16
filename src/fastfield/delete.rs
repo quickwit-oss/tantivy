@@ -6,7 +6,7 @@ use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
 
-/// Write a delete BitSet
+/// Write a delete `BitSet`
 ///
 /// where `delete_bitset` is the set of deleted `DocId`.
 pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {

@@ -9,7 +9,7 @@ struct DeleteMeta {
     opstamp: u64,
 }
 
-/// SegmentMeta contains simple meta information about a segment.
+/// `SegmentMeta` contains simple meta information about a segment.
 ///
 /// For instance the number of docs it contains,
 /// how many are deleted, etc.
