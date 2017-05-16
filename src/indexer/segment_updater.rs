@@ -56,7 +56,7 @@ pub fn save_new_metas(schema: Schema, opstamp: u64, directory: &mut Directory) -
 
 
 /// Save the index meta file.
-/// This operation is atomic :
+/// This operation is atomic:
 /// Either
 //  - it fails, in which case an error is returned,
 /// and the `meta.json` remains untouched,
@@ -76,10 +76,9 @@ pub fn save_metas(segment_metas: Vec<SegmentMeta>,
     };
     let mut w = try!(serde_json::to_vec_pretty(&metas));
     try!(write!(&mut w, "\n"));
-    let res = directory.atomic_write(&META_FILEPATH, &w[..])?;
+    directory.atomic_write(&META_FILEPATH, &w[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
-    Ok(res)
-
+    Ok(())
 }
 
 
