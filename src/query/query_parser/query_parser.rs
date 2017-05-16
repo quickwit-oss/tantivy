@@ -164,13 +164,9 @@ impl QueryParser {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
                     let mut token_iter = self.analyzer.tokenize(phrase);
-                    loop {
-                        if let Some(token) = token_iter.next() {
-                            let term = Term::from_field_text(field, token);
-                            terms.push(term);
-                        } else {
-                            break;
-                        }
+                    while let Some(token) = token_iter.next() {
+                        let term = Term::from_field_text(field, token);
+                        terms.push(term);
                     }
                 } else {
                     terms.push(Term::from_field_text(field, phrase));
