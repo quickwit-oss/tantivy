@@ -281,7 +281,7 @@ impl Directory for MmapDirectory {
                .get_mmap(full_path)?
                .map(MmapReadOnly::from)
                .map(ReadOnlySource::Mmap)
-               .unwrap_or(ReadOnlySource::Anonymous(SharedVecSlice::empty())))
+               .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())))
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
