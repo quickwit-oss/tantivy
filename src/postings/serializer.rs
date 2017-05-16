@@ -109,13 +109,7 @@ impl PostingsSerializer {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         self.text_indexing_options = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-            FieldType::U64(ref int_options) => {
-                if int_options.is_indexed() {
-                    TextIndexingOptions::Unindexed
-                } else {
-                    TextIndexingOptions::Untokenized
-                }
-            }
+            FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => {
                 if int_options.is_indexed() {
                     TextIndexingOptions::Unindexed

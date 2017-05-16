@@ -63,7 +63,7 @@ impl FieldEntry {
     pub fn is_indexed(&self) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
-            FieldType::U64(ref options) => options.is_indexed(),
+            FieldType::U64(ref options) |
             FieldType::I64(ref options) => options.is_indexed(),
         }
     }
@@ -71,7 +71,7 @@ impl FieldEntry {
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_int_fast(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) => options.is_fast(),
+            FieldType::U64(ref options) |
             FieldType::I64(ref options) => options.is_fast(),
             _ => false,
         }
@@ -80,7 +80,7 @@ impl FieldEntry {
     /// Returns true iff the field is stored
     pub fn is_stored(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) => options.is_stored(),
+            FieldType::U64(ref options) |
             FieldType::I64(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
         }
