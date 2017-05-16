@@ -20,8 +20,8 @@ impl FastFieldsWriter {
             .enumerate()
             .flat_map(|(field_id, field_entry)| {
                 let field = Field(field_id as u32);
-                match field_entry.field_type() {
-                    &FieldType::I64(ref int_options) => {
+                match *field_entry.field_type() {
+                    FieldType::I64(ref int_options) => {
                         if int_options.is_fast() {
                             let mut fast_field_writer = IntFastFieldWriter::new(field);
                             fast_field_writer.set_val_if_missing(common::i64_to_u64(0i64));
@@ -30,7 +30,7 @@ impl FastFieldsWriter {
                             None
                         }
                     }
-                    &FieldType::U64(ref int_options) => {
+                    FieldType::U64(ref int_options) => {
                         if int_options.is_fast() {
                             Some(IntFastFieldWriter::new(field))
                         } else {
