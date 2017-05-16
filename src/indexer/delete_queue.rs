@@ -186,6 +186,7 @@ impl DeleteCursor {
     /// `opstamp >= target_opstamp`.
     pub fn skip_to(&mut self, target_opstamp: u64) {
         // TODO Can be optimize as we work with block.
+        #[cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
         loop {
             if let Some(operation) = self.get() {
                 if operation.opstamp >= target_opstamp {
