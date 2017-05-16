@@ -57,7 +57,7 @@ impl Searcher {
     ///
     /// # Warning
     /// This API is very likely to change in the future.
-    pub fn terms<'a>(&'a self) -> TermIterator<'a> {
+    pub fn terms(&self) -> TermIterator {
         TermIterator::from(self.segment_readers())
     }
 
