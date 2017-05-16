@@ -33,7 +33,7 @@ const HIGHEST_BIT: u64 = 1 << 63;
 /// Maps `i64` to `u64` so that
 /// `-2^63 .. 2^63-1` is mapped
 ///     to
-/// `0 .. 2^64`
+/// `0 .. 2^64-1`
 /// in that order.
 ///
 /// This is more suited than simply casting (`val as u64`)
