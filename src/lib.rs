@@ -1,6 +1,7 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![allow(unknown_lints)] // for the clippy lint options
 #![allow(module_inception)]
+#![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
