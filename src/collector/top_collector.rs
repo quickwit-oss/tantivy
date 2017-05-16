@@ -27,7 +27,7 @@ impl Ord for GlobalScoredDoc {
         other
             .score
             .partial_cmp(&self.score)
-            .unwrap_or(other.doc_address.cmp(&self.doc_address))
+            .unwrap_or_else(|| other.doc_address.cmp(&self.doc_address))
     }
 }
 
