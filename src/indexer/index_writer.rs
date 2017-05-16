@@ -325,7 +325,7 @@ impl IndexWriter {
                 .wait_merging_thread()
                 .map_err(|_| Error::ErrorInThread("Failed to join merging thread.".to_string()));
 
-        if let &Err(ref e) = &result {
+        if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
         }
 

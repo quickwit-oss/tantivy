@@ -149,18 +149,18 @@ impl QueryParser {
             let field_name = field_entry.name().to_string();
             return Err(QueryParserError::FieldNotIndexed(field_name));
         }
-        match field_type {
-            &FieldType::I64(_) => {
+        match *field_type {
+            FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
                 Ok(Some(LogicalLiteral::Term(term)))
             }
-            &FieldType::U64(_) => {
+            FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);
                 Ok(Some(LogicalLiteral::Term(term)))
             }
-            &FieldType::Str(ref str_options) => {
+            FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
                     let mut token_iter = self.analyzer.tokenize(phrase);
