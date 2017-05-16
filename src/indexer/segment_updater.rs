@@ -101,7 +101,7 @@ fn perform_merge(segment_ids: &[SegmentId],
     // first we need to apply deletes to our segment.
     info!("Start merge: {:?}", segment_ids);
 
-    let ref index = segment_updater.0.index;
+    let index = &segment_updater.0.index;
     let schema = index.schema();
     let mut segment_entries = vec![];
 
