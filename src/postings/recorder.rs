@@ -120,14 +120,12 @@ impl Recorder for TermFrequencyRecorder {
                  heap: &Heap)
                  -> io::Result<()> {
         let mut doc_iter = self.stack.iter(self_addr, heap);
-        loop {
-            if let Some(doc) = doc_iter.next() {
-                if let Some(term_freq) = doc_iter.next() {
-                    try!(serializer.write_doc(doc, term_freq, &EMPTY_ARRAY));
-                    continue;
-                }
+        while let Some(doc) = doc_iter.next() {
+            if let Some(term_freq) = doc_iter.next() {
+                serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
+            } else {
+                break;
             }
-            break;
         }
         Ok(())
     }

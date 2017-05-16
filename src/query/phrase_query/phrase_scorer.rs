@@ -25,6 +25,7 @@ impl<'a> PhraseScorer<'a> {
         positions_arr[0] = &(positions_arr[0])[1..];
         let mut count_matching = 1;
 
+        #[cfg_attr(feature = "cargo-clippy", allow(never_loop))]
         'outer: loop {
             let target = pos_candidate + ord;
             let positions = positions_arr[ord as usize];
