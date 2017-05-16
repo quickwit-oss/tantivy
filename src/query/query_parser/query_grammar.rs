@@ -34,7 +34,7 @@ fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
                                             });
     try(term_query)
         .or(term_default_field)
-        .map(|query_literal| UserInputAST::from(query_literal))
+        .map(UserInputAST::from)
         .parse_stream(input)
 }
 
