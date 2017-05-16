@@ -222,7 +222,7 @@ impl QueryParser {
                         vec![(field, literal.phrase.clone())]
                     }
                     None => {
-                        if self.default_fields.len() == 0 {
+                        if self.default_fields.is_empty() {
                             return Err(QueryParserError::NoDefaultFieldDeclared);
                         } else {
                             self.default_fields
@@ -238,7 +238,7 @@ impl QueryParser {
                         asts.push(LogicalAST::Leaf(box ast));
                     }
                 }
-                let result_ast = if asts.len() == 0 {
+                let result_ast = if asts.is_empty() {
                     // this should never happen
                     return Err(QueryParserError::SyntaxError);
                 } else if asts.len() == 1 {

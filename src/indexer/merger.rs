@@ -236,7 +236,7 @@ impl IndexMerger {
 
             // We can remove the term if all documents which
             // contained it have been deleted.
-            if segment_postings.len() > 0 {
+            if !segment_postings.is_empty() {
 
                 // We can now serialize this postings, by pushing each document to the
                 // postings serializer.
