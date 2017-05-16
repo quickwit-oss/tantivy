@@ -135,11 +135,8 @@ impl NextBlock {
             let next_read_lock = self.0
                 .read()
                 .expect("Failed to acquire write lock in delete queue");
-            match *next_read_lock {
-                InnerNextBlock::Closed(ref block) => {
-                    return Some(block.clone());
-                }
-                _ => {}
+            if let InnerNextBlock::Closed(ref block) = *next_read_lock {
+                return Some(block.clone());
             }
         }
         let next_block;
