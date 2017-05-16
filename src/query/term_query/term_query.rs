@@ -13,9 +13,9 @@ use std::any::Any;
 /// The score associated is defined as
 /// `idf` *  sqrt(`term_freq` / `field norm`)
 /// in which :
-/// * idf        - inverse document frequency.
-/// * term_freq  - number of occurrences of the term in the field
-/// * field norm - number of tokens in the field.
+/// * `idf`        - inverse document frequency.
+/// * `term_freq`  - number of occurrences of the term in the field
+/// * `field norm` - number of tokens in the field.
 #[derive(Debug)]
 pub struct TermQuery {
     term: Term,

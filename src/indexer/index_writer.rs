@@ -96,7 +96,7 @@ impl !Sync for IndexWriter {}
 /// `IndexWriter` on the system is accessing the index directory,
 /// it is safe to manually delete the lockfile.
 ///
-/// num_threads specifies the number of indexing workers that
+/// `num_threads` specifies the number of indexing workers that
 /// should work at the same time.
 /// # Errors
 /// If the lockfile already exists, returns `Error::FileAlreadyExists`.

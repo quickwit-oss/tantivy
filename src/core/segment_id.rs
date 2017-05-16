@@ -5,13 +5,13 @@ use std::cmp::{Ordering, Ord};
 #[cfg(test)]
 use std::sync::atomic;
 
-/// Tantivy SegmentId.
+/// Tantivy `SegmentId`.
 ///
 /// Tantivy's segment are identified
 /// by a UUID which is used to prefix the filenames
 /// of all of the file associated with the segment.
 ///
-/// In unit test, for reproducability, the SegmentId are
+/// In unit test, for reproducability, the `SegmentId` are
 /// simply generated in an autoincrement fashion.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);

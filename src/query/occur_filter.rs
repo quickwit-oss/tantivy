@@ -1,7 +1,7 @@
 use query::Occur;
 
 
-/// An OccurFilter represents a filter over a bitset of
+/// An `OccurFilter` represents a filter over a bitset of
 // at most 64 elements.
 ///
 /// It wraps some simple bitmask to compute the filter
