@@ -153,12 +153,12 @@ impl QueryParser {
             &FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
-                return Ok(Some(LogicalLiteral::Term(term)));
+                Ok(Some(LogicalLiteral::Term(term)))
             }
             &FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);
-                return Ok(Some(LogicalLiteral::Term(term)));
+                Ok(Some(LogicalLiteral::Term(term)))
             }
             &FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
@@ -176,11 +176,11 @@ impl QueryParser {
                     terms.push(Term::from_field_text(field, phrase));
                 }
                 if terms.is_empty() {
-                    return Ok(None);
+                    Ok(None)
                 } else if terms.len() == 1 {
-                    return Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap())));
+                    Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap())))
                 } else {
-                    return Ok(Some(LogicalLiteral::Phrase(terms)));
+                    Ok(Some(LogicalLiteral::Phrase(terms)))
                 }
             }
         }

@@ -192,9 +192,10 @@ impl<'a> DocSet for SegmentPostings<'a> {
         }
 
         if self.advance() {
-            return SkipResult::OverStep;
+            SkipResult::OverStep
+        } else {
+            SkipResult::End
         }
-        return SkipResult::End;
     }
 
     #[inline]

@@ -163,7 +163,7 @@ impl NextBlock {
                 }
             }
             *next_write_lock.deref_mut() = InnerNextBlock::Closed(next_block.clone());
-            return Some(next_block);
+            Some(next_block)
         }
     }
 }
