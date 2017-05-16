@@ -374,7 +374,7 @@ impl SegmentUpdater {
                     after_merge_segment_entry: SegmentId) {
         self.0
             .segment_manager
-            .cancel_merge(&before_merge_segment_ids, after_merge_segment_entry);
+            .cancel_merge(before_merge_segment_ids, after_merge_segment_entry);
     }
 
 

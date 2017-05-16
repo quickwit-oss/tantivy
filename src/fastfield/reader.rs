@@ -127,7 +127,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let source = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldsReader::open(source).unwrap();
         fast_field_readers.open_reader(field).unwrap()
     }

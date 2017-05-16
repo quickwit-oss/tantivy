@@ -200,7 +200,7 @@ impl SegmentReader {
                          -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
-        let term_info = get!(self.get_term_info(&term));
+        let term_info = get!(self.get_term_info(term));
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match *field_entry.field_type() {

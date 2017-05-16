@@ -152,11 +152,11 @@ impl SegmentManager {
             target_segment_register = {
                 if registers_lock
                        .uncommitted
-                       .contains_all(&before_merge_segment_ids) {
+                       .contains_all(before_merge_segment_ids) {
                     &mut registers_lock.uncommitted
                 } else if registers_lock
                               .committed
-                              .contains_all(&before_merge_segment_ids) {
+                              .contains_all(before_merge_segment_ids) {
                     &mut registers_lock.committed
                 } else {
                     warn!("couldn't find segment in SegmentManager");
@@ -197,11 +197,11 @@ impl SegmentManager {
         let mut target_register: &mut SegmentRegister = {
             if registers_lock
                    .uncommitted
-                   .contains_all(&before_merge_segment_ids) {
+                   .contains_all(before_merge_segment_ids) {
                 &mut registers_lock.uncommitted
             } else if registers_lock
                           .committed
-                          .contains_all(&before_merge_segment_ids) {
+                          .contains_all(before_merge_segment_ids) {
                 &mut registers_lock.committed
             } else {
                 warn!("couldn't find segment in SegmentManager");
