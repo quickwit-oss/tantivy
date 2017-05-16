@@ -215,7 +215,7 @@ pub fn advance_deletes(mut segment: Segment,
         let max_doc = segment_reader.max_doc();
 
         let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
-            Some(ref previous_delete_bitset) => (*previous_delete_bitset).clone(),
+            Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
             None => BitSet::with_capacity(max_doc as usize),
         };
 
@@ -256,9 +256,9 @@ fn index_documents(heap: &mut Heap,
                    -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), &schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), schema)?;
     for doc in document_iterator {
-        try!(segment_writer.add_document(&doc, &schema));
+        try!(segment_writer.add_document(&doc, schema));
         if segment_writer.is_buffer_full() {
             info!("Buffer limit reached, flushing segment with maxdoc={}.",
                   segment_writer.max_doc());

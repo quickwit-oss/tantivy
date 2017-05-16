@@ -178,7 +178,7 @@ impl<'a> SegmentWriter<'a> {
             }
         }
         self.fieldnorms_writer.fill_val_up_to(doc_id);
-        self.fast_field_writers.add_document(&doc);
+        self.fast_field_writers.add_document(doc);
         let stored_fieldvalues: Vec<&FieldValue> = doc.field_values()
             .iter()
             .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())

@@ -226,7 +226,7 @@ impl Schema {
                         JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
                                 let value = try!(field_type
-                                                     .value_from_json(&json_item)
+                                                     .value_from_json(json_item)
                                                      .map_err(|e| {
                                     DocParsingError::ValueError(field_name.clone(), e)
                                 }));
@@ -235,7 +235,7 @@ impl Schema {
                         }
                         _ => {
                             let value = try!(field_type
-                                                 .value_from_json(&json_value)
+                                                 .value_from_json(json_value)
                                                  .map_err(|e| {
                                 DocParsingError::ValueError(field_name.clone(), e)
                             }));

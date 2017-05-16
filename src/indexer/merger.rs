@@ -229,7 +229,7 @@ impl IndexMerger {
                 .cloned()
                 .flat_map(|segment_ord| {
                               self.readers[segment_ord]
-                                  .read_postings_all_info(&term)
+                                  .read_postings_all_info(term)
                                   .map(|segment_postings| (segment_ord, segment_postings))
                           })
                 .collect::<Vec<_>>();
@@ -249,7 +249,7 @@ impl IndexMerger {
                             if !term_written {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
-                                postings_serializer.new_term(&term)?;
+                                postings_serializer.new_term(term)?;
                                 term_written = true;
                             }
                             let delta_positions: &[u32] =

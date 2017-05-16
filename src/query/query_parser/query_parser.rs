@@ -222,7 +222,7 @@ impl QueryParser {
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
-                        let field = try!(self.resolve_field_name(&field_name));
+                        let field = try!(self.resolve_field_name(field_name));
                         vec![(field, literal.phrase.clone())]
                     }
                     None => {
