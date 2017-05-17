@@ -29,8 +29,7 @@ impl<'a> PhraseScorer<'a> {
         'outer: loop {
             let target = pos_candidate + ord;
             let positions = positions_arr[ord as usize];
-            for i in 0..positions.len() {
-                let pos_i = positions[i];
+            for (i, pos_i) in positions.iter().cloned().enumerate() {
                 if pos_i < target {
                     continue;
                 }

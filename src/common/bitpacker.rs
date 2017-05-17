@@ -82,6 +82,9 @@ impl BitPacker {
 
     pub fn close<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<usize> {
         self.flush(output)?;
+        // Padding the write file to simplify reads.
+        output.write_all(&[0u8; 7])?;
+        self.written_size += 7;
         Ok(self.written_size)
     }
 }
@@ -117,17 +120,8 @@ impl BitUnpacker {
         let addr = (idx * self.num_bits) / 8;
         let bit_shift = idx * self.num_bits - addr * 8;
         let val_unshifted_unmasked: u64;
-        val_unshifted_unmasked = if addr + 8 <= self.data_len {
-            unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) }
-        } else {
-            let mut arr = [0u8; 8];
-            if addr < self.data_len {
-                for i in 0..self.data_len - addr {
-                    arr[i] = unsafe { *self.data_ptr.offset((addr + i) as isize) };
-                }
-            }
-            unsafe { mem::transmute::<[u8; 8], u64>(arr) }
-        };
+        debug_assert!(addr + 8 <= self.data_len, "The fast field field should have been padded with 7 bytes.");
+        val_unshifted_unmasked = unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & self.mask)
     }
@@ -135,7 +129,7 @@ impl BitUnpacker {
 
 
 
-
+    
 #[cfg(test)]
 mod test {
     use super::{BitPacker, BitUnpacker, compute_num_bits};
@@ -163,7 +157,7 @@ mod test {
             bitpacker.write(val, &mut data).unwrap();
         }
         let num_bytes = bitpacker.close(&mut data).unwrap();
-        assert_eq!(num_bytes, (num_bits * len + 7) / 8);
+        assert_eq!(num_bytes, (num_bits * len + 7) / 8 + 7);
         assert_eq!(data.len(), num_bytes);
         let bitunpacker = BitUnpacker::new(&data, num_bits);
         for (i, val) in vals.iter().enumerate() {
