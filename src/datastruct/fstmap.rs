@@ -1,5 +1,3 @@
-#![allow(should_implement_trait)]
-
 use std::io;
 use std::io::Write;
 use fst;

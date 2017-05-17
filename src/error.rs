@@ -1,5 +1,3 @@
-#![allow(enum_variant_names)]
-
 /// Definition of Tantivy's error and result.
 
 use std::io;

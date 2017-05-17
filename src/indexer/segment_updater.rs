@@ -1,5 +1,3 @@
-#![allow(for_kv_map)]
-
 use core::Index;
 use core::IndexMeta;
 use core::META_FILEPATH;
