@@ -32,10 +32,7 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry, heap: &'a Heap) -> Box
 				}
 			}
 		} 
-		FieldType::U64(_) => {
-			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
-		}
-		FieldType::I64(_) => {
+		FieldType::U64(_) | FieldType::I64(_) => {
 			SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
 		}
 	}
@@ -59,7 +56,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         
         let mut per_field_postings_writers: Vec<_> = vec!();
         for field_entry in schema.fields() {
-            let field_entry = posting_from_field_entry(&field_entry, heap);
+            let field_entry = posting_from_field_entry(field_entry, heap);
             per_field_postings_writers.push(field_entry);
         }
         MultiFieldPostingsWriter {
@@ -96,8 +93,9 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         let mut offsets: Vec<(Field, usize)> = vec!();
         let term_offsets_it = term_offsets
             .iter()
-            .map(|&(ref key, _)| {
-                extract_field_from_term_bytes(&key)
+            .cloned()
+            .map(|(key, _)| {
+                extract_field_from_term_bytes(key)
             })
             .enumerate();
         

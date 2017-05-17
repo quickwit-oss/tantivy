@@ -128,16 +128,15 @@ impl Recorder for TermFrequencyRecorder {
             .iter(self_addr, heap)
             .chain(Some(self.current_tf).into_iter());
         
-        loop {
-            if let Some(doc) = doc_iter.next() {
-                if let Some(term_freq) = doc_iter.next() {
-                    serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
-                    continue;
-                }
-            }
-            return Ok(());
+        while let Some(doc) = doc_iter.next() {
+            let term_freq = doc_iter
+                .next()
+                .expect("The IndexWriter recorded a doc without a term freq.");
+            serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
         }
+        Ok(())
     }
+
 }
 
 /// Recorder encoding term frequencies as well as positions.
@@ -184,20 +183,12 @@ impl Recorder for TFAndPositionRecorder {
         while let Some(doc) = positions_iter.next() {
             let mut prev_position = 0;
             doc_positions.clear();
-            loop {
-                match positions_iter.next() {
-                    Some(position) => {
-                        if position == POSITION_END {
-                            break;
-                        } else {
-                            doc_positions.push(position - prev_position);
-                            prev_position = position;
-                        }
-                    }
-                    None => {
-                        // the last document has not been closed...
-                        break;
-                    }
+            for position in &mut positions_iter {
+                if position == POSITION_END {
+                    break;
+                } else {
+                    doc_positions.push(position - prev_position);
+                    prev_position = position;
                 }
             }
             try!(serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions));
