@@ -120,7 +120,8 @@ impl BitUnpacker {
         let addr = (idx * self.num_bits) / 8;
         let bit_shift = idx * self.num_bits - addr * 8;
         let val_unshifted_unmasked: u64;
-        debug_assert!(addr + 8 <= self.data_len, "The fast field field should have been padded with 7 bytes.");
+        debug_assert!(addr + 8 <= self.data_len,
+                      "The fast field field should have been padded with 7 bytes.");
         val_unshifted_unmasked = unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & self.mask)
@@ -129,7 +130,7 @@ impl BitUnpacker {
 
 
 
-    
+
 #[cfg(test)]
 mod test {
     use super::{BitPacker, BitUnpacker, compute_num_bits};
