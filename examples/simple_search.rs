@@ -1,6 +1,9 @@
 extern crate tantivy;
 extern crate tempdir;
 
+#[macro_use]
+extern crate serde_json;
+
 use std::path::Path;
 use tempdir::TempDir;
 use tantivy::Index;
@@ -63,8 +66,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     //
     // This will actually just save a meta.json
     // with our schema in the directory.
-    let index = try!(Index::create(index_path, schema.clone()));
-
+    let index = Index::create(index_path, schema.clone())?;
 
 
     // To insert document we need an index writer.
@@ -74,7 +76,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     //
     // Here we use a buffer of 50MB per thread. Using a bigger
     // heap for the indexer can increase its throughput.
-    let mut index_writer = try!(index.writer(50_000_000));
+    let mut index_writer = index.writer(50_000_000)?;
 
     // Let's index our documents!
     // We first need a handle on the title and the body field.
@@ -98,23 +100,37 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     // ### Create a document directly from json.
     //
-    // Alternatively, we can use our schema to parse
-    // a document object directly from json.
-
-    let mice_and_men_doc = try!(schema.parse_document(r#"{
+    // Alternatively, we can use our schema to parse a
+    // document object directly from json.
+    // The document is a string, but we use the `json` macro
+    // from `serde_json` for the convenience of multi-line support.
+    let json = json!({
        "title": "Of Mice and Men",
-       "body": "few miles south of Soledad, the Salinas River drops in close to the hillside bank and runs deep and green. The water is warm too, for it has slipped twinkling over the yellow sands in the sunlight before reaching the narrow pool. On one side of the river the golden foothill slopes curve up to the strong and rocky Gabilan Mountains, but on the valley side the water is lined with trees—willows fresh and green with every spring, carrying in their lower leaf junctures the debris of the winter’s flooding; and sycamores with mottled, white,recumbent limbs and branches that arch over the pool"  
-    }"#));
+       "body": "A few miles south of Soledad, the Salinas River drops in close to the hillside \
+                bank and runs deep and green. The water is warm too, for it has slipped twinkling \
+                over the yellow sands in the sunlight before reaching the narrow pool. On one \
+                side of the river the golden foothill slopes curve up to the strong and rocky \
+                Gabilan Mountains, but on the valley side the water is lined with trees—willows \
+                fresh and green with every spring, carrying in their lower leaf junctures the \
+                debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
+                limbs and branches that arch over the pool"
+    });
+    let mice_and_men_doc = schema.parse_document(&json.to_string())?;
 
     index_writer.add_document(mice_and_men_doc);
 
     // Multi-valued field are allowed, they are
     // expressed in JSON by an array.
     // The following document has two titles.
-    let frankenstein_doc = try!(schema.parse_document(r#"{
-       "title": ["Frankenstein", "The Modern Promotheus"],
-       "body": "You will rejoice to hear that no disaster has accompanied the commencement of an enterprise which you have regarded with such evil forebodings.  I arrived here yesterday, and my first task is to assure my dear sister of my welfare and increasing confidence in the success of my undertaking."  
-    }"#));
+    let json = json!({
+       "title": ["Frankenstein", "The Modern Prometheus"],
+       "body": "You will rejoice to hear that no disaster has accompanied the commencement of an \
+                enterprise which you have regarded with such evil forebodings.  I arrived here \
+                yesterday, and my first task is to assure my dear sister of my welfare and \
+                increasing confidence in the success of my undertaking."
+    });
+    let frankenstein_doc = schema.parse_document(&json.to_string())?;
+
     index_writer.add_document(frankenstein_doc);
 
     // This is an example, so we will only index 3 documents
@@ -135,7 +151,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // the existence of new documents.
     //
     // This call is blocking.
-    try!(index_writer.commit());
+    index_writer.commit()?;
 
     // If `.commit()` returns correctly, then all of the
     // documents that have been added are guaranteed to be
@@ -151,7 +167,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Let's search our index. Start by reloading
     // searchers in the index. This should be done
     // after every commit().
-    try!(index.load_searchers());
+    index.load_searchers()?;
 
     // Afterwards create one (or more) searchers.
     //
@@ -168,7 +184,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // QueryParser may fail if the query is not in the right
     // format. For user facing applications, this can be a problem.
     // A ticket has been opened regarding this problem.
-    let query = try!(query_parser.parse_query("sea whale"));
+    let query = query_parser.parse_query("sea whale")?;
 
 
     // A query defines a set of documents, as
@@ -186,7 +202,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     let mut top_collector = TopCollector::with_limit(10);
 
     // We can now perform our query.
-    try!(searcher.search(&*query, &mut top_collector));
+    searcher.search(&*query, &mut top_collector)?;
 
     // Our top collector now contains the 10
     // most relevant doc ids...
@@ -200,9 +216,15 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // a title.
 
     for doc_address in doc_addresses {
-        let retrieved_doc = try!(searcher.doc(&doc_address));
+        let retrieved_doc = searcher.doc(&doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }
+
+    // Wait for indexing and merging threads to shut down.
+    // Usually this isn't needed, but in `main` we try to
+    // delete the temporary directory and that fails on
+    // Windows if the files are still open.
+    index_writer.wait_merging_threads()?;
 
     Ok(())
 }

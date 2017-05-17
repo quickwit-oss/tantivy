@@ -7,9 +7,9 @@ use std::io::{self, Write, Seek, SeekFrom};
 
 /// `FastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
-/// 
+///
 /// Fast fields are encoded using bit-packing.
-/// 
+///
 /// `FastFieldWriter`s are in charge of pushing the data to
 /// the serializer.
 /// The serializer expects to receive the following calls.
@@ -41,17 +41,21 @@ impl FastFieldSerializer {
         // just making room for the pointer to header.
         let written_size: usize = try!(0u32.serialize(&mut write));
         Ok(FastFieldSerializer {
-            write: write,
-            written_size: written_size,
-            fields: Vec::new(),
-            min_value: 0,
-            field_open: false,
-            bit_packer: BitPacker::new(0),
-        })
+               write: write,
+               written_size: written_size,
+               fields: Vec::new(),
+               min_value: 0,
+               field_open: false,
+               bit_packer: BitPacker::new(0),
+           })
     }
-    
+
     /// Start serializing a new u64 fast field
-    pub fn new_u64_fast_field(&mut self, field: Field, min_value: u64, max_value: u64) -> io::Result<()> {
+    pub fn new_u64_fast_field(&mut self,
+                              field: Field,
+                              min_value: u64,
+                              max_value: u64)
+                              -> io::Result<()> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
         }
@@ -68,15 +72,15 @@ impl FastFieldSerializer {
     }
 
 
-    /// Pushes a new value to the currently open u64 fast field. 
+    /// Pushes a new value to the currently open u64 fast field.
     pub fn add_val(&mut self, val: u64) -> io::Result<()> {
         let val_to_write: u64 = val - self.min_value;
         self.bit_packer.write(val_to_write, &mut self.write)?;
         Ok(())
     }
-    
-    /// Close the u64 fast field. 
-    pub fn close_field(&mut self,) -> io::Result<()> {
+
+    /// Close the u64 fast field.
+    pub fn close_field(&mut self) -> io::Result<()> {
         if !self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Current field is already closed"));
         }
@@ -87,12 +91,12 @@ impl FastFieldSerializer {
         self.written_size += self.bit_packer.close(&mut self.write)?;
         Ok(())
     }
-    
-    
+
+
     /// Closes the serializer
-    /// 
+    ///
     /// After this call the data must be persistently save on disk.
-    pub fn close(mut self,) -> io::Result<usize> {
+    pub fn close(mut self) -> io::Result<usize> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
         }

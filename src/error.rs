@@ -1,5 +1,3 @@
-#![allow(enum_variant_names)]
-
 /// Definition of Tantivy's error and result.
 
 use std::io;
@@ -38,7 +36,7 @@ pub enum Error {
     /// An Error appeared related to the lack of a field.
     SchemaError(String),
     /// Tried to access a fastfield reader for a field not configured accordingly.
-    FastFieldError(FastFieldNotAvailableError)
+    FastFieldError(FastFieldNotAvailableError),
 }
 
 impl From<FastFieldNotAvailableError> for Error {
@@ -83,10 +81,8 @@ impl From<schema::DocParsingError> for Error {
 impl From<OpenWriteError> for Error {
     fn from(error: OpenWriteError) -> Error {
         match error {
-            OpenWriteError::FileAlreadyExists(filepath) => 
-                Error::FileAlreadyExists(filepath),
-            OpenWriteError::IOError(io_error) => 
-                Error::IOError(io_error),
+            OpenWriteError::FileAlreadyExists(filepath) => Error::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) => Error::IOError(io_error),
         }
     }
 }
@@ -94,10 +90,12 @@ impl From<OpenWriteError> for Error {
 impl From<OpenDirectoryError> for Error {
     fn from(error: OpenDirectoryError) -> Error {
         match error {
-            OpenDirectoryError::DoesNotExist(directory_path) =>
-                Error::PathDoesNotExist(directory_path),
-            OpenDirectoryError::NotADirectory(directory_path) => 
-                Error::InvalidArgument(format!("{:?} is not a directory", directory_path)),
+            OpenDirectoryError::DoesNotExist(directory_path) => {
+                Error::PathDoesNotExist(directory_path)
+            }
+            OpenDirectoryError::NotADirectory(directory_path) => {
+                Error::InvalidArgument(format!("{:?} is not a directory", directory_path))
+            }
         }
     }
 }

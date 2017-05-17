@@ -15,23 +15,21 @@ impl<'a> PhraseScorer<'a> {
         let mut positions_arr: Vec<&[u32]> = self.intersection_docset
             .docsets()
             .iter()
-            .map(|posting| {
-                posting.positions()
-            })
+            .map(|posting| posting.positions())
             .collect();
-        
+
         let num_postings = positions_arr.len() as u32;
-        
+
         let mut ord = 1u32;
-        let mut pos_candidate =  positions_arr[0][0];
+        let mut pos_candidate = positions_arr[0][0];
         positions_arr[0] = &(positions_arr[0])[1..];
         let mut count_matching = 1;
-        
+
+        #[cfg_attr(feature = "cargo-clippy", allow(never_loop))]
         'outer: loop {
             let target = pos_candidate + ord;
             let positions = positions_arr[ord as usize];
-            for i in 0..positions.len() {
-                let pos_i = positions[i];
+            for (i, pos_i) in positions.iter().cloned().enumerate() {
                 if pos_i < target {
                     continue;
                 }
@@ -40,11 +38,10 @@ impl<'a> PhraseScorer<'a> {
                     if count_matching == num_postings {
                         return true;
                     }
-                }
-                else if pos_i > target {
+                } else if pos_i > target {
                     count_matching = 1;
                     pos_candidate = positions[i] - ord;
-                    positions_arr[ord as usize] = &(positions_arr[ord as usize])[(i+1)..];
+                    positions_arr[ord as usize] = &(positions_arr[ord as usize])[(i + 1)..];
                 }
                 ord += 1;
                 if ord == num_postings {
@@ -58,7 +55,7 @@ impl<'a> PhraseScorer<'a> {
 }
 
 impl<'a> DocSet for PhraseScorer<'a> {
-    fn advance(&mut self,) -> bool {
+    fn advance(&mut self) -> bool {
         while self.intersection_docset.advance() {
             if self.phrase_match() {
                 return true;
@@ -67,15 +64,14 @@ impl<'a> DocSet for PhraseScorer<'a> {
         false
     }
 
-    fn doc(&self,) -> DocId {
+    fn doc(&self) -> DocId {
         self.intersection_docset.doc()
     }
 }
 
 
 impl<'a> Scorer for PhraseScorer<'a> {
-    fn score(&self,) -> f32 {
+    fn score(&self) -> f32 {
         1f32
     }
-    
 }

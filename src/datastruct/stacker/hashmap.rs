@@ -3,7 +3,7 @@ use super::heap::{Heap, HeapAllocable, BytesRef};
 
 /// dbj2 hash function
 fn djb2(key: &[u8]) -> u64 {
-    let mut state: u64 = 5381; 
+    let mut state: u64 = 5381;
     for &b in key {
         state = (state << 5).wrapping_add(state).wrapping_add(b as u64);
     }
@@ -25,7 +25,7 @@ impl Default for BytesRef {
 ///
 /// The key and the value are actually stored contiguously.
 /// For this reason, the (start, stop) information is actually redundant
-/// and can be simplified in the future 
+/// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
 struct KeyValue {
     key: BytesRef,
@@ -33,7 +33,7 @@ struct KeyValue {
 }
 
 impl KeyValue {
-    fn is_empty(&self,) -> bool {
+    fn is_empty(&self) -> bool {
         self.key.stop == 0u32
     }
 }
@@ -45,7 +45,7 @@ pub enum Entry {
 
 
 /// Customized `HashMap` with string keys
-/// 
+///
 /// This `HashMap` takes String as keys. Keys are
 /// stored in a user defined heap.
 ///
@@ -59,6 +59,7 @@ pub struct HashMap<'a> {
     mask: usize,
     occupied: Vec<usize>,
 }
+
 
 struct QuadraticProbing {
     hash: usize,
@@ -77,7 +78,7 @@ impl QuadraticProbing {
     }
 
     #[inline]
-    fn next(&mut self) -> usize {
+    fn next_probe(&mut self) -> usize {
         self.i += 1;
         (self.hash + self.i * self.i) & self.mask
     }
@@ -88,9 +89,7 @@ impl<'a> HashMap<'a> {
 
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
-        let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
-            .take(table_size)
-            .collect();
+        let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
         HashMap {
             table: table.into_boxed_slice(),
             heap: heap,
@@ -136,9 +135,7 @@ impl<'a> HashMap<'a> {
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let entry = self.lookup(key.as_ref());
         match entry {
-            Entry::Occupied(addr) => {
-                self.heap.get_mut_ref(addr)
-            }
+            Entry::Occupied(addr) => self.heap.get_mut_ref(addr),
             Entry::Vacant(bucket) => {
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 self.set_bucket(key.as_ref(), bucket, addr);
@@ -146,12 +143,12 @@ impl<'a> HashMap<'a> {
             }
         }
     }
-    
+
     pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
         let key_bytes: &[u8] = key.as_ref();
         let mut probe = self.probe(key_bytes);
         loop {
-            let bucket = probe.next();
+            let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 return Entry::Vacant(bucket);
@@ -166,7 +163,7 @@ impl<'a> HashMap<'a> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use super::super::heap::{Heap, HeapAllocable};
     use super::djb2;
@@ -227,20 +224,17 @@ mod tests {
     #[bench]
     fn bench_djb2(bench: &mut Bencher) {
         let v = String::from("abwer");
-        bench.iter(|| {
-            djb2(v.as_bytes())
-        });
+        bench.iter(|| djb2(v.as_bytes()));
     }
 
     #[bench]
     fn bench_siphasher(bench: &mut Bencher) {
         let v = String::from("abwer");
         bench.iter(|| {
-            let mut h = DefaultHasher::new();
-            h.write(v.as_bytes());
-            h.finish()
-        });
+                       let mut h = DefaultHasher::new();
+                       h.write(v.as_bytes());
+                       h.finish()
+                   });
     }
 
 }
-

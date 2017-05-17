@@ -122,7 +122,6 @@ impl Recorder for TermFrequencyRecorder {
                  serializer: &mut PostingsSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
-        
         // the last document has not been closed...
         // its term freq is self.current_tf.
         let mut doc_iter = self.stack

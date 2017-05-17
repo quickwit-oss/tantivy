@@ -3,9 +3,9 @@ use schema::Value;
 
 
 
-/// Internal representation of a document used for JSON 
+/// Internal representation of a document used for JSON
 /// serialization.
-/// 
+///
 /// A `NamedFieldDocument` is a simple representation of a document
 /// as a `BTreeMap<String, Vec<Value>>`.
 ///

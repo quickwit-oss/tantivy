@@ -6,12 +6,11 @@ use std::sync::Arc;
 pub struct Stamper(Arc<AtomicU64>);
 
 impl Stamper {
-
     pub fn new(first_opstamp: u64) -> Stamper {
         Stamper(Arc::new(AtomicU64::new(first_opstamp)))
     }
 
-    pub fn stamp(&self,) -> u64 {
+    pub fn stamp(&self) -> u64 {
         self.0.fetch_add(1u64, Ordering::SeqCst)
     }
 }

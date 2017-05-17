@@ -18,11 +18,10 @@ pub trait StreamingIterator<'a, T> {
 
 impl<'a, 'b> TokenIter<'b> {
     fn consume_token(&'a mut self) -> Option<&'a str> {
-        for c in &mut self.chars { 
+        for c in &mut self.chars {
             if c.is_alphanumeric() {
                 append_char_lowercase(c, &mut self.term_buffer);
-            }
-            else {
+            } else {
                 break;
             }
         }
@@ -32,9 +31,8 @@ impl<'a, 'b> TokenIter<'b> {
 
 
 impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
-    
     #[inline]
-    fn next(&'a mut self,) -> Option<&'a str> {
+    fn next(&'a mut self) -> Option<&'a str> {
         self.term_buffer.clear();
         // skipping non-letter characters.
         loop {
@@ -45,24 +43,24 @@ impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
                         return self.consume_token();
                     }
                 }
-                None => { return None; }
+                None => {
+                    return None;
+                }
             }
         }
     }
-    
 }
 
 pub struct SimpleTokenizer;
 
 
 impl SimpleTokenizer {
-
     pub fn tokenize<'a>(&self, text: &'a str) -> TokenIter<'a> {
         TokenIter {
-           term_buffer: String::new(),
-           chars: text.chars(),
+            term_buffer: String::new(),
+            chars: text.chars(),
         }
-   }
+    }
 }
 
 

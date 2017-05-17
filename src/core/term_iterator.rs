@@ -64,14 +64,15 @@ impl<'a> TermIterator<'a> {
             loop {
                 match self.heap.peek() {
                     Some(&ref next_heap_it) if next_heap_it.term == self.current_term => {}
-                    _ => { break; }
+                    _ => {
+                        break;
+                    }
                 }
                 let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
                 self.current_segment_ords.push(next_heap_it.segment_ord);
             }
             true
-        }
-        else {
+        } else {
             false
         }
     }
@@ -92,17 +93,18 @@ impl<'a> TermIterator<'a> {
     /// This method may be called
     /// iff advance() has been called before
     /// and "true" was returned.
-    pub fn segment_ords(&self) -> &[usize]{
+    pub fn segment_ords(&self) -> &[usize] {
         &self.current_segment_ords[..]
     }
 
     fn advance_segments(&mut self) {
         for segment_ord in self.current_segment_ords.drain(..) {
             if let Some(term) = self.key_streams[segment_ord].next() {
-                self.heap.push(HeapItem {
-                    term: Term::from_bytes(term),
-                    segment_ord: segment_ord,
-                });
+                self.heap
+                    .push(HeapItem {
+                              term: Term::from_bytes(term),
+                              segment_ord: segment_ord,
+                          });
             }
         }
     }
@@ -114,8 +116,7 @@ impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
     fn next(&'a mut self) -> Option<Self::Item> {
         if self.advance() {
             Some(&self.current_term)
-        }
-        else {
+        } else {
             None
         }
     }
@@ -123,12 +124,10 @@ impl<'a, 'f> Streamer<'a> for TermIterator<'f> {
 
 impl<'a> From<&'a [SegmentReader]> for TermIterator<'a> {
     fn from(segment_readers: &'a [SegmentReader]) -> TermIterator<'a> {
-        TermIterator::new(
-            segment_readers
-            .iter()
-            .map(|reader| reader.term_infos().keys())
-            .collect()
-        )
+        TermIterator::new(segment_readers
+                              .iter()
+                              .map(|reader| reader.term_infos().keys())
+                              .collect())
     }
 }
 

@@ -9,7 +9,7 @@ pub fn is_power_of_2(val: u32) -> bool {
 
 #[inline]
 pub fn jump_needed(val: u32) -> bool {
-    val > 3 && is_power_of_2(val) 
+    val > 3 && is_power_of_2(val)
 }
 
 
@@ -24,7 +24,6 @@ pub struct ExpUnrolledLinkedList {
 }
 
 impl ExpUnrolledLinkedList {
-
     pub fn iter<'a>(&self, addr: u32, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
         ExpUnrolledLinkedListIterator {
             heap: heap,
@@ -42,10 +41,10 @@ impl ExpUnrolledLinkedList {
             // the next block as a size of (length so far),
             // and we need to add 1u32 to store the pointer
             // to the next element.
-            let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>(); 
+            let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>();
             let new_block_addr: u32 = heap.allocate_space(new_block_size);
             heap.set(self.end, &new_block_addr);
-            self.end = new_block_addr;     
+            self.end = new_block_addr;
         }
         heap.set(self.end, &val);
         self.end += mem::size_of::<u32>() as u32;
@@ -77,23 +76,21 @@ pub struct ExpUnrolledLinkedListIterator<'a> {
 impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
     type Item = u32;
 
-    fn next(&mut self,) -> Option<u32> {
+    fn next(&mut self) -> Option<u32> {
         if self.consumed == self.len {
             None
-        }
-        else {
+        } else {
             let addr: u32;
             self.consumed += 1;
             if jump_needed(self.consumed) {
                 addr = *self.heap.get_mut_ref(self.addr);
-            }
-            else {
+            } else {
                 addr = self.addr;
             }
             self.addr = addr + mem::size_of::<u32>() as u32;
             Some(*self.heap.get_mut_ref(addr))
-        }   
-        
+        }
+
     }
 }
 
@@ -103,7 +100,7 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use super::super::heap::Heap;
     use test::Bencher;
@@ -147,7 +144,7 @@ mod tests {
 
     #[bench]
     fn bench_push_stack(bench: &mut Bencher) {
-        let heap = Heap::with_capacity(64_000_000); 
+        let heap = Heap::with_capacity(64_000_000);
         bench.iter(|| {
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {

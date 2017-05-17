@@ -35,9 +35,9 @@ pub use common::HasLen;
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
-    use schema::{Document, TEXT, STRING, SchemaBuilder, Term};
+    use schema::{Document, INT_INDEXED, TEXT, STRING, SchemaBuilder, Term};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
@@ -49,9 +49,10 @@ mod tests {
     use schema::Field;
     use test::Bencher;
     use indexer::operation::AddOperation;
+    use tests;
     use rand::{XorShiftRng, Rng, SeedableRng};
-    
-        
+
+
     #[test]
     pub fn test_position_write() {
         let mut schema_builder = SchemaBuilder::default();
@@ -63,7 +64,7 @@ mod tests {
         posting_serializer.new_field(text_field);
         posting_serializer.new_term("abc".as_bytes()).unwrap();
         for doc_id in 0u32..3u32 {
-            let positions = vec!(1,2,3,2);
+            let positions = vec![1, 2, 3, 2];
             posting_serializer.write_doc(doc_id, 2, &positions).unwrap();
         }
         posting_serializer.close_term().unwrap();
@@ -71,7 +72,7 @@ mod tests {
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert!(read.len() <= 16);
     }
-    
+
     #[test]
     pub fn test_position_and_fieldnorm() {
         let mut schema_builder = SchemaBuilder::default();
@@ -81,14 +82,16 @@ mod tests {
         let segment = index.new_segment();
         let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema).unwrap();
+            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema)
+                .unwrap();
             {
                 let mut doc = Document::default();
+                // checking that position works if the field has two values
                 doc.add_text(text_field, "a b a c a d a a.");
-                doc.add_text(text_field, "d d d d a"); // checking that position works if the field has two values.
+                doc.add_text(text_field, "d d d d a");
                 let op = AddOperation {
                     opstamp: 0u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -97,7 +100,7 @@ mod tests {
                 doc.add_text(text_field, "b a");
                 let op = AddOperation {
                     opstamp: 1u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -108,7 +111,7 @@ mod tests {
                 doc.add_text(text_field, &text);
                 let op = AddOperation {
                     opstamp: 2u64,
-                    document: doc,  
+                    document: doc,
                 };
                 segment_writer.add_document(&op, &schema).unwrap();
             }
@@ -120,7 +123,7 @@ mod tests {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.get(1), 2);
-                for i in 2 .. 1000 {
+                for i in 2..1000 {
                     assert_eq!(fieldnorm_reader.get(i), (i + 1) as u64);
                 }
             }
@@ -139,7 +142,7 @@ mod tests {
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 1u32);
                 assert_eq!(postings_a.term_freq(), 1);
-                for i in 2u32 .. 1000u32 {
+                for i in 2u32..1000u32 {
                     assert!(postings_a.advance());
                     assert_eq!(postings_a.term_freq(), 1);
                     assert_eq!(postings_a.positions(), [i]);
@@ -151,7 +154,7 @@ mod tests {
                 let term_e = Term::from_field_text(text_field, "e");
                 let mut postings_e = segment_reader.read_postings_all_info(&term_e).unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
-                for i in 2u32 .. 1000u32 {
+                for i in 2u32..1000u32 {
                     assert!(postings_e.advance());
                     assert_eq!(postings_e.term_freq(), i);
                     let positions = postings_e.positions();
@@ -165,7 +168,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     pub fn test_position_and_fieldnorm2() {
         let mut schema_builder = SchemaBuilder::default();
@@ -187,7 +190,8 @@ mod tests {
             assert!(index_writer.commit().is_ok());
         }
         index.load_searchers().unwrap();
-        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"), SegmentPostingsOption::NoFreq);
+        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"),
+                                        SegmentPostingsOption::NoFreq);
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
         term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
@@ -197,13 +201,178 @@ mod tests {
         assert_eq!(term_scorer.doc(), 1u32);
         assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
     }
-    
+
+    #[test]
+    fn test_skip_next() {
+        let term_0 = Term::from_field_u64(Field(0), 0);
+        let term_1 = Term::from_field_u64(Field(0), 1);
+        let term_2 = Term::from_field_u64(Field(0), 2);
+
+        let num_docs = 300u32;
+
+        let index = {
+            let mut schema_builder = SchemaBuilder::default();
+            let value_field = schema_builder.add_u64_field("value", INT_INDEXED);
+            let schema = schema_builder.build();
+
+            let index = Index::create_in_ram(schema);
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+                for i in 0..num_docs {
+                    let mut doc = Document::default();
+                    doc.add_u64(value_field, 2);
+                    doc.add_u64(value_field, (i % 2) as u64);
+
+                    index_writer.add_document(doc);
+                }
+                assert!(index_writer.commit().is_ok());
+            }
+            index.load_searchers().unwrap();
+
+            index
+        };
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // check that the basic usage works
+        for i in 0..num_docs - 1 {
+            for j in i + 1..num_docs {
+                let mut segment_postings = segment_reader
+                    .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                    .unwrap();
+
+                assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i);
+
+                assert_eq!(segment_postings.skip_next(j), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), j);
+            }
+        }
+
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            // check that `skip_next` advances the iterator
+            assert!(segment_postings.advance());
+            assert_eq!(segment_postings.doc(), 0);
+
+            assert_eq!(segment_postings.skip_next(1), SkipResult::Reached);
+            assert_eq!(segment_postings.doc(), 1);
+
+            assert_eq!(segment_postings.skip_next(1), SkipResult::OverStep);
+            assert_eq!(segment_postings.doc(), 2);
+
+            // check that going beyond the end is handled
+            assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
+        }
+
+        // check that filtering works
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            for i in 0..num_docs / 2 {
+                assert_eq!(segment_postings.skip_next(i * 2), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i * 2);
+            }
+
+            let mut segment_postings = segment_reader
+                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            for i in 0..num_docs / 2 - 1 {
+                assert_eq!(segment_postings.skip_next(i * 2 + 1), SkipResult::OverStep);
+                assert_eq!(segment_postings.doc(), (i + 1) * 2);
+            }
+        }
+
+        // delete some of the documents
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.delete_term(term_0);
+
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // make sure seeking still works
+        for i in 0..num_docs {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            if i % 2 == 0 {
+                assert_eq!(segment_postings.skip_next(i), SkipResult::OverStep);
+                assert_eq!(segment_postings.doc(), i + 1);
+            } else {
+                assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i);
+            }
+        }
+
+        // now try with a longer sequence
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            let mut last = 2; // start from 5 to avoid seeking to 3 twice
+            let mut cur = 3;
+            loop {
+                match segment_postings.skip_next(cur) {
+                    SkipResult::End => break,
+                    SkipResult::Reached => assert_eq!(segment_postings.doc(), cur),
+                    SkipResult::OverStep => assert_eq!(segment_postings.doc(), cur + 1),
+                }
+
+                let next = cur + last;
+                last = cur;
+                cur = next;
+            }
+
+            assert_eq!(cur, 377);
+        }
+
+        // delete everything else
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.delete_term(term_1);
+
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // finally, check that it's empty
+        {
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            assert_eq!(segment_postings.skip_next(0), SkipResult::End);
+
+            let mut segment_postings = segment_reader
+                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .unwrap();
+
+            assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
+        }
+    }
+
     #[test]
     fn test_intersection() {
         {
-            let left = VecPostings::from(vec!(1, 3, 9));
-            let right = VecPostings::from(vec!(3, 4, 9, 18));
-            let mut intersection = IntersectionDocSet::from(vec!(left, right));
+            let left = VecPostings::from(vec![1, 3, 9]);
+            let right = VecPostings::from(vec![3, 4, 9, 18]);
+            let mut intersection = IntersectionDocSet::from(vec![left, right]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
             assert!(intersection.advance());
@@ -211,17 +380,17 @@ mod tests {
             assert!(!intersection.advance());
         }
         {
-            let a = VecPostings::from(vec!(1, 3, 9));
-            let b = VecPostings::from(vec!(3, 4, 9, 18));
-            let c = VecPostings::from(vec!(1, 5, 9, 111));
-            let mut intersection = IntersectionDocSet::from(vec!(a, b, c));
+            let a = VecPostings::from(vec![1, 3, 9]);
+            let b = VecPostings::from(vec![3, 4, 9, 18]);
+            let c = VecPostings::from(vec![1, 5, 9, 111]);
+            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.advance());
         }
     }
-    
-    
+
+
     lazy_static! {
         static ref TERM_A: Term = {
             let field = Field(0);
@@ -235,10 +404,10 @@ mod tests {
             let mut schema_builder = SchemaBuilder::default();
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
-            
+
             let seed: &[u32; 4] = &[1, 2, 3, 4];
             let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-            
+
             let index = Index::create_in_ram(schema);
             let mut count_a = 0;
             let mut count_b = 0;
@@ -267,27 +436,84 @@ mod tests {
             index
         };
     }
-    
+
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
-        
+
         b.iter(|| {
-            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            while segment_postings.advance() {}
-        });
-    }    
-    
+                   let mut segment_postings = segment_reader
+                       .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                       .unwrap();
+                   while segment_postings.advance() {}
+               });
+    }
+
     #[bench]
     fn bench_segment_intersection(b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
-            let segment_postings_a = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
-            let segment_postings_b = segment_reader.read_postings(&*TERM_B, SegmentPostingsOption::NoFreq).unwrap();
-            let mut intersection = IntersectionDocSet::from(vec!(segment_postings_a, segment_postings_b));
+            let segment_postings_a = segment_reader
+                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let segment_postings_b = segment_reader
+                .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let mut intersection = IntersectionDocSet::from(vec![segment_postings_a,
+                                                                 segment_postings_b]);
             while intersection.advance() {}
         });
-    }    
+    }
+
+    fn bench_skip_next(p: f32, b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let docs = tests::sample(segment_reader.num_docs(), p);
+
+        let mut segment_postings = segment_reader
+            .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+            .unwrap();
+        let mut existing_docs = Vec::new();
+        for doc in &docs {
+            if *doc >= segment_postings.doc() {
+                existing_docs.push(*doc);
+                if segment_postings.skip_next(*doc) == SkipResult::End {
+                    break;
+                }
+            }
+        }
+
+        b.iter(|| {
+            let mut segment_postings = segment_reader
+                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            for doc in &existing_docs {
+                if segment_postings.skip_next(*doc) == SkipResult::End {
+                    break;
+                }
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_skip_next_p01(b: &mut Bencher) {
+        bench_skip_next(0.001, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p1(b: &mut Bencher) {
+        bench_skip_next(0.01, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p10(b: &mut Bencher) {
+        bench_skip_next(0.1, b);
+    }
+
+    #[bench]
+    fn bench_skip_next_p90(b: &mut Bencher) {
+        bench_skip_next(0.9, b);
+    }
 }

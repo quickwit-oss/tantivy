@@ -19,7 +19,6 @@ use common;
 /// Depending on the field type, a different
 /// fast field is required.
 pub trait FastFieldReader: Sized {
-
     /// Type of the value stored in the fastfield.
     type ValueType;
 
@@ -33,12 +32,12 @@ pub trait FastFieldReader: Sized {
     fn open(source: ReadOnlySource) -> Self;
 
     /// Returns true iff the given field_type makes
-    /// it possible to access the field values via a 
+    /// it possible to access the field values via a
     /// fastfield.
     fn is_enabled(field_type: &FieldType) -> bool;
 }
 
-/// FastFieldReader for unsigned 64-bits integers.
+/// `FastFieldReader` for unsigned 64-bits integers.
 pub struct U64FastFieldReader {
     _data: ReadOnlySource,
     bit_unpacker: BitUnpacker,
@@ -47,37 +46,35 @@ pub struct U64FastFieldReader {
 }
 
 impl U64FastFieldReader {
-
     /// Returns the minimum value for this fast field.
     ///
     /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound 
+    /// deleted document, and should be considered as a lower bound
     /// of the actual minimum value.
-    pub fn min_value(&self,) -> u64 {
+    pub fn min_value(&self) -> u64 {
         self.min_value
-    }  
+    }
 
     /// Returns the maximum value for this fast field.
     ///
     /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound 
+    /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
-    pub fn max_value(&self,) -> u64 {
+    pub fn max_value(&self) -> u64 {
         self.max_value
     }
 }
 
 impl FastFieldReader for U64FastFieldReader {
     type ValueType = u64;
-    
+
     fn get(&self, doc: DocId) -> u64 {
         self.min_value + self.bit_unpacker.get(doc as usize)
     }
 
     fn is_enabled(field_type: &FieldType) -> bool {
-        match field_type {
-            &FieldType::U64(ref integer_options) => 
-                integer_options.is_fast(),
+        match *field_type {
+            FieldType::U64(ref integer_options) => integer_options.is_fast(),
             _ => false,
         }
     }
@@ -90,11 +87,13 @@ impl FastFieldReader for U64FastFieldReader {
         let min_value: u64;
         let max_value: u64;
         let bit_unpacker: BitUnpacker;
-        
+
         {
             let mut cursor: &[u8] = data.as_slice();
-            min_value = u64::deserialize(&mut cursor).expect("Failed to read the min_value of fast field.");
-            let amplitude = u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
+            min_value = u64::deserialize(&mut cursor)
+                .expect("Failed to read the min_value of fast field.");
+            let amplitude = u64::deserialize(&mut cursor)
+                .expect("Failed to read the amplitude of fast field.");
             max_value = min_value + amplitude;
             let num_bits = compute_num_bits(amplitude);
             bit_unpacker = BitUnpacker::new(cursor, num_bits as usize)
@@ -107,7 +106,6 @@ impl FastFieldReader for U64FastFieldReader {
             max_value: max_value,
         }
     }
-
 }
 
 
@@ -129,13 +127,13 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let source = directory.open_read(path).unwrap();
         let fast_field_readers = FastFieldsReader::open(source).unwrap();
         fast_field_readers.open_reader(field).unwrap()
-     }
+    }
 }
 
-/// FastFieldReader for signed 64-bits integers.
+/// `FastFieldReader` for signed 64-bits integers.
 pub struct I64FastFieldReader {
     underlying: U64FastFieldReader,
 }
@@ -144,61 +142,51 @@ impl I64FastFieldReader {
     /// Returns the minimum value for this fast field.
     ///
     /// The min value does not take in account of possible
-    /// deleted document, and should be considered as a lower bound 
+    /// deleted document, and should be considered as a lower bound
     /// of the actual minimum value.
-    pub fn min_value(&self,) -> i64 {
+    pub fn min_value(&self) -> i64 {
         common::u64_to_i64(self.underlying.min_value())
     }
 
     /// Returns the maximum value for this fast field.
     ///
     /// The max value does not take in account of possible
-    /// deleted document, and should be considered as an upper bound 
+    /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
-    pub fn max_value(&self,) -> i64 {
+    pub fn max_value(&self) -> i64 {
         common::u64_to_i64(self.underlying.max_value())
     }
 }
 
 impl FastFieldReader for I64FastFieldReader {
     type ValueType = i64;
-    
+
     fn get(&self, doc: DocId) -> i64 {
         common::u64_to_i64(self.underlying.get(doc))
     }
-    
+
     /// Opens a new fast field reader given a read only source.
     ///
     /// # Panics
     /// Panics if the data is corrupted.
     fn open(data: ReadOnlySource) -> I64FastFieldReader {
-        I64FastFieldReader {
-            underlying: U64FastFieldReader::open(data)
-        }
+        I64FastFieldReader { underlying: U64FastFieldReader::open(data) }
     }
 
     fn is_enabled(field_type: &FieldType) -> bool {
-        match field_type {
-            &FieldType::I64(ref integer_options) => {
-                if integer_options.is_fast() {
-                    true
-                }
-                else {
-                    false
-                }
-            },
+        match *field_type {
+            FieldType::I64(ref integer_options) => integer_options.is_fast(),
             _ => false,
         }
     }
-
 }
 
 
 
-/// The FastFieldsReader` is the datastructure containing
+/// The `FastFieldsReader` is the datastructure containing
 /// all of the fast fields' data.
 ///
-/// It contains a mapping that associated these fields to 
+/// It contains a mapping that associated these fields to
 /// the proper slice in the fastfield reader file.
 pub struct FastFieldsReader {
     source: ReadOnlySource,
@@ -206,11 +194,10 @@ pub struct FastFieldsReader {
 }
 
 impl FastFieldsReader {
-
     /// Opens the `FastFieldsReader` file
     ///
     /// When opening the fast field reader, the
-    /// the list of the offset is read (as a footer of the 
+    /// the list of the offset is read (as a footer of the
     /// data file).
     pub fn open(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
         let header_offset;
@@ -223,23 +210,21 @@ impl FastFieldsReader {
             }
             {
                 let mut cursor = &buffer[header_offset as usize..];
-                field_offsets = Vec::deserialize(&mut cursor)?;    
+                field_offsets = Vec::deserialize(&mut cursor)?;
             }
         }
-        let mut end_offsets: Vec<u32> = field_offsets
-            .iter()
-            .map(|&(_, offset)| offset)
-            .collect();
+        let mut end_offsets: Vec<u32> = field_offsets.iter().map(|&(_, offset)| offset).collect();
         end_offsets.push(header_offset);
         let mut field_offsets_map: HashMap<Field, (u32, u32)> = HashMap::new();
-        for (field_start_offsets, stop_offset) in field_offsets.iter().zip(end_offsets.iter().skip(1)) {
+        for (field_start_offsets, stop_offset) in
+            field_offsets.iter().zip(end_offsets.iter().skip(1)) {
             let (field, start_offset) = *field_start_offsets;
             field_offsets_map.insert(field, (start_offset, *stop_offset));
         }
         Ok(FastFieldsReader {
-            field_offsets: field_offsets_map,
-            source: source,
-        })
+               field_offsets: field_offsets_map,
+               source: source,
+           })
     }
 
     /// Returns the u64 fast value reader if the field
@@ -254,8 +239,8 @@ impl FastFieldsReader {
         self.field_offsets
             .get(&field)
             .map(|&(start, stop)| {
-                let field_source = self.source.slice(start as usize, stop as usize);
-                FFReader::open(field_source)
-            })
+                     let field_source = self.source.slice(start as usize, stop as usize);
+                     FFReader::open(field_source)
+                 })
     }
 }

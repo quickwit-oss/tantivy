@@ -31,7 +31,7 @@ pub type WritePtr = BufWriter<Box<SeekableWrite>>;
 mod tests {
 
     use super::*;
-    use std::path::Path;   
+    use std::path::Path;
     use std::io::{Write, Seek, SeekFrom};
 
     lazy_static! {
@@ -65,7 +65,7 @@ mod tests {
                 assert!(directory.exists(*TEST_PATH));
                 write_file.write_all(&[4]).unwrap();
                 write_file.write_all(&[3]).unwrap();
-                write_file.write_all(&[7,3,5]).unwrap();
+                write_file.write_all(&[7, 3, 5]).unwrap();
                 write_file.flush().unwrap();
             }
             let read_file = directory.open_read(*TEST_PATH).unwrap();
@@ -81,9 +81,9 @@ mod tests {
         {
             {
                 let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-                write_file.write_all(&[4, 3, 7,3,5]).unwrap();
+                write_file.write_all(&[4, 3, 7, 3, 5]).unwrap();
                 write_file.seek(SeekFrom::Start(0)).unwrap();
-                write_file.write_all(&[3,1]).unwrap();
+                write_file.write_all(&[3, 1]).unwrap();
                 write_file.flush().unwrap();
             }
             let read_file = directory.open_read(*TEST_PATH).unwrap();
@@ -98,7 +98,7 @@ mod tests {
         {
             directory.open_write(*TEST_PATH).unwrap();
             assert!(directory.exists(*TEST_PATH));
-            
+
         }
         {
             assert!(directory.open_write(*TEST_PATH).is_err());

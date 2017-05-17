@@ -19,20 +19,17 @@ pub struct Heap {
     inner: UnsafeCell<InnerHeap>,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
 impl Heap {
     /// Creates a new heap with a given capacity
     pub fn with_capacity(num_bytes: usize) -> Heap {
-        Heap {
-            inner: UnsafeCell::new(
-                InnerHeap::with_capacity(num_bytes)
-            ),
-        }
+        Heap { inner: UnsafeCell::new(InnerHeap::with_capacity(num_bytes)) }
     }
 
-    fn inner(&self,) -> &mut InnerHeap {
-        unsafe { &mut *self.inner.get() } 
+    fn inner(&self) -> &mut InnerHeap {
+        unsafe { &mut *self.inner.get() }
     }
-    
+
     /// Clears the heap. All the underlying data is lost.
     ///
     /// This heap does not support deallocation.
@@ -40,14 +37,14 @@ impl Heap {
     pub fn clear(&self) {
         self.inner().clear();
     }
-    
+
     /// Return the heap capacity.
-    pub fn capacity(&self,) -> u32 {
+    pub fn capacity(&self) -> u32 {
         self.inner().capacity()
     }
-        
+
     /// Return amount of free space, in bytes.
-    pub fn num_free_bytes(&self,) -> u32 {
+    pub fn num_free_bytes(&self) -> u32 {
         self.inner().num_free_bytes()
     }
 
@@ -56,40 +53,40 @@ impl Heap {
     pub fn allocate_space(&self, num_bytes: usize) -> u32 {
         self.inner().allocate_space(num_bytes)
     }
-        
+
     /// Allocate an object in the heap
-    pub fn allocate_object<V: HeapAllocable>(&self,) -> (u32, &mut V) {
+    pub fn allocate_object<V: HeapAllocable>(&self) -> (u32, &mut V) {
         let addr = self.inner().allocate_space(mem::size_of::<V>());
         let v: V = V::with_addr(addr);
         self.inner().set(addr, &v);
         (addr, self.inner().get_mut_ref(addr))
     }
-    
+
     /// Stores a `&[u8]` in the heap and returns the destination BytesRef.
     pub fn allocate_and_set(&self, data: &[u8]) -> BytesRef {
         self.inner().allocate_and_set(data)
     }
-    
+
     /// Fetches the `&[u8]` stored on the slice defined by the `BytesRef`
     /// given as argumetn
     pub fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
         self.inner().get_slice(bytes_ref.start, bytes_ref.stop)
     }
-    
+
     /// Stores an item's data in the heap, at the given `address`.
     pub fn set<Item>(&self, addr: u32, val: &Item) {
         self.inner().set(addr, val);
     }
 
-    /// Returns a reference to an `Item` at a given `addr`.
-    #[cfg(test)]
-    pub fn get_ref<Item>(&self, addr: u32) -> &Item {
+    /// Returns a mutable reference for an object at a given Item.
+    pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
         self.inner().get_mut_ref(addr)
     }
 
     /// Returns a mutable reference to an `Item` at a given `addr`.
-    pub fn get_mut_ref<Item>(&self, addr: u32) -> &mut Item {
-        self.inner().get_mut_ref(addr)
+    #[cfg(test)]
+    pub fn get_ref<Item>(&self, addr: u32) -> &mut Item {
+        self.get_mut_ref(addr)
     }
 }
 
@@ -102,7 +99,6 @@ struct InnerHeap {
 
 
 impl InnerHeap {
-
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
         let buffer: Vec<u8> = vec![0u8; num_bytes];
         InnerHeap {
@@ -116,7 +112,7 @@ impl InnerHeap {
         self.used = 0u32;
     }
 
-    pub fn capacity(&self,) -> u32 {
+    pub fn capacity(&self) -> u32 {
         self.buffer.len() as u32
     }
     
@@ -125,10 +121,9 @@ impl InnerHeap {
     pub fn num_free_bytes(&self,) -> u32 {
         if self.has_been_resized {
             0u32
-        }
-        else {
+        } else {
             (self.buffer.len() as u32) - self.used
-        } 
+        }
     }
 
     pub fn allocate_space(&mut self, num_bytes: usize) -> u32 {
@@ -141,11 +136,11 @@ impl InnerHeap {
         }
         addr
     }
-    
+
     fn get_slice(&self, start: u32, stop: u32) -> &[u8] {
         &self.buffer[start as usize..stop as usize]
     }
-    
+
     fn get_mut_slice(&mut self, start: u32, stop: u32) -> &mut [u8] {
         &mut self.buffer[start as usize..stop as usize]
     }

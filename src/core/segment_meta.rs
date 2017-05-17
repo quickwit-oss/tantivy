@@ -9,7 +9,7 @@ struct DeleteMeta {
     opstamp: u64,
 }
 
-/// SegmentMeta contains simple meta information about a segment.
+/// `SegmentMeta` contains simple meta information about a segment.
 ///
 /// For instance the number of docs it contains,
 /// how many are deleted, etc.
@@ -17,12 +17,11 @@ struct DeleteMeta {
 pub struct SegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
-    deletes: Option<DeleteMeta>, 
+    deletes: Option<DeleteMeta>,
 }
 
 impl SegmentMeta {
-
-    /// Creates a new segment meta for 
+    /// Creates a new segment meta for
     /// a segment with no deletes and no documents.
     pub fn new(segment_id: SegmentId) -> SegmentMeta {
         SegmentMeta {
@@ -53,28 +52,28 @@ impl SegmentMeta {
     /// and are not used by any segment anymore.
     pub fn list_files(&self) -> HashSet<PathBuf> {
         SegmentComponent::iterator()
-            .map(|component| {
-                self.relative_path(*component)
-            })
+            .map(|component| self.relative_path(*component))
             .collect::<HashSet<PathBuf>>()
-        
+
     }
 
     /// Returns the relative path of a component of our segment.
-    ///  
-    /// It just joins the segment id with the extension 
+    ///
+    /// It just joins the segment id with the extension
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
-            SegmentComponent::POSITIONS => ".pos".to_string(),
-            SegmentComponent::POSTINGS => ".idx".to_string(),
-            SegmentComponent::TERMS => ".term".to_string(),
-            SegmentComponent::STORE => ".store".to_string(),
-            SegmentComponent::FASTFIELDS => ".fast".to_string(),
-            SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
-            SegmentComponent::DELETE => {format!(".{}.del", self.delete_opstamp().unwrap_or(0))},
-        });
+                           SegmentComponent::POSITIONS => ".pos".to_string(),
+                           SegmentComponent::POSTINGS => ".idx".to_string(),
+                           SegmentComponent::TERMS => ".term".to_string(),
+                           SegmentComponent::STORE => ".store".to_string(),
+                           SegmentComponent::FASTFIELDS => ".fast".to_string(),
+                           SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
+                           SegmentComponent::DELETE => {
+                               format!(".{}.del", self.delete_opstamp().unwrap_or(0))
+                           }
+                       });
         PathBuf::from(path)
     }
 
@@ -95,9 +94,7 @@ impl SegmentMeta {
     /// Returns the opstamp of the last delete operation
     /// taken in account in this segment.
     pub fn delete_opstamp(&self) -> Option<u64> {
-        self.deletes
-            .as_ref()
-            .map(|delete_meta| delete_meta.opstamp)
+        self.deletes.as_ref().map(|delete_meta| delete_meta.opstamp)
     }
 
     /// Returns true iff the segment meta contains
@@ -114,8 +111,8 @@ impl SegmentMeta {
     #[doc(hidden)]
     pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
         self.deletes = Some(DeleteMeta {
-            num_deleted_docs: num_deleted_docs,
-            opstamp: opstamp,
-        });
+                                num_deleted_docs: num_deleted_docs,
+                                opstamp: opstamp,
+                            });
     }
 }

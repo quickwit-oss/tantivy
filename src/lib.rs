@@ -1,6 +1,6 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![allow(unknown_lints)] // for the clippy lint options
-#![allow(module_inception)]
+#![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
+#![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
@@ -16,11 +16,13 @@
 
 //! # `tantivy`
 //!
-//! Tantivy is a search engine library. 
+//! Tantivy is a search engine library.
 //! Think `Lucene`, but in Rust.
 //!
 //! A good place for you to get started is to check out
-//! the example code ( [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) / [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
+//! the example code (
+//! [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) /
+//! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
 
 #[macro_use]
 extern crate lazy_static;
@@ -64,8 +66,10 @@ extern crate libc;
 #[cfg(windows)]
 extern crate winapi;
 
-#[cfg(test)] extern crate test;
-#[cfg(test)] extern crate rand;
+#[cfg(test)]
+extern crate test;
+#[cfg(test)]
+extern crate rand;
 
 
 #[cfg(test)]
@@ -136,15 +140,14 @@ pub use core::TermIterator;
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
-    if cfg!(feature="simdcompression") {
-        concat!(version!(), "-simd")  
-    }
-    else {
-        concat!(version!(), "-nosimd") 
+    if cfg!(feature = "simdcompression") {
+        concat!(version!(), "-simd")
+    } else {
+        concat!(version!(), "-nosimd")
     }
 }
 
-/// Tantivy's makes it possible to personalize when 
+/// Tantivy's makes it possible to personalize when
 /// the indexer should merge its segments
 pub mod merge_policy {
     pub use indexer::MergePolicy;
@@ -166,28 +169,27 @@ pub type Score = f32;
 pub type SegmentLocalId = u32;
 
 impl DocAddress {
-    
     /// Return the segment ordinal.
     /// The segment ordinal is an id identifying the segment
     /// hosting the document. It is only meaningful, in the context
     /// of a searcher.
-    pub fn segment_ord(&self,) -> SegmentLocalId {
+    pub fn segment_ord(&self) -> SegmentLocalId {
         self.0
     }
-        
+
     /// Return the segment local `DocId`
-    pub fn doc(&self,) -> DocId {
+    pub fn doc(&self) -> DocId {
         self.1
     }
 }
 
 
-/// `DocAddress` contains all the necessary information 
+/// `DocAddress` contains all the necessary information
 /// to identify a document given a `Searcher` object.
-/// 
-/// It consists in an id identifying its segment, and 
+///
+/// It consists in an id identifying its segment, and
 /// its segment-local `DocId`.
-/// 
+///
 /// The id used for the segment is actually an ordinal
 /// in the list of segment hold by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -207,7 +209,30 @@ mod tests {
     use IndexWriter;
     use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
     use Postings;
+    use rand::{XorShiftRng, Rng, SeedableRng};
 
+    fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        (0..u32::max_value())
+            .filter(|_| rng.next_f32() < ratio)
+            .take(n)
+            .collect()
+    }
+
+    pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
+        generate_array_with_seed(n, ratio, 4)
+    }
+
+    fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        (0..n).filter(|_| rng.next_f32() < ratio).collect()
+    }
+
+    pub fn sample(n: u32, ratio: f32) -> Vec<u32> {
+        sample_with_seed(n, ratio, 4)
+    }
 
     #[test]
     fn test_indexing() {
@@ -274,8 +299,8 @@ mod tests {
             assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
-    
-    
+
+
     #[test]
     fn test_fieldnorm() {
         let mut schema_builder = SchemaBuilder::default();
@@ -318,19 +343,23 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {   // 0
+            {
+                // 0
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc);
             }
-            {   // 1
+            {
+                // 1
                 let doc = doc!(text_field=>" a c");
                 index_writer.add_document(doc);
             }
-            {   // 2
+            {
+                // 2
                 let doc = doc!(text_field=>" b c");
                 index_writer.add_document(doc);
             }
-            {   // 3
+            {
+                // 3
                 let doc = doc!(text_field=>" b d");
                 index_writer.add_document(doc);
             }
@@ -340,11 +369,13 @@ mod tests {
             {
                 index_writer.delete_term(Term::from_field_text(text_field, "a"));
             }
-            {   // 4
+            {
+                // 4
                 let doc = doc!(text_field=>" b c");
                 index_writer.add_document(doc);
             }
-            {   // 5
+            {
+                // 5
                 let doc = doc!(text_field=>" a");
                 index_writer.add_document(doc);
             }
@@ -354,15 +385,21 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            assert!(reader
+                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
+                        .is_none());
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -373,11 +410,13 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {   // 0
+            {
+                // 0
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc);
             }
-            {   // 1
+            {
+                // 1
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
             index_writer.rollback().unwrap();
@@ -386,15 +425,21 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            assert!(reader
+                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
+                        .is_none());
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -405,14 +450,14 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            { 
+            {
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc);
             }
-            {   
+            {
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
-            index_writer = index_writer.rollback().unwrap();   
+            index_writer = index_writer.rollback().unwrap();
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
         }
@@ -420,13 +465,19 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
+            assert!(reader
+                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
+                        .is_none());
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "a")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
+                    .unwrap();
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "b")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -434,7 +485,9 @@ mod tests {
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "c")).unwrap();
+                let mut postings = reader
+                    .read_postings_all_info(&Term::from_field_text(text_field, "c"))
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
                 assert!(!postings.advance());
@@ -448,17 +501,18 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_u64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
-        
+
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-        index_writer.add_document(
-            doc!(field=>1u64)
-        );
+        index_writer.add_document(doc!(field=>1u64));
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let term = Term::from_field_u64(field, 1u64);
-        let mut postings = searcher.segment_reader(0).read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
+        let mut postings = searcher
+            .segment_reader(0)
+            .read_postings(&term, SegmentPostingsOption::NoFreq)
+            .unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
@@ -469,20 +523,19 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
-        
+
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         let negative_val = -1i64;
-        index_writer.add_document(
-            doc!(value_field => negative_val)
-        );
+        index_writer.add_document(doc!(value_field => negative_val));
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher
             .segment_reader(0)
-            .read_postings(&term, SegmentPostingsOption::NoFreq).unwrap();
+            .read_postings(&term, SegmentPostingsOption::NoFreq)
+            .unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
@@ -494,15 +547,15 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        
+
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
-        
+
         let add_document = |index_writer: &mut IndexWriter, val: &'static str| {
             let doc = doc!(text_field=>val);
             index_writer.add_document(doc);
         };
-        
+
         let remove_document = |index_writer: &mut IndexWriter, val: &'static str| {
             let delterm = Term::from_field_text(text_field, val);
             index_writer.delete_term(delterm);
@@ -543,8 +596,12 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings_all_info(&Term::from_field_text(text_field, "abcd")).is_none());
-            let mut postings = reader.read_postings_all_info(&Term::from_field_text(text_field, "af")).unwrap();
+            assert!(reader
+                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
+                        .is_none());
+            let mut postings = reader
+                .read_postings_all_info(&Term::from_field_text(text_field, "af"))
+                .unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
@@ -586,35 +643,29 @@ mod tests {
                 collector.docs()
             };
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "a"))),
-                    vec!(1, 2));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                           vec![1, 2]);
             }
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "af"))),
-                    vec!(0));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                           vec![0]);
             }
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"))),
-                    vec!(0, 1, 2));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                           vec![0, 1, 2]);
             }
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "c"))),
-                    vec!(1, 2));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
+                           vec![1, 2]);
             }
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "d"))),
-                    vec!(2));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
+                           vec![2]);
             }
             {
-                assert_eq!(
-                    get_doc_ids(vec!(Term::from_field_text(text_field, "b"),
-                                     Term::from_field_text(text_field, "a"), )),
-                    vec!(0, 1, 2));
+                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b"),
+                                            Term::from_field_text(text_field, "a")]),
+                           vec![0, 1, 2]);
             }
         }
     }
@@ -651,7 +702,9 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document = doc!(text_field => "tantivy", text_field => "some other value", other_text_field => "short");
+        let document = doc!(text_field => "tantivy",
+                            text_field => "some other value",
+                            other_text_field => "short");
         assert_eq!(document.len(), 3);
         let values = document.get_all(text_field);
         assert_eq!(values.len(), 2);
@@ -683,30 +736,35 @@ mod tests {
         let searcher = index.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
-            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(text_field);
+            let fast_field_reader_res =
+                segment_reader.get_fast_field_reader::<U64FastFieldReader>(text_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(stored_int_field);
+            let fast_field_reader_res =
+                segment_reader.get_fast_field_reader::<U64FastFieldReader>(stored_int_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res = segment_reader.get_fast_field_reader::<U64FastFieldReader>(fast_field_signed);
+            let fast_field_reader_res =
+                segment_reader.get_fast_field_reader::<U64FastFieldReader>(fast_field_signed);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res = segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+            let fast_field_reader_res =
+                segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
-        
+
         {
-            let fast_field_reader_res = segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+            let fast_field_reader_res =
+                segment_reader.get_fast_field_reader::<I64FastFieldReader>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
-        
+
     }
 }

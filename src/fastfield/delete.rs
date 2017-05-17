@@ -6,7 +6,7 @@ use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
 
-/// Write a delete BitSet
+/// Write a delete `BitSet`
 ///
 /// where `delete_bitset` is the set of deleted `DocId`.
 pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {
@@ -21,8 +21,7 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
             writer.write_all(&[byte])?;
             shift = 0;
             byte = 0;
-        }
-        else {
+        } else {
             shift += 1;
         }
     }
@@ -36,15 +35,14 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: ReadOnlySource,
-    len: usize,  
+    len: usize,
 }
 
 
 impl DeleteBitSet {
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
-        let num_deleted: usize = data
-            .as_slice()
+        let num_deleted: usize = data.as_slice()
             .iter()
             .map(|b| b.count_ones() as usize)
             .sum();
@@ -71,15 +69,13 @@ impl DeleteBitSet {
     pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false
-        }
-        else {
+        } else {
             let byte_offset = doc / 8u32;
             let b: u8 = (*self.data)[byte_offset as usize];
             let shift = (doc & 7u32) as u8;
-            b & (1u8 << shift) != 0    
+            b & (1u8 << shift) != 0
         }
     }
-
 }
 
 

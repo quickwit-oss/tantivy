@@ -9,7 +9,7 @@ const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_MERGE_SIZE: usize = 8;
 
 
-/// LogMergePolicy tries tries to merge segments that have a similar number of 
+/// `LogMergePolicy` tries tries to merge segments that have a similar number of
 /// documents.
 #[derive(Debug, Clone)]
 pub struct LogMergePolicy {
@@ -24,7 +24,7 @@ impl LogMergePolicy {
     }
 
     /// Set the minimum number of segment that may be merge together.
-        pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
+    pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
         self.min_merge_size = min_merge_size;
     }
 
@@ -52,14 +52,16 @@ impl MergePolicy for LogMergePolicy {
             return Vec::new();
         }
 
-        let mut size_sorted_tuples = segments.iter()
+        let mut size_sorted_tuples = segments
+            .iter()
             .map(|x| x.num_docs())
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
         size_sorted_tuples.sort_by(|x, y| y.cmp(x));
 
-        let size_sorted_log_tuples: Vec<_> = size_sorted_tuples.into_iter()
+        let size_sorted_log_tuples: Vec<_> = size_sorted_tuples
+            .into_iter()
             .map(|(ind, num_docs)| (ind, (self.clip_min_size(num_docs) as f64).log2()))
             .collect();
 
@@ -77,14 +79,10 @@ impl MergePolicy for LogMergePolicy {
         levels
             .iter()
             .filter(|level| level.len() >= self.min_merge_size)
-            .map(|ind_vec| {
-                MergeCandidate(ind_vec.iter()
-                    .map(|&ind| segments[ind].id())
-                    .collect())
-            })
+            .map(|ind_vec| MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect()))
             .collect()
     }
-    
+
     fn box_clone(&self) -> Box<MergePolicy> {
         box self.clone()
     }
@@ -128,9 +126,7 @@ mod tests {
 
     #[test]
     fn test_log_merge_policy_pair() {
-        let test_input = vec![seg_meta(10),
-                              seg_meta(10),
-                              seg_meta(10)];
+        let test_input = vec![seg_meta(10), seg_meta(10), seg_meta(10)];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);
     }

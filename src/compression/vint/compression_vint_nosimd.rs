@@ -12,8 +12,7 @@ pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], mut offset: u32)
                 output[byte_written] = next_byte | 128u8;
                 byte_written += 1;
                 break;
-            }
-            else {
+            } else {
                 output[byte_written] = next_byte;
                 byte_written += 1;
             }
@@ -34,8 +33,7 @@ pub fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
                 output[byte_written] = next_byte | 128u8;
                 byte_written += 1;
                 break;
-            }
-            else {
+            } else {
                 output[byte_written] = next_byte;
                 byte_written += 1;
             }
@@ -45,10 +43,10 @@ pub fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
 }
 
 #[inline(always)]
-pub fn uncompress_sorted<'a>(
-        compressed_data: &'a [u8],
-        output: &mut [u32],
-        offset: u32) -> &'a [u8] {
+pub fn uncompress_sorted<'a>(compressed_data: &'a [u8],
+                             output: &mut [u32],
+                             offset: u32)
+                             -> &'a [u8] {
     let mut read_byte = 0;
     let mut result = offset;
     let num_els = output.len();
@@ -69,9 +67,7 @@ pub fn uncompress_sorted<'a>(
 }
 
 #[inline(always)]
-pub fn uncompress_unsorted<'a>(
-    compressed_data: &'a [u8],
-    output: &mut [u32]) -> &'a [u8] {
+pub fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> &'a [u8] {
     let mut read_byte = 0;
     let num_els = output.len();
     for i in 0..num_els {

@@ -16,11 +16,11 @@ pub use self::top_collector::TopCollector;
 mod chained_collector;
 pub use self::chained_collector::chain;
 
-/// Collectors are in charge of collecting and retaining relevant 
+/// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
 ///
 ///
-/// For instance, 
+/// For instance,
 ///
 /// - keeping track of the top 10 best documents
 /// - computing a breakdown over a fast field
@@ -29,7 +29,7 @@ pub use self::chained_collector::chain;
 /// Queries are in charge of pushing the `DocSet` to the collector.
 ///
 /// As they work on multiple segments, they first inform
-/// the collector of a change in a segment and then 
+/// the collector of a change in a segment and then
 /// call the `collect` method to push the document to the collector.
 ///
 /// Temporally, our collector will receive calls
@@ -46,16 +46,22 @@ pub use self::chained_collector::chain;
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
-    /// `set_segment` is called before beginning to enumerate 
+    /// `set_segment` is called before beginning to enumerate
     /// on this segment.
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()>;
+    fn set_segment(&mut self,
+                   segment_local_id: SegmentLocalId,
+                   segment: &SegmentReader)
+                   -> Result<()>;
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 }
 
 
 impl<'a, C: Collector> Collector for &'a mut C {
-    fn set_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<()> {
+    fn set_segment(&mut self,
+                   segment_local_id: SegmentLocalId,
+                   segment: &SegmentReader)
+                   -> Result<()> {
         (*self).set_segment(segment_local_id, segment)
     }
     /// The query pushes the scored document to the collector via this method.
@@ -77,7 +83,7 @@ pub mod tests {
     use fastfield::U64FastFieldReader;
     use fastfield::FastFieldReader;
     use schema::Field;
-    
+
     /// Stores all of the doc ids.
     /// This collector is only used for tests.
     /// It is unusable in practise, as it does not store
@@ -90,7 +96,7 @@ pub mod tests {
 
     impl TestCollector {
         /// Return the exhalist of documents.
-        pub fn docs(self,) -> Vec<DocId> {
+        pub fn docs(self) -> Vec<DocId> {
             self.docs
         }
     }
@@ -106,7 +112,6 @@ pub mod tests {
     }
 
     impl Collector for TestCollector {
-
         fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
             self.offset += self.segment_max_doc;
             self.segment_max_doc = reader.max_doc();
@@ -117,10 +122,10 @@ pub mod tests {
             self.docs.push(doc + self.offset);
         }
     }
-    
-    
-    
-    
+
+
+
+
     /// Collects in order all of the fast fields for all of the
     /// doc in the `DocSet`
     ///
@@ -140,11 +145,11 @@ pub mod tests {
             }
         }
 
-        pub fn vals(self,) -> Vec<u64> {
+        pub fn vals(self) -> Vec<u64> {
             self.vals
         }
     }
-        
+
     impl Collector for FastFieldTestCollector {
         fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
             self.ff_reader = Some(reader.get_fast_field_reader(self.field)?);
@@ -161,12 +166,12 @@ pub mod tests {
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-            let mut count_collector = CountCollector::default();
-            let docs: Vec<u32> = (0..1_000_000).collect();
-            for doc in docs {
-                count_collector.collect(doc, 1f32);
-            }
-            count_collector.count()
-        });
+                   let mut count_collector = CountCollector::default();
+                   let docs: Vec<u32> = (0..1_000_000).collect();
+                   for doc in docs {
+                       count_collector.collect(doc, 1f32);
+                   }
+                   count_collector.count()
+               });
     }
 }

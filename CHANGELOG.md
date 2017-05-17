@@ -2,6 +2,7 @@ Tantivy 0.4.0
 ==========================
 - Raise the limit of number of fields (previously 256 fields)
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65)
+- Optimized skip in SegmentPostings (#130) (@lnicola)
 - Replacing rustc_serialize by serde. Kudos to @KodrAus and @lnicola
 - QueryParser:
   - Explicit error returned when searched for a term that is not indexed

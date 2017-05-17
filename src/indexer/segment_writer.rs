@@ -1,7 +1,7 @@
 use Result;
 use DocId;
 use std::io;
-use schema::Schema;	
+use schema::Schema;
 use schema::Term;
 use core::Segment;
 use core::SerializableSegment;
@@ -18,11 +18,11 @@ use postings::MultiFieldPostingsWriter;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
-///  
+///
 /// They creates the postings list in anonymous memory.
 /// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter<'a> {
-	heap: &'a Heap,
+    heap: &'a Heap,
     max_doc: DocId,
 	multifield_postings: MultiFieldPostingsWriter<'a>,
 	segment_serializer: SegmentSerializer,
@@ -33,15 +33,15 @@ pub struct SegmentWriter<'a> {
 
 
 fn create_fieldnorms_writer(schema: &Schema) -> FastFieldsWriter {
-	let u64_fields: Vec<Field> = schema.fields()
-		.iter()
-		.enumerate()
-		.filter(|&(_, field_entry)| field_entry.is_indexed()) 
-		.map(|(field_id, _)| Field(field_id as u32))
-		.collect();
-	FastFieldsWriter::new(u64_fields)
+    let u64_fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .enumerate()
+        .filter(|&(_, field_entry)| field_entry.is_indexed())
+        .map(|(field_id, _)| Field(field_id as u32))
+        .collect();
+    FastFieldsWriter::new(u64_fields)
 }
-
 
 
 impl<'a> SegmentWriter<'a> {
@@ -108,8 +108,8 @@ impl<'a> SegmentWriter<'a> {
 	/// As a user, you should rather use `IndexWriter`'s add_document.
     pub fn add_document(&mut self, add_operation: &AddOperation, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
-		let doc = &add_operation.document;
-		self.doc_opstamps.push(add_operation.opstamp);
+        let doc = &add_operation.document;
+        self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
 			let field_options = schema.get_field_entry(field);
 			match *field_options.field_type() {
@@ -151,7 +151,7 @@ impl<'a> SegmentWriter<'a> {
 			}
 		}
 		self.fieldnorms_writer.fill_val_up_to(doc_id);
-		self.fast_field_writers.add_document(&doc);
+		self.fast_field_writers.add_document(doc);
 		let stored_fieldvalues: Vec<&FieldValue> = doc
 			.field_values()
 			.iter()
@@ -160,34 +160,33 @@ impl<'a> SegmentWriter<'a> {
 		let doc_writer = self.segment_serializer.get_store_writer();
 		try!(doc_writer.store(&stored_fieldvalues));
         self.max_doc += 1;
-		Ok(())
+        Ok(())
     }
-	
-	
-	/// Max doc is 
-	/// - the number of documents in the segment assuming there is no deletes
-	/// - the maximum document id (including deleted documents) + 1
-	///
-	/// Currently, **tantivy** does not handle deletes anyway,
-	/// so `max_doc == num_docs`  
-	pub fn max_doc(&self,) -> u32 {
-		self.max_doc
-	}
-	
-	/// Number of documents in the index.
-	/// Deleted documents are not counted.
-	///
-	/// Currently, **tantivy** does not handle deletes anyway,
-	/// so `max_doc == num_docs`
-	#[allow(dead_code)]
-	pub fn num_docs(&self,) -> u32 {
-		self.max_doc
-	}
 
+
+    /// Max doc is
+    /// - the number of documents in the segment assuming there is no deletes
+    /// - the maximum document id (including deleted documents) + 1
+    ///
+    /// Currently, **tantivy** does not handle deletes anyway,
+    /// so `max_doc == num_docs`
+    pub fn max_doc(&self) -> u32 {
+        self.max_doc
+    }
+
+    /// Number of documents in the index.
+    /// Deleted documents are not counted.
+    ///
+    /// Currently, **tantivy** does not handle deletes anyway,
+    /// so `max_doc == num_docs`
+    #[allow(dead_code)]
+    pub fn num_docs(&self) -> u32 {
+        self.max_doc
+    }
 }
 
 // This method is used as a trick to workaround the borrow checker
-fn write<'a>(
+fn write(
 		multifield_postings: &MultiFieldPostingsWriter,
 		fast_field_writers: &FastFieldsWriter,
 		fieldnorms_writer: &FastFieldsWriter,

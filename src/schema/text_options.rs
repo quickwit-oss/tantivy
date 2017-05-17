@@ -9,29 +9,27 @@ pub struct TextOptions {
 }
 
 impl TextOptions {
-    
     /// Returns the indexing options.
-    pub fn get_indexing_options(&self,) -> TextIndexingOptions {
+    pub fn get_indexing_options(&self) -> TextIndexingOptions {
         self.indexing
     }
 
     /// Returns true iff the text is to be stored.
-    pub fn is_stored(&self,) -> bool {
+    pub fn is_stored(&self) -> bool {
         self.stored
     }
 
     /// Sets the field as stored
-    pub fn set_stored(mut self,) -> TextOptions {
+    pub fn set_stored(mut self) -> TextOptions {
         self.stored = true;
         self
     }
-    
-    /// Sets the field as indexed, with the specific indexing options.     
+
+    /// Sets the field as indexed, with the specific indexing options.
     pub fn set_indexing_options(mut self, indexing: TextIndexingOptions) -> TextOptions {
         self.indexing = indexing;
         self
     }
-
 }
 
 impl Default for TextOptions {
@@ -53,14 +51,14 @@ pub enum TextIndexingOptions {
     #[serde(rename="unindexed")]
     Unindexed,
     /// Untokenized means that the field text will not be split into tokens before being indexed.
-    /// A field with the value "Hello world", will have the document suscribe to one single 
+    /// A field with the value "Hello world", will have the document suscribe to one single
     /// postings, the postings associated to the string "Hello world".
     ///
     /// It will **not** be searchable if the user enter "hello" for instance.
-    /// This can be useful for tags, or ids for instance.   
+    /// This can be useful for tags, or ids for instance.
     #[serde(rename="untokenized")]
     Untokenized,
-    /// TokenizedNoFreq will tokenize the field value, and append the document doc id 
+    /// TokenizedNoFreq will tokenize the field value, and append the document doc id
     /// to the posting lists associated to all of the tokens.
     /// The frequence of appearance of the term in the document however will be lost.
     /// The term frequency used in the TfIdf formula will always be 1.
@@ -69,47 +67,46 @@ pub enum TextIndexingOptions {
     /// TokenizedWithFreq will tokenize the field value, and encode
     /// both the docid and the term frequency in the posting lists associated to all
     #[serde(rename="freq")]
-    // of the tokens.
     TokenizedWithFreq,
-    /// Like TokenizedWithFreq, but also encodes the positions of the 
+    /// Like TokenizedWithFreq, but also encodes the positions of the
     /// terms in a separate file. This option is required for phrase queries.
-    /// Don't use this if you are certain you won't need it, the term positions file can be very big.
+    /// Don't use this if you are certain you won't need it, the term positions file
+    /// can be very big.
     #[serde(rename="position")]
     TokenizedWithFreqAndPosition,
 }
 
 impl TextIndexingOptions {
-    
     /// Returns true iff the term frequency will be encoded.
     pub fn is_termfreq_enabled(&self) -> bool {
         match *self {
-            TextIndexingOptions::TokenizedWithFreq
-            | TextIndexingOptions::TokenizedWithFreqAndPosition => true,
+            TextIndexingOptions::TokenizedWithFreq |
+            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
         }
     }
-    
+
     /// Returns true iff the term is tokenized before being indexed
-    pub fn is_tokenized(&self,) -> bool {
+    pub fn is_tokenized(&self) -> bool {
         match *self {
-            TextIndexingOptions::TokenizedNoFreq 
-            | TextIndexingOptions::TokenizedWithFreq 
-            | TextIndexingOptions::TokenizedWithFreqAndPosition=> true,
+            TextIndexingOptions::TokenizedNoFreq |
+            TextIndexingOptions::TokenizedWithFreq |
+            TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
         }
     }
-    
-    
+
+
     /// Returns true iff the term will generate some posting lists.
-    pub fn is_indexed(&self,) -> bool {
+    pub fn is_indexed(&self) -> bool {
         match *self {
             TextIndexingOptions::Unindexed => false,
             _ => true,
         }
-    } 
-    
-    /// Returns true iff the term positions within the document are stored as well. 
-    pub fn is_position_enabled(&self,) -> bool {
+    }
+
+    /// Returns true iff the term positions within the document are stored as well.
+    pub fn is_position_enabled(&self) -> bool {
         match *self {
             TextIndexingOptions::TokenizedWithFreqAndPosition => true,
             _ => false,
@@ -119,17 +116,15 @@ impl TextIndexingOptions {
 
 
 impl BitOr for TextIndexingOptions {
-     type Output = TextIndexingOptions;
+    type Output = TextIndexingOptions;
 
     fn bitor(self, other: TextIndexingOptions) -> TextIndexingOptions {
         use super::TextIndexingOptions::*;
         if self == Unindexed {
             other
-        }
-        else if other == Unindexed || self == other {
+        } else if other == Unindexed || self == other {
             self
-        }
-        else {
+        } else {
             // make it possible
             panic!(format!("Combining {:?} and {:?} is ambiguous", self, other));
         }
@@ -161,7 +156,6 @@ pub const STORED: TextOptions = TextOptions {
 
 
 impl BitOr for TextOptions {
-
     type Output = TextOptions;
 
     fn bitor(self, other: TextOptions) -> TextOptions {
@@ -176,7 +170,7 @@ impl BitOr for TextOptions {
 #[cfg(test)]
 mod tests {
     use schema::*;
-    
+
     #[test]
     fn test_field_options() {
         {

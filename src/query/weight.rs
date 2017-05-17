@@ -8,9 +8,7 @@ use core::SegmentReader;
 ///
 /// See [Query](./trait.Query.html).
 pub trait Weight {
-    
     /// Returns the scorer for the given segment.
     /// See [Query](./trait.Query.html).
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>>;
-    
 }
