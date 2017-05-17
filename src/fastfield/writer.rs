@@ -3,8 +3,10 @@ use fastfield::FastFieldSerializer;
 use std::io;
 use schema::Value;
 use DocId;
-use common;
 use schema::FieldType;
+use common;
+use common::VInt;
+use common::BinarySerializable;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
@@ -106,8 +108,11 @@ impl FastFieldsWriter {
 /// using `common::i64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
-    vals: Vec<u64>,
+    vals: Vec<u8>,
+    val_count: usize,
     val_if_missing: u64,
+    val_min: u64,
+    val_max: u64,
 }
 
 impl IntFastFieldWriter {
@@ -116,7 +121,10 @@ impl IntFastFieldWriter {
         IntFastFieldWriter {
             field: field,
             vals: Vec::new(),
+            val_count: 0,
             val_if_missing: 0u64,
+            val_min: u64::max_value(),
+            val_max: 0,
         }
     }
 
@@ -134,9 +142,9 @@ impl IntFastFieldWriter {
     /// The missing values will be filled with 0.
     fn fill_val_up_to(&mut self, doc: DocId) {
         let target = doc as usize + 1;
-        debug_assert!(self.vals.len() <= target);
+        debug_assert!(self.val_count <= target);
         let val_if_missing = self.val_if_missing;
-        while self.vals.len() < target {
+        while self.val_count < target {
             self.add_val(val_if_missing);
         }
     }
@@ -147,7 +155,18 @@ impl IntFastFieldWriter {
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
-        self.vals.push(val);
+        VInt(val)
+            .serialize(&mut self.vals)
+            .expect("unable to serialize VInt to Vec");
+
+        if val > self.val_max {
+            self.val_max = val;
+        }
+        if val < self.val_min {
+            self.val_min = val;
+        }
+
+        self.val_count += 1;
     }
 
 
@@ -183,13 +202,19 @@ impl IntFastFieldWriter {
 
     /// Push the fast fields value to the `FastFieldWriter`.
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
-        let zero = 0;
-        let min = *self.vals.iter().min().unwrap_or(&zero);
-        let max = *self.vals.iter().max().unwrap_or(&min);
+        let (min, max) = if self.val_min > self.val_max {
+            (0, 0)
+        } else {
+            (self.val_min, self.val_max)
+        };
+
         serializer.new_u64_fast_field(self.field, min, max)?;
-        for &val in &self.vals {
+
+        let mut cursor = self.vals.as_slice();
+        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
             serializer.add_val(val)?;
         }
+
         serializer.close_field()
     }
 }
