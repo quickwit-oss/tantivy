@@ -64,7 +64,6 @@ impl StoreReader {
     }
 }
 
-#[allow(needless_pass_by_value)]
 fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId) {
     let data_len = data.len();
     let footer_offset = data_len - size_of::<u64>() - size_of::<u32>();
@@ -73,7 +72,9 @@ fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId)
     let offset = u64::deserialize(&mut serialized_offset_buf).unwrap();
     let offset = offset as usize;
     let max_doc = u32::deserialize(&mut serialized_offset_buf).unwrap();
-    (data.slice(0, offset), data.slice(offset, footer_offset), max_doc)
+    let res = (data.slice(0, offset), data.slice(offset, footer_offset), max_doc);
+    drop(data);
+    res
 }
 
 

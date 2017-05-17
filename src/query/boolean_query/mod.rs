@@ -113,7 +113,8 @@ mod tests {
         let occurs = vec![Occur::Should, Occur::Should];
         let occur_filter = OccurFilter::new(&occurs);
 
-        let left_fieldnorms = U64FastFieldReader::from((0u64..9u64).map(|doc| doc*3).collect::<Vec<u64>>());
+        let left_fieldnorms =
+            U64FastFieldReader::from((0u64..9u64).map(|doc| doc * 3).collect::<Vec<u64>>());
 
         let left = VecPostings::from(vec![1, 2, 3]);
         let left_scorer = TermScorer {
@@ -122,7 +123,8 @@ mod tests {
             postings: left,
         };
 
-        let right_fieldnorms = U64FastFieldReader::from((0u64..9u64).map(|doc| doc*5).collect::<Vec<u64>>());
+        let right_fieldnorms =
+            U64FastFieldReader::from((0u64..9u64).map(|doc| doc * 5).collect::<Vec<u64>>());
         let right = VecPostings::from(vec![1, 3, 8]);
 
         let right_scorer = TermScorer {
