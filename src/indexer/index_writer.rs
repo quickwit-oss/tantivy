@@ -159,7 +159,7 @@ pub fn open_index_writer(index: &Index,
 pub fn compute_deleted_bitset(delete_bitset: &mut BitSet,
                               segment_reader: &SegmentReader,
                               delete_cursor: &mut DeleteCursor,
-                              doc_opstamps: DocToOpstampMapping,
+                              doc_opstamps: &DocToOpstampMapping,
                               target_opstamp: u64)
                               -> Result<bool> {
 
@@ -225,7 +225,7 @@ pub fn advance_deletes(mut segment: Segment,
         compute_deleted_bitset(&mut delete_bitset,
                                &segment_reader,
                                delete_cursor,
-                               DocToOpstampMapping::None,
+                               &DocToOpstampMapping::None,
                                target_opstamp)?;
 
         for doc in 0u32..max_doc {
@@ -285,7 +285,7 @@ fn index_documents(heap: &mut Heap,
     let may_have_deletes = compute_deleted_bitset(&mut deleted_bitset,
                                                   &segment_reader,
                                                   &mut delete_cursor,
-                                                  doc_to_opstamps,
+                                                  &doc_to_opstamps,
                                                   last_docstamp)?;
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {

@@ -92,7 +92,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 31 as usize);
+            assert_eq!(source.len(), 38 as usize);
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
@@ -126,7 +126,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 56 as usize);
+            assert_eq!(source.len(), 63 as usize);
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
@@ -162,7 +162,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 29 as usize);
+            assert_eq!(source.len(), 36 as usize);
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
@@ -195,7 +195,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 80037 as usize);
+            assert_eq!(source.len(), 80044 as usize);
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();
@@ -232,7 +232,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 17704 as usize);
+            assert_eq!(source.len(), 17711 as usize);
         }
         {
             let fast_field_readers = FastFieldsReader::open(source).unwrap();

@@ -113,7 +113,7 @@ mod tests {
         let occurs = vec![Occur::Should, Occur::Should];
         let occur_filter = OccurFilter::new(&occurs);
 
-        let left_fieldnorms = U64FastFieldReader::from(vec![100, 200, 300]);
+        let left_fieldnorms = U64FastFieldReader::from((0u64..9u64).map(|doc| doc*3).collect::<Vec<u64>>());
 
         let left = VecPostings::from(vec![1, 2, 3]);
         let left_scorer = TermScorer {
@@ -122,7 +122,7 @@ mod tests {
             postings: left,
         };
 
-        let right_fieldnorms = U64FastFieldReader::from(vec![15, 25, 35]);
+        let right_fieldnorms = U64FastFieldReader::from((0u64..9u64).map(|doc| doc*5).collect::<Vec<u64>>());
         let right = VecPostings::from(vec![1, 3, 8]);
 
         let right_scorer = TermScorer {
@@ -133,12 +133,12 @@ mod tests {
 
         let mut boolean_scorer = BooleanScorer::new(vec![left_scorer, right_scorer], occur_filter);
         assert_eq!(boolean_scorer.next(), Some(1u32));
-        assert!(abs_diff(boolean_scorer.score(), 0.8707107) < 0.001);
+        assert!(abs_diff(boolean_scorer.score(), 2.3662047) < 0.001);
         assert_eq!(boolean_scorer.next(), Some(2u32));
-        assert!(abs_diff(boolean_scorer.score(), 0.028867513) < 0.001f32);
+        assert!(abs_diff(boolean_scorer.score(), 0.20412415) < 0.001f32);
         assert_eq!(boolean_scorer.next(), Some(3u32));
         assert_eq!(boolean_scorer.next(), Some(8u32));
-        assert!(abs_diff(boolean_scorer.score(), 0.5163978) < 0.001f32);
+        assert!(abs_diff(boolean_scorer.score(), 0.31622776) < 0.001f32);
         assert!(!boolean_scorer.advance());
     }
 
