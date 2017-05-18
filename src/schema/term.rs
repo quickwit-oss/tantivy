@@ -22,7 +22,7 @@ pub(crate) fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
 
 impl Term {
     /// Returns the field.
-    pub fn field(&self,) -> Field {
+    pub fn field(&self) -> Field {
         extract_field_from_term_bytes(&self.0)
     }
 

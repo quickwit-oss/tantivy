@@ -261,7 +261,7 @@ fn index_documents(heap: &mut Heap,
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, schema));
         // There is two possible conditions to close the segment.
-        // One is the memory arena dedicated to the segment is 
+        // One is the memory arena dedicated to the segment is
         // getting full.
         if segment_writer.is_buffer_full() {
             info!("Buffer limit reached, flushing segment with maxdoc={}.",

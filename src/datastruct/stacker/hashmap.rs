@@ -86,7 +86,6 @@ impl QuadraticProbing {
 
 
 impl<'a> HashMap<'a> {
-
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
@@ -118,18 +117,18 @@ impl<'a> HashMap<'a> {
         };
         addr
     }
-    
-    pub fn iter<'b: 'a>(&'b self,) -> impl Iterator<Item=(&'a [u8], u32)> + 'b {
+
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
         let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
             .cloned()
             .map(move |bucket: usize| {
-                let kv = table[bucket];
-                let addr = kv.value_addr;
-                (heap.get_slice(kv.key), addr)
-            })
+                     let kv = table[bucket];
+                     let addr = kv.value_addr;
+                     (heap.get_slice(kv.key), addr)
+                 })
     }
 
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
