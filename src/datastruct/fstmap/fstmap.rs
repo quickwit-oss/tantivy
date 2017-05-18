@@ -121,7 +121,7 @@ impl<V> FstMap<V>
     }
 
     pub fn range(&self) -> FstMapStreamerBuilder<V> {
-        FstMapStreamerBuilder::new(&self, self.fst_index.range())
+        FstMapStreamerBuilder::new(self, self.fst_index.range())
     }
 }
 

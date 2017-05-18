@@ -12,6 +12,8 @@
 
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
+#![allow(unknown_lints)]
+
 #![warn(missing_docs)]
 
 //! # `tantivy`

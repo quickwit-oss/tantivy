@@ -106,6 +106,7 @@ impl Term {
     ///
     /// If you want to build a field for a given `str`,
     /// you want to use `from_field_text`.
+    #[cfg(test)]
     pub(crate) fn from_bytes(data: &[u8]) -> Term {
         Term(Vec::from(data))
     }

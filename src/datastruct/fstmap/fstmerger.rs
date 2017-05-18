@@ -86,6 +86,7 @@ impl<'a, V> FstMerger<'a, V>
     /// Advance the term iterator to the next term.
     /// Returns true if there is indeed another term
     /// False if there is none.
+    #[allow(while_let_loop)]
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
         if let Some(head) = self.heap.pop() {
@@ -113,7 +114,7 @@ impl<'a, V> FstMerger<'a, V>
     /// iff advance() has been called before
     /// and "true" was returned.
     pub fn key(&self) -> &[u8] {
-        &self.current_streamers[0].streamer.key()
+        self.current_streamers[0].streamer.key()
     }
 
     /// Returns the sorted list of segment ordinals
@@ -147,7 +148,7 @@ impl<'a, V> Streamer<'a> for FstMerger<'a, V>
 
     fn next(&'a mut self) -> Option<Self::Item> {
         if self.advance() {
-            Some(&self.current_streamers[0].streamer.key())
+            Some(self.current_streamers[0].streamer.key())
         } else {
             None
         }

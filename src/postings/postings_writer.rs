@@ -78,6 +78,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     /// Serialize the inverted index.
     /// It pushes all term, one field at a time, towards the
     /// postings serializer.
+    #[allow(needless_range_loop)]
     pub fn serialize(&self, serializer: &mut PostingsSerializer) -> Result<()> {
         let mut term_offsets: Vec<(&[u8], u32)> = self.term_index.iter().collect();
         term_offsets.sort_by_key(|&(k, _v)| k);
