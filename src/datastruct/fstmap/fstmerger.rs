@@ -142,7 +142,7 @@ impl<'a, V> Streamer<'a> for FstMerger<'a, V> where V: BinarySerializable {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     use schema::{Term, SchemaBuilder, Document, TEXT};
     use core::Index;
 

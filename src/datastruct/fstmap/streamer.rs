@@ -59,11 +59,11 @@ pub struct FstMapStreamer<'a, V> where V: 'a + BinarySerializable {
 }
 
 
-impl<'a, V> fst::Streamer<'a> for FstMapStreamer<'a, V> where V: 'a + BinarySerializable {
+impl<'a, 'b, V> fst::Streamer<'b> for FstMapStreamer<'a, V> where V: 'a + BinarySerializable {
     
-    type Item = &'a [u8];
+    type Item = &'b [u8];
     
-    fn next<'b>(&'b mut self) -> Option<&'b [u8]> {
+    fn next(&'b mut self) -> Option<&'b [u8]> {
         if self.advance() {
             Some(&self.buffer)
         }

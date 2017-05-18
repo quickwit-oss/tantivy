@@ -232,7 +232,10 @@ impl IndexMerger {
                 // we reached a new field.
                 let field_entry = self.schema.get_field_entry(current_field);
                 // ... set segment postings option the new field.
-                segment_postings_option = field_entry.field_type().get_segment_postings_option();
+                segment_postings_option = field_entry
+                    .field_type()
+                    .get_segment_postings_option()
+                    .expect("Encounterred a field that is not supposed to be indexed. Have you modified the index?");
                 last_field = Some(current_field);
                 need_to_call_new_field = true;
             }

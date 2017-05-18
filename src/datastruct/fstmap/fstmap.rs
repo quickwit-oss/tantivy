@@ -129,7 +129,8 @@ mod tests {
     use super::*;
     use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
-
+    use fst::Streamer;
+    
     #[test]
     fn test_fstmap() {
         let mut directory = RAMDirectory::create();
@@ -146,10 +147,12 @@ mod tests {
         assert_eq!(fstmap.get("abc"), Some(34u32));
         assert_eq!(fstmap.get("abcd"), Some(346u32));
         let mut stream = fstmap.stream();
-        assert!(stream.advance());
+        assert_eq!(stream.next().unwrap(), "abc".as_bytes());
         assert_eq!(stream.key(), "abc".as_bytes());
-        assert!(stream.advance());
+        assert_eq!(stream.value(), 34u32);
+        assert_eq!(stream.next().unwrap(), "abcd".as_bytes());
         assert_eq!(stream.key(), "abcd".as_bytes());
+        assert_eq!(stream.value(), 346u32);
         assert!(!stream.advance());
     }
 

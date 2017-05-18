@@ -12,6 +12,7 @@ use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
 use std::str;
+use std::cmp;
 use postings::TermInfo;
 use datastruct::fstmap::FstMap;
 use std::sync::Arc;
@@ -201,34 +202,16 @@ impl SegmentReader {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));
-        let possible_option = match *field_entry.field_type() {
-            FieldType::Str(ref options) => {
-                let indexing_options = options.get_indexing_options();
-                match option {
-                    SegmentPostingsOption::NoFreq => SegmentPostingsOption::NoFreq,
-                    SegmentPostingsOption::Freq => {
-                        if indexing_options.is_termfreq_enabled() {
-                            SegmentPostingsOption::Freq
-                        } else {
-                            SegmentPostingsOption::NoFreq
-                        }
-                    }
-                    SegmentPostingsOption::FreqAndPositions => {
-                        if indexing_options == TextIndexingOptions::TokenizedWithFreqAndPosition {
-                            SegmentPostingsOption::FreqAndPositions
-                        } else if indexing_options.is_termfreq_enabled() {
-                            SegmentPostingsOption::Freq
-                        } else {
-                            SegmentPostingsOption::NoFreq
-                        }
-                    }
-                }
-            }
-            _ => { SegmentPostingsOption::NoFreq },
-        };
-        Some(self.read_postings_from_terminfo(&term_info, possible_option))
+        let maximum_option = get!(field_entry.field_type().get_segment_postings_option());
+        let best_effort_option = cmp::min(maximum_option, option);
+        Some(self.read_postings_from_terminfo(&term_info, best_effort_option))
     }
 
+
+    /// Returns a posting object given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
     pub fn read_postings_from_terminfo(&self,
                          term_info: &TermInfo,
                          option: SegmentPostingsOption)

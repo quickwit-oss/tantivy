@@ -40,23 +40,37 @@ impl FieldType {
         }
     }
 
-    pub fn get_segment_postings_option(&self) -> SegmentPostingsOption {
+    /// Given a field configuration, return the maximal possible
+    /// `SegmentPostingsOption` available.
+    ///
+    /// If the field is not indexed, then returns `None`.
+    pub fn get_segment_postings_option(&self) -> Option<SegmentPostingsOption> {
         match *self {
             FieldType::Str(ref text_options) => {
                 match text_options.get_indexing_options() {
+                    TextIndexingOptions::Untokenized =>
+                        Some(SegmentPostingsOption::NoFreq),
                     TextIndexingOptions::TokenizedNoFreq =>
-                        SegmentPostingsOption::NoFreq,
+                        Some(SegmentPostingsOption::NoFreq),
                     TextIndexingOptions::TokenizedWithFreq =>
-                        SegmentPostingsOption::Freq,
+                        Some(SegmentPostingsOption::Freq),
                     TextIndexingOptions::TokenizedWithFreqAndPosition =>
-                        SegmentPostingsOption::FreqAndPositions,
-                    _ => {
-                        SegmentPostingsOption::NoFreq
+                        Some(SegmentPostingsOption::FreqAndPositions),
+                    TextIndexingOptions::Unindexed => {
+                        None
                     }
                 }
             }
-            FieldType::U64(_) |
-            FieldType::I64(_) => SegmentPostingsOption::NoFreq,
+            FieldType::U64(ref int_options) |
+            FieldType::I64(ref int_options) => {
+                if int_options.is_indexed() {
+                    Some(SegmentPostingsOption::NoFreq)
+                }
+                else {
+                    None
+                }
+                
+            },
         }
     }
 
