@@ -211,7 +211,7 @@ impl IndexMerger {
         }
 
         let mut last_field: Option<Field> = None;
-        
+
         while merged_terms.advance() {
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
@@ -241,7 +241,7 @@ impl IndexMerger {
             if !segment_postings.is_empty() {
 
                 // We can now serialize this postings, by pushing each document to the
-                // postings serializer.                
+                // postings serializer.
 
                 for (segment_ord, mut segment_postings) in segment_postings {
                     let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
@@ -254,7 +254,7 @@ impl IndexMerger {
                                     postings_serializer.new_field(current_field);
                                     last_field = Some(current_field);
                                 }
-                                
+
                                 // we make sure to only write the term iff
                                 // there is at least one document.
                                 postings_serializer.new_term(term.as_slice())?;

@@ -17,7 +17,7 @@ fn test_unrolled_linked_list() {
         let mut ks: Vec<usize> = (1..5).map(|k| k * 100).collect();
         ks.push(2);
         ks.push(3);
-        for k in (1..5).map(|k| k * 100) {        
+        for k in (1..5).map(|k| k * 100) {
             let mut hashmap: HashMap = HashMap::new(10, &heap);
             for j in 0..k {
                 for i in 0..500 {

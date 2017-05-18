@@ -96,7 +96,6 @@ impl HeapAllocable for TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
-
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -127,7 +126,7 @@ impl Recorder for TermFrequencyRecorder {
         let mut doc_iter = self.stack
             .iter(self_addr, heap)
             .chain(Some(self.current_tf).into_iter());
-        
+
         while let Some(doc) = doc_iter.next() {
             let term_freq = doc_iter
                 .next()
@@ -136,7 +135,6 @@ impl Recorder for TermFrequencyRecorder {
         }
         Ok(())
     }
-
 }
 
 /// Recorder encoding term frequencies as well as positions.
