@@ -1,5 +1,5 @@
 use Result;
-use datastruct::FstMapBuilder;
+use datastruct::fstmap::FstMapBuilder;
 use super::TermInfo;
 use schema::Field;
 use schema::FieldEntry;

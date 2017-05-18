@@ -10,13 +10,15 @@ use fastfield::U64FastFieldReader;
 use itertools::Itertools;
 use postings::Postings;
 use postings::DocSet;
-use core::TermIterator;
 use fastfield::DeleteBitSet;
 use schema::{Schema, Field};
+use datastruct::fstmap::FstMerger;
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
+use schema;
+use postings::SegmentPostingsOption;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -129,8 +131,7 @@ impl IndexMerger {
     // used both to merge field norms and regular u64 fast fields.
     fn generic_write_fast_field(&self,
                                 fields: Vec<Field>,
-                                field_reader_extractor: &Fn(&SegmentReader, Field)
-                                                            -> Option<U64FastFieldReader>,
+                                field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U64FastFieldReader>,
                                 fast_field_serializer: &mut FastFieldSerializer)
                                 -> Result<()> {
 
@@ -161,9 +162,8 @@ impl IndexMerger {
                         return Err(Error::SchemaError(error_msg));
                     }
                 }
-
             }
-
+            
             if u64_readers.is_empty() {
                 // we have actually zero documents.
                 min_val = 0;
@@ -172,24 +172,24 @@ impl IndexMerger {
 
             assert!(min_val <= max_val);
 
-            try!(fast_field_serializer.new_u64_fast_field(field, min_val, max_val));
+            fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
             for (max_doc, u64_reader, delete_bitset) in u64_readers {
                 for doc_id in 0..max_doc {
                     if !delete_bitset.is_deleted(doc_id) {
                         let val = u64_reader.get(doc_id);
-                        try!(fast_field_serializer.add_val(val));
+                        fast_field_serializer.add_val(val)?;
                     }
                 }
             }
 
-            try!(fast_field_serializer.close_field());
+            fast_field_serializer.close_field()?;
         }
         Ok(())
     }
 
     fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
-
-        let mut merged_terms = TermIterator::from(&self.readers[..]);
+        
+        let mut merged_terms = FstMerger::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
 
         let mut max_doc = 0;
@@ -211,7 +211,9 @@ impl IndexMerger {
         }
 
         let mut last_field: Option<Field> = None;
-        
+        let mut segment_postings_option = SegmentPostingsOption::FreqAndPositions;
+        let mut need_to_call_new_field = false;
+
         while merged_terms.advance() {
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
@@ -223,59 +225,70 @@ impl IndexMerger {
             // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
             //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
-            let term = merged_terms.term();
-            let mut term_written = false;
-            let segment_postings = merged_terms
-                .segment_ords()
-                .iter()
-                .cloned()
-                .flat_map(|segment_ord| {
-                              self.readers[segment_ord]
-                                  .read_postings_all_info(term)
-                                  .map(|segment_postings| (segment_ord, segment_postings))
-                          })
-                .collect::<Vec<_>>();
-
-            // We can remove the term if all documents which
-            // contained it have been deleted.
-            if !segment_postings.is_empty() {
-
-                // We can now serialize this postings, by pushing each document to the
-                // postings serializer.                
-
-                for (segment_ord, mut segment_postings) in segment_postings {
-                    let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-                    while segment_postings.advance() {
-                        if let Some(remapped_doc_id) =
-                            old_to_new_doc_id[segment_postings.doc() as usize] {
-                            if !term_written {
-                                let current_field = term.field();
-                                if last_field != Some(current_field) {
-                                    postings_serializer.new_field(current_field);
-                                    last_field = Some(current_field);
-                                }
-                                
-                                // we make sure to only write the term iff
-                                // there is at least one document.
-                                postings_serializer.new_term(term.as_slice())?;
-
-                                term_written = true;
-                            }
-                            let delta_positions: &[u32] =
-                                delta_position_computer
-                                    .compute_delta_positions(segment_postings.positions());
-                            try!(postings_serializer.write_doc(remapped_doc_id,
-                                                               segment_postings.term_freq(),
-                                                               delta_positions));
-                        }
-                    }
-                }
-
-                if term_written {
-                    try!(postings_serializer.close_term());
-                }
+            let term_bytes = merged_terms.key();
+            let current_field = schema::extract_field_from_term_bytes(term_bytes);
+            
+            if last_field != Some(current_field) {
+                // we reached a new field.
+                let field_entry = self.schema.get_field_entry(current_field);
+                // ... set segment postings option the new field.
+                segment_postings_option = field_entry.field_type().get_segment_postings_option();
+                last_field = Some(current_field);
+                need_to_call_new_field = true;
             }
 
+            // Let's compute the list of non-empty posting lists
+            let segment_postings: Vec<_> = merged_terms
+                .current_kvs()
+                .iter()
+                .flat_map(|heap_item| {
+                    let segment_ord = heap_item.segment_ord;
+                    let term_info = heap_item.streamer.value();
+                    let segment_reader = &self.readers[heap_item.segment_ord];
+                    let mut segment_postings = segment_reader
+                        .read_postings_from_terminfo(&term_info, segment_postings_option);
+                    if segment_postings.advance() {
+                        Some((segment_ord, segment_postings))
+                    }
+                    else {
+                        None
+                    }
+                })
+                .collect();
+            
+            if segment_postings.is_empty() {
+                continue;
+            }
+
+            if need_to_call_new_field {
+                postings_serializer.new_field(current_field);
+                last_field = Some(current_field);
+                need_to_call_new_field = false;
+            }
+
+            postings_serializer.new_term(term_bytes)?;
+            
+            // We can now serialize this postings, by pushing each document to the
+            // postings serializer.                
+
+            for (segment_ord, mut segment_postings) in segment_postings {
+                let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
+                loop {
+                    if let Some(remapped_doc_id) =
+                        old_to_new_doc_id[segment_postings.doc() as usize] {
+                        // we make sure to only write the term iff
+                        // there is at least one document.
+                        let delta_positions: &[u32] = delta_position_computer.compute_delta_positions(segment_postings.positions());
+                        postings_serializer.write_doc(remapped_doc_id,
+                                                      segment_postings.term_freq(),
+                                                      delta_positions)?;
+                    }
+                    if !segment_postings.advance() {
+                        break;
+                    }
+                }
+            }
+            postings_serializer.close_term()?;
         }
         Ok(())
     }

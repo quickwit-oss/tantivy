@@ -13,7 +13,7 @@ use directory::ReadOnlySource;
 use DocId;
 use std::str;
 use postings::TermInfo;
-use datastruct::FstMap;
+use datastruct::fstmap::FstMap;
 use std::sync::Arc;
 use std::fmt;
 use schema::Field;
@@ -171,7 +171,7 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn term_infos(&self) -> &FstMap<TermInfo> {
+    pub fn term_infos<'b>(&'b self) -> &'b FstMap<TermInfo> {
         &self.term_infos
     }
 
@@ -201,39 +201,62 @@ impl SegmentReader {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));
-        let offset = term_info.postings_offset as usize;
-        let postings_data = &self.postings_data[offset..];
-        let freq_handler = match *field_entry.field_type() {
+        let possible_option = match *field_entry.field_type() {
             FieldType::Str(ref options) => {
                 let indexing_options = options.get_indexing_options();
                 match option {
-                    SegmentPostingsOption::NoFreq => FreqHandler::new_without_freq(),
+                    SegmentPostingsOption::NoFreq => SegmentPostingsOption::NoFreq,
                     SegmentPostingsOption::Freq => {
                         if indexing_options.is_termfreq_enabled() {
-                            FreqHandler::new_with_freq()
+                            SegmentPostingsOption::Freq
                         } else {
-                            FreqHandler::new_without_freq()
+                            SegmentPostingsOption::NoFreq
                         }
                     }
                     SegmentPostingsOption::FreqAndPositions => {
                         if indexing_options == TextIndexingOptions::TokenizedWithFreqAndPosition {
-                            let offset = term_info.positions_offset as usize;
-                            let offseted_position_data = &self.positions_data[offset..];
-                            FreqHandler::new_with_freq_and_position(offseted_position_data)
+                            SegmentPostingsOption::FreqAndPositions
                         } else if indexing_options.is_termfreq_enabled() {
-                            FreqHandler::new_with_freq()
+                            SegmentPostingsOption::Freq
                         } else {
-                            FreqHandler::new_without_freq()
+                            SegmentPostingsOption::NoFreq
                         }
                     }
                 }
             }
-            _ => FreqHandler::new_without_freq(),
+            _ => { SegmentPostingsOption::NoFreq },
         };
-        Some(SegmentPostings::from_data(term_info.doc_freq,
-                                        postings_data,
-                                        &self.delete_bitset,
-                                        freq_handler))
+        Some(self.read_postings_from_terminfo(&term_info, possible_option))
+            
+            // SegmentPostings::from_data(term_info.doc_freq,
+            //                             postings_data,
+            //                             &self.delete_bitset,
+            //                             freq_handler))
+    }
+
+    pub fn read_postings_from_terminfo(&self,
+                         term_info: &TermInfo,
+                         option: SegmentPostingsOption)
+                         -> SegmentPostings {
+        let offset = term_info.postings_offset as usize;
+        let postings_data = &self.postings_data[offset..];
+        let freq_handler = match option {
+            SegmentPostingsOption::NoFreq => {
+                FreqHandler::new_without_freq()
+            },
+            SegmentPostingsOption::Freq => {
+                FreqHandler::new_with_freq()
+            }
+            SegmentPostingsOption::FreqAndPositions => {
+                let offset = term_info.positions_offset as usize;
+                let offseted_position_data = &self.positions_data[offset..];
+                FreqHandler::new_with_freq_and_position(offseted_position_data)
+            }
+        };
+        SegmentPostings::from_data(term_info.doc_freq,
+                                   postings_data,
+                                   &self.delete_bitset,
+                                   freq_handler)
     }
 
 

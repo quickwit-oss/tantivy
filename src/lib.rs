@@ -134,8 +134,6 @@ pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
 
-pub use core::TermIterator;
-
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.

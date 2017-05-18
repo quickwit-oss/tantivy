@@ -2,7 +2,8 @@ use schema::{TextOptions, IntOptions};
 
 use serde_json::Value as JsonValue;
 use schema::Value;
-
+use postings::SegmentPostingsOption;
+use schema::TextIndexingOptions;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -36,6 +37,26 @@ impl FieldType {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_indexed(),
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => int_options.is_indexed(),
+        }
+    }
+
+    pub fn get_segment_postings_option(&self) -> SegmentPostingsOption {
+        match *self {
+            FieldType::Str(ref text_options) => {
+                match text_options.get_indexing_options() {
+                    TextIndexingOptions::TokenizedNoFreq =>
+                        SegmentPostingsOption::NoFreq,
+                    TextIndexingOptions::TokenizedWithFreq =>
+                        SegmentPostingsOption::Freq,
+                    TextIndexingOptions::TokenizedWithFreqAndPosition =>
+                        SegmentPostingsOption::FreqAndPositions,
+                    _ => {
+                        SegmentPostingsOption::NoFreq
+                    }
+                }
+            }
+            FieldType::U64(_) |
+            FieldType::I64(_) => SegmentPostingsOption::NoFreq,
         }
     }
 

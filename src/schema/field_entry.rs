@@ -67,7 +67,7 @@ impl FieldEntry {
             FieldType::I64(ref options) => options.is_indexed(),
         }
     }
-
+    
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_int_fast(&self) -> bool {
         match self.field_type {

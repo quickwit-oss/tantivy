@@ -7,7 +7,6 @@ use query::Query;
 use DocId;
 use DocAddress;
 use schema::Term;
-use core::TermIterator;
 use std::fmt;
 
 
@@ -47,18 +46,6 @@ impl Searcher {
             .iter()
             .map(|segment_reader| segment_reader.doc_freq(term))
             .fold(0u32, |acc, val| acc + val)
-    }
-
-    /// Returns a Stream over all of the sorted unique terms of
-    /// the searcher.
-    ///
-    /// This includes all of the fields from all of the segment_readers.
-    /// See [TermIterator](struct.TermIterator.html).
-    ///
-    /// # Warning
-    /// This API is very likely to change in the future.
-    pub fn terms(&self) -> TermIterator {
-        TermIterator::from(self.segment_readers())
     }
 
     /// Return the list of segment readers
