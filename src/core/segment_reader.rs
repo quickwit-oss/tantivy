@@ -171,7 +171,7 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn term_infos<'b>(&'b self) -> &'b FstMap<TermInfo> {
+    pub fn term_infos(&self) -> &FstMap<TermInfo> {
         &self.term_infos
     }
 
@@ -227,11 +227,6 @@ impl SegmentReader {
             _ => { SegmentPostingsOption::NoFreq },
         };
         Some(self.read_postings_from_terminfo(&term_info, possible_option))
-            
-            // SegmentPostings::from_data(term_info.doc_freq,
-            //                             postings_data,
-            //                             &self.delete_bitset,
-            //                             freq_handler))
     }
 
     pub fn read_postings_from_terminfo(&self,

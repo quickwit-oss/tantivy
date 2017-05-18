@@ -4,7 +4,7 @@ use super::FstMapStreamer;
 use common::BinarySerializable;
 use postings::TermInfo;
 use std::cmp::Ordering;
-
+use fst::Streamer;
 
 pub struct HeapItem<'a, V> where V: 'a + BinarySerializable {
     pub streamer: FstMapStreamer<'a, V>,
@@ -117,35 +117,6 @@ impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
 
 
 
-
-    /*
-
-
-    /// Returns the sorted list of segment ordinals
-    /// that include the current term.
-    ///
-    /// This method may be called
-    /// iff advance() has been called before
-    /// and "true" was returned.
-    pub fn segment_ords(&self) -> &[usize] {
-        &self.current_segment_ords[..]
-    }
-    */  
-
-/*
-impl<'a, V> Streamer<'a> for FstMerger<'a, V> {
-    type Item = &'a Term;
-
-    fn next(&'a mut self) -> Option<Self::Item> {
-        if self.advance() {
-            Some(&self.current_term)
-        } else {
-            None
-        }
-    }
-}
-*/
-
 impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo> where TermInfo: BinarySerializable {
     fn from(segment_readers: &'a [SegmentReader]) -> FstMerger<'a, TermInfo> {
         FstMerger::new(segment_readers
@@ -155,52 +126,67 @@ impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo> where TermInfo: B
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use schema::{SchemaBuilder, Document, TEXT};
-//     use core::Index;
+impl<'a, V> Streamer<'a> for FstMerger<'a, V> where V: BinarySerializable {
+    type Item = &'a [u8];
 
-//     #[test]
-//     fn test_term_iterator() {
-//         let mut schema_builder = SchemaBuilder::default();
-//         let text_field = schema_builder.add_text_field("text", TEXT);
-//         let index = Index::create_in_ram(schema_builder.build());
-//         {
-//             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-//             {
-//                 {
-//                     let mut doc = Document::default();
-//                     doc.add_text(text_field, "a b d f");
-//                     index_writer.add_document(doc);
-//                 }
-//                 index_writer.commit().unwrap();
-//             }
-//             {
-//                 {
-//                     let mut doc = Document::default();
-//                     doc.add_text(text_field, "a b c d f");
-//                     index_writer.add_document(doc);
-//                 }
-//                 index_writer.commit().unwrap();
-//             }
-//             {
-//                 {
-//                     let mut doc = Document::default();
-//                     doc.add_text(text_field, "e f");
-//                     index_writer.add_document(doc);
-//                 }
-//                 index_writer.commit().unwrap();
-//             }
-//         }
-//         index.load_searchers().unwrap();
-//         let searcher = index.searcher();
-//         let mut term_it = searcher.terms();
-//         let mut terms = String::new();
-//         while let Some(term) = term_it.next() {
-//             terms.push_str(term.text());
-//         }
-//         assert_eq!(terms, "abcdef");
-//     }
+    fn next(&'a mut self) -> Option<Self::Item> {
+        if self.advance() {
+            Some(&self.current_streamers[0].streamer.key())
+        }
+        else {
+            None
+        }
+        
+    }
+}
 
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use schema::{Term, SchemaBuilder, Document, TEXT};
+    use core::Index;
+
+    #[test]
+    fn test_term_iterator() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
+                {
+                    let mut doc = Document::default();
+                    doc.add_text(text_field, "a b d f");
+                    index_writer.add_document(doc);
+                }
+                index_writer.commit().unwrap();
+            }
+            {
+                {
+                    let mut doc = Document::default();
+                    doc.add_text(text_field, "a b c d f");
+                    index_writer.add_document(doc);
+                }
+                index_writer.commit().unwrap();
+            }
+            {
+                {
+                    let mut doc = Document::default();
+                    doc.add_text(text_field, "e f");
+                    index_writer.add_document(doc);
+                }
+                index_writer.commit().unwrap();
+            }
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let mut term_it = searcher.terms();
+        let mut term_string = String::new();
+        while term_it.advance() {
+            let term = Term::from_bytes(term_it.key());
+            term_string.push_str(term.text());
+        }
+        assert_eq!(&*term_string, "abcdef");
+    }
+
+}
