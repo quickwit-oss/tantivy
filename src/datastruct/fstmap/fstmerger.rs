@@ -136,7 +136,7 @@ impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo>
     fn from(segment_readers: &'a [SegmentReader]) -> FstMerger<'a, TermInfo> {
         FstMerger::new(segment_readers
                            .iter()
-                           .map(|reader| reader.term_infos().stream())
+                           .map(|reader| reader.terms().stream())
                            .collect())
     }
 }

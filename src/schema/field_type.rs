@@ -49,7 +49,7 @@ impl FieldType {
             FieldType::Str(ref text_options) => {
                 match text_options.get_indexing_options() {
                     TextIndexingOptions::Untokenized |
-                    TextIndexingOptions::TokenizedNoFreq   => Some(SegmentPostingsOption::NoFreq),
+                    TextIndexingOptions::TokenizedNoFreq => Some(SegmentPostingsOption::NoFreq),
                     TextIndexingOptions::TokenizedWithFreq => Some(SegmentPostingsOption::Freq),
                     TextIndexingOptions::TokenizedWithFreqAndPosition => {
                         Some(SegmentPostingsOption::FreqAndPositions)

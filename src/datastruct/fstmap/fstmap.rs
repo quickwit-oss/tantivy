@@ -5,6 +5,7 @@ use super::{FstMapStreamerBuilder, FstMapStreamer};
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use std::marker::PhantomData;
+use schema::{Field, Term};
 
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
@@ -104,22 +105,47 @@ impl<V> FstMap<V>
            })
     }
 
-    pub(crate) fn read_value(&self, offset: u64) -> V {
+
+    /// In the `FstMap`, the dictionary itself associated
+    /// each key `&[u8]` to a `u64` that is in fact the address
+    /// of the value object in a data array.
+    ///
+    /// This method deserialize this object, and returns it.
+    pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
         let buffer = self.values_mmap.as_slice();
         let mut cursor = &buffer[(offset as usize)..];
-        V::deserialize(&mut cursor).expect("Data in FST is corrupted")
+        V::deserialize(&mut cursor)
     }
 
+    /// Returns, if present the value associated to a given key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
         self.fst_index
             .get(key)
-            .map(|offset| self.read_value(offset))
+            .map(|offset| {
+                     self.read_value(offset)
+                         .expect("The fst is corrupted. Failed to deserialize a value.")
+                 })
     }
 
+
+    /// Returns a stream of all the sorted terms.
     pub fn stream(&self) -> FstMapStreamer<V> {
         self.range().into_stream()
     }
 
+
+    /// Returns a stream of all the sorted terms in the given field.
+    pub fn stream_field(&self, field: Field) -> FstMapStreamer<V> {
+        let start_term = Term::from_field_text(field, "");
+        let stop_term = Term::from_field_text(Field(field.0 + 1), "");
+        self.range()
+            .ge(start_term.as_slice())
+            .lt(stop_term.as_slice())
+            .into_stream()
+    }
+
+    /// Returns a range builder, to stream all of the terms
+    /// within an interval.
     pub fn range(&self) -> FstMapStreamerBuilder<V> {
         FstMapStreamerBuilder::new(self, self.fst_index.range())
     }

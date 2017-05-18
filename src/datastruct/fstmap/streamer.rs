@@ -99,6 +99,8 @@ impl<'a, V> FstMapStreamer<'a, V>
     }
 
     pub fn value(&self) -> V {
-        self.fst_map.read_value(self.offset)
+        self.fst_map
+            .read_value(self.offset)
+            .expect("Fst data is corrupted. Failed to deserialize a value.")
     }
 }

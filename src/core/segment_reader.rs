@@ -43,7 +43,7 @@ use schema::TextIndexingOptions;
 pub struct SegmentReader {
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
-    term_infos: Arc<FstMap<TermInfo>>,
+    terms: Arc<FstMap<TermInfo>>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: Arc<FastFieldsReader>,
@@ -135,7 +135,7 @@ impl SegmentReader {
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
         let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let term_infos = try!(FstMap::from_source(source));
+        let terms = try!(FstMap::from_source(source));
         let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
 
@@ -160,7 +160,7 @@ impl SegmentReader {
         Ok(SegmentReader {
                segment_meta: segment.meta().clone(),
                postings_data: postings_shared_mmap,
-               term_infos: Arc::new(term_infos),
+               terms: Arc::new(terms),
                segment_id: segment.id(),
                store_reader: store_reader,
                fast_fields_reader: Arc::new(fast_fields_reader),
@@ -172,8 +172,8 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn term_infos(&self) -> &FstMap<TermInfo> {
-        &self.term_infos
+    pub fn terms(&self) -> &FstMap<TermInfo> {
+        &self.terms
     }
 
     /// Returns the document (or to be accurate, its stored field)
@@ -259,7 +259,7 @@ impl SegmentReader {
 
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
-        self.term_infos.get(term.as_slice())
+        self.terms.get(term.as_slice())
     }
 
     /// Returns the segment id
