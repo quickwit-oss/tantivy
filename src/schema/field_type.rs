@@ -48,29 +48,23 @@ impl FieldType {
         match *self {
             FieldType::Str(ref text_options) => {
                 match text_options.get_indexing_options() {
-                    TextIndexingOptions::Untokenized =>
-                        Some(SegmentPostingsOption::NoFreq),
-                    TextIndexingOptions::TokenizedNoFreq =>
-                        Some(SegmentPostingsOption::NoFreq),
-                    TextIndexingOptions::TokenizedWithFreq =>
-                        Some(SegmentPostingsOption::Freq),
-                    TextIndexingOptions::TokenizedWithFreqAndPosition =>
-                        Some(SegmentPostingsOption::FreqAndPositions),
-                    TextIndexingOptions::Unindexed => {
-                        None
+                    TextIndexingOptions::Untokenized => Some(SegmentPostingsOption::NoFreq),
+                    TextIndexingOptions::TokenizedNoFreq => Some(SegmentPostingsOption::NoFreq),
+                    TextIndexingOptions::TokenizedWithFreq => Some(SegmentPostingsOption::Freq),
+                    TextIndexingOptions::TokenizedWithFreqAndPosition => {
+                        Some(SegmentPostingsOption::FreqAndPositions)
                     }
+                    TextIndexingOptions::Unindexed => None,
                 }
             }
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(SegmentPostingsOption::NoFreq)
-                }
-                else {
+                } else {
                     None
                 }
-                
-            },
+            }
         }
     }
 

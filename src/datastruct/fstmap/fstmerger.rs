@@ -6,27 +6,34 @@ use postings::TermInfo;
 use std::cmp::Ordering;
 use fst::Streamer;
 
-pub struct HeapItem<'a, V> where V: 'a + BinarySerializable {
+pub struct HeapItem<'a, V>
+    where V: 'a + BinarySerializable
+{
     pub streamer: FstMapStreamer<'a, V>,
     pub segment_ord: usize,
 }
 
-impl<'a, V> PartialEq for HeapItem<'a, V> where V: 'a + BinarySerializable {
+impl<'a, V> PartialEq for HeapItem<'a, V>
+    where V: 'a + BinarySerializable
+{
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable {
-}
+impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable {}
 
-impl<'a, V> PartialOrd for HeapItem<'a, V> where V: 'a + BinarySerializable {
+impl<'a, V> PartialOrd for HeapItem<'a, V>
+    where V: 'a + BinarySerializable
+{
     fn partial_cmp(&self, other: &HeapItem<'a, V>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, V> Ord for HeapItem<'a, V> where V: 'a + BinarySerializable {
+impl<'a, V> Ord for HeapItem<'a, V>
+    where V: 'a + BinarySerializable
+{
     fn cmp(&self, other: &HeapItem<'a, V>) -> Ordering {
         (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
     }
@@ -39,12 +46,16 @@ impl<'a, V> Ord for HeapItem<'a, V> where V: 'a + BinarySerializable {
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
-pub struct FstMerger<'a, V> where V: 'a + BinarySerializable {
+pub struct FstMerger<'a, V>
+    where V: 'a + BinarySerializable
+{
     heap: BinaryHeap<HeapItem<'a, V>>,
     current_streamers: Vec<HeapItem<'a, V>>,
 }
 
-impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
+impl<'a, V> FstMerger<'a, V>
+    where V: 'a + BinarySerializable
+{
     fn new(streams: Vec<FstMapStreamer<'a, V>>) -> FstMerger<'a, V> {
         FstMerger {
             heap: BinaryHeap::new(),
@@ -52,11 +63,11 @@ impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
                 .into_iter()
                 .enumerate()
                 .map(|(ord, streamer)| {
-                    HeapItem {
-                        streamer: streamer,
-                        segment_ord: ord,
-                    }
-                })
+                         HeapItem {
+                             streamer: streamer,
+                             segment_ord: ord,
+                         }
+                     })
                 .collect(),
         }
     }
@@ -83,9 +94,10 @@ impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
                 if let Some(next_streamer) = self.heap.peek() {
                     if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
                         break;
-                    } 
-                }
-                else { break; } // no more streamer.
+                    }
+                } else {
+                    break;
+                } // no more streamer.
                 let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
                 self.current_streamers.push(next_heap_it);
             }
@@ -94,7 +106,7 @@ impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
             false
         }
     }
-    
+
     /// Returns the current term.
     ///
     /// This method may be called
@@ -117,32 +129,35 @@ impl<'a, V> FstMerger<'a, V> where V: 'a + BinarySerializable {
 
 
 
-impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo> where TermInfo: BinarySerializable {
+impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo>
+    where TermInfo: BinarySerializable
+{
     fn from(segment_readers: &'a [SegmentReader]) -> FstMerger<'a, TermInfo> {
         FstMerger::new(segment_readers
-            .iter()
-            .map(|reader| reader.term_infos().stream())
-            .collect()  )
+                           .iter()
+                           .map(|reader| reader.term_infos().stream())
+                           .collect())
     }
 }
 
-impl<'a, V> Streamer<'a> for FstMerger<'a, V> where V: BinarySerializable {
+impl<'a, V> Streamer<'a> for FstMerger<'a, V>
+    where V: BinarySerializable
+{
     type Item = &'a [u8];
 
     fn next(&'a mut self) -> Option<Self::Item> {
         if self.advance() {
             Some(&self.current_streamers[0].streamer.key())
-        }
-        else {
+        } else {
             None
         }
-        
+
     }
 }
 
 #[cfg(test)]
 mod tests {
-    
+
     use schema::{Term, SchemaBuilder, Document, TEXT};
     use core::Index;
 

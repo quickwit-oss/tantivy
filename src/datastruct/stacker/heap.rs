@@ -115,10 +115,10 @@ impl InnerHeap {
     pub fn capacity(&self) -> u32 {
         self.buffer.len() as u32
     }
-    
+
     // Returns the number of free bytes. If the buffer
     // has reached it's capacity and overflowed to another buffer, return 0.
-    pub fn num_free_bytes(&self,) -> u32 {
+    pub fn num_free_bytes(&self) -> u32 {
         if self.has_been_resized {
             0u32
         } else {

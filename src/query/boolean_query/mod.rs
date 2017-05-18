@@ -122,7 +122,7 @@ mod tests {
             fieldnorm_reader_opt: Some(left_fieldnorms),
             postings: left,
         };
-        
+
         let right_fieldnorms =
             U64FastFieldReader::from((0u64..9u64).map(|doc| doc * 5).collect::<Vec<u64>>());
         let right = VecPostings::from(vec![1, 3, 8]);

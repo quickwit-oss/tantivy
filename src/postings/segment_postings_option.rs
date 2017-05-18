@@ -18,7 +18,7 @@ pub enum SegmentPostingsOption {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::SegmentPostingsOption;
 
     #[test]

@@ -36,8 +36,8 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
     /// in a nice way.
     pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.fst_builder
-                 .insert(key, self.data.len() as u64)
-                 .map_err(convert_fst_error)?;
+            .insert(key, self.data.len() as u64)
+            .map_err(convert_fst_error)?;
         Ok(())
     }
 
@@ -50,8 +50,8 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
     #[cfg(test)]
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         self.fst_builder
-                 .insert(key, self.data.len() as u64)
-                 .map_err(convert_fst_error)?;
+            .insert(key, self.data.len() as u64)
+            .map_err(convert_fst_error)?;
         value.serialize(&mut self.data)?;
         Ok(())
     }
@@ -77,7 +77,7 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     Ok(fst::Map::from(match source {
                           ReadOnlySource::Anonymous(data) => {
                               Fst::from_shared_bytes(data.data, data.start, data.len)
-                                       .map_err(convert_fst_error)?
+                                  .map_err(convert_fst_error)?
                           }
                           ReadOnlySource::Mmap(mmap_readonly) => {
                               Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)?
@@ -85,8 +85,9 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
                       }))
 }
 
-impl<V> FstMap<V> where V: BinarySerializable {
-
+impl<V> FstMap<V>
+    where V: BinarySerializable
+{
     pub fn from_source(source: ReadOnlySource) -> io::Result<FstMap<V>> {
         let total_len = source.len();
         let length_offset = total_len - 4;
@@ -100,7 +101,7 @@ impl<V> FstMap<V> where V: BinarySerializable {
                fst_index: fst_index,
                values_mmap: values_source,
                _phantom_: PhantomData,
-        })
+           })
     }
 
     pub(crate) fn read_value(&self, offset: u64) -> V {
@@ -130,7 +131,7 @@ mod tests {
     use directory::{RAMDirectory, Directory};
     use std::path::PathBuf;
     use fst::Streamer;
-    
+
     #[test]
     fn test_fstmap() {
         let mut directory = RAMDirectory::create();

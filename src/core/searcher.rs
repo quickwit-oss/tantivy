@@ -65,16 +65,16 @@ impl Searcher {
         query.search(self, collector)
     }
 
-    /// Returns a Stream over all of the sorted unique terms of		
-    /// the searcher.		
-    ///		
-    /// This includes all of the fields from all of the segment_readers.		
-    /// See [TermIterator](struct.TermIterator.html).		
-    ///		
-    /// # Warning		
-    /// This API is very likely to change in the future.		
-    pub fn terms(&self) -> FstMerger<TermInfo> {		
-        FstMerger::from(self.segment_readers())		
+    /// Returns a Stream over all of the sorted unique terms of
+    /// the searcher.
+    ///
+    /// This includes all of the fields from all of the segment_readers.
+    /// See [TermIterator](struct.TermIterator.html).
+    ///
+    /// # Warning
+    /// This API is very likely to change in the future.
+    pub fn terms(&self) -> FstMerger<TermInfo> {
+        FstMerger::from(self.segment_readers())
     }
 }
 

@@ -106,7 +106,7 @@ impl PostingsSerializer {
                                 segment.schema())
     }
 
-    /// Must be called before starting pushing terms of 
+    /// Must be called before starting pushing terms of
     /// a given field.
     ///
     /// Loads the indexing options for the given field.

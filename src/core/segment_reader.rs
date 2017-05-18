@@ -213,18 +213,14 @@ impl SegmentReader {
     ///
     /// Most user should prefer using `read_postings` instead.
     pub fn read_postings_from_terminfo(&self,
-                         term_info: &TermInfo,
-                         option: SegmentPostingsOption)
-                         -> SegmentPostings {
+                                       term_info: &TermInfo,
+                                       option: SegmentPostingsOption)
+                                       -> SegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match option {
-            SegmentPostingsOption::NoFreq => {
-                FreqHandler::new_without_freq()
-            },
-            SegmentPostingsOption::Freq => {
-                FreqHandler::new_with_freq()
-            }
+            SegmentPostingsOption::NoFreq => FreqHandler::new_without_freq(),
+            SegmentPostingsOption::Freq => FreqHandler::new_with_freq(),
             SegmentPostingsOption::FreqAndPositions => {
                 let offset = term_info.positions_offset as usize;
                 let offseted_position_data = &self.positions_data[offset..];
