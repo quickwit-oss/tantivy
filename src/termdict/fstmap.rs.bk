@@ -108,7 +108,7 @@ impl<V> FstMap<V>
 
     /// In the `FstMap`, the dictionary itself associated
     /// each key `&[u8]` to a `u64` that is in fact the address
-    /// of the value object in a data array.
+    /// of the value object in a data array. 
     ///
     /// This method deserialize this object, and returns it.
     pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
@@ -121,10 +121,7 @@ impl<V> FstMap<V>
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
         self.fst_index
             .get(key)
-            .map(|offset| {
-                     self.read_value(offset)
-                         .expect("The fst is corrupted. Failed to deserialize a value.")
-                 })
+            .map(|offset| self.read_value(offset).expect("The fst is corrupted. Failed to deserialize a value."))
     }
 
 

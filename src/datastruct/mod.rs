@@ -1,4 +1,3 @@
-pub mod fstmap;
 mod skip;
 pub mod stacker;
 

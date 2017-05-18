@@ -12,7 +12,7 @@ use postings::Postings;
 use postings::DocSet;
 use fastfield::DeleteBitSet;
 use schema::{Schema, Field};
-use datastruct::fstmap::FstMerger;
+use termdict::FstMerger;
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;

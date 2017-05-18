@@ -14,7 +14,7 @@ use DocId;
 use std::str;
 use std::cmp;
 use postings::TermInfo;
-use datastruct::fstmap::FstMap;
+use termdict::FstMap;
 use std::sync::Arc;
 use std::fmt;
 use schema::Field;

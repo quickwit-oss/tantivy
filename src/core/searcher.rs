@@ -7,7 +7,7 @@ use query::Query;
 use DocId;
 use DocAddress;
 use schema::Term;
-use datastruct::fstmap::FstMerger;
+use termdict::FstMerger;
 use std::fmt;
 use postings::TermInfo;
 

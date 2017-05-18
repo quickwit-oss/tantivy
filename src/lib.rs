@@ -111,9 +111,10 @@ mod datastruct;
 
 
 
+pub mod termdict;
+
 /// Query module
 pub mod query;
-/// Directory module
 pub mod directory;
 /// Collector module
 pub mod collector;
@@ -147,8 +148,7 @@ pub fn version() -> &'static str {
     }
 }
 
-/// Tantivy's makes it possible to personalize when
-/// the indexer should merge its segments
+/// Defines tantivy's merging strategy
 pub mod merge_policy {
     pub use indexer::MergePolicy;
     pub use indexer::LogMergePolicy;
