@@ -189,7 +189,7 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
+    fn write_postings(&self, serializer: &mut PostingsSerializer) -> Result<()> {
 
         let mut merged_terms = TermMerger::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
@@ -214,7 +214,6 @@ impl IndexMerger {
 
         let mut last_field: Option<Field> = None;
         let mut segment_postings_option = SegmentPostingsOption::FreqAndPositions;
-        let mut need_to_call_new_field = false;
 
         while merged_terms.advance() {
             // Create the total list of doc ids
@@ -240,7 +239,10 @@ impl IndexMerger {
                     .expect("Encounterred a field that is not supposed to be
                          indexed. Have you modified the index?");
                 last_field = Some(current_field);
-                need_to_call_new_field = true;
+
+                // it is perfectly safe to call `.new_field`
+                // even if there is no postings associated.
+                serializer.new_field(current_field);
             }
 
             // Let's compute the list of non-empty posting lists
@@ -262,17 +264,19 @@ impl IndexMerger {
                 })
                 .collect();
 
+            // At this point, `segment_postings` contains the posting list
+            // of all of the segments containing the given term.
+            //
+            // These segments are non-empty and advance has already been called.
+
             if segment_postings.is_empty() {
+                // by continuing here, the `term` will be entirely removed.
                 continue;
             }
 
-            if need_to_call_new_field {
-                postings_serializer.new_field(current_field);
-                last_field = Some(current_field);
-                need_to_call_new_field = false;
-            }
-
-            postings_serializer.new_term(term_bytes)?;
+            // We know that there is at least one document containing
+            // the term, so we add it.
+            serializer.new_term(term_bytes)?;
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
@@ -280,6 +284,8 @@ impl IndexMerger {
             for (segment_ord, mut segment_postings) in segment_postings {
                 let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
                 loop {
+                    // `.advance()` has been called once before the loop.
+                    // Hence we cannot use a `while segment_postings.advance()` loop.
                     if let Some(remapped_doc_id) =
                         old_to_new_doc_id[segment_postings.doc() as usize] {
                         // we make sure to only write the term iff
@@ -287,17 +293,18 @@ impl IndexMerger {
                         let delta_positions: &[u32] =
                             delta_position_computer
                                 .compute_delta_positions(segment_postings.positions());
-                        postings_serializer
-                            .write_doc(remapped_doc_id,
-                                       segment_postings.term_freq(),
-                                       delta_positions)?;
+                        let term_freq = segment_postings.term_freq();
+                        serializer
+                            .write_doc(remapped_doc_id, term_freq, delta_positions)?;
                     }
                     if !segment_postings.advance() {
                         break;
                     }
                 }
             }
-            postings_serializer.close_term()?;
+
+            // closing the term.
+            serializer.close_term()?;
         }
         Ok(())
     }

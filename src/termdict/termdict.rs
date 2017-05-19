@@ -26,7 +26,6 @@ pub struct TermDictionaryBuilder<W: Write, V = TermInfo>
 }
 
 impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
-    
     /// Creates a new `TermDictionaryBuilder`
     pub fn new(w: W) -> io::Result<TermDictionaryBuilder<W, V>> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
@@ -190,10 +189,10 @@ mod tests {
         assert_eq!(term_dict.get("abc"), Some(34u32));
         assert_eq!(term_dict.get("abcd"), Some(346u32));
         let mut stream = term_dict.stream();
-        assert_eq!(stream.next().unwrap(), "abc".as_bytes());
+        assert_eq!(stream.next().unwrap(), ("abc".as_bytes(), 34u32));
         assert_eq!(stream.key(), "abc".as_bytes());
         assert_eq!(stream.value(), 34u32);
-        assert_eq!(stream.next().unwrap(), "abcd".as_bytes());
+        assert_eq!(stream.next().unwrap(), ("abcd".as_bytes(), 346u32));
         assert_eq!(stream.key(), "abcd".as_bytes());
         assert_eq!(stream.value(), 346u32);
         assert!(!stream.advance());

@@ -77,13 +77,14 @@ pub struct TermStreamer<'a, V>
 
 
 impl<'a, 'b, V> fst::Streamer<'b> for TermStreamer<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'b + BinarySerializable
 {
-    type Item = &'b [u8];
+    type Item = (&'b [u8], V);
 
-    fn next(&'b mut self) -> Option<&'b [u8]> {
+    fn next(&'b mut self) -> Option<(&'b [u8], V)> {
         if self.advance() {
-            Some(&self.buffer)
+            let v = self.value();
+            Some((&self.buffer, v))
         } else {
             None
         }

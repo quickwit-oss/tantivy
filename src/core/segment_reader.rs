@@ -134,17 +134,19 @@ impl SegmentReader {
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
-        let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let terms = try!(TermDictionary::from_source(source));
-        let store_reader =
-            StoreReader::from_source(try!(segment.open_read(SegmentComponent::STORE)));
-        let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
+        let source = segment.open_read(SegmentComponent::TERMS)?;
+        let terms = TermDictionary::from_source(source)?;
 
-        let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
-        let fast_fields_reader = try!(FastFieldsReader::from_source(fast_field_data));
+        let store_source = segment.open_read(SegmentComponent::STORE)?;
+        let store_reader = StoreReader::from_source(store_source);
 
-        let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
-        let fieldnorms_reader = try!(FastFieldsReader::from_source(fieldnorms_data));
+        let postings_shared_mmap = segment.open_read(SegmentComponent::POSTINGS)?;
+
+        let fast_field_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_reader = FastFieldsReader::from_source(fast_field_data)?;
+
+        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorms_reader = FastFieldsReader::from_source(fieldnorms_data)?;
 
         let positions_data = segment
             .open_read(SegmentComponent::POSITIONS)
