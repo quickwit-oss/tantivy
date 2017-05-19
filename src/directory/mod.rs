@@ -1,3 +1,8 @@
+/*!
+
+WORM directory abstraction.
+
+*/
 mod mmap_directory;
 mod ram_directory;
 mod directory;

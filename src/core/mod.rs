@@ -7,7 +7,6 @@ mod segment;
 mod index_meta;
 mod pool;
 mod segment_meta;
-mod term_iterator;
 
 pub use self::searcher::Searcher;
 pub use self::segment_component::SegmentComponent;
@@ -18,7 +17,6 @@ pub use self::segment::SerializableSegment;
 pub use self::index::Index;
 pub use self::segment_meta::SegmentMeta;
 pub use self::index_meta::IndexMeta;
-pub use self::term_iterator::TermIterator;
 
 
 use std::path::PathBuf;

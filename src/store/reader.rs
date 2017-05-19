@@ -21,6 +21,17 @@ pub struct StoreReader {
 }
 
 impl StoreReader {
+    pub fn from_source(data: ReadOnlySource) -> StoreReader {
+        let (data_source, offset_index_source, max_doc) = split_source(data);
+        StoreReader {
+            data: data_source,
+            offset_index_source: offset_index_source,
+            current_block_offset: RefCell::new(usize::max_value()),
+            current_block: RefCell::new(Vec::new()),
+            max_doc: max_doc,
+        }
+    }
+
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
         SkipList::from(self.offset_index_source.as_slice())
             .seek(doc_id + 1)
@@ -75,18 +86,4 @@ fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId)
     let res = (data.slice(0, offset), data.slice(offset, footer_offset), max_doc);
     drop(data);
     res
-}
-
-
-impl From<ReadOnlySource> for StoreReader {
-    fn from(data: ReadOnlySource) -> StoreReader {
-        let (data_source, offset_index_source, max_doc) = split_source(data);
-        StoreReader {
-            data: data_source,
-            offset_index_source: offset_index_source,
-            current_block_offset: RefCell::new(usize::max_value()),
-            current_block: RefCell::new(Vec::new()),
-            max_doc: max_doc,
-        }
-    }
 }

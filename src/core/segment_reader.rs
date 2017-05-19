@@ -12,8 +12,9 @@ use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
 use std::str;
+use std::cmp;
 use postings::TermInfo;
-use datastruct::FstMap;
+use termdict::TermDictionary;
 use std::sync::Arc;
 use std::fmt;
 use schema::Field;
@@ -42,7 +43,7 @@ use schema::TextIndexingOptions;
 pub struct SegmentReader {
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
-    term_infos: Arc<FstMap<TermInfo>>,
+    terms: Arc<TermDictionary>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: Arc<FastFieldsReader>,
@@ -133,16 +134,19 @@ impl SegmentReader {
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
-        let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let term_infos = try!(FstMap::from_source(source));
-        let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
-        let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
+        let source = segment.open_read(SegmentComponent::TERMS)?;
+        let terms = TermDictionary::from_source(source)?;
 
-        let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
-        let fast_fields_reader = try!(FastFieldsReader::open(fast_field_data));
+        let store_source = segment.open_read(SegmentComponent::STORE)?;
+        let store_reader = StoreReader::from_source(store_source);
 
-        let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
-        let fieldnorms_reader = try!(FastFieldsReader::open(fieldnorms_data));
+        let postings_shared_mmap = segment.open_read(SegmentComponent::POSTINGS)?;
+
+        let fast_field_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_reader = FastFieldsReader::from_source(fast_field_data)?;
+
+        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorms_reader = FastFieldsReader::from_source(fieldnorms_data)?;
 
         let positions_data = segment
             .open_read(SegmentComponent::POSITIONS)
@@ -159,7 +163,7 @@ impl SegmentReader {
         Ok(SegmentReader {
                segment_meta: segment.meta().clone(),
                postings_data: postings_shared_mmap,
-               term_infos: Arc::new(term_infos),
+               terms: Arc::new(terms),
                segment_id: segment.id(),
                store_reader: store_reader,
                fast_fields_reader: Arc::new(fast_fields_reader),
@@ -171,8 +175,8 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn term_infos(&self) -> &FstMap<TermInfo> {
-        &self.term_infos
+    pub fn terms(&self) -> &TermDictionary {
+        &self.terms
     }
 
     /// Returns the document (or to be accurate, its stored field)
@@ -201,39 +205,35 @@ impl SegmentReader {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));
+        let maximum_option = get!(field_entry.field_type().get_segment_postings_option());
+        let best_effort_option = cmp::min(maximum_option, option);
+        Some(self.read_postings_from_terminfo(&term_info, best_effort_option))
+    }
+
+
+    /// Returns a posting object given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub fn read_postings_from_terminfo(&self,
+                                       term_info: &TermInfo,
+                                       option: SegmentPostingsOption)
+                                       -> SegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
-        let freq_handler = match *field_entry.field_type() {
-            FieldType::Str(ref options) => {
-                let indexing_options = options.get_indexing_options();
-                match option {
-                    SegmentPostingsOption::NoFreq => FreqHandler::new_without_freq(),
-                    SegmentPostingsOption::Freq => {
-                        if indexing_options.is_termfreq_enabled() {
-                            FreqHandler::new_with_freq()
-                        } else {
-                            FreqHandler::new_without_freq()
-                        }
-                    }
-                    SegmentPostingsOption::FreqAndPositions => {
-                        if indexing_options == TextIndexingOptions::TokenizedWithFreqAndPosition {
-                            let offset = term_info.positions_offset as usize;
-                            let offseted_position_data = &self.positions_data[offset..];
-                            FreqHandler::new_with_freq_and_position(offseted_position_data)
-                        } else if indexing_options.is_termfreq_enabled() {
-                            FreqHandler::new_with_freq()
-                        } else {
-                            FreqHandler::new_without_freq()
-                        }
-                    }
-                }
+        let freq_handler = match option {
+            SegmentPostingsOption::NoFreq => FreqHandler::new_without_freq(),
+            SegmentPostingsOption::Freq => FreqHandler::new_with_freq(),
+            SegmentPostingsOption::FreqAndPositions => {
+                let offset = term_info.positions_offset as usize;
+                let offseted_position_data = &self.positions_data[offset..];
+                FreqHandler::new_with_freq_and_position(offseted_position_data)
             }
-            _ => FreqHandler::new_without_freq(),
         };
-        Some(SegmentPostings::from_data(term_info.doc_freq,
-                                        postings_data,
-                                        &self.delete_bitset,
-                                        freq_handler))
+        SegmentPostings::from_data(term_info.doc_freq,
+                                   postings_data,
+                                   &self.delete_bitset,
+                                   freq_handler)
     }
 
 
@@ -262,7 +262,7 @@ impl SegmentReader {
 
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
-        self.term_infos.get(term.as_slice())
+        self.terms.get(term.as_slice())
     }
 
     /// Returns the segment id

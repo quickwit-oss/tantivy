@@ -58,10 +58,10 @@ impl SegmentSerializer {
 
     /// Finalize the segment serialization.
     pub fn close(self) -> Result<()> {
-        try!(self.fast_field_serializer.close());
-        try!(self.postings_serializer.close());
-        try!(self.store_writer.close());
-        try!(self.fieldnorms_serializer.close());
+        self.fast_field_serializer.close()?;
+        self.postings_serializer.close()?;
+        self.store_writer.close()?;
+        self.fieldnorms_serializer.close()?;
         Ok(())
     }
 }

@@ -12,6 +12,8 @@
 
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
+#![allow(unknown_lints)]
+
 #![warn(missing_docs)]
 
 //! # `tantivy`
@@ -109,9 +111,10 @@ mod datastruct;
 
 
 
+pub mod termdict;
+
 /// Query module
 pub mod query;
-/// Directory module
 pub mod directory;
 /// Collector module
 pub mod collector;
@@ -134,8 +137,6 @@ pub use postings::DocSet;
 pub use postings::Postings;
 pub use postings::SegmentPostingsOption;
 
-pub use core::TermIterator;
-
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
@@ -147,8 +148,7 @@ pub fn version() -> &'static str {
     }
 }
 
-/// Tantivy's makes it possible to personalize when
-/// the indexer should merge its segments
+/// Defines tantivy's merging strategy
 pub mod merge_policy {
     pub use indexer::MergePolicy;
     pub use indexer::LogMergePolicy;

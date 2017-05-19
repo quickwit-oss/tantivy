@@ -128,7 +128,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
             serializer.close().unwrap();
         }
         let source = directory.open_read(path).unwrap();
-        let fast_field_readers = FastFieldsReader::open(source).unwrap();
+        let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
         fast_field_readers.open_reader(field).unwrap()
     }
 }
@@ -194,12 +194,12 @@ pub struct FastFieldsReader {
 }
 
 impl FastFieldsReader {
-    /// Opens the `FastFieldsReader` file
+    /// Opens a `FastFieldsReader`
     ///
     /// When opening the fast field reader, the
     /// the list of the offset is read (as a footer of the
     /// data file).
-    pub fn open(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
+    pub fn from_source(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
         let header_offset;
         let field_offsets: Vec<(Field, u32)>;
         {
