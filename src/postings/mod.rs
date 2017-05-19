@@ -26,7 +26,7 @@ pub use self::postings::Postings;
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
 
-pub use self::segment_postings::SegmentPostings;
+pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
 pub use self::intersection::IntersectionDocSet;
 pub use self::freq_handler::FreqHandler;
 pub use self::segment_postings_option::SegmentPostingsOption;
@@ -42,6 +42,7 @@ mod tests {
     use indexer::SegmentWriter;
     use core::SegmentReader;
     use core::Index;
+    use postings::SegmentPostingsOption::FreqAndPositions;
     use std::iter;
     use datastruct::stacker::Heap;
     use fastfield::FastFieldReader;
@@ -129,11 +130,11 @@ mod tests {
             }
             {
                 let term_a = Term::from_field_text(text_field, "abcdef");
-                assert!(segment_reader.read_postings_all_info(&term_a).is_none());
+                assert!(segment_reader.read_postings(&term_a, FreqAndPositions).is_none());
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");
-                let mut postings_a = segment_reader.read_postings_all_info(&term_a).unwrap();
+                let mut postings_a = segment_reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert_eq!(postings_a.len(), 1000);
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 0);
@@ -152,7 +153,7 @@ mod tests {
             }
             {
                 let term_e = Term::from_field_text(text_field, "e");
-                let mut postings_e = segment_reader.read_postings_all_info(&term_e).unwrap();
+                let mut postings_e = segment_reader.read_postings(&term_e, FreqAndPositions).unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
                 for i in 2u32..1000u32 {
                     assert!(postings_e.advance());
@@ -467,6 +468,7 @@ mod tests {
         });
     }
 
+
     fn bench_skip_next(p: f32, b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
@@ -475,6 +477,7 @@ mod tests {
         let mut segment_postings = segment_reader
             .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
             .unwrap();
+        
         let mut existing_docs = Vec::new();
         for doc in &docs {
             if *doc >= segment_postings.doc() {
@@ -490,6 +493,7 @@ mod tests {
                 .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                 .unwrap();
             for doc in &existing_docs {
+                println!("doc {}", doc);
                 if segment_postings.skip_next(*doc) == SkipResult::End {
                     break;
                 }
