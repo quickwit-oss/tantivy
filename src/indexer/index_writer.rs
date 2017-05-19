@@ -273,7 +273,7 @@ fn index_documents(heap: &mut Heap,
         //
         // Tantivy does not resize its hashtable. When it reaches
         // capacity, we just stop indexing new document.
-        if segment_writer.is_termdic_saturated() {
+        if segment_writer.is_term_saturated() {
             info!("Term dic saturated, flushing segment with maxdoc={}.",
                   segment_writer.max_doc());
             break;

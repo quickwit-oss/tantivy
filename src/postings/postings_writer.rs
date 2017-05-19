@@ -109,7 +109,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     }
 
     /// Return true iff the term dictionary is saturated.
-    pub fn is_termdic_saturated(&self) -> bool {
+    pub fn is_term_saturated(&self) -> bool {
         self.term_index.is_saturated()
     }
 }

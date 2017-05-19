@@ -15,12 +15,12 @@ sorted.
 
 */
 
-mod fstmap;
+mod termdict;
 mod streamer;
-mod fstmerger;
+mod merger;
 
-pub use self::fstmap::FstMap;
-pub(crate) use self::fstmap::FstMapBuilder;
-pub use self::streamer::FstMapStreamer;
-pub use self::streamer::FstMapStreamerBuilder;
-pub use self::fstmerger::FstMerger;
+pub use self::termdict::TermDictionary;
+pub(crate) use self::termdict::TermDictionaryBuilder;
+pub use self::streamer::TermStreamer;
+pub use self::streamer::TermStreamerBuilder;
+pub use self::merger::FstMerger;

@@ -1,6 +1,6 @@
 use std::collections::BinaryHeap;
 use core::SegmentReader;
-use super::FstMapStreamer;
+use super::TermStreamer;
 use common::BinarySerializable;
 use postings::TermInfo;
 use std::cmp::Ordering;
@@ -9,7 +9,7 @@ use fst::Streamer;
 pub struct HeapItem<'a, V>
     where V: 'a + BinarySerializable
 {
-    pub streamer: FstMapStreamer<'a, V>,
+    pub streamer: TermStreamer<'a, V>,
     pub segment_ord: usize,
 }
 
@@ -56,7 +56,7 @@ pub struct FstMerger<'a, V>
 impl<'a, V> FstMerger<'a, V>
     where V: 'a + BinarySerializable
 {
-    fn new(streams: Vec<FstMapStreamer<'a, V>>) -> FstMerger<'a, V> {
+    fn new(streams: Vec<TermStreamer<'a, V>>) -> FstMerger<'a, V> {
         FstMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams

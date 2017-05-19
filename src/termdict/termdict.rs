@@ -1,54 +1,52 @@
 use std::io::{self, Write};
 use fst;
 use fst::raw::Fst;
-use super::{FstMapStreamerBuilder, FstMapStreamer};
+use super::{TermStreamerBuilder, TermStreamer};
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use std::marker::PhantomData;
 use schema::{Field, Term};
+use postings::TermInfo;
 
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
-pub struct FstMapBuilder<W: Write, V: BinarySerializable> {
+
+pub struct TermDictionaryBuilder<W: Write, V=TermInfo> where V: BinarySerializable {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
     _phantom_: PhantomData<V>,
 }
 
-impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
-    pub fn new(w: W) -> io::Result<FstMapBuilder<W, V>> {
+impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
+    pub fn new(w: W) -> io::Result<TermDictionaryBuilder<W, V>> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
-        Ok(FstMapBuilder {
+        Ok(TermDictionaryBuilder {
                fst_builder: fst_builder,
                data: Vec::new(),
                _phantom_: PhantomData,
            })
     }
 
-    /// Horribly unsafe, nobody should ever do that... except me :)
+    /// Horribly unsafe internal API
     ///
     /// If used, it must be used by systematically alternating calls
     /// to insert_key and insert_value.
-    ///
-    /// TODO see if I can bend Rust typesystem to enforce that
-    /// in a nice way.
-    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
+    pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.fst_builder
             .insert(key, self.data.len() as u64)
             .map_err(convert_fst_error)?;
         Ok(())
     }
 
-    /// Horribly unsafe, nobody should ever do that... except me :)
-    pub fn insert_value(&mut self, value: &V) -> io::Result<()> {
+    /// Horribly unsafe  internal API
+    pub(crate) fn insert_value(&mut self, value: &V) -> io::Result<()> {
         value.serialize(&mut self.data)?;
         Ok(())
     }
 
-    #[cfg(test)]
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         self.fst_builder
             .insert(key, self.data.len() as u64)
@@ -67,7 +65,7 @@ impl<W: Write, V: BinarySerializable> FstMapBuilder<W, V> {
     }
 }
 
-pub struct FstMap<V: BinarySerializable> {
+pub struct TermDictionary<V=TermInfo> where V: BinarySerializable {
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,
     _phantom_: PhantomData<V>,
@@ -75,21 +73,22 @@ pub struct FstMap<V: BinarySerializable> {
 
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
-    Ok(fst::Map::from(match source {
-                          ReadOnlySource::Anonymous(data) => {
-                              Fst::from_shared_bytes(data.data, data.start, data.len)
-                                  .map_err(convert_fst_error)?
-                          }
-                          ReadOnlySource::Mmap(mmap_readonly) => {
-                              Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)?
-                          }
-                      }))
+    let fst = match source {
+        ReadOnlySource::Anonymous(data) => {
+            Fst::from_shared_bytes(data.data, data.start, data.len)
+                .map_err(convert_fst_error)?
+        }
+        ReadOnlySource::Mmap(mmap_readonly) => {
+            Fst::from_mmap(mmap_readonly)
+                .map_err(convert_fst_error)?
+        }
+    };
+    Ok(fst::Map::from(fst))
 }
 
-impl<V> FstMap<V>
-    where V: BinarySerializable
+impl<V> TermDictionary<V> where V: BinarySerializable
 {
-    pub fn from_source(source: ReadOnlySource) -> io::Result<FstMap<V>> {
+    pub fn from_source(source: ReadOnlySource) -> io::Result<TermDictionary<V>> {
         let total_len = source.len();
         let length_offset = total_len - 4;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
@@ -98,7 +97,7 @@ impl<V> FstMap<V>
         let fst_source = source.slice(0, split_len);
         let values_source = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_source)?;
-        Ok(FstMap {
+        Ok(TermDictionary {
                fst_index: fst_index,
                values_mmap: values_source,
                _phantom_: PhantomData,
@@ -106,10 +105,6 @@ impl<V> FstMap<V>
     }
 
 
-    /// In the `FstMap`, the dictionary itself associated
-    /// each key `&[u8]` to a `u64` that is in fact the address
-    /// of the value object in a data array. 
-    ///
     /// This method deserialize this object, and returns it.
     pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
         let buffer = self.values_mmap.as_slice();
@@ -121,18 +116,21 @@ impl<V> FstMap<V>
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
         self.fst_index
             .get(key)
-            .map(|offset| self.read_value(offset).expect("The fst is corrupted. Failed to deserialize a value."))
-    }
+            .map(|offset| {
+                     self.read_value(offset)
+                         .expect("The fst is corrupted. Failed to deserialize a value.")
+                 })
+    }   
 
 
     /// Returns a stream of all the sorted terms.
-    pub fn stream(&self) -> FstMapStreamer<V> {
+    pub fn stream(&self) -> TermStreamer<V> {
         self.range().into_stream()
     }
 
 
     /// Returns a stream of all the sorted terms in the given field.
-    pub fn stream_field(&self, field: Field) -> FstMapStreamer<V> {
+    pub fn stream_field(&self, field: Field) -> TermStreamer<V> {
         let start_term = Term::from_field_text(field, "");
         let stop_term = Term::from_field_text(Field(field.0 + 1), "");
         self.range()
@@ -143,8 +141,8 @@ impl<V> FstMap<V>
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range(&self) -> FstMapStreamerBuilder<V> {
-        FstMapStreamerBuilder::new(self, self.fst_index.range())
+    pub fn range(&self) -> TermStreamerBuilder<V> {
+        TermStreamerBuilder::new(self, self.fst_index.range())
     }
 }
 
@@ -156,21 +154,21 @@ mod tests {
     use fst::Streamer;
 
     #[test]
-    fn test_fstmap() {
+    fn test_term_dictionary() {
         let mut directory = RAMDirectory::create();
-        let path = PathBuf::from("fstmap");
+        let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
-            let mut fstmap_builder = FstMapBuilder::new(write).unwrap();
-            fstmap_builder.insert("abc".as_bytes(), &34u32).unwrap();
-            fstmap_builder.insert("abcd".as_bytes(), &346u32).unwrap();
-            fstmap_builder.finish().unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::new(write).unwrap();
+            term_dictionary_builder.insert("abc".as_bytes(), &34u32).unwrap();
+            term_dictionary_builder.insert("abcd".as_bytes(), &346u32).unwrap();
+            term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let fstmap: FstMap<u32> = FstMap::from_source(source).unwrap();
-        assert_eq!(fstmap.get("abc"), Some(34u32));
-        assert_eq!(fstmap.get("abcd"), Some(346u32));
-        let mut stream = fstmap.stream();
+        let term_dict: TermDictionary<u32> = TermDictionary::from_source(source).unwrap();
+        assert_eq!(term_dict.get("abc"), Some(34u32));
+        assert_eq!(term_dict.get("abcd"), Some(346u32));
+        let mut stream = term_dict.stream();
         assert_eq!(stream.next().unwrap(), "abc".as_bytes());
         assert_eq!(stream.key(), "abc".as_bytes());
         assert_eq!(stream.value(), 34u32);

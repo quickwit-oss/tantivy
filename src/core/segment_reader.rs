@@ -14,7 +14,7 @@ use DocId;
 use std::str;
 use std::cmp;
 use postings::TermInfo;
-use termdict::FstMap;
+use termdict::TermDictionary;
 use std::sync::Arc;
 use std::fmt;
 use schema::Field;
@@ -43,7 +43,7 @@ use schema::TextIndexingOptions;
 pub struct SegmentReader {
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
-    terms: Arc<FstMap<TermInfo>>,
+    terms: Arc<TermDictionary>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: Arc<FastFieldsReader>,
@@ -135,7 +135,7 @@ impl SegmentReader {
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
         let source = try!(segment.open_read(SegmentComponent::TERMS));
-        let terms = try!(FstMap::from_source(source));
+        let terms = try!(TermDictionary::from_source(source));
         let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
 
@@ -172,7 +172,7 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn terms(&self) -> &FstMap<TermInfo> {
+    pub fn terms(&self) -> &TermDictionary {
         &self.terms
     }
 

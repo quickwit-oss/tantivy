@@ -98,8 +98,8 @@ impl<'a> SegmentWriter<'a> {
     /// Return true if the term dictionary hashmap is reaching capacity.
     /// It is one of the condition that triggers a `SegmentWriter` to
     /// be finalized.
-    pub(crate) fn is_termdic_saturated(&self) -> bool {
-        self.multifield_postings.is_termdic_saturated()
+    pub(crate) fn is_term_saturated(&self) -> bool {
+        self.multifield_postings.is_term_saturated()
     }
 
 

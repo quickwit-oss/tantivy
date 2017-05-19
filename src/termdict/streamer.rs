@@ -1,16 +1,16 @@
 use fst::{self, IntoStreamer, Streamer};
 use fst::map::{StreamBuilder, Stream};
 use common::BinarySerializable;
-use super::FstMap;
+use super::TermDictionary;
 
-pub struct FstMapStreamerBuilder<'a, V>
+pub struct TermStreamerBuilder<'a, V>
     where V: 'a + BinarySerializable
 {
-    fst_map: &'a FstMap<V>,
+    fst_map: &'a TermDictionary<V>,
     stream_builder: StreamBuilder<'a>,
 }
 
-impl<'a, V> FstMapStreamerBuilder<'a, V>
+impl<'a, V> TermStreamerBuilder<'a, V>
     where V: 'a + BinarySerializable
 {
     pub fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
@@ -33,8 +33,8 @@ impl<'a, V> FstMapStreamerBuilder<'a, V>
         self
     }
 
-    pub fn into_stream(self) -> FstMapStreamer<'a, V> {
-        FstMapStreamer {
+    pub fn into_stream(self) -> TermStreamer<'a, V> {
+        TermStreamer {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
             buffer: Vec::with_capacity(100),
@@ -42,10 +42,10 @@ impl<'a, V> FstMapStreamerBuilder<'a, V>
         }
     }
 
-    pub fn new(fst_map: &'a FstMap<V>,
+    pub fn new(fst_map: &'a TermDictionary<V>,
                stream_builder: StreamBuilder<'a>)
-               -> FstMapStreamerBuilder<'a, V> {
-        FstMapStreamerBuilder {
+               -> TermStreamerBuilder<'a, V> {
+        TermStreamerBuilder {
             fst_map: fst_map,
             stream_builder: stream_builder,
         }
@@ -56,17 +56,17 @@ impl<'a, V> FstMapStreamerBuilder<'a, V>
 
 
 
-pub struct FstMapStreamer<'a, V>
+pub struct TermStreamer<'a, V>
     where V: 'a + BinarySerializable
 {
-    fst_map: &'a FstMap<V>,
+    fst_map: &'a TermDictionary<V>,
     stream: Stream<'a>,
     offset: u64,
     buffer: Vec<u8>,
 }
 
 
-impl<'a, 'b, V> fst::Streamer<'b> for FstMapStreamer<'a, V>
+impl<'a, 'b, V> fst::Streamer<'b> for TermStreamer<'a, V>
     where V: 'a + BinarySerializable
 {
     type Item = &'b [u8];
@@ -80,7 +80,7 @@ impl<'a, 'b, V> fst::Streamer<'b> for FstMapStreamer<'a, V>
     }
 }
 
-impl<'a, V> FstMapStreamer<'a, V>
+impl<'a, V> TermStreamer<'a, V>
     where V: 'a + BinarySerializable
 {
     pub fn advance(&mut self) -> bool {

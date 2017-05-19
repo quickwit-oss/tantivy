@@ -1,5 +1,5 @@
 use Result;
-use termdict::FstMapBuilder;
+use termdict::TermDictionaryBuilder;
 use super::TermInfo;
 use schema::Field;
 use schema::FieldEntry;
@@ -50,7 +50,7 @@ use common::BinarySerializable;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
-    terms_fst_builder: FstMapBuilder<WritePtr, TermInfo>,
+    terms_fst_builder: TermDictionaryBuilder<WritePtr, TermInfo>,
     postings_write: WritePtr,
     positions_write: WritePtr,
     written_bytes_postings: usize,
@@ -74,7 +74,7 @@ impl PostingsSerializer {
                positions_write: WritePtr,
                schema: Schema)
                -> Result<PostingsSerializer> {
-        let terms_fst_builder = try!(FstMapBuilder::new(terms_write));
+        let terms_fst_builder = try!(TermDictionaryBuilder::new(terms_write));
         Ok(PostingsSerializer {
                terms_fst_builder: terms_fst_builder,
                postings_write: postings_write,
