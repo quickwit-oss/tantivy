@@ -46,18 +46,18 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
-pub struct FstMerger<'a, V>
+pub struct TermMerger<'a, V>
     where V: 'a + BinarySerializable
 {
     heap: BinaryHeap<HeapItem<'a, V>>,
     current_streamers: Vec<HeapItem<'a, V>>,
 }
 
-impl<'a, V> FstMerger<'a, V>
+impl<'a, V> TermMerger<'a, V>
     where V: 'a + BinarySerializable
 {
-    fn new(streams: Vec<TermStreamer<'a, V>>) -> FstMerger<'a, V> {
-        FstMerger {
+    fn new(streams: Vec<TermStreamer<'a, V>>) -> TermMerger<'a, V> {
+        TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams
                 .into_iter()
@@ -130,18 +130,18 @@ impl<'a, V> FstMerger<'a, V>
 
 
 
-impl<'a> From<&'a [SegmentReader]> for FstMerger<'a, TermInfo>
+impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
     where TermInfo: BinarySerializable
 {
-    fn from(segment_readers: &'a [SegmentReader]) -> FstMerger<'a, TermInfo> {
-        FstMerger::new(segment_readers
+    fn from(segment_readers: &'a [SegmentReader]) -> TermMerger<'a, TermInfo> {
+        TermMerger::new(segment_readers
                            .iter()
                            .map(|reader| reader.terms().stream())
                            .collect())
     }
 }
 
-impl<'a, V> Streamer<'a> for FstMerger<'a, V>
+impl<'a, V> Streamer<'a> for TermMerger<'a, V>
     where V: BinarySerializable
 {
     type Item = &'a [u8];

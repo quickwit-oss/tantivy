@@ -7,7 +7,7 @@ use query::Query;
 use DocId;
 use DocAddress;
 use schema::Term;
-use termdict::FstMerger;
+use termdict::TermMerger;
 use std::fmt;
 use postings::TermInfo;
 
@@ -73,8 +73,8 @@ impl Searcher {
     ///
     /// # Warning
     /// This API is very likely to change in the future.
-    pub fn terms(&self) -> FstMerger<TermInfo> {
-        FstMerger::from(self.segment_readers())
+    pub fn terms(&self) -> TermMerger<TermInfo> {
+        TermMerger::from(self.segment_readers())
     }
 }
 

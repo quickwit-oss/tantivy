@@ -136,14 +136,15 @@ impl SegmentReader {
 
         let source = try!(segment.open_read(SegmentComponent::TERMS));
         let terms = try!(TermDictionary::from_source(source));
-        let store_reader = StoreReader::from(try!(segment.open_read(SegmentComponent::STORE)));
+        let store_reader =
+            StoreReader::from_source(try!(segment.open_read(SegmentComponent::STORE)));
         let postings_shared_mmap = try!(segment.open_read(SegmentComponent::POSTINGS));
 
         let fast_field_data = try!(segment.open_read(SegmentComponent::FASTFIELDS));
-        let fast_fields_reader = try!(FastFieldsReader::open(fast_field_data));
+        let fast_fields_reader = try!(FastFieldsReader::from_source(fast_field_data));
 
         let fieldnorms_data = try!(segment.open_read(SegmentComponent::FIELDNORMS));
-        let fieldnorms_reader = try!(FastFieldsReader::open(fieldnorms_data));
+        let fieldnorms_reader = try!(FastFieldsReader::from_source(fieldnorms_data));
 
         let positions_data = segment
             .open_read(SegmentComponent::POSITIONS)

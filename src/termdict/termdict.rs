@@ -14,13 +14,20 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 }
 
 
-pub struct TermDictionaryBuilder<W: Write, V=TermInfo> where V: BinarySerializable {
+/// Builder for the new term dictionary.
+///
+/// Just like for the fst crate, all terms must be inserted in order.
+pub struct TermDictionaryBuilder<W: Write, V = TermInfo>
+    where V: BinarySerializable
+{
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
     _phantom_: PhantomData<V>,
 }
 
 impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
+    
+    /// Creates a new `TermDictionaryBuilder`
     pub fn new(w: W) -> io::Result<TermDictionaryBuilder<W, V>> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
@@ -30,10 +37,13 @@ impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
            })
     }
 
-    /// Horribly unsafe internal API
+    /// # Warning
+    /// Horribly dangerous internal API
     ///
     /// If used, it must be used by systematically alternating calls
     /// to insert_key and insert_value.
+    ///
+    /// Prefer using `.insert(key, value)`
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.fst_builder
             .insert(key, self.data.len() as u64)
@@ -41,12 +51,17 @@ impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
         Ok(())
     }
 
-    /// Horribly unsafe  internal API
+    /// # Warning
+    ///
+    /// Horribly dangerous internal API. See `.insert_key(...)`.
     pub(crate) fn insert_value(&mut self, value: &V) -> io::Result<()> {
         value.serialize(&mut self.data)?;
         Ok(())
     }
 
+    /// Inserts a `(key, value)` pair in the term dictionary.
+    ///
+    /// *Keys have to be inserted in order.*
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()> {
         self.fst_builder
             .insert(key, self.data.len() as u64)
@@ -55,6 +70,8 @@ impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
         Ok(())
     }
 
+    /// Finalize writing the builder, and returns the underlying
+    /// `Write` object.
     pub fn finish(self) -> io::Result<W> {
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
         let footer_size = self.data.len() as u32;
@@ -65,12 +82,14 @@ impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
     }
 }
 
-pub struct TermDictionary<V=TermInfo> where V: BinarySerializable {
+/// Datastructure to access the `terms` of a segment.
+pub struct TermDictionary<V = TermInfo>
+    where V: BinarySerializable
+{
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,
     _phantom_: PhantomData<V>,
 }
-
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     let fst = match source {
@@ -79,15 +98,16 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
                 .map_err(convert_fst_error)?
         }
         ReadOnlySource::Mmap(mmap_readonly) => {
-            Fst::from_mmap(mmap_readonly)
-                .map_err(convert_fst_error)?
+            Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)?
         }
     };
     Ok(fst::Map::from(fst))
 }
 
-impl<V> TermDictionary<V> where V: BinarySerializable
+impl<V> TermDictionary<V>
+    where V: BinarySerializable
 {
+    /// Opens a `TermDictionary` given a data source.
     pub fn from_source(source: ReadOnlySource) -> io::Result<TermDictionary<V>> {
         let total_len = source.len();
         let length_offset = total_len - 4;
@@ -104,15 +124,14 @@ impl<V> TermDictionary<V> where V: BinarySerializable
            })
     }
 
-
-    /// This method deserialize this object, and returns it.
+    /// Deserialize and returns the value at address `offset`
     pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
         let buffer = self.values_mmap.as_slice();
         let mut cursor = &buffer[(offset as usize)..];
         V::deserialize(&mut cursor)
     }
 
-    /// Returns, if present the value associated to a given key.
+    /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
         self.fst_index
             .get(key)
@@ -120,16 +139,14 @@ impl<V> TermDictionary<V> where V: BinarySerializable
                      self.read_value(offset)
                          .expect("The fst is corrupted. Failed to deserialize a value.")
                  })
-    }   
+    }
 
-
-    /// Returns a stream of all the sorted terms.
+    /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     pub fn stream(&self) -> TermStreamer<V> {
         self.range().into_stream()
     }
 
-
-    /// Returns a stream of all the sorted terms in the given field.
+    /// A stream of all the sorted terms in the given field.
     pub fn stream_field(&self, field: Field) -> TermStreamer<V> {
         let start_term = Term::from_field_text(field, "");
         let stop_term = Term::from_field_text(Field(field.0 + 1), "");
@@ -160,8 +177,12 @@ mod tests {
         {
             let write = directory.open_write(&path).unwrap();
             let mut term_dictionary_builder = TermDictionaryBuilder::new(write).unwrap();
-            term_dictionary_builder.insert("abc".as_bytes(), &34u32).unwrap();
-            term_dictionary_builder.insert("abcd".as_bytes(), &346u32).unwrap();
+            term_dictionary_builder
+                .insert("abc".as_bytes(), &34u32)
+                .unwrap();
+            term_dictionary_builder
+                .insert("abcd".as_bytes(), &346u32)
+                .unwrap();
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();

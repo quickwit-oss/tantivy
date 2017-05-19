@@ -12,7 +12,7 @@ use postings::Postings;
 use postings::DocSet;
 use fastfield::DeleteBitSet;
 use schema::{Schema, Field};
-use termdict::FstMerger;
+use termdict::TermMerger;
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
@@ -191,7 +191,7 @@ impl IndexMerger {
 
     fn write_postings(&self, postings_serializer: &mut PostingsSerializer) -> Result<()> {
 
-        let mut merged_terms = FstMerger::from(&self.readers[..]);
+        let mut merged_terms = TermMerger::from(&self.readers[..]);
         let mut delta_position_computer = DeltaPositionComputer::new();
 
         let mut max_doc = 0;
