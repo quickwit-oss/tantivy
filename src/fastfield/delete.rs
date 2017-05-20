@@ -66,6 +66,7 @@ impl DeleteBitSet {
     }
 
     /// Returns true iff the document is deleted.
+    #[inline]
     pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false

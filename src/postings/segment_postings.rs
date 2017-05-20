@@ -87,9 +87,9 @@ impl<'a> DocSet for SegmentPostings<'a> {
         // skip blocks until one that might contain the target
         loop {
             // check if we need to go to the next block
-            let last_doc_in_block = {
+            let (current_doc, last_doc_in_block) = {
                 let block_docs = self.block_cursor.docs();
-                block_docs[block_docs.len() - 1]
+                (block_docs[self.cur], block_docs[block_docs.len() - 1])
             };
             if target > last_doc_in_block {
                 if !self.block_cursor.advance() {
@@ -97,8 +97,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
                 }
                 self.cur = 0;
             } else {
-                let block_docs = self.block_cursor.docs();
-                if target < block_docs[self.cur] {
+                if target < current_doc {
                     // We've overpassed the target after the first `advance` call
                     // or we're at the beginning of a block.
                     // Either way, we're on the first `DocId` greater than `target`
@@ -226,12 +225,13 @@ impl<'a> BlockSegmentPostings<'a> {
         self.len = len;
     }
 
-
     /// Returns the array of docs in the current block.
+    #[inline]
     pub fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
     }
 
+    #[inline]
     pub fn freq_handler(&self) -> &FreqHandler {
         &self.freq_handler
     }
