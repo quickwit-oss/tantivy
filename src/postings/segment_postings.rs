@@ -41,7 +41,7 @@ impl<'a> SegmentPostings<'a> {
             delete_bitset: delete_bitset,
         }
     }
-    
+
     /// Returns an empty segment postings object
     pub fn empty() -> SegmentPostings<'static> {
         let empty_block_cursor = BlockSegmentPostings::empty();
@@ -78,7 +78,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
         }
     }
 
-    
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -115,7 +115,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
             debug_assert!(target >= block_docs[self.cur]);
             debug_assert!(target <= block_docs[block_len - 1]);
 
-            let mut start = 0;
+            let mut start = self.cur;
             let mut end = block_len;
             let mut count = 1;
             loop {
@@ -161,7 +161,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
             SkipResult::End
         }
     }
-    
+
 
     #[inline]
     fn doc(&self) -> DocId {
@@ -201,7 +201,7 @@ pub struct BlockSegmentPostings<'a> {
 }
 
 impl<'a> BlockSegmentPostings<'a> {
-    
+
     pub fn from_data(len: usize, data: &'a [u8], freq_handler: FreqHandler) -> BlockSegmentPostings<'a> {
         let num_binpacked_blocks: usize = (len as usize) / NUM_DOCS_PER_BLOCK;
         let num_vint_docs = (len as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
@@ -231,11 +231,11 @@ impl<'a> BlockSegmentPostings<'a> {
     pub fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
     }
-    
+
     pub fn freq_handler(&self) -> &FreqHandler {
         &self.freq_handler
     }
-    
+
     pub fn advance(&mut self) -> bool {
         if self.num_binpacked_blocks > 0 {
             self.remaining_data = self.block_decoder.uncompress_block_sorted(self.remaining_data, self.doc_offset);
@@ -256,7 +256,7 @@ impl<'a> BlockSegmentPostings<'a> {
             }
         }
     }
-    
+
     /// Returns an empty segment postings object
     pub fn empty() -> BlockSegmentPostings<'static> {
         BlockSegmentPostings {
@@ -269,7 +269,7 @@ impl<'a> BlockSegmentPostings<'a> {
             len: 0,
         }
     }
-    
+
 }
 
 #[cfg(test)]
