@@ -47,11 +47,10 @@ mod tests {
     use fastfield::FastFieldReader;
     use query::TermQuery;
     use schema::Field;
-    use test::Bencher;
+    use test::{self, Bencher};
     use indexer::operation::AddOperation;
     use tests;
     use rand::{XorShiftRng, Rng, SeedableRng};
-
 
     #[test]
     pub fn test_position_write() {
@@ -516,4 +515,20 @@ mod tests {
     fn bench_skip_next_p90(b: &mut Bencher) {
         bench_skip_next(0.9, b);
     }
+
+    #[bench]
+    fn bench_iterate_segment_postings(b: &mut Bencher) {
+        let searcher = INDEX.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        b.iter(|| {
+            let n: u32 = test::black_box(17);
+            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            let mut s = 0u32;
+            while segment_postings.advance() {
+                s += (segment_postings.doc() & n) % 1024;
+            }
+            s
+        });
+    }
+
 }
