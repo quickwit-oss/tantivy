@@ -22,9 +22,7 @@ use postings::SegmentPostingsOption;
 use postings::{SegmentPostings, BlockSegmentPostings};
 use fastfield::{FastFieldsReader, FastFieldReader, U64FastFieldReader};
 use schema::Schema;
-use schema::FieldType;
 use postings::FreqHandler;
-use schema::TextIndexingOptions;
 
 
 

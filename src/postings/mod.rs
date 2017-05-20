@@ -468,7 +468,6 @@ mod tests {
         });
     }
 
-
     fn bench_skip_next(p: f32, b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
@@ -479,6 +478,7 @@ mod tests {
             .unwrap();
         
         let mut existing_docs = Vec::new();
+        segment_postings.advance();
         for doc in &docs {
             if *doc >= segment_postings.doc() {
                 existing_docs.push(*doc);
@@ -493,7 +493,6 @@ mod tests {
                 .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                 .unwrap();
             for doc in &existing_docs {
-                println!("doc {}", doc);
                 if segment_postings.skip_next(*doc) == SkipResult::End {
                     break;
                 }
