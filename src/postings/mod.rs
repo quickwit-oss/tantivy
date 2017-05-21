@@ -130,11 +130,15 @@ mod tests {
             }
             {
                 let term_a = Term::from_field_text(text_field, "abcdef");
-                assert!(segment_reader.read_postings(&term_a, FreqAndPositions).is_none());
+                assert!(segment_reader
+                            .read_postings(&term_a, FreqAndPositions)
+                            .is_none());
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");
-                let mut postings_a = segment_reader.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings_a = segment_reader
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert_eq!(postings_a.len(), 1000);
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 0);
@@ -153,7 +157,9 @@ mod tests {
             }
             {
                 let term_e = Term::from_field_text(text_field, "e");
-                let mut postings_e = segment_reader.read_postings(&term_e, FreqAndPositions).unwrap();
+                let mut postings_e = segment_reader
+                    .read_postings(&term_e, FreqAndPositions)
+                    .unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
                 for i in 2u32..1000u32 {
                     assert!(postings_e.advance());
@@ -476,7 +482,7 @@ mod tests {
         let mut segment_postings = segment_reader
             .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
             .unwrap();
-        
+
         let mut existing_docs = Vec::new();
         segment_postings.advance();
         for doc in &docs {

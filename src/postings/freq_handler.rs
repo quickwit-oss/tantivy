@@ -47,7 +47,6 @@ impl FreqHandler {
         }
     }
 
-
     /// Returns a `FreqHandler` that decodes `DocId`s, term frequencies, and term positions.
     pub fn new_with_freq_and_position(position_data: &[u8]) -> FreqHandler {
         let positions = read_positions(position_data);

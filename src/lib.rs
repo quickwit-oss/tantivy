@@ -390,21 +390,15 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                .read_postings(&term_abcd, FreqAndPositions)
-                .is_none());
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings(&term_a, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings(&term_b, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -430,22 +424,16 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            
-            assert!(reader
-                    .read_postings(&term_abcd, FreqAndPositions)
-                    .is_none());
+
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings(&term_a, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings(&term_b, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -471,19 +459,13 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                .read_postings(&term_abcd, FreqAndPositions)
-                .is_none());
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings(&term_a, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings(&term_b, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -491,9 +473,7 @@ mod tests {
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings(&term_c, FreqAndPositions)
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_c, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
                 assert!(!postings.advance());
@@ -603,13 +583,9 @@ mod tests {
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             let term_abcd = Term::from_field_text(text_field, "abcd");
-            assert!(reader
-                    .read_postings(&term_abcd, FreqAndPositions)
-                    .is_none());
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             let term_af = Term::from_field_text(text_field, "af");
-            let mut postings = reader
-                .read_postings(&term_af, FreqAndPositions)
-                .unwrap();
+            let mut postings = reader.read_postings(&term_af, FreqAndPositions).unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);

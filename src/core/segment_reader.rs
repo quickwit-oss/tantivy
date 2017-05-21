@@ -222,7 +222,15 @@ impl SegmentReader {
         SegmentPostings::from_block_postings(block_postings, delete_bitset)
     }
 
-    pub fn read_block_postings_from_terminfo(&self, term_info: &TermInfo, option: SegmentPostingsOption) -> BlockSegmentPostings {
+
+    /// Returns a block postings given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub fn read_block_postings_from_terminfo(&self,
+                                             term_info: &TermInfo,
+                                             option: SegmentPostingsOption)
+                                             -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match option {
@@ -235,6 +243,25 @@ impl SegmentReader {
             }
         };
         BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler)
+    }
+
+
+    /// Resets the block segment to another position of the postings
+    /// file.
+    ///
+    /// This is useful for enumerating through a list of terms,
+    /// and consuming the associated posting lists while avoiding
+    /// reallocating a `BlockSegmentPostings`.
+    ///
+    /// # Warning
+    ///
+    /// This does not reset the positions list.
+    pub fn reset_block_postings_from_terminfo<'a>(&'a self,
+                                                  term_info: &TermInfo,
+                                                  block_postings: &mut BlockSegmentPostings<'a>) {
+        let offset = term_info.postings_offset as usize;
+        let postings_data: &'a [u8] = &self.postings_data[offset..];
+        block_postings.reset(term_info.doc_freq as usize, postings_data);
     }
 
     /// Returns the term info associated with the term.
