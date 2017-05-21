@@ -60,6 +60,7 @@ debug-assertions = false
 [features]
 default = ["simdcompression"]
 simdcompression = ["libc", "gcc"]
+streamdict = []
 
 
 [badges]

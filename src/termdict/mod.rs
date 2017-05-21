@@ -13,12 +13,13 @@ deserializing the value at this address.
 Keys (`&[u8]`) in this datastructure are sorted.
 */
 
-mod termdict;
-mod streamer;
-mod merger;
+#[cfg(not(feature="streamdict"))]
+mod fstdict;
+#[cfg(not(feature="streamdict"))]
+pub use self::fstdict::*;
 
-pub use self::termdict::TermDictionary;
-pub use self::termdict::TermDictionaryBuilder;
-pub use self::streamer::TermStreamer;
-pub use self::streamer::TermStreamerBuilder;
-pub use self::merger::TermMerger;
+
+#[cfg(feature="streamdict")]
+mod streamdict;
+#[cfg(feature="streamdict")]
+pub use self::termdict::*;
