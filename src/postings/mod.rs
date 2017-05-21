@@ -522,7 +522,9 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
             let n: u32 = test::black_box(17);
-            let mut segment_postings = segment_reader.read_postings(&*TERM_A, SegmentPostingsOption::NoFreq).unwrap();
+            let mut segment_postings = segment_reader
+                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .unwrap();
             let mut s = 0u32;
             while segment_postings.advance() {
                 s += (segment_postings.doc() & n) % 1024;
