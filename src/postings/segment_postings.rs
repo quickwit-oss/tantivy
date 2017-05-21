@@ -14,10 +14,8 @@ const EMPTY_DATA: [u8; 0] = [0u8; 0];
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings<'a> {
-    len: usize,
-    cur: usize,
     block_cursor: BlockSegmentPostings<'a>,
-    cur_block_len: usize,
+    cur: usize,
     delete_bitset: DeleteBitSet,
 }
 
@@ -34,10 +32,8 @@ impl<'a> SegmentPostings<'a> {
             segment_block_postings: BlockSegmentPostings<'a>,
             delete_bitset: DeleteBitSet) -> SegmentPostings<'a> {
         SegmentPostings {
-            len: segment_block_postings.len,
             block_cursor: segment_block_postings,
             cur: NUM_DOCS_PER_BLOCK,  // cursor within the block
-            cur_block_len: 0,
             delete_bitset: delete_bitset,
         }
     }
@@ -46,11 +42,9 @@ impl<'a> SegmentPostings<'a> {
     pub fn empty() -> SegmentPostings<'static> {
         let empty_block_cursor = BlockSegmentPostings::empty();
         SegmentPostings {
-            len: 0,
             block_cursor: empty_block_cursor,
             delete_bitset: DeleteBitSet::empty(),
             cur: NUM_DOCS_PER_BLOCK,
-            cur_block_len: 0,
         }
     }
 }
@@ -63,14 +57,12 @@ impl<'a> DocSet for SegmentPostings<'a> {
     fn advance(&mut self) -> bool {
         loop {
             self.cur += 1;
-            if self.cur >= self.cur_block_len {
+            if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
                 if !self.block_cursor.advance() {
-                    self.cur_block_len = 0;
                     self.cur = NUM_DOCS_PER_BLOCK;
                     return false;
                 }
-                self.cur_block_len = self.block_cursor.docs().len();
             }
             if !self.delete_bitset.is_deleted(self.doc()) {
                 return true;
@@ -110,7 +102,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
             // we're in the right block now, start with an exponential search
             let block_docs = self.block_cursor.docs();
             let block_len = block_docs.len();
-
+            
             debug_assert!(target >= block_docs[self.cur]);
             debug_assert!(target <= block_docs[block_len - 1]);
 
@@ -172,7 +164,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
 
 impl<'a> HasLen for SegmentPostings<'a> {
     fn len(&self) -> usize {
-        self.len
+        self.block_cursor.len
     }
 }
 
@@ -190,13 +182,13 @@ impl<'a> Postings for SegmentPostings<'a> {
 
 
 pub struct BlockSegmentPostings<'a> {
+    block_decoder: BlockDecoder,
+    len: usize,
+    doc_offset: DocId,
     num_binpacked_blocks: usize,
     num_vint_docs: usize,
-    block_decoder: BlockDecoder,
-    freq_handler: FreqHandler,
     remaining_data: &'a [u8],
-    doc_offset: DocId,
-    len: usize,
+    freq_handler: FreqHandler,
 }
 
 impl<'a> BlockSegmentPostings<'a> {
@@ -229,6 +221,10 @@ impl<'a> BlockSegmentPostings<'a> {
     #[inline]
     pub fn docs(&self) -> &[DocId] {
         self.block_decoder.output_array()
+    }
+
+    pub fn block_len(&self) -> usize {
+        self.block_decoder.output_len
     }
 
     #[inline]
