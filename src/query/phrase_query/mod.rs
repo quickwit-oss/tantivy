@@ -12,8 +12,7 @@ mod tests {
 
     use super::*;
     use core::Index;
-    use schema::FieldValue;
-    use schema::{Document, Term, SchemaBuilder, TEXT};
+    use schema::{Term, SchemaBuilder, TEXT};
     use collector::tests::TestCollector;
 
     #[test]

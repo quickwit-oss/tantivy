@@ -323,7 +323,7 @@ mod tests {
 
     use DocSet;
     use super::SegmentPostings;
-    use schema::{Document, SchemaBuilder};
+    use schema::SchemaBuilder;
     use core::Index;
     use schema::INT_INDEXED;
     use schema::Term;
@@ -331,7 +331,6 @@ mod tests {
     use postings::SegmentPostingsOption;
     use common::HasLen;
     use super::BlockSegmentPostings;
-    use schema::FieldValue;
 
     #[test]
     fn test_empty_segment_postings() {

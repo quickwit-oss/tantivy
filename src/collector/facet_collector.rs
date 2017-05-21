@@ -65,7 +65,7 @@ mod tests {
     use collector::{chain, FacetCollector};
     use query::QueryParser;
     use fastfield::{I64FastFieldReader, U64FastFieldReader};
-    use schema::{self, Document, FieldValue, FAST, STRING};
+    use schema::{self, FAST, STRING};
     use Index;
 
     #[test]
