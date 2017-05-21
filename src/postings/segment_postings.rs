@@ -223,6 +223,7 @@ impl<'a> BlockSegmentPostings<'a> {
         self.block_decoder.output_array()
     }
 
+    #[inline]
     pub fn block_len(&self) -> usize {
         self.block_decoder.output_len
     }
