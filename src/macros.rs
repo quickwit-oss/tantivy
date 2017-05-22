@@ -5,7 +5,26 @@ macro_rules! get(
 
 
 /// `doc!` is a shortcut that helps building `Document`
-/// object, assuming you have the field object.
+/// objects.
+///
+/// Assuming that `field1` and `field2` are `Field` instances.
+/// You can create a document with a value of `value1` for `field1` 
+/// `value2` for `field2`, as follows :
+///
+/// ```
+/// doc!(
+///     field1 => value1,
+///     field2 => value2,
+/// )
+/// ```
+///
+/// The value can be a `u64`, a `&str`, a `i64`, or a `String`.
+///
+/// # Warning
+///
+/// The document hence created, is not yet validated against a schema.
+/// Nothing prevents its user from creating an invalid document missing a
+/// field, or associating a `String` to a `u64` field for instance.
 ///
 /// # Example
 ///
