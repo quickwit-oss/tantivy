@@ -8,10 +8,10 @@ macro_rules! get(
 /// objects.
 ///
 /// Assuming that `field1` and `field2` are `Field` instances.
-/// You can create a document with a value of `value1` for `field1` 
+/// You can create a document with a value of `value1` for `field1`
 /// `value2` for `field2`, as follows :
 ///
-/// ```
+/// ```c
 /// doc!(
 ///     field1 => value1,
 ///     field2 => value2,
@@ -31,16 +31,16 @@ macro_rules! get(
 /// ```
 /// #[macro_use]
 /// extern crate tantivy;
-/// 
+///
 /// use tantivy::schema::{SchemaBuilder, TEXT, FAST};
-/// 
+///
 /// //...
 ///
 /// # fn main() {
 /// let mut schema_builder = SchemaBuilder::new();
 /// let title = schema_builder.add_text_field("title", TEXT);
 /// let author = schema_builder.add_text_field("text", TEXT);
-/// let likes = schema_builder.add_u64_field("num_u64", FAST); 
+/// let likes = schema_builder.add_u64_field("num_u64", FAST);
 /// let schema = schema_builder.build();
 /// let doc = doc!(
 /// 	title => "Life Aquatic",
