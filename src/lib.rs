@@ -78,66 +78,10 @@ extern crate rand;
 mod functional_test;
 
 
+
+
 #[macro_use]
-mod macros_use {
-
-    #[macro_export]
-    macro_rules! get(
-        ($e:expr) => (match $e { Some(e) => e, None => return None })
-    );
-
-    #[macro_export]
-    macro_rules! doc(
-        () => {
-            {
-                use Document;
-                (Document::default())
-            }
-        }; // avoids a warning due to the useless `mut`.
-        ($($field:ident => $value:expr),*) => {
-            {
-                use Document;
-                use schema::FieldValue;
-                
-                let mut document = Document::default();
-                $(
-                    document.add(FieldValue::new($field, $value.into()));
-                )*
-                document
-            }
-        };
-    );
-}
-
-
-mod macros {
-
-    #[macro_export]
-    macro_rules! get(
-        ($e:expr) => (match $e { Some(e) => e, None => return None })
-    );
-
-    #[macro_export]
-    macro_rules! doc(
-        () => {
-            {
-                use tantivy::Document;
-                (Document::default())
-            }
-        }; // avoids a warning due to the useless `mut`.
-        ($($field:ident => $value:expr),*) => {
-            {
-                use tantivy::Document;
-                use tantivy::schema::FieldValue;
-                let mut document = Document::default();
-                $(
-                    document.add(FieldValue::new($field, $value.into()));
-                )*
-                document
-            }
-        };
-    );
-}
+mod macros;
 
 pub use error::Error;
 
