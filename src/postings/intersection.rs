@@ -10,8 +10,9 @@ pub struct IntersectionDocSet<TDocSet: DocSet> {
 }
 
 impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
-    fn from(docsets: Vec<TDocSet>) -> IntersectionDocSet<TDocSet> {
+    fn from(mut docsets: Vec<TDocSet>) -> IntersectionDocSet<TDocSet> {
         assert!(docsets.len() >= 2);
+        docsets.sort_by_key(|docset| docset.size_hint());
         IntersectionDocSet {
             docsets: docsets,
             finished: false,
@@ -31,37 +32,55 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
 
 
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
+    fn size_hint(&self) -> usize {
+        self.docsets
+            .iter()
+            .map(|docset| docset.size_hint())
+            .min()
+            .unwrap() // safe as docsets cannot be empty.
+    }
+
+    #[allow(never_loop)]
     fn advance(&mut self) -> bool {
         if self.finished {
             return false;
         }
-        let num_docsets = self.docsets.len();
-        let mut count_matching = 0;
-        let mut doc_candidate = 0;
-        let mut ord = 0;
-        loop {
-            let mut doc_set = &mut self.docsets[ord];
-            match doc_set.skip_next(doc_candidate) {
-                SkipResult::Reached => {
-                    count_matching += 1;
-                    if count_matching == num_docsets {
-                        self.doc = doc_candidate;
-                        return true;
+        let (head_arr, tail) = self.docsets.split_at_mut(1);
+        let head: &mut TDocSet = &mut head_arr[0];
+        if !head.advance() {
+            self.finished = true;
+            return false;
+        }
+        let mut doc_candidate = head.doc();
+
+        'outer: loop {
+
+            for docset in tail.iter_mut() {
+                match docset.skip_next(doc_candidate) {
+                    SkipResult::Reached => {}
+                    SkipResult::OverStep => {
+                        doc_candidate = docset.doc();
+                        match head.skip_next(doc_candidate) {
+                            SkipResult::Reached => {}
+                            SkipResult::End => {
+                                self.finished = true;
+                                return false;
+                            }
+                            SkipResult::OverStep => {
+                                doc_candidate = head.doc();
+                                continue 'outer;
+                            }
+                        }
+                    }
+                    SkipResult::End => {
+                        self.finished = true;
+                        return false;
                     }
                 }
-                SkipResult::End => {
-                    self.finished = true;
-                    return false;
-                }
-                SkipResult::OverStep => {
-                    count_matching = 1;
-                    doc_candidate = doc_set.doc();
-                }
             }
-            ord += 1;
-            if ord == num_docsets {
-                ord = 0;
-            }
+
+            self.doc = doc_candidate;
+            return true;
         }
     }
 

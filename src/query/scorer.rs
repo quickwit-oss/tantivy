@@ -49,6 +49,10 @@ impl DocSet for EmptyScorer {
     fn doc(&self) -> DocId {
         DocId::max_value()
     }
+
+    fn size_hint(&self) -> usize {
+        0
+    }
 }
 
 impl Scorer for EmptyScorer {
