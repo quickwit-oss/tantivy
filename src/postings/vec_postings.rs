@@ -34,6 +34,10 @@ impl DocSet for VecPostings {
     fn doc(&self) -> DocId {
         self.doc_ids[self.cursor.0]
     }
+
+    fn size_hint(&self) -> usize {
+        self.len()
+    }
 }
 
 impl HasLen for VecPostings {
