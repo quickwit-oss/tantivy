@@ -11,7 +11,7 @@ macro_rules! get(
 /// You can create a document with a value of `value1` for `field1`
 /// `value2` for `field2`, as follows :
 ///
-/// ```c
+/// ```rust,ignore
 /// doc!(
 ///     field1 => value1,
 ///     field2 => value2,
