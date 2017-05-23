@@ -394,6 +394,13 @@ mod tests {
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.advance());
         }
+        {
+            let a = VecPostings::from(vec![1, 3]);
+            let b = VecPostings::from(vec![1, 4]);
+            let c = VecPostings::from(vec![3, 9]);
+            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
+            assert!(!intersection.advance());
+        }
     }
 
 
