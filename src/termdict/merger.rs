@@ -1,30 +1,30 @@
 use std::collections::BinaryHeap;
 use core::SegmentReader;
-use super::TermStreamer;
+use termdict::TermStreamer;
 use common::BinarySerializable;
 use postings::TermInfo;
 use std::cmp::Ordering;
 use fst::Streamer;
 
 pub struct HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     pub streamer: TermStreamer<'a, V>,
     pub segment_ord: usize,
 }
 
 impl<'a, V> PartialEq for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable {}
+impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable + Default {}
 
 impl<'a, V> PartialOrd for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn partial_cmp(&self, other: &HeapItem<'a, V>) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -32,7 +32,7 @@ impl<'a, V> PartialOrd for HeapItem<'a, V>
 }
 
 impl<'a, V> Ord for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn cmp(&self, other: &HeapItem<'a, V>) -> Ordering {
         (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
@@ -47,14 +47,14 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - a slice with the ordinal of the segments containing
 /// the terms.
 pub struct TermMerger<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     heap: BinaryHeap<HeapItem<'a, V>>,
     current_streamers: Vec<HeapItem<'a, V>>,
 }
 
 impl<'a, V> TermMerger<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn new(streams: Vec<TermStreamer<'a, V>>) -> TermMerger<'a, V> {
         TermMerger {
@@ -131,7 +131,6 @@ impl<'a, V> TermMerger<'a, V>
 
 
 impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
-    where TermInfo: BinarySerializable
 {
     fn from(segment_readers: &'a [SegmentReader]) -> TermMerger<'a, TermInfo> {
         TermMerger::new(segment_readers
@@ -142,7 +141,7 @@ impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
 }
 
 impl<'a, V> Streamer<'a> for TermMerger<'a, V>
-    where V: BinarySerializable
+    where V: BinarySerializable + Default
 {
     type Item = &'a [u8];
 

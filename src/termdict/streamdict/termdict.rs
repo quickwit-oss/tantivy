@@ -1,9 +1,6 @@
 #![allow(should_implement_trait)]
 
-use std::cmp::max;
-use std::io;
-use std::io::Write;
-use std::io::Read;
+use std::io::{self, Write};
 use fst;
 use fst::raw::Fst;
 use common::VInt;
@@ -12,10 +9,10 @@ use common::BinarySerializable;
 use std::marker::PhantomData;
 use common::CountingWriter;
 use std::cmp::Ordering;
-use fst::{IntoStreamer, Streamer};
-use std::str;
+use postings::TermInfo;
 use fst::raw::Node;
-use fst::raw::CompiledAddr;
+use super::TermStreamerBuilder;
+use super::streamer::stream_before;
 
 const BLOCK_SIZE: usize = 1024;
 
@@ -23,7 +20,11 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
-pub struct StreamDictionaryBuilder<W: Write, V: BinarySerializable + Clone + Default> {
+/// Builder for the new term dictionary.
+///
+/// All terms must be inserted in order.
+pub struct TermDictionaryBuilder<W, V=TermInfo>
+    where W: Write, V: BinarySerializable + Default {
     write: CountingWriter<W>,
     block_index: fst::MapBuilder<Vec<u8>>,
     last_key: Vec<u8>,
@@ -51,61 +52,12 @@ fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
 }
 
 
-fn strictly_previous_key<B: AsRef<[u8]>>(fst_map: &fst::Map, key_as_ref: B) -> (Vec<u8>, u64) {
-    let key = key_as_ref.as_ref();
-    let fst = fst_map.as_fst();
-    let mut node = fst.root();
-    let mut node_stack: Vec<Node> = vec!(node.clone());
+impl<W: Write, V: BinarySerializable + Default> TermDictionaryBuilder<W, V> {
 
-    // first check the longest prefix.
-    for &b in &key[..key.len() - 1] {
-        node = match node.find_input(b) {
-            None => {
-                break;
-            },
-            Some(i) => {
-                fst.node(node.transition_addr(i))
-            },
-        };
-        node_stack.push(node);
-    }
-    
-    let len_node_stack = node_stack.len();
-    for i in (1..len_node_stack).rev() {
-        let cur_node = &node_stack[i];
-        let b: u8 = key[i];
-        let last_transition_opt = cur_node
-            .transitions()
-            .take_while(|transition| transition.inp < b)
-            .last();
-        
-        if let Some(last_transition) = last_transition_opt {
-            let mut result_buffer = Vec::from(&key[..i]);
-            result_buffer.push(last_transition.inp);
-            let mut result = Vec::from(&key[..i]);
-            result.push(last_transition.inp);
-            let fork_node = fst.node(last_transition.addr);
-            fill_last(fst, fork_node, &mut result);
-            let val = fst_map.get(&result).unwrap();
-            return (result, val);
-        }
-        else if cur_node.is_final() {
-            // the previous key is a prefix
-            let result_buffer = Vec::from(&key[..i]);
-            let val = fst_map.get(&result_buffer).unwrap();
-            return (result_buffer, val);
-        }
-    }
-
-    return (vec!(), 0);
-}
-
-
-impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<W, V> {
-
-    pub fn new(write: W) -> io::Result<StreamDictionaryBuilder<W, V>> {
+    /// Creates a new `TermDictionaryBuilder`
+    pub fn new(write: W) -> io::Result<TermDictionaryBuilder<W, V>> {
         let buffer: Vec<u8> = vec!();
-        Ok(StreamDictionaryBuilder {
+        Ok(TermDictionaryBuilder {
             write: CountingWriter::wrap(write),
             block_index: fst::MapBuilder::new(buffer)
                 .expect("This cannot fail"),
@@ -119,12 +71,22 @@ impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<
         self.block_index.insert(&self.last_key, self.write.written_bytes() as u64).unwrap();
     }
 
+    /// Inserts a `(key, value)` pair in the term dictionary.
+    ///
+    /// *Keys have to be inserted in order.*
     pub fn insert(&mut self, key: &[u8], value: &V) -> io::Result<()>{
         self.insert_key(key)?;
         self.insert_value(value)
     }
 
-    pub fn insert_key(&mut self, key: &[u8]) -> io::Result<()>{
+    /// # Warning
+    /// Horribly dangerous internal API
+    ///
+    /// If used, it must be used by systematically alternating calls
+    /// to insert_key and insert_value.
+    ///
+    /// Prefer using `.insert(key, value)`
+    pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()>{
         if self.len % BLOCK_SIZE == 0 {
             self.add_index_entry();
         }
@@ -138,11 +100,13 @@ impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<
         Ok(())
     }
 
-    pub fn insert_value(&mut self, value: &V) -> io::Result<()>{
+    pub(crate) fn insert_value(&mut self, value: &V) -> io::Result<()>{
         value.serialize(&mut self.write)?;
         Ok(())
     }
 
+    /// Finalize writing the builder, and returns the underlying
+    /// `Write` object.
     pub fn finish(mut self) -> io::Result<W> {
         self.add_index_entry();
         let (mut w, split_len) = self.write.finish()?;
@@ -158,22 +122,6 @@ impl<W: Write, V: BinarySerializable + Clone + Default> StreamDictionaryBuilder<
 
 
 
-fn stream_before<'a, V: 'a + Clone + Default + BinarySerializable>(stream_dictionary: &'a StreamDictionary<V>, target_key: &[u8]) -> StreamDictionaryStreamer<'a, V> {
-    let (prev_key, offset) = strictly_previous_key(&stream_dictionary.fst_index, target_key.as_ref());
-    let offset: usize = offset as usize;
-    StreamDictionaryStreamer {
-        cursor: &stream_dictionary.stream_data.as_slice()[offset..],
-        current_key: Vec::from(prev_key),
-        current_value: V::default(),
-    }
-}
-
-
-pub struct StreamDictionary<V> where V:BinarySerializable + Default + Clone {
-    stream_data: ReadOnlySource,
-    fst_index: fst::Map,
-    _phantom_: PhantomData<V>,
-}
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     Ok(fst::Map::from(match source {
@@ -182,10 +130,18 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     }))
 }
 
+/// Datastructure to access the `terms` of a segment.
+pub struct TermDictionary<V=TermInfo> where V: BinarySerializable + Default {
+    stream_data: ReadOnlySource,
+    fst_index: fst::Map,
+    _phantom_: PhantomData<V>,
+}
 
-impl<V: BinarySerializable + Clone + Default> StreamDictionary<V> {
+impl<V> TermDictionary<V>
+    where V: BinarySerializable + Default {
     
-    pub fn from_source(source: ReadOnlySource)  -> io::Result<StreamDictionary<V>> {
+    /// Opens a `TermDictionary` given a data source.
+    pub fn from_source(source: ReadOnlySource)  -> io::Result<TermDictionary<V>> {
         let total_len = source.len();
         let length_offset = total_len - 8;
         let split_len: usize = {
@@ -196,21 +152,75 @@ impl<V: BinarySerializable + Clone + Default> StreamDictionary<V> {
         let fst_data = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_data)?;
         
-        Ok(StreamDictionary {
+        Ok(TermDictionary {
             stream_data: stream_data,
             fst_index: fst_index,
             _phantom_: PhantomData
         })
     }
 
+    pub(crate) fn stream_data(&self) -> &[u8] {
+        self.stream_data.as_slice()
+    }
+
+    pub(crate) fn strictly_previous_key(&self, key: &[u8]) -> (Vec<u8>, u64) {
+        let fst_map = &self.fst_index;    
+        let fst = fst_map.as_fst();
+        let mut node = fst.root();
+        let mut node_stack: Vec<Node> = vec!(node.clone());
+
+        // first check the longest prefix.
+        for &b in &key[..key.len() - 1] {
+            node = match node.find_input(b) {
+                None => {
+                    break;
+                },
+                Some(i) => {
+                    fst.node(node.transition_addr(i))
+                },
+            };
+            node_stack.push(node);
+        }
+        
+        let len_node_stack = node_stack.len();
+        for i in (1..len_node_stack).rev() {
+            let cur_node = &node_stack[i];
+            let b: u8 = key[i];
+            let last_transition_opt = cur_node
+                .transitions()
+                .take_while(|transition| transition.inp < b)
+                .last();
+            
+            if let Some(last_transition) = last_transition_opt {
+                let mut result_buffer = Vec::from(&key[..i]);
+                result_buffer.push(last_transition.inp);
+                let mut result = Vec::from(&key[..i]);
+                result.push(last_transition.inp);
+                let fork_node = fst.node(last_transition.addr);
+                fill_last(fst, fork_node, &mut result);
+                let val = fst_map.get(&result).unwrap();
+                return (result, val);
+            }
+            else if cur_node.is_final() {
+                // the previous key is a prefix
+                let result_buffer = Vec::from(&key[..i]);
+                let val = fst_map.get(&result_buffer).unwrap();
+                return (result_buffer, val);
+            }
+        }
+
+        return (vec!(), 0);
+    }
+
+    /// Lookups the value corresponding to the key.
     pub fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<V> {
         let mut streamer = stream_before(self, target_key.as_ref());
-        while let Some((iter_key, iter_val)) = streamer.next() {
-            match iter_key.cmp(target_key.as_ref()) {
+        while streamer.advance() {
+            let position = streamer.key().cmp(target_key.as_ref());
+            match position {
                 Ordering::Less => {}
                 Ordering::Equal => {
-                    let val: V = (*iter_val).clone();
-                    return Some(val);
+                    return Some(streamer.extract_value())
                 }
                 Ordering::Greater => {
                     return None;
@@ -219,136 +229,11 @@ impl<V: BinarySerializable + Clone + Default> StreamDictionary<V> {
         }
         return None;
     }
-    
-    pub fn range(&self) -> StreamDictionaryStreamerBuilder<V> {
-        let data: &[u8] = &self.stream_data;
-        StreamDictionaryStreamerBuilder {
-            stream_dictionary: &self,
-            offset_from: 0,
-            offset_to: (data.as_ptr() as usize) + data.len(),
-            current_key: vec!(),
-        }
-    }
-
-    pub fn stream(&self) -> StreamDictionaryStreamer<V> {
-        StreamDictionaryStreamer {
-            cursor: &*self.stream_data,
-            current_key: Vec::with_capacity(128),
-            current_value: V::default(),
-        }
-    }
-}
-
-pub struct StreamDictionaryStreamerBuilder<'a, V: 'a + BinarySerializable + Clone + Default> {
-    stream_dictionary: &'a StreamDictionary<V>,
-    offset_from: usize,
-    offset_to: usize,
-    current_key: Vec<u8>,
-}
 
 
-/// Returns offset information for the first 
-/// key in the stream matching a given predicate.
-///
-/// returns (start offset, the data required to load the value)
-fn get_offset<'a, V, P: Fn(&[u8])->bool>(predicate: P, mut streamer: StreamDictionaryStreamer<V>) -> (usize, Vec<u8>)
-    where V: 'a + BinarySerializable + Clone + Default {
-    let mut prev: &[u8] = streamer.cursor;
-    
-    let mut prev_data: Vec<u8> = streamer.current_key.clone();
-    
-    while let Some((iter_key, _)) = streamer.next() {
-        if !predicate(iter_key) {
-            return (prev.as_ptr() as usize, prev_data);
-        }
-        prev = streamer.cursor;
-        prev_data.clear();
-        prev_data.extend_from_slice(iter_key);
-    }
-    return (prev.as_ptr() as usize, prev_data);
-}
-
-impl<'a, V: 'a + BinarySerializable + Clone + Default> StreamDictionaryStreamerBuilder<'a, V> {
-    pub fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let target_key = bound.as_ref();
-        let streamer = stream_before(&self.stream_dictionary, target_key.as_ref());
-        let smaller_than = |k: &[u8]| { k.lt(target_key) };
-        let (offset_before, current_key) = get_offset(smaller_than, streamer);
-        self.current_key = current_key;
-        self.offset_from = offset_before;
-        self
-    }
-
-    pub fn gt<T: AsRef<[u8]>>(mut self, bound: T) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let target_key = bound.as_ref();
-        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
-        let smaller_than = |k: &[u8]| { k.le(target_key) };
-        let (offset_before, current_key) = get_offset(smaller_than, streamer);
-        self.current_key = current_key;
-        self.offset_from = offset_before;
-        self
-    }
-
-    pub fn lt<T: AsRef<[u8]>>(mut self, bound: T) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let target_key = bound.as_ref();
-        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
-        let smaller_than = |k: &[u8]| { k.le(target_key) };
-        let (offset_before, _) = get_offset(smaller_than, streamer);
-        self.offset_to = offset_before;
-        self
-    }
-
-    pub fn le<T: AsRef<[u8]>>(mut self, bound: T) -> StreamDictionaryStreamerBuilder<'a, V> {
-        let target_key = bound.as_ref();
-        let streamer = stream_before(self.stream_dictionary, target_key.as_ref());
-        let smaller_than = |k: &[u8]| { k.lt(target_key) };
-        let (offset_before, _) = get_offset(smaller_than, streamer);
-        self.offset_to = offset_before;
-        self
-    }
-
-    pub fn into_stream(self) -> StreamDictionaryStreamer<'a, V> {
-        let data: &[u8] = &self.stream_dictionary.stream_data.as_slice()[..];
-        let origin = data.as_ptr() as usize;
-        let start = self.offset_from - origin;
-        let stop = max(self.offset_to - origin, start);
-        StreamDictionaryStreamer {
-            cursor: &data[start..stop],
-            current_key: self.current_key,
-            current_value: V::default(),
-        }
-    }
-}
-
-pub struct StreamDictionaryStreamer<'a, V: BinarySerializable> {
-    cursor: &'a [u8],
-    current_key: Vec<u8>,
-    current_value: V,
-}
-
-impl<'a, V: BinarySerializable> StreamDictionaryStreamer<'a, V> {
-    
-    pub fn next(&mut self) -> Option<(&[u8], &V)> {
-        if self.cursor.len() == 0 {
-            return None;
-        }
-        let common_length: usize = VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
-        let new_length: usize = common_length + VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
-        self.current_key.reserve(new_length);
-        unsafe {
-            self.current_key.set_len(new_length);
-        }
-        self.cursor.read_exact(&mut self.current_key[common_length..new_length]).unwrap();
-        self.current_value = V::deserialize(&mut self.cursor).unwrap();
-        Some((&self.current_key, &self.current_value))
-    }
-
-
-    pub fn key(&self) -> &[u8] {
-        &self.current_key
-    }
-
-    pub fn value(&self) -> &V {
-        &self.current_value
+    /// Returns a range builder, to stream all of the terms
+    /// within an interval.
+    pub fn range(&self) -> TermStreamerBuilder<V> {
+        TermStreamerBuilder::new(self)
     }
 }

@@ -1,11 +1,10 @@
 use std::io::{self, Write};
 use fst;
 use fst::raw::Fst;
-use super::{TermStreamerBuilder, TermStreamer};
+use super::TermStreamerBuilder;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use std::marker::PhantomData;
-use schema::{Field, Term};
 use postings::TermInfo;
 
 
@@ -17,15 +16,16 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 /// Builder for the new term dictionary.
 ///
 /// Just like for the fst crate, all terms must be inserted in order.
-pub struct TermDictionaryBuilder<W: Write, V = TermInfo>
-    where V: BinarySerializable
+pub struct TermDictionaryBuilder<W, V = TermInfo>
+    where W: Write, V: BinarySerializable + Default
 {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
     _phantom_: PhantomData<V>,
 }
 
-impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
+impl<W, V> TermDictionaryBuilder<W, V> 
+    where W: Write, V: BinarySerializable + Default {
     /// Creates a new `TermDictionaryBuilder`
     pub fn new(w: W) -> io::Result<TermDictionaryBuilder<W, V>> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
@@ -81,14 +81,6 @@ impl<W: Write, V: BinarySerializable> TermDictionaryBuilder<W, V> {
     }
 }
 
-/// Datastructure to access the `terms` of a segment.
-pub struct TermDictionary<V = TermInfo>
-    where V: BinarySerializable
-{
-    fst_index: fst::Map,
-    values_mmap: ReadOnlySource,
-    _phantom_: PhantomData<V>,
-}
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     let fst = match source {
@@ -103,8 +95,17 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     Ok(fst::Map::from(fst))
 }
 
+/// Datastructure to access the `terms` of a segment.
+pub struct TermDictionary<V = TermInfo>
+    where V: BinarySerializable + Default
+{
+    fst_index: fst::Map,
+    values_mmap: ReadOnlySource,
+    _phantom_: PhantomData<V>,
+}
+
 impl<V> TermDictionary<V>
-    where V: BinarySerializable
+    where V: BinarySerializable + Default
 {
     /// Opens a `TermDictionary` given a data source.
     pub fn from_source(source: ReadOnlySource) -> io::Result<TermDictionary<V>> {
@@ -138,21 +139,6 @@ impl<V> TermDictionary<V>
                      self.read_value(offset)
                          .expect("The fst is corrupted. Failed to deserialize a value.")
                  })
-    }
-
-    /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream(&self) -> TermStreamer<V> {
-        self.range().into_stream()
-    }
-
-    /// A stream of all the sorted terms in the given field.
-    pub fn stream_field(&self, field: Field) -> TermStreamer<V> {
-        let start_term = Term::from_field_text(field, "");
-        let stop_term = Term::from_field_text(Field(field.0 + 1), "");
-        self.range()
-            .ge(start_term.as_slice())
-            .lt(stop_term.as_slice())
-            .into_stream()
     }
 
     /// Returns a range builder, to stream all of the terms
