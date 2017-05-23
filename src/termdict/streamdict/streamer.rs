@@ -38,8 +38,6 @@ fn common_prefix_length(left: &[u8], right: &[u8]) -> usize {
         .count()
 }
 
-
-
 fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
     loop {
         if let Some(transition) = node.transitions().last() {
