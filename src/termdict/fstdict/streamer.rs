@@ -1,4 +1,4 @@
-use fst::{self, IntoStreamer, Streamer};
+use fst::{IntoStreamer, Streamer};
 use fst::map::{StreamBuilder, Stream};
 use common::BinarySerializable;
 use super::TermDictionary;
@@ -6,14 +6,14 @@ use super::TermDictionary;
 /// `TermStreamerBuilder` is an helper object used to define
 /// a range of terms that should be streamed.
 pub struct TermStreamerBuilder<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fst_map: &'a TermDictionary<V>,
     stream_builder: StreamBuilder<'a>,
 }
 
 impl<'a, V> TermStreamerBuilder<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     /// Limit the range to terms greater or equal to the bound
     pub fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
@@ -45,12 +45,12 @@ impl<'a, V> TermStreamerBuilder<'a, V>
         TermStreamer {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
-            buffer: Vec::with_capacity(100),
             offset: 0u64,
+            current_key: Vec::with_capacity(100),
+            current_value: V::default(),
         }
     }
-
-    /// Crates a new `TermStreamBuilder`
+    
     pub(crate) fn new(fst_map: &'a TermDictionary<V>,
                       stream_builder: StreamBuilder<'a>)
                       -> TermStreamerBuilder<'a, V> {
@@ -67,41 +67,31 @@ impl<'a, V> TermStreamerBuilder<'a, V>
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
 pub struct TermStreamer<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fst_map: &'a TermDictionary<V>,
     stream: Stream<'a>,
     offset: u64,
-    buffer: Vec<u8>,
+    current_key: Vec<u8>,
+    current_value: V,
 }
 
 
-impl<'a, 'b, V> fst::Streamer<'b> for TermStreamer<'a, V>
-    where V: 'b + BinarySerializable
-{
-    type Item = (&'b [u8], V);
-
-    fn next(&'b mut self) -> Option<(&'b [u8], V)> {
-        if self.advance() {
-            let v = self.value();
-            Some((&self.buffer, v))
-        } else {
-            None
-        }
-    }
-}
 
 impl<'a, V> TermStreamer<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an unitialized state.
     pub fn advance(&mut self) -> bool {
         if let Some((term, offset)) = self.stream.next() {
-            self.buffer.clear();
-            self.buffer.extend_from_slice(term);
+            self.current_key.clear();
+            self.current_key.extend_from_slice(term);
             self.offset = offset;
+            self.current_value = self.fst_map
+                .read_value(self.offset)
+                .expect("Fst data is corrupted. Failed to deserialize a value.");
             true
         } else {
             false
@@ -119,24 +109,19 @@ impl<'a, V> TermStreamer<'a, V>
     ///
     /// Before any call to `.next()`, `.key()` returns an empty array.
     pub fn key(&self) -> &[u8] {
-        &self.buffer
+        &self.current_key
     }
 
     /// Accesses the current value.
-    ///
-    /// Values are accessed in a lazy manner, their data is fetched
-    /// and deserialized only at the moment of the call to `.value()`.
-    ///
+    /// 
     /// Calling `.value()` after the end of the stream will return the
     /// last `.value()` encounterred.
-    ///
+    /// 
     /// # Panics
     ///
-    /// Calling `.value()` before the first call to `.advance()` or `.next()`
-    /// is undefined behavior.
-    pub fn value(&self) -> V {
-        self.fst_map
-            .read_value(self.offset)
-            .expect("Fst data is corrupted. Failed to deserialize a value.")
+    /// Calling `.value()` before the first call to `.advance()` returns
+    /// `V::default()`.
+    pub fn value(&self) -> &V {
+        &self.current_value
     }
 }

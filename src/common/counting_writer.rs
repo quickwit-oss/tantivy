@@ -14,7 +14,7 @@ impl<W: Write> CountingWriter<W> {
             written_bytes: 0,
         }
     }
-
+    
     pub fn written_bytes(&self,) -> usize {
         self.written_bytes
     }
