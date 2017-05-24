@@ -77,23 +77,22 @@ term `stream`.
 use schema::{Field, Term};
 use common::BinarySerializable;
 use directory::ReadOnlySource;
-mod fstdict;
-mod streamdict;
+
+
 pub use self::merger::TermMerger;
 
 
 #[cfg(not(feature="streamdict"))]
-mod defaultimpl {
-    pub use super::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};
-}
+mod fstdict;
+#[cfg(not(feature="streamdict"))]
+pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};    
+
 
 #[cfg(feature="streamdict")]
-mod defaultimpl {
-    pub use super::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};
-}
+mod streamdict;
+#[cfg(feature="streamdict")]
+pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};
 
-
-pub use self::defaultimpl::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};    
 
 mod merger;
 use std::io;
