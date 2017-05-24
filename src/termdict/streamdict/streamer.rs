@@ -21,7 +21,7 @@ pub(crate) fn stream_before<'a, V>(term_dictionary: &'a TermDictionaryImpl<V>,
     }
 }
 
-/// See [TermStreamerBuilder](./trait.TermStreamerBuilder.html)
+/// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
 pub struct TermStreamerBuilderImpl<'a, V>
     where V: 'a + BinarySerializable + Default
 {
@@ -40,7 +40,7 @@ impl<'a, V> TermStreamerBuilder<V> for TermStreamerBuilderImpl<'a, V>
     /// Limit the range to terms greater or equal to the bound
     fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         let target_key = bound.as_ref();
-        let streamer = stream_before(&self.term_dictionary, target_key.as_ref());
+        let streamer = stream_before(self.term_dictionary, target_key.as_ref());
         let smaller_than = |k: &[u8]| k.lt(target_key);
         let (offset_before, current_key) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
@@ -113,7 +113,7 @@ fn get_offset<'a, V, P: Fn(&[u8]) -> bool>(predicate: P,
         prev_data.clear();
         prev_data.extend_from_slice(iter_key);
     }
-    return (prev.as_ptr() as usize, prev_data);
+    (prev.as_ptr() as usize, prev_data)
 }
 
 impl<'a, V> TermStreamerBuilderImpl<'a, V>
@@ -132,7 +132,7 @@ impl<'a, V> TermStreamerBuilderImpl<'a, V>
     }
 }
 
-/// See [TermStreamer](./trait.TermStreamer.html)
+/// See [`TermStreamer`](./trait.TermStreamer.html)
 pub struct TermStreamerImpl<'a, V>
     where V: 'a + BinarySerializable + Default
 {
@@ -154,7 +154,7 @@ impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
     where V: BinarySerializable + Default
 {
     fn advance(&mut self) -> bool {
-        if self.cursor.len() == 0 {
+        if self.cursor.is_empty() {
             return false;
         }
         let common_length: usize = VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
@@ -168,7 +168,7 @@ impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
             .read_exact(&mut self.current_key[common_length..new_length])
             .unwrap();
         self.current_value = V::deserialize(&mut self.cursor).unwrap();
-        return true;
+        true
     }
 
     fn key(&self) -> &[u8] {

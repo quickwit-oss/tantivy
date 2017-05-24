@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
 
-/// See [TermStreamerBuilder](./trait.TermStreamerBuilder.html)
+/// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
 pub struct TermStreamerBuilderImpl<'a, V>
     where V: 'a + BinarySerializable + Default
 {
@@ -62,7 +62,7 @@ impl<'a, V> TermStreamerBuilder<V> for TermStreamerBuilderImpl<'a, V>
 }
 
 
-/// See [TermStreamer](./trait.TermStreamer.html)
+/// See [`TermStreamer`](./trait.TermStreamer.html)
 pub struct TermStreamerImpl<'a, V>
     where V: 'a + BinarySerializable + Default
 {

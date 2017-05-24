@@ -45,7 +45,7 @@ pub trait Query: fmt::Debug {
 
     /// Create the weight associated to a query.
     ///
-    /// See [Weight](./trait.Weight.html).
+    /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>>;
 
     /// Search works as follows :

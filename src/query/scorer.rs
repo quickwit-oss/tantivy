@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 
 /// Scored set of documents matching a query within a specific segment.
 ///
-/// See [Query](./trait.Query.html).
+/// See [`Query`](./trait.Query.html).
 pub trait Scorer: DocSet {
     /// Returns the score.
     ///

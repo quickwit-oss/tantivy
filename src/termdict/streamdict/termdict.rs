@@ -21,7 +21,7 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
-/// See [TermDictionaryBuilder](./trait.TermDictionaryBuilder.html)
+/// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W, V = TermInfo>
     where W: Write,
           V: BinarySerializable + Default
@@ -42,13 +42,9 @@ fn common_prefix_length(left: &[u8], right: &[u8]) -> usize {
 }
 
 fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
-    loop {
-        if let Some(transition) = node.transitions().last() {
-            buffer.push(transition.inp);
-            node = fst.node(transition.addr);
-        } else {
-            break;
-        }
+    while let Some(transition) = node.transitions().last() {
+        buffer.push(transition.inp);
+        node = fst.node(transition.addr);
     }
 }
 
@@ -121,7 +117,7 @@ impl<W, V> TermDictionaryBuilder<W, V> for TermDictionaryBuilderImpl<W, V>
         self.add_index_entry();
         let (mut w, split_len) = self.write.finish()?;
         let fst_write = self.block_index.into_inner().map_err(convert_fst_error)?;
-        w.write(&fst_write)?;
+        w.write_all(&fst_write)?;
         (split_len as u64).serialize(&mut w)?;
         w.flush()?;
         Ok(w)
@@ -141,7 +137,7 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
                       }))
 }
 
-/// See [TermDictionary](./trait.TermDictionary.html)
+/// See [`TermDictionary`](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl<V = TermInfo>
     where V: BinarySerializable + Default
 {
@@ -161,7 +157,7 @@ impl<V> TermDictionaryImpl<V>
         let fst_map = &self.fst_index;
         let fst = fst_map.as_fst();
         let mut node = fst.root();
-        let mut node_stack: Vec<Node> = vec![node.clone()];
+        let mut node_stack: Vec<Node> = vec![node];
 
         // first check the longest prefix.
         for &b in &key[..key.len() - 1] {
@@ -199,8 +195,7 @@ impl<V> TermDictionaryImpl<V>
                 return (result_buffer, val);
             }
         }
-
-        return (vec![], 0);
+        (vec![], 0)
     }
 }
 
@@ -244,7 +239,7 @@ impl<'a, V> TermDictionary<'a, V> for TermDictionaryImpl<V>
                 }
             }
         }
-        return None;
+        None
     }
 
     /// Returns a range builder, to stream all of the terms

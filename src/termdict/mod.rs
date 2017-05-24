@@ -190,7 +190,7 @@ pub trait TermStreamer<V>: Sized {
     fn value(&self) -> &V;
 
     /// Return the next `(key, value)` pair.
-    fn next<'b>(&'b mut self) -> Option<(&'b [u8], &'b V)> {
+    fn next(&mut self) -> Option<(&[u8], &V)> {
         if self.advance() {
             Some((self.key(), self.value()))
         } else {
