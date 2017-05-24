@@ -12,9 +12,10 @@ use schema::Document;
 use directory::ReadOnlySource;
 use DocId;
 use std::str;
+use termdict::TermDictionary;
 use std::cmp;
 use postings::TermInfo;
-use termdict::TermDictionary;
+use termdict::TermDictionaryImpl;
 use std::sync::Arc;
 use std::fmt;
 use schema::Field;
@@ -43,7 +44,7 @@ use schema::TextIndexingOptions;
 pub struct SegmentReader {
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
-    terms: Arc<TermDictionary>,
+    terms: Arc<TermDictionaryImpl>,
     postings_data: ReadOnlySource,
     store_reader: StoreReader,
     fast_fields_reader: Arc<FastFieldsReader>,
@@ -135,7 +136,7 @@ impl SegmentReader {
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
         let source = segment.open_read(SegmentComponent::TERMS)?;
-        let terms = TermDictionary::from_source(source)?;
+        let terms = TermDictionaryImpl::from_source(source)?;
 
         let store_source = segment.open_read(SegmentComponent::STORE)?;
         let store_reader = StoreReader::from_source(store_source);
@@ -175,7 +176,7 @@ impl SegmentReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn terms(&self) -> &TermDictionary {
+    pub fn terms(&self) -> &TermDictionaryImpl {
         &self.terms
     }
 
