@@ -373,36 +373,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_intersection() {
-        {
-            let left = VecPostings::from(vec![1, 3, 9]);
-            let right = VecPostings::from(vec![3, 4, 9, 18]);
-            let mut intersection = IntersectionDocSet::from(vec![left, right]);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 3);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
-        }
-        {
-            let a = VecPostings::from(vec![1, 3, 9]);
-            let b = VecPostings::from(vec![3, 4, 9, 18]);
-            let c = VecPostings::from(vec![1, 5, 9, 111]);
-            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
-        }
-        {
-            let a = VecPostings::from(vec![1, 3]);
-            let b = VecPostings::from(vec![1, 4]);
-            let c = VecPostings::from(vec![3, 9]);
-            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
-            assert!(!intersection.advance());
-        }
-    }
-
 
     lazy_static! {
         static ref TERM_A: Term = {
