@@ -90,22 +90,25 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 mod core;
 mod compression;
-mod store;
 mod indexer;
-mod common;
+pub mod common;
 mod error;
 mod analyzer;
 mod datastruct;
 
-
-
 pub mod termdict;
+
+// Row-oriented, slow, compressed storage of documents
+pub mod store;
 
 /// Query module
 pub mod query;
+
 pub mod directory;
+
 /// Collector module
 pub mod collector;
+
 /// Postings module (also called inverted index)
 pub mod postings;
 /// Schema
@@ -123,6 +126,7 @@ pub use self::common::TimerTree;
 
 pub use postings::DocSet;
 pub use postings::Postings;
+pub use core::SegmentComponent;
 pub use postings::SegmentPostingsOption;
 
 
