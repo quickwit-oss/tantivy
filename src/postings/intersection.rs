@@ -53,7 +53,7 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
 
             for (ord, docset) in self.docsets.iter_mut().enumerate() {
                 if ord != candidate_ord {
-                    // Candidate_ord is already at the
+                    // `candidate_ord` is already at the
                     // right position.
                     //
                     // Calling `skip_next` would advance this docset
