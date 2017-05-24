@@ -343,7 +343,7 @@ mod tests {
     use schema::Document;
     use schema::Term;
     use query::TermQuery;
-    use schema::{Field, FieldValue};
+    use schema::Field;
     use core::Index;
     use fastfield::U64FastFieldReader;
     use Searcher;

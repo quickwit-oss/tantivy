@@ -20,12 +20,10 @@ use std::sync::Arc;
 use std::fmt;
 use schema::Field;
 use postings::SegmentPostingsOption;
-use postings::SegmentPostings;
+use postings::{SegmentPostings, BlockSegmentPostings};
 use fastfield::{FastFieldsReader, FastFieldReader, U64FastFieldReader};
 use schema::Schema;
-use schema::FieldType;
 use postings::FreqHandler;
-use schema::TextIndexingOptions;
 
 
 
@@ -220,6 +218,20 @@ impl SegmentReader {
                                        term_info: &TermInfo,
                                        option: SegmentPostingsOption)
                                        -> SegmentPostings {
+        let block_postings = self.read_block_postings_from_terminfo(term_info, option);
+        let delete_bitset = self.delete_bitset.clone();
+        SegmentPostings::from_block_postings(block_postings, delete_bitset)
+    }
+
+
+    /// Returns a block postings given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub fn read_block_postings_from_terminfo(&self,
+                                             term_info: &TermInfo,
+                                             option: SegmentPostingsOption)
+                                             -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
         let freq_handler = match option {
@@ -231,34 +243,26 @@ impl SegmentReader {
                 FreqHandler::new_with_freq_and_position(offseted_position_data)
             }
         };
-        SegmentPostings::from_data(term_info.doc_freq,
-                                   postings_data,
-                                   &self.delete_bitset,
-                                   freq_handler)
+        BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler)
     }
 
 
-    /// Returns the posting list associated with a term.
+    /// Resets the block segment to another position of the postings
+    /// file.
     ///
-    /// If the term is not found, return None.
-    /// Even when non-null, because of deletes, the posting object
-    /// returned by this method may contain no documents.
-    pub fn read_postings_all_info(&self, term: &Term) -> Option<SegmentPostings> {
-        let field_entry = self.schema.get_field_entry(term.field());
-        let segment_posting_option = match *field_entry.field_type() {
-            FieldType::Str(ref text_options) => {
-                match text_options.get_indexing_options() {
-                    TextIndexingOptions::TokenizedWithFreq => SegmentPostingsOption::Freq,
-                    TextIndexingOptions::TokenizedWithFreqAndPosition => {
-                        SegmentPostingsOption::FreqAndPositions
-                    }
-                    _ => SegmentPostingsOption::NoFreq,
-                }
-            }
-            FieldType::U64(_) |
-            FieldType::I64(_) => SegmentPostingsOption::NoFreq,
-        };
-        self.read_postings(term, segment_posting_option)
+    /// This is useful for enumerating through a list of terms,
+    /// and consuming the associated posting lists while avoiding
+    /// reallocating a `BlockSegmentPostings`.
+    ///
+    /// # Warning
+    ///
+    /// This does not reset the positions list.
+    pub fn reset_block_postings_from_terminfo<'a>(&'a self,
+                                                  term_info: &TermInfo,
+                                                  block_postings: &mut BlockSegmentPostings<'a>) {
+        let offset = term_info.postings_offset as usize;
+        let postings_data: &'a [u8] = &self.postings_data[offset..];
+        block_postings.reset(term_info.doc_freq as usize, postings_data);
     }
 
     /// Returns the term info associated with the term.

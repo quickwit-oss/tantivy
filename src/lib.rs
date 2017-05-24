@@ -77,23 +77,11 @@ extern crate rand;
 #[cfg(test)]
 mod functional_test;
 
-#[macro_use]
-mod macros {
-    macro_rules! get(
-        ($e:expr) => (match $e { Some(e) => e, None => return None })
-    );
 
-    macro_rules! doc(
-        () => (Document::default()); // avoids a warning due to the useless `mut`.
-        ($($field:ident => $value:expr),*) => {{
-            let mut document = Document::default();
-            $(
-                document.add(FieldValue::new($field, $value.into()));
-            )*
-            document
-        }};
-    );
-}
+
+
+#[macro_use]
+mod macros;
 
 pub use error::Error;
 
@@ -207,6 +195,7 @@ mod tests {
     use schema::*;
     use DocSet;
     use IndexWriter;
+    use postings::SegmentPostingsOption::FreqAndPositions;
     use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
     use Postings;
     use rand::{XorShiftRng, Rng, SeedableRng};
@@ -338,6 +327,10 @@ mod tests {
     fn test_delete_postings1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
+        let term_abcd = Term::from_field_text(text_field, "abcd");
+        let term_a = Term::from_field_text(text_field, "a");
+        let term_b = Term::from_field_text(text_field, "b");
+        let term_c = Term::from_field_text(text_field, "c");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
@@ -385,21 +378,15 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
-                        .is_none());
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -425,21 +412,16 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
-                        .is_none());
+
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -465,19 +447,13 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
-                        .is_none());
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "a"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "b"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -485,9 +461,7 @@ mod tests {
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader
-                    .read_postings_all_info(&Term::from_field_text(text_field, "c"))
-                    .unwrap();
+                let mut postings = reader.read_postings(&term_c, FreqAndPositions).unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
                 assert!(!postings.advance());
@@ -596,12 +570,10 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader
-                        .read_postings_all_info(&Term::from_field_text(text_field, "abcd"))
-                        .is_none());
-            let mut postings = reader
-                .read_postings_all_info(&Term::from_field_text(text_field, "af"))
-                .unwrap();
+            let term_abcd = Term::from_field_text(text_field, "abcd");
+            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
+            let term_af = Term::from_field_text(text_field, "af");
+            let mut postings = reader.read_postings(&term_af, FreqAndPositions).unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
