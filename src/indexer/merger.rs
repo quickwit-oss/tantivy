@@ -257,7 +257,7 @@ impl IndexMerger {
                     let segment_reader = &self.readers[heap_item.segment_ord];
                     let mut segment_postings =
                         segment_reader
-                            .read_postings_from_terminfo(&term_info, segment_postings_option);
+                            .read_postings_from_terminfo(term_info, segment_postings_option);
                     if segment_postings.advance() {
                         Some((segment_ord, segment_postings))
                     } else {

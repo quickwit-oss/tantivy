@@ -34,7 +34,7 @@ impl Query for PhraseQuery {
 
     /// Create the weight associated to a query.
     ///
-    /// See [Weight](./trait.Weight.html).
+    /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
         Ok(box PhraseWeight::from(self.phrase_terms.clone()))
     }

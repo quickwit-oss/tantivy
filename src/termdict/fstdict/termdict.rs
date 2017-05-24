@@ -12,7 +12,7 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
-/// See [TermDictionaryBuilder](./trait.TermDictionaryBuilder.html)
+/// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W, V = TermInfo>
     where W: Write,
           V: BinarySerializable + Default
@@ -94,7 +94,7 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     Ok(fst::Map::from(fst))
 }
 
-/// See [TermDictionary](./trait.TermDictionary.html)
+/// See [`TermDictionary`](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl<V = TermInfo>
     where V: BinarySerializable + Default
 {
