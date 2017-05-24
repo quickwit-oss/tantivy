@@ -18,6 +18,7 @@ use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
 use schema;
+use termdict::TermStreamer;
 use postings::SegmentPostingsOption;
 
 pub struct IndexMerger {

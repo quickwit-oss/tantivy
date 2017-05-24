@@ -1,15 +1,17 @@
 use std::collections::BinaryHeap;
 use core::SegmentReader;
-use termdict::TermStreamer;
+use termdict::TermStreamerImpl;
 use common::BinarySerializable;
 use postings::TermInfo;
 use std::cmp::Ordering;
+use termdict::TermStreamer;
+use termdict::TermDictionary;
 use fst::Streamer;
 
 pub struct HeapItem<'a, V>
     where V: 'a + BinarySerializable + Default
 {
-    pub streamer: TermStreamer<'a, V>,
+    pub streamer: TermStreamerImpl<'a, V>,
     pub segment_ord: usize,
 }
 
@@ -56,7 +58,7 @@ pub struct TermMerger<'a, V>
 impl<'a, V> TermMerger<'a, V>
     where V: 'a + BinarySerializable + Default
 {
-    fn new(streams: Vec<TermStreamer<'a, V>>) -> TermMerger<'a, V> {
+    fn new(streams: Vec<TermStreamerImpl<'a, V>>) -> TermMerger<'a, V> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams

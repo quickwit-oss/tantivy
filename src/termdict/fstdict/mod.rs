@@ -17,10 +17,10 @@ Keys (`&[u8]`) in this datastructure are sorted.
 mod termdict;
 mod streamer;
 
-pub use self::termdict::TermDictionary;
-pub use self::termdict::TermDictionaryBuilder;
-pub use self::streamer::TermStreamer;
-pub use self::streamer::TermStreamerBuilder;
+pub use self::termdict::TermDictionaryImpl;
+pub use self::termdict::TermDictionaryBuilderImpl;
+pub use self::streamer::TermStreamerImpl;
+pub use self::streamer::TermStreamerBuilderImpl;
 
 
 
