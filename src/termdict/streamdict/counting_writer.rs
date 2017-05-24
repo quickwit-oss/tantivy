@@ -14,8 +14,8 @@ impl<W: Write> CountingWriter<W> {
             written_bytes: 0,
         }
     }
-    
-    pub fn written_bytes(&self,) -> usize {
+
+    pub fn written_bytes(&self) -> usize {
         self.written_bytes
     }
 
@@ -47,7 +47,7 @@ mod test {
 
     #[test]
     fn test_counting_writer() {
-        let buffer: Vec<u8> = vec!();
+        let buffer: Vec<u8> = vec![];
         let mut counting_writer = CountingWriter::wrap(buffer);
         let bytes = (0u8..10u8).collect::<Vec<u8>>();
         counting_writer.write_all(&bytes).unwrap();

@@ -14,16 +14,18 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 
 /// See [TermDictionaryBuilder](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W, V = TermInfo>
-    where W: Write, V: BinarySerializable + Default
+    where W: Write,
+          V: BinarySerializable + Default
 {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
     _phantom_: PhantomData<V>,
 }
 
-impl<W, V> TermDictionaryBuilderImpl<W, V> 
-    where W: Write, V: BinarySerializable + Default {
-    
+impl<W, V> TermDictionaryBuilderImpl<W, V>
+    where W: Write,
+          V: BinarySerializable + Default
+{
     /// # Warning
     /// Horribly dangerous internal API
     ///
@@ -45,12 +47,12 @@ impl<W, V> TermDictionaryBuilderImpl<W, V>
         value.serialize(&mut self.data)?;
         Ok(())
     }
-
 }
 
 impl<W, V> TermDictionaryBuilder<W, V> for TermDictionaryBuilderImpl<W, V>
-    where W: Write, V: BinarySerializable + Default {
-    
+    where W: Write,
+          V: BinarySerializable + Default
+{
     fn new(w: W) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
@@ -95,7 +97,7 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
 /// See [TermDictionary](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl<V = TermInfo>
     where V: BinarySerializable + Default
-{   
+{
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,
     _phantom_: PhantomData<V>,
@@ -114,12 +116,12 @@ impl<V> TermDictionaryImpl<V>
 
 
 impl<'a, V> TermDictionary<'a, V> for TermDictionaryImpl<V>
-    where V: BinarySerializable + Default + 'a {
-
+    where V: BinarySerializable + Default + 'a
+{
     type Streamer = TermStreamerImpl<'a, V>;
 
     type StreamBuilder = TermStreamerBuilderImpl<'a, V>;
-    
+
     fn from_source(source: ReadOnlySource) -> io::Result<Self> {
         let total_len = source.len();
         let length_offset = total_len - 4;

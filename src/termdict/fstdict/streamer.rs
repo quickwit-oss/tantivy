@@ -12,9 +12,9 @@ pub struct TermStreamerBuilderImpl<'a, V>
     stream_builder: StreamBuilder<'a>,
 }
 
-impl<'a, V>  TermStreamerBuilderImpl<'a, V> 
-    where V: 'a + BinarySerializable + Default {
-    
+impl<'a, V> TermStreamerBuilderImpl<'a, V>
+    where V: 'a + BinarySerializable + Default
+{
     pub(crate) fn new(fst_map: &'a TermDictionaryImpl<V>,
                       stream_builder: StreamBuilder<'a>)
                       -> Self {
@@ -25,9 +25,9 @@ impl<'a, V>  TermStreamerBuilderImpl<'a, V>
     }
 }
 
-impl<'a, V> TermStreamerBuilder<V> for TermStreamerBuilderImpl<'a, V> 
-    where V: 'a + BinarySerializable + Default {
-
+impl<'a, V> TermStreamerBuilder<V> for TermStreamerBuilderImpl<'a, V>
+    where V: 'a + BinarySerializable + Default
+{
     type Streamer = TermStreamerImpl<'a, V>;
 
     fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
@@ -74,16 +74,17 @@ pub struct TermStreamerImpl<'a, V>
 }
 
 impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
-    where V: BinarySerializable + Default {
-    
+    where V: BinarySerializable + Default
+{
     fn advance(&mut self) -> bool {
         if let Some((term, offset)) = self.stream.next() {
             self.current_key.clear();
             self.current_key.extend_from_slice(term);
             self.offset = offset;
-            self.current_value = self.fst_map
-                .read_value(self.offset)
-                .expect("Fst data is corrupted. Failed to deserialize a value.");
+            self.current_value =
+                self.fst_map
+                    .read_value(self.offset)
+                    .expect("Fst data is corrupted. Failed to deserialize a value.");
             true
         } else {
             false

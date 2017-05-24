@@ -34,7 +34,7 @@ impl Searcher {
     }
 
     /// Returns the overall number of documents in the index.
-       pub fn num_docs(&self) -> DocId {
+    pub fn num_docs(&self) -> DocId {
         self.segment_readers
             .iter()
             .map(|segment_reader| segment_reader.num_docs())
