@@ -70,6 +70,10 @@ impl SegmentReader {
         self.segment_meta.num_docs()
     }
 
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
