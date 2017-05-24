@@ -132,8 +132,7 @@ impl<'a, V> TermMerger<'a, V>
 
 
 
-impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
-{
+impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo> {
     fn from(segment_readers: &'a [SegmentReader]) -> TermMerger<'a, TermInfo> {
         TermMerger::new(segment_readers
                             .iter()

@@ -85,13 +85,15 @@ pub use self::merger::TermMerger;
 #[cfg(not(feature="streamdict"))]
 mod fstdict;
 #[cfg(not(feature="streamdict"))]
-pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};    
+pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
+                        TermStreamerBuilderImpl};
 
 
 #[cfg(feature="streamdict")]
 mod streamdict;
 #[cfg(feature="streamdict")]
-pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl, TermStreamerBuilderImpl};
+pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
+                           TermStreamerBuilderImpl};
 
 
 mod merger;
@@ -100,16 +102,17 @@ use std::io;
 
 /// Dictionary associating sorted `&[u8]` to values
 pub trait TermDictionary<'a, V>
-    where V: BinarySerializable + Default + 'a , Self: Sized {
-
+    where V: BinarySerializable + Default + 'a,
+          Self: Sized
+{
     /// Streamer type associated to the term dictionary
     type Streamer: TermStreamer<V> + 'a;
 
     /// StreamerBuilder type associated to the term dictionary
-    type StreamBuilder: TermStreamerBuilder<V, Streamer=Self::Streamer> + 'a;
+    type StreamBuilder: TermStreamerBuilder<V, Streamer = Self::Streamer> + 'a;
 
     /// Opens a `TermDictionary` given a data source.
-    fn from_source(source: ReadOnlySource)  -> io::Result<Self>;
+    fn from_source(source: ReadOnlySource) -> io::Result<Self>;
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<V>;
@@ -138,8 +141,9 @@ pub trait TermDictionary<'a, V>
 ///
 /// Inserting must be done in the order of the `keys`.
 pub trait TermDictionaryBuilder<W, V>: Sized
-    where W: io::Write, V: BinarySerializable + Default {
-
+    where W: io::Write,
+          V: BinarySerializable + Default
+{
     /// Creates a new `TermDictionaryBuilder`
     fn new(write: W) -> io::Result<Self>;
 
@@ -157,7 +161,6 @@ pub trait TermDictionaryBuilder<W, V>: Sized
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
 pub trait TermStreamer<V>: Sized {
-
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an unitialized state.
@@ -176,10 +179,10 @@ pub trait TermStreamer<V>: Sized {
     fn key(&self) -> &[u8];
 
     /// Accesses the current value.
-    /// 
+    ///
     /// Calling `.value()` after the end of the stream will return the
     /// last `.value()` encounterred.
-    /// 
+    ///
     /// # Panics
     ///
     /// Calling `.value()` before the first call to `.advance()` returns
@@ -199,8 +202,9 @@ pub trait TermStreamer<V>: Sized {
 
 /// `TermStreamerBuilder` is an helper object used to define
 /// a range of terms that should be streamed.
-pub trait TermStreamerBuilder<V> where V: BinarySerializable + Default {
-
+pub trait TermStreamerBuilder<V>
+    where V: BinarySerializable + Default
+{
     /// Associated `TermStreamer` type that this builder is building.
     type Streamer: TermStreamer<V>;
 
@@ -215,7 +219,7 @@ pub trait TermStreamerBuilder<V> where V: BinarySerializable + Default {
 
     /// Limit the range to terms lesser or equal to the bound
     fn le<T: AsRef<[u8]>>(self, bound: T) -> Self;
-    
+
     /// Creates the stream corresponding to the range
     /// of terms defined using the `TermStreamerBuilder`.
     fn into_stream(self) -> Self::Streamer;
@@ -235,7 +239,7 @@ mod tests {
     use termdict::TermDictionary;
     use termdict::TermDictionaryBuilder;
     const BLOCK_SIZE: usize = 1_500;
-    
+
 
     #[test]
     fn test_term_dictionary() {
@@ -319,14 +323,15 @@ mod tests {
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec!()).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![]).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder.insert(id.as_bytes(), i).unwrap();
             }
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionaryImpl<u32> = TermDictionaryImpl::from_source(source).unwrap();
+        let term_dictionary: TermDictionaryImpl<u32> = TermDictionaryImpl::from_source(source)
+            .unwrap();
         {
             let mut streamer = term_dictionary.stream();
             let mut i = 0;
@@ -337,7 +342,7 @@ mod tests {
                 i += 1;
             }
         }
-        
+
         let &(ref key, ref _v) = &ids[2047];
         term_dictionary.get(key.as_bytes());
     }
@@ -348,7 +353,7 @@ mod tests {
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec!()).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![]).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder.insert(id.as_bytes(), i).unwrap();
             }
@@ -356,8 +361,9 @@ mod tests {
         };
 
         let source = ReadOnlySource::from(buffer);
-        
-        let term_dictionary: TermDictionaryImpl<u32> = TermDictionaryImpl::from_source(source).unwrap();
+
+        let term_dictionary: TermDictionaryImpl<u32> = TermDictionaryImpl::from_source(source)
+            .unwrap();
         {
             for i in (0..20).chain(6000..8_000) {
                 let &(ref target_key, _) = &ids[i];
@@ -415,7 +421,7 @@ mod tests {
     #[test]
     fn test_stream_range_boundaries() {
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec!()).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![]).unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder.insert(&number_arr, &i).unwrap();
@@ -423,50 +429,36 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionaryImpl<u8> = TermDictionaryImpl::from_source(source).unwrap();
-        
+        let term_dictionary: TermDictionaryImpl<u8> = TermDictionaryImpl::from_source(source)
+            .unwrap();
+
         let value_list = |mut streamer: TermStreamerImpl<u8>| {
-            let mut res: Vec<u8> = vec!();
+            let mut res: Vec<u8> = vec![];
             while let Some((_, &v)) = streamer.next() {
                 res.push(v);
             }
             res
         };
         {
-            let range = term_dictionary
-                        .range()
-                        .ge([2u8])
-                        .into_stream();
-            assert_eq!(value_list(range), vec!(2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8));
+            let range = term_dictionary.range().ge([2u8]).into_stream();
+            assert_eq!(value_list(range),
+                       vec![2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8]);
         }
         {
-            let range = term_dictionary
-                        .range()
-                        .gt([2u8])
-                        .into_stream();
-            assert_eq!(value_list(range), vec!(3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8));
+            let range = term_dictionary.range().gt([2u8]).into_stream();
+            assert_eq!(value_list(range), vec![3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8]);
         }
         {
-            let range = term_dictionary
-                        .range()
-                        .lt([6u8])
-                        .into_stream();
-            assert_eq!(value_list(range), vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8));
+            let range = term_dictionary.range().lt([6u8]).into_stream();
+            assert_eq!(value_list(range), vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]);
         }
         {
-            let range = term_dictionary
-                        .range()
-                        .le([6u8])
-                        .into_stream();
-            assert_eq!(value_list(range), vec!(0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8));
+            let range = term_dictionary.range().le([6u8]).into_stream();
+            assert_eq!(value_list(range), vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8]);
         }
         {
-            let range = term_dictionary
-                        .range()
-                        .ge([0u8])
-                        .lt([5u8])
-                        .into_stream();
-            assert_eq!(value_list(range), vec!(0u8, 1u8, 2u8, 3u8, 4u8));
+            let range = term_dictionary.range().ge([0u8]).lt([5u8]).into_stream();
+            assert_eq!(value_list(range), vec![0u8, 1u8, 2u8, 3u8, 4u8]);
         }
     }
 
