@@ -14,11 +14,11 @@ pub enum SegmentComponent {
     /// Stores the sum  of the length (in terms) of each field for each document.
     /// Field norms are stored as a special u64 fast field.
     FIELDNORMS,
-    /// Dictionary associating `Term`s to `TermInfo`s which is 
+    /// Dictionary associating `Term`s to `TermInfo`s which is
     /// simply an address into the `postings` file and the `positions` file.
     TERMS,
     /// Row-oriented, LZ4-compressed storage of the documents.
-    /// Accessing a document from the store is relatively slow, as it 
+    /// Accessing a document from the store is relatively slow, as it
     /// requires to decompress the entire block it belongs to.
     STORE,
     /// Bitset describing which document of the segment is deleted.
@@ -26,7 +26,6 @@ pub enum SegmentComponent {
 }
 
 impl SegmentComponent {
-
     /// Iterates through the components.
     pub fn iterator() -> impl Iterator<Item = &'static SegmentComponent> {
         static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [SegmentComponent::POSTINGS,

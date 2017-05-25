@@ -350,7 +350,8 @@ impl IndexWriter {
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater.add_segment(self.generation, segment_entry);
+        self.segment_updater
+            .add_segment(self.generation, segment_entry);
     }
 
     #[doc(hidden)]
