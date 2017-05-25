@@ -1,30 +1,32 @@
 use std::collections::BinaryHeap;
 use core::SegmentReader;
-use super::TermStreamer;
+use termdict::TermStreamerImpl;
 use common::BinarySerializable;
 use postings::TermInfo;
 use std::cmp::Ordering;
+use termdict::TermStreamer;
+use termdict::TermDictionary;
 use fst::Streamer;
 
 pub struct HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
-    pub streamer: TermStreamer<'a, V>,
+    pub streamer: TermStreamerImpl<'a, V>,
     pub segment_ord: usize,
 }
 
 impl<'a, V> PartialEq for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable {}
+impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable + Default {}
 
 impl<'a, V> PartialOrd for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn partial_cmp(&self, other: &HeapItem<'a, V>) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -32,7 +34,7 @@ impl<'a, V> PartialOrd for HeapItem<'a, V>
 }
 
 impl<'a, V> Ord for HeapItem<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     fn cmp(&self, other: &HeapItem<'a, V>) -> Ordering {
         (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
@@ -47,16 +49,16 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - a slice with the ordinal of the segments containing
 /// the terms.
 pub struct TermMerger<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
     heap: BinaryHeap<HeapItem<'a, V>>,
     current_streamers: Vec<HeapItem<'a, V>>,
 }
 
 impl<'a, V> TermMerger<'a, V>
-    where V: 'a + BinarySerializable
+    where V: 'a + BinarySerializable + Default
 {
-    fn new(streams: Vec<TermStreamer<'a, V>>) -> TermMerger<'a, V> {
+    fn new(streams: Vec<TermStreamerImpl<'a, V>>) -> TermMerger<'a, V> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams
@@ -130,9 +132,7 @@ impl<'a, V> TermMerger<'a, V>
 
 
 
-impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
-    where TermInfo: BinarySerializable
-{
+impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo> {
     fn from(segment_readers: &'a [SegmentReader]) -> TermMerger<'a, TermInfo> {
         TermMerger::new(segment_readers
                             .iter()
@@ -142,7 +142,7 @@ impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo>
 }
 
 impl<'a, V> Streamer<'a> for TermMerger<'a, V>
-    where V: BinarySerializable
+    where V: BinarySerializable + Default
 {
     type Item = &'a [u8];
 
@@ -154,55 +154,4 @@ impl<'a, V> Streamer<'a> for TermMerger<'a, V>
         }
 
     }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use schema::{Term, SchemaBuilder, Document, TEXT};
-    use core::Index;
-
-    #[test]
-    fn test_term_iterator() {
-        let mut schema_builder = SchemaBuilder::default();
-        let text_field = schema_builder.add_text_field("text", TEXT);
-        let index = Index::create_in_ram(schema_builder.build());
-        {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                {
-                    let mut doc = Document::default();
-                    doc.add_text(text_field, "a b d f");
-                    index_writer.add_document(doc);
-                }
-                index_writer.commit().unwrap();
-            }
-            {
-                {
-                    let mut doc = Document::default();
-                    doc.add_text(text_field, "a b c d f");
-                    index_writer.add_document(doc);
-                }
-                index_writer.commit().unwrap();
-            }
-            {
-                {
-                    let mut doc = Document::default();
-                    doc.add_text(text_field, "e f");
-                    index_writer.add_document(doc);
-                }
-                index_writer.commit().unwrap();
-            }
-        }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        let mut term_it = searcher.terms();
-        let mut term_string = String::new();
-        while term_it.advance() {
-            let term = Term::from_bytes(term_it.key());
-            term_string.push_str(term.text());
-        }
-        assert_eq!(&*term_string, "abcdef");
-    }
-
 }

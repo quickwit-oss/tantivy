@@ -73,3 +73,10 @@ impl Clone for ReadOnlySource {
         self.slice(0, self.len())
     }
 }
+
+impl From<Vec<u8>> for ReadOnlySource {
+    fn from(data: Vec<u8>) -> ReadOnlySource {
+        let shared_data = SharedVecSlice::from(data);
+        ReadOnlySource::Anonymous(shared_data)
+    }
+}
