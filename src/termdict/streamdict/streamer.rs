@@ -106,12 +106,12 @@ fn get_offset<'a, V, P: Fn(&[u8]) -> bool>(predicate: P,
     let mut prev_data: Vec<u8> = streamer.current_key.clone();
 
     while let Some((iter_key, _)) = streamer.next() {
-        if !predicate(iter_key) {
+        if !predicate(iter_key.as_ref()) {
             return (prev.as_ptr() as usize, prev_data);
         }
         prev = streamer.cursor;
         prev_data.clear();
-        prev_data.extend_from_slice(iter_key);
+        prev_data.extend_from_slice(iter_key.as_ref());
     }
     (prev.as_ptr() as usize, prev_data)
 }

@@ -190,9 +190,9 @@ pub trait TermStreamer<V>: Sized {
     fn value(&self) -> &V;
 
     /// Return the next `(key, value)` pair.
-    fn next(&mut self) -> Option<(&[u8], &V)> {
+    fn next(&mut self) -> Option<(Term<&[u8]>, &V)> {
         if self.advance() {
-            Some((self.key(), self.value()))
+            Some((Term::wrap(self.key()), self.value()))
         } else {
             None
         }
@@ -261,12 +261,24 @@ mod tests {
         assert_eq!(term_dict.get("abc"), Some(34u32));
         assert_eq!(term_dict.get("abcd"), Some(346u32));
         let mut stream = term_dict.stream();
-        assert_eq!(stream.next().unwrap(), ("abc".as_bytes(), &34u32));
-        assert_eq!(stream.key(), "abc".as_bytes());
-        assert_eq!(*stream.value(), 34u32);
-        assert_eq!(stream.next().unwrap(), ("abcd".as_bytes(), &346u32));
-        assert_eq!(stream.key(), "abcd".as_bytes());
-        assert_eq!(*stream.value(), 346u32);
+        {
+            {
+                let (k, v) = stream.next().unwrap();
+                assert_eq!(k.as_ref(), "abc".as_bytes());
+                assert_eq!(v, &34u32);
+            }
+            assert_eq!(stream.key(), "abc".as_bytes());
+            assert_eq!(*stream.value(), 34u32);
+        }
+        {
+            {
+                let (k, v) = stream.next().unwrap();
+                assert_eq!(k.as_slice(), "abcd".as_bytes());
+                assert_eq!(v, &346u32);
+            }
+            assert_eq!(stream.key(), "abcd".as_bytes());
+            assert_eq!(*stream.value(), 346u32);
+        }
         assert!(!stream.advance());
     }
 
@@ -337,7 +349,7 @@ mod tests {
             let mut i = 0;
             while let Some((streamer_k, streamer_v)) = streamer.next() {
                 let &(ref key, ref v) = &ids[i];
-                assert_eq!(streamer_k, key.as_bytes());
+                assert_eq!(streamer_k.as_ref(), key.as_bytes());
                 assert_eq!(streamer_v, v);
                 i += 1;
             }
@@ -374,7 +386,7 @@ mod tests {
                 for j in 0..3 {
                     let (streamer_k, streamer_v) = streamer.next().unwrap();
                     let &(ref key, ref v) = &ids[i + j];
-                    assert_eq!(str::from_utf8(streamer_k).unwrap(), key);
+                    assert_eq!(str::from_utf8(streamer_k.as_ref()).unwrap(), key);
                     assert_eq!(streamer_v, v);
                 }
             }
@@ -390,7 +402,7 @@ mod tests {
                 for j in 0..3 {
                     let (streamer_k, streamer_v) = streamer.next().unwrap();
                     let &(ref key, ref v) = &ids[i + j + 1];
-                    assert_eq!(streamer_k, key.as_bytes());
+                    assert_eq!(streamer_k.as_ref(), key.as_bytes());
                     assert_eq!(streamer_v, v);
                 }
             }

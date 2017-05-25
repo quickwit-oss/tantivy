@@ -9,7 +9,6 @@ use Result;
 use schema::{Schema, Field};
 use analyzer::StreamingIterator;
 use std::marker::PhantomData;
-use schema::extract_field_from_term_bytes;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
@@ -87,7 +86,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         let term_offsets_it = term_offsets
             .iter()
             .cloned()
-            .map(|(key, _)| extract_field_from_term_bytes(key))
+            .map(|(key, _)| Term::wrap(key).field())
             .enumerate();
 
         let mut prev_field = Field(u32::max_value());

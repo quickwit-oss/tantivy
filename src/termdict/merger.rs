@@ -6,7 +6,7 @@ use postings::TermInfo;
 use std::cmp::Ordering;
 use termdict::TermStreamer;
 use termdict::TermDictionary;
-use fst::Streamer;
+use schema::Term;
 
 pub struct HeapItem<'a, V>
     where V: 'a + BinarySerializable + Default
@@ -128,6 +128,15 @@ impl<'a, V> TermMerger<'a, V>
     pub fn current_kvs(&self) -> &[HeapItem<'a, V>] {
         &self.current_streamers[..]
     }
+
+    /// Iterates through terms
+    pub fn next(&mut self) -> Option<Term<&[u8]>> {
+        if self.advance() {
+            Some(Term::wrap(self.current_streamers[0].streamer.key()))
+        } else {
+            None
+        }
+    }
 }
 
 
@@ -138,20 +147,5 @@ impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo> {
                             .iter()
                             .map(|reader| reader.terms().stream())
                             .collect())
-    }
-}
-
-impl<'a, V> Streamer<'a> for TermMerger<'a, V>
-    where V: BinarySerializable + Default
-{
-    type Item = &'a [u8];
-
-    fn next(&'a mut self) -> Option<Self::Item> {
-        if self.advance() {
-            Some(self.current_streamers[0].streamer.key())
-        } else {
-            None
-        }
-
     }
 }

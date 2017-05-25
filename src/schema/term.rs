@@ -13,25 +13,34 @@ const INT_TERM_LEN: usize = 4 + 8;
 ///
 /// It actually wraps a `Vec<u8>`.
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct Term(Vec<u8>);
-
-/// Extract `field` from Term.
-pub(crate) fn extract_field_from_term_bytes(term_bytes: &[u8]) -> Field {
-    Field(BigEndian::read_u32(&term_bytes[..4]))
-}
+pub struct Term<B = Vec<u8>>(B) where B: AsRef<[u8]>;
 
 impl Term {
-    /// Returns the field.
-    pub fn field(&self) -> Field {
-        extract_field_from_term_bytes(&self.0)
+    /// Builds a term given a field, and a u64-value
+    ///
+    /// Assuming the term has a field id of 1, and a u64 value of 3234,
+    /// the Term will have 8 bytes.
+    ///
+    /// The first four byte are dedicated to storing the field id as a u64.
+    /// The 4 following bytes are encoding the u64 value.
+    pub fn from_field_i64(field: Field, val: i64) -> Term {
+        let val_u64: u64 = common::i64_to_u64(val);
+        Term::from_field_u64(field, val_u64)
     }
 
-    /// Returns the field.
-    pub fn set_field(&mut self, field: Field) {
-        if self.0.len() < 4 {
-            self.0.resize(4, 0u8);
-        }
-        BigEndian::write_u32(&mut self.0[0..4], field.0);
+
+    /// Builds a term given a field, and a string value
+    ///
+    /// Assuming the term has a field id of 2, and a text value of "abc",
+    /// the Term will have 4 bytes.
+    /// The first byte is 2, and the three following bytes are the utf-8
+    /// representation of "abc".
+    pub fn from_field_text(field: Field, text: &str) -> Term {
+        let buffer = Vec::with_capacity(4 + text.len());
+        let mut term = Term(buffer);
+        term.set_field(field);
+        term.set_text(text);
+        term
     }
 
     /// Builds a term given a field, and a u64-value
@@ -48,6 +57,24 @@ impl Term {
         term
     }
 
+    /// Creates a new Term with an empty buffer,
+    /// but with a given capacity.
+    ///
+    /// It is declared unsafe, as the term content
+    /// is not initialized, and a call to `.field()`
+    /// would panic.
+    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
+        Term(Vec::with_capacity(num_bytes))
+    }
+
+    /// Returns the field.
+    pub fn set_field(&mut self, field: Field) {
+        if self.0.len() < 4 {
+            self.0.resize(4, 0u8);
+        }
+        BigEndian::write_u32(&mut self.0[0..4], field.0);
+    }
+
     /// Sets a u64 value in the term.
     ///
     /// U64 are serialized using (8-byte) BigEndian
@@ -59,47 +86,16 @@ impl Term {
         BigEndian::write_u64(&mut self.0[4..], val);
     }
 
-    /// Builds a term given a field, and a u64-value
-    ///
-    /// Assuming the term has a field id of 1, and a u64 value of 3234,
-    /// the Term will have 8 bytes.
-    ///
-    /// The first four byte are dedicated to storing the field id as a u64.
-    /// The 4 following bytes are encoding the u64 value.
-    pub fn from_field_i64(field: Field, val: i64) -> Term {
-        let val_u64: u64 = common::i64_to_u64(val);
-        Term::from_field_u64(field, val_u64)
+    /// Sets a `i64` value in the term.
+    pub fn set_i64(&mut self, val: i64) {
+        self.set_u64(common::i64_to_u64(val));
     }
 
-    /// Builds a term given a field, and a string value
-    ///
-    /// Assuming the term has a field id of 2, and a text value of "abc",
-    /// the Term will have 4 bytes.
-    /// The first byte is 2, and the three following bytes are the utf-8
-    /// representation of "abc".
-    pub fn from_field_text(field: Field, text: &str) -> Term {
-        let buffer = Vec::with_capacity(4 + text.len());
-        let mut term = Term(buffer);
-        term.set_field(field);
-        term.set_text(text);
-        term
-    }
 
-    /// Creates a new Term with an empty buffer,
-    /// but with a given capacity.
-    ///
-    /// It is declared unsafe, as the term content
-    /// is not initialized, and a call to `.field()`
-    /// would panic.
-    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
-        Term(Vec::with_capacity(num_bytes))
-    }
-
-    /// Assume the term is a u64 field.
-    ///
-    /// Panics if the term is not a u64 field.
-    pub fn get_u64(&self) -> u64 {
-        BigEndian::read_u64(&self.0[4..])
+    /// Set the texts only, keeping the field untouched.
+    pub fn set_text(&mut self, text: &str) {
+        self.0.resize(4, 0u8);
+        self.0.extend(text.as_bytes());
     }
 
     /// Builds a term from its byte representation.
@@ -110,15 +106,37 @@ impl Term {
     pub(crate) fn from_bytes(data: &[u8]) -> Term {
         Term(Vec::from(data))
     }
+}
 
-    /// Returns the serialized value of the term.
-    /// (this does not include the field.)
+impl<B> Term<B>
+    where B: AsRef<[u8]>
+{
+    /// Wraps a source of data
+    pub fn wrap(data: B) -> Term<B> {
+        Term(data)
+    }
+
+    /// Returns the field.
+    pub fn field(&self) -> Field {
+        Field(BigEndian::read_u32(&self.0.as_ref()[..4]))
+    }
+
+    /// Returns the `u64` value stored in a term.
     ///
-    /// If the term is a string, its value is utf-8 encoded.
-    /// If the term is a u64, its value is encoded according
-    /// to `byteorder::LittleEndian`.
-    pub fn value(&self) -> &[u8] {
-        &self.0[4..]
+    /// # Panics
+    /// ... or returns an invalid value
+    /// if the term is not a `u64` field.
+    pub fn get_u64(&self) -> u64 {
+        BigEndian::read_u64(&self.0.as_ref()[4..])
+    }
+
+    /// Returns the `i64` value stored in a term.
+    ///
+    /// # Panics
+    /// ... or returns an invalid value
+    /// if the term is not a `i64` field.
+    pub fn get_i64(&self) -> i64 {
+        common::u64_to_i64(BigEndian::read_u64(&self.0.as_ref()[4..]))
     }
 
     /// Returns the text associated with the term.
@@ -128,24 +146,30 @@ impl Term {
     /// if the index is corrupted or if you try to
     /// call this method on a non-string type.
     pub fn text(&self) -> &str {
-        str::from_utf8(self.value()).expect("Term does not contain valid utf-8.")
+        str::from_utf8(self.value_bytes()).expect("Term does not contain valid utf-8.")
     }
 
-    /// Set the texts only, keeping the field untouched.
-    pub fn set_text(&mut self, text: &str) {
-        self.0.resize(4, 0u8);
-        self.0.extend(text.as_bytes());
+    /// Returns the serialized value of the term.
+    /// (this does not include the field.)
+    ///
+    /// If the term is a string, its value is utf-8 encoded.
+    /// If the term is a u64, its value is encoded according
+    /// to `byteorder::LittleEndian`.
+    pub fn value_bytes(&self) -> &[u8] {
+        &self.0.as_ref()[4..]
     }
 
     /// Returns the underlying `&[u8]`
     pub fn as_slice(&self) -> &[u8] {
-        &self.0
+        self.0.as_ref()
     }
 }
 
-impl AsRef<[u8]> for Term {
+impl<B> AsRef<[u8]> for Term<B>
+    where B: AsRef<[u8]>
+{
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.0.as_ref()
     }
 }
 
