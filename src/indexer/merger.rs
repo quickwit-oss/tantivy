@@ -17,7 +17,7 @@ use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{min, max};
-use schema;
+use schema::Term;
 use termdict::TermStreamer;
 use postings::SegmentPostingsOption;
 
@@ -218,6 +218,7 @@ impl IndexMerger {
         let mut segment_postings_option = SegmentPostingsOption::FreqAndPositions;
 
         while merged_terms.advance() {
+
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
             //
@@ -228,8 +229,8 @@ impl IndexMerger {
             // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
             //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
-            let term_bytes = merged_terms.key();
-            let current_field = schema::extract_field_from_term_bytes(term_bytes);
+            let term = Term::wrap(merged_terms.key());
+            let current_field = term.field();
 
             if last_field != Some(current_field) {
                 // we reached a new field.
@@ -278,7 +279,7 @@ impl IndexMerger {
 
             // We know that there is at least one document containing
             // the term, so we add it.
-            serializer.new_term(term_bytes)?;
+            serializer.new_term(term.as_ref())?;
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
