@@ -1,5 +1,5 @@
 /*!
-The term dictionary is one of the key datastructure of 
+The term dictionary is one of the key datastructure of
 tantivy. It associates sorted `terms` to their respective
 posting list.
 
@@ -48,7 +48,7 @@ via deserializing the value at this address.
 
 ## Stream implementation : `streamdict`
 
-The `fstdict` is a tiny bit slow when streaming all of 
+The `fstdict` is a tiny bit slow when streaming all of
 the terms.
 For some use case (analytics engine), it is preferrable
 to use the `streamdict`, that offers better streaming
