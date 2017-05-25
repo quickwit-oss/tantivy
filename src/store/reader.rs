@@ -11,16 +11,20 @@ use std::io::{self, Read};
 use datastruct::SkipList;
 use lz4;
 
+
+/// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
 pub struct StoreReader {
-    pub data: ReadOnlySource,
-    pub offset_index_source: ReadOnlySource,
+    data: ReadOnlySource,
+    offset_index_source: ReadOnlySource,
     current_block_offset: RefCell<usize>,
     current_block: RefCell<Vec<u8>>,
-    pub max_doc: DocId,
+    max_doc: DocId,
 }
 
 impl StoreReader {
+
+    /// Opens a store reader
     pub fn from_source(data: ReadOnlySource) -> StoreReader {
         let (data_source, offset_index_source, max_doc) = split_source(data);
         StoreReader {
@@ -55,20 +59,27 @@ impl StoreReader {
         Ok(())
     }
 
+    /// Reads a given document.
+    ///
+    /// Calling `.get(doc)` is relatively costly as it requires
+    /// decompressing a LZ4-compressed block.
+    ///
+    /// It should not be called to score documents
+    /// for instance.
     pub fn get(&self, doc_id: DocId) -> Result<Document> {
         let (first_doc_id, block_offset) = self.block_offset(doc_id);
-        try!(self.read_block(block_offset as usize));
+        self.read_block(block_offset as usize)?;
         let current_block_mut = self.current_block.borrow_mut();
         let mut cursor = &current_block_mut[..];
         for _ in first_doc_id..doc_id {
             let block_length = try!(u32::deserialize(&mut cursor));
             cursor = &cursor[block_length as usize..];
         }
-        try!(u32::deserialize(&mut cursor));
+        u32::deserialize(&mut cursor)?;
+        let num_fields = u32::deserialize(&mut cursor)?;
         let mut field_values = Vec::new();
-        let num_fields = try!(u32::deserialize(&mut cursor));
         for _ in 0..num_fields {
-            let field_value = try!(FieldValue::deserialize(&mut cursor));
+            let field_value = FieldValue::deserialize(&mut cursor)?;
             field_values.push(field_value);
         }
         Ok(Document::from(field_values))
@@ -83,7 +94,5 @@ fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId)
     let offset = u64::deserialize(&mut serialized_offset_buf).unwrap();
     let offset = offset as usize;
     let max_doc = u32::deserialize(&mut serialized_offset_buf).unwrap();
-    let res = (data.slice(0, offset), data.slice(offset, footer_offset), max_doc);
-    drop(data);
-    res
+    (data.slice(0, offset), data.slice(offset, footer_offset), max_doc)
 }
