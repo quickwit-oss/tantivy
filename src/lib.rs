@@ -91,7 +91,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 mod core;
 mod compression;
 mod indexer;
-pub mod common;
+mod common;
 mod error;
 mod analyzer;
 mod datastruct;
@@ -129,6 +129,7 @@ pub use postings::Postings;
 pub use core::SegmentComponent;
 pub use postings::SegmentPostingsOption;
 
+pub use common::{i64_to_u64, u64_to_i64};
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
