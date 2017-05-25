@@ -8,6 +8,15 @@ use datastruct::SkipListBuilder;
 
 const BLOCK_SIZE: usize = 16_384;
 
+
+/// Write tantivy's [`Store`](./index.html)
+///
+/// Contrary to the other components of `tantivy`,
+/// the store is written to disc as document as being added, 
+/// as opposed to when the segment is getting finalized.
+///
+/// The skip list index on the other hand, is build in memory.
+///
 pub struct StoreWriter {
     doc: DocId,
     written: u64,
@@ -19,6 +28,11 @@ pub struct StoreWriter {
 
 
 impl StoreWriter {
+
+    /// Create a store writer.
+    ///
+    /// The store writer will writes blocks on disc as
+    /// document are added.
     pub fn new(writer: WritePtr) -> StoreWriter {
         StoreWriter {
             doc: 0,
@@ -30,6 +44,11 @@ impl StoreWriter {
         }
     }
 
+    /// Store a new document.
+    /// 
+    /// The document id is implicitely the number of times
+    /// this method has been called.
+    ///
     pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
         self.intermediary_buffer.clear();
         try!((field_values.len() as u32).serialize(&mut self.intermediary_buffer));
@@ -62,6 +81,11 @@ impl StoreWriter {
         Ok(())
     }
 
+
+    /// Finalized the store writer.
+    ///
+    /// Compress the last unfinished block if any,
+    /// and serializes the skip list index on disc.
     pub fn close(mut self) -> io::Result<()> {
         if !self.current_block.is_empty() {
             try!(self.write_and_compress_block());
