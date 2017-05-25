@@ -23,7 +23,6 @@ pub struct StoreReader {
 }
 
 impl StoreReader {
-
     /// Opens a store reader
     pub fn from_source(data: ReadOnlySource) -> StoreReader {
         let (data_source, offset_index_source, max_doc) = split_source(data);

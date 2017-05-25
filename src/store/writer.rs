@@ -12,7 +12,7 @@ const BLOCK_SIZE: usize = 16_384;
 /// Write tantivy's [`Store`](./index.html)
 ///
 /// Contrary to the other components of `tantivy`,
-/// the store is written to disc as document as being added, 
+/// the store is written to disc as document as being added,
 /// as opposed to when the segment is getting finalized.
 ///
 /// The skip list index on the other hand, is build in memory.
@@ -28,7 +28,6 @@ pub struct StoreWriter {
 
 
 impl StoreWriter {
-
     /// Create a store writer.
     ///
     /// The store writer will writes blocks on disc as
@@ -45,7 +44,7 @@ impl StoreWriter {
     }
 
     /// Store a new document.
-    /// 
+    ///
     /// The document id is implicitely the number of times
     /// this method has been called.
     ///
