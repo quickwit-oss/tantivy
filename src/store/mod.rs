@@ -1,7 +1,41 @@
+/*!
+Tantivy's store is a compressed, row-oriented storage.
+
+A field needs to be marked as stored in the schema in 
+order to be handled in the `Store`.
+
+Internally, documents (or rather their stored fields) are serialized to a buffer.
+When the buffer exceeds 16K, the buffer is compressed using `LZ4`
+and the resulting block is written to disk.
+
+One can then request for a specific `DocId`. 
+A skip list helps navigating to the right block,
+decompresses it entirely and returns the document within it.
+
+If the last document requested was in the same block,
+the reader is smart enough to avoid decompressing 
+the block a second time, but their is no real 
+*uncompressed block* cache.
+
+A typical use case for the store is, once
+the search result page has been computed, returning
+the actual content of the 10 best document.
+
+# Usage
+
+Most users should not access the `StoreReader` directly
+and should rely on either
+
+- at the segment level, the [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
+- at the index level,  the [`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
+
+!*/
+
 mod reader;
 mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
+
 
 
 #[cfg(test)]
