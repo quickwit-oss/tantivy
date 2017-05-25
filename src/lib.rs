@@ -98,7 +98,7 @@ mod datastruct;
 
 pub mod termdict;
 
-// Row-oriented, slow, compressed storage of documents
+/// Row-oriented, slow, compressed storage of documents
 pub mod store;
 
 /// Query module
@@ -111,6 +111,7 @@ pub mod collector;
 
 /// Postings module (also called inverted index)
 pub mod postings;
+
 /// Schema
 pub mod schema;
 
