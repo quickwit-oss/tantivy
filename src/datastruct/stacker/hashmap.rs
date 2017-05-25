@@ -102,7 +102,7 @@ impl<'a> HashMap<'a> {
     }
 
     pub fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 5
+        self.table.len() < self.occupied.len() * 10
     }
 
     fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
