@@ -13,6 +13,7 @@ use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
 use common;
+use owning_ref::OwningRef;
 
 /// Trait for accessing a fastfield.
 ///
@@ -39,8 +40,7 @@ pub trait FastFieldReader: Sized {
 
 /// `FastFieldReader` for unsigned 64-bits integers.
 pub struct U64FastFieldReader {
-    _data: ReadOnlySource,
-    bit_unpacker: BitUnpacker,
+    bit_unpacker: BitUnpacker<OwningRef<ReadOnlySource, [u8]>>,
     min_value: u64,
     max_value: u64,
 }
@@ -85,25 +85,23 @@ impl FastFieldReader for U64FastFieldReader {
     /// Panics if the data is corrupted.
     fn open(data: ReadOnlySource) -> U64FastFieldReader {
         let min_value: u64;
-        let max_value: u64;
-        let bit_unpacker: BitUnpacker;
-
+        let amplitude: u64;
         {
-            let mut cursor: &[u8] = data.as_slice();
+            let mut cursor = data.as_slice();
             min_value = u64::deserialize(&mut cursor)
                 .expect("Failed to read the min_value of fast field.");
-            let amplitude = u64::deserialize(&mut cursor)
+            amplitude = u64::deserialize(&mut cursor)
                 .expect("Failed to read the amplitude of fast field.");
-            max_value = min_value + amplitude;
-            let num_bits = compute_num_bits(amplitude);
-            bit_unpacker = BitUnpacker::new(cursor, num_bits as usize)
-        }
 
+        }
+        let max_value = min_value + amplitude;
+        let num_bits = compute_num_bits(amplitude);
+        let owning_ref = OwningRef::new(data).map(|data| &data[16..]);
+        let bit_unpacker = BitUnpacker::new(owning_ref, num_bits as usize);
         U64FastFieldReader {
-            _data: data,
-            bit_unpacker: bit_unpacker,
             min_value: min_value,
             max_value: max_value,
+            bit_unpacker: bit_unpacker,
         }
     }
 }
@@ -161,6 +159,12 @@ impl I64FastFieldReader {
 impl FastFieldReader for I64FastFieldReader {
     type ValueType = i64;
 
+    ///
+    ///
+    /// # Panics
+    ///
+    /// May panic or return wrong random result if `doc`
+    /// is greater or equal to the segment's `maxdoc`.
     fn get(&self, doc: DocId) -> i64 {
         common::u64_to_i64(self.underlying.get(doc))
     }

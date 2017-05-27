@@ -2,7 +2,7 @@ use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
-
+use stable_deref_trait::StableDeref;
 
 /// Read object that represents files in tantivy.
 ///
@@ -16,6 +16,8 @@ pub enum ReadOnlySource {
     /// Wrapping a `Vec<u8>`
     Anonymous(SharedVecSlice),
 }
+
+unsafe impl StableDeref for ReadOnlySource {}
 
 impl Deref for ReadOnlySource {
     type Target = [u8];
