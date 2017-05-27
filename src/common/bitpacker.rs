@@ -2,7 +2,7 @@ use std::io::Write;
 use std::io;
 use common::serialize::BinarySerializable;
 use std::mem;
-
+use std::ops::Deref;
 
 /// Computes the number of bits that will be used for bitpacking.
 ///
@@ -91,15 +91,18 @@ impl BitPacker {
 
 
 
-pub struct BitUnpacker {
+pub struct BitUnpacker<Data>
+    where Data: Deref<Target = [u8]>
+{
     num_bits: usize,
     mask: u64,
-    data_ptr: *const u8,
-    data_len: usize,
+    data: Data,
 }
 
-impl BitUnpacker {
-    pub fn new(data: &[u8], num_bits: usize) -> BitUnpacker {
+impl<Data> BitUnpacker<Data>
+    where Data: Deref<Target = [u8]>
+{
+    pub fn new(data: Data, num_bits: usize) -> BitUnpacker<Data> {
         let mask: u64 = if num_bits == 64 {
             !0u64
         } else {
@@ -108,8 +111,7 @@ impl BitUnpacker {
         BitUnpacker {
             num_bits: num_bits,
             mask: mask,
-            data_ptr: data.as_ptr(),
-            data_len: data.len(),
+            data: data,
         }
     }
 
@@ -120,9 +122,10 @@ impl BitUnpacker {
         let addr = (idx * self.num_bits) / 8;
         let bit_shift = idx * self.num_bits - addr * 8;
         let val_unshifted_unmasked: u64;
-        debug_assert!(addr + 8 <= self.data_len,
+        debug_assert!(addr + 8 <= self.data.len(),
                       "The fast field field should have been padded with 7 bytes.");
-        val_unshifted_unmasked = unsafe { *(self.data_ptr.offset(addr as isize) as *const u64) };
+        val_unshifted_unmasked =
+            unsafe { *(self.data.as_ptr().offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & self.mask)
     }
@@ -160,7 +163,7 @@ mod test {
         let num_bytes = bitpacker.close(&mut data).unwrap();
         assert_eq!(num_bytes, (num_bits * len + 7) / 8 + 7);
         assert_eq!(data.len(), num_bytes);
-        let bitunpacker = BitUnpacker::new(&data, num_bits);
+        let bitunpacker = BitUnpacker::new(data, num_bits);
         for (i, val) in vals.iter().enumerate() {
             assert_eq!(bitunpacker.get(i), *val);
         }
