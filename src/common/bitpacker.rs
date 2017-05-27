@@ -119,15 +119,18 @@ impl<Data> BitUnpacker<Data>
         if self.num_bits == 0 {
             return 0;
         }
-        let addr = (idx * self.num_bits) / 8;
-        let bit_shift = idx * self.num_bits - addr * 8;
-        let val_unshifted_unmasked: u64;
-        debug_assert!(addr + 8 <= self.data.len(),
+        let data: &[u8] = &*self.data;
+        let num_bits = self.num_bits;
+        let mask = self.mask;
+        let addr_in_bits = idx * num_bits;
+        let addr = addr_in_bits >> 3;
+        let bit_shift = addr_in_bits & 7;
+        debug_assert!(addr + 8 <= data.len(),
                       "The fast field field should have been padded with 7 bytes.");
-        val_unshifted_unmasked =
-            unsafe { *(self.data.as_ptr().offset(addr as isize) as *const u64) };
+        let val_unshifted_unmasked: u64 =
+            unsafe { *(data.as_ptr().offset(addr as isize) as *const u64) };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-        (val_shifted & self.mask)
+        (val_shifted & mask)
     }
 }
 
