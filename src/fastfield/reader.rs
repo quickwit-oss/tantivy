@@ -248,8 +248,3 @@ impl FastFieldsReader {
                  })
     }
 }
-
-unsafe impl Send for U64FastFieldReader {}
-unsafe impl Sync for U64FastFieldReader {}
-unsafe impl Send for I64FastFieldReader {}
-unsafe impl Sync for I64FastFieldReader {}
