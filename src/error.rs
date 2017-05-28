@@ -3,7 +3,6 @@
 use std::io;
 
 use std::path::PathBuf;
-use std::error;
 use std::sync::PoisonError;
 use directory::error::{IOError, OpenReadError, OpenWriteError, OpenDirectoryError};
 use query;

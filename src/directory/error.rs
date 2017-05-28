@@ -191,8 +191,7 @@ impl StdError for DeleteError {
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
-            DeleteError::FileDoesNotExist(_) => None,
-            DeleteError::FileProtected(ref path) => None,
+            DeleteError::FileDoesNotExist(_) | DeleteError::FileProtected(_) => None,
             DeleteError::IOError(ref err) => Some(err)
         }
     }
