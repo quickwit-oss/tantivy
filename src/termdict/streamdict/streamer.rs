@@ -1,11 +1,10 @@
 #![allow(should_implement_trait)]
 
 use std::cmp::max;
-use std::io::Read;
-use common::VInt;
 use common::BinarySerializable;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
+use std::io::Read;
 
 pub(crate) fn stream_before<'a, V>(term_dictionary: &'a TermDictionaryImpl<V>,
                                    target_key: &[u8])
@@ -150,6 +149,21 @@ impl<'a, V: BinarySerializable> TermStreamerImpl<'a, V>
     }
 }
 
+fn deserialize_vint(data: &mut &[u8]) -> u64 {
+    let mut res = 0;
+    let mut shift = 0;
+    for i in 0.. {
+        let b = data[i];
+        res += ((b % 128u8) as u64) << shift;
+        if b & 128u8 != 0u8 {
+            *data = &data[(i + 1)..];
+            break;
+        }
+        shift += 7;
+    }
+    res
+}
+
 impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
     where V: BinarySerializable + Default
 {
@@ -157,17 +171,15 @@ impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
         if self.cursor.is_empty() {
             return false;
         }
-        let common_length: usize = VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
-        let new_length: usize = common_length +
-                                VInt::deserialize(&mut self.cursor).unwrap().0 as usize;
-        self.current_key.reserve(new_length);
-        unsafe {
-            self.current_key.set_len(new_length);
-        }
-        self.cursor
-            .read_exact(&mut self.current_key[common_length..new_length])
-            .unwrap();
-        self.current_value = V::deserialize(&mut self.cursor).unwrap();
+        let common_length: usize = deserialize_vint(&mut self.cursor) as usize;
+        self.current_key.truncate(common_length);
+        let added_length: usize = deserialize_vint(&mut self.cursor) as usize;
+        self.current_key
+            .extend_from_slice(&self.cursor[..added_length]);
+        self.cursor = &self.cursor[added_length..];
+        self.current_value =
+            V::deserialize(&mut self.cursor)
+                .expect("Term dictionary corrupted. Failed to deserialize a value");
         true
     }
 
