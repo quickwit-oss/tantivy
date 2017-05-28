@@ -229,7 +229,8 @@ impl Directory for ManagedDirectory {
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
-        self.register_file_as_managed(path).map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        self.register_file_as_managed(path)
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
         self.directory.open_write(path)
     }
 

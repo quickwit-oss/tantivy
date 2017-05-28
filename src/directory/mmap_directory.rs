@@ -24,15 +24,15 @@ use std::sync::Weak;
 use tempdir::TempDir;
 
 fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
-    let file = File::open(&full_path).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            OpenReadError::FileDoesNotExist(full_path.clone())
-        } else {
-            OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
-        }
-    })?;
+    let file = File::open(&full_path)
+        .map_err(|e| if e.kind() == io::ErrorKind::NotFound {
+                     OpenReadError::FileDoesNotExist(full_path.clone())
+                 } else {
+                     OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
+                 })?;
 
-    let meta_data = file.metadata().map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
+    let meta_data = file.metadata()
+        .map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
         // to mmap the file, so we return an anonymous mmap_cache
@@ -303,11 +303,13 @@ impl Directory for MmapDirectory {
                      })?;
 
         // making sure the file is created.
-        file.flush().map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        file.flush()
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
 
         // Apparetntly, on some filesystem syncing the parent
         // directory is required.
-        self.sync_directory().map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        self.sync_directory()
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -329,7 +331,10 @@ impl Directory for MmapDirectory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => self.sync_directory().map_err(|e| IOError::with_path(path.to_owned(), e).into()),
+            Ok(_) => {
+                self.sync_directory()
+                    .map_err(|e| IOError::with_path(path.to_owned(), e).into())
+            }
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
                     Err(DeleteError::FileDoesNotExist(path.to_owned()))
