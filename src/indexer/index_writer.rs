@@ -9,7 +9,7 @@ use core::SegmentReader;
 use indexer::stamper::Stamper;
 use datastruct::stacker::Heap;
 use directory::FileProtection;
-use Error;
+use error::*;
 use Directory;
 use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
@@ -22,7 +22,6 @@ use indexer::SegmentEntry;
 use indexer::SegmentWriter;
 use postings::DocSet;
 use postings::SegmentPostingsOption;
-use Result;
 use schema::Document;
 use schema::Schema;
 use schema::Term;
@@ -325,19 +324,17 @@ impl IndexWriter {
 
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
-            try!(join_handle
+            join_handle
                      .join()
                      .expect("Indexing Worker thread panicked")
-                     .map_err(|e| {
-                Error::ErrorInThread(format!("Error in indexing worker thread. {:?}", e))
-            }));
+                     .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
         }
         drop(self.workers_join_handle);
 
         let result =
             self.segment_updater
                 .wait_merging_thread()
-                .map_err(|_| Error::ErrorInThread("Failed to join merging thread.".to_string()));
+                .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -527,12 +524,13 @@ impl IndexWriter {
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result =
-                try!(worker_handle
+                worker_handle
                          .join()
-                         .map_err(|e| Error::ErrorInThread(format!("{:?}", e))));
-            try!(indexing_worker_result);
+                         .map_err(|e| Error::from(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+
+            indexing_worker_result?;
             // add a new worker for the next generation.
-            try!(self.add_indexing_worker());
+            self.add_indexing_worker()?;
         }
 
 

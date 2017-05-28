@@ -1,5 +1,43 @@
 use std::path::PathBuf;
 use std::io;
+use std::fmt;
+
+/// General IO error with an optional path to the offending file.
+#[derive(Debug)]
+pub struct IOError {
+    path: Option<PathBuf>,
+    err: io::Error,
+}
+
+impl fmt::Display for IOError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.path {
+            Some(ref path) => write!(f, "io error occurred on path '{:?}': '{}'", path, self.err),
+            None => write!(f, "io error occurred: '{}'", self.err),
+        }
+    }
+}
+
+impl IOError {
+    pub(crate) fn with_path(
+                            path: PathBuf,
+                            err: io::Error)
+                            -> Self {
+        IOError {
+            path: Some(path),
+            err: err,
+        }
+    }
+}
+
+impl From<io::Error> for IOError {
+    fn from(err: io::Error) -> IOError {
+        IOError {
+            path: None,
+            err: err,
+        }
+    }
+}
 
 /// Error that may occur when opening a directory
 #[derive(Debug)]
@@ -18,11 +56,11 @@ pub enum OpenWriteError {
     FileAlreadyExists(PathBuf),
     /// Any kind of IO error that happens when
     /// writing in the underlying IO device.
-    IOError(io::Error),
+    IOError(IOError),
 }
 
-impl From<io::Error> for OpenWriteError {
-    fn from(err: io::Error) -> OpenWriteError {
+impl From<IOError> for OpenWriteError {
+    fn from(err: IOError) -> OpenWriteError {
         OpenWriteError::IOError(err)
     }
 }
@@ -34,9 +72,14 @@ pub enum OpenReadError {
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
-    IOError(io::Error),
+    IOError(IOError),
 }
 
+impl From<IOError> for OpenReadError {
+    fn from(err: IOError) -> OpenReadError {
+        OpenReadError::IOError(err)
+    }
+}
 
 /// Error that may occur when trying to delete a file
 #[derive(Debug)]
@@ -45,8 +88,14 @@ pub enum DeleteError {
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
-    IOError(io::Error),
+    IOError(IOError),
     /// The file may not be deleted because it is
     /// protected.
     FileProtected(PathBuf),
+}
+
+impl From<IOError> for DeleteError {
+    fn from(err: IOError) -> DeleteError {
+        DeleteError::IOError(err)
+    }
 }

@@ -36,6 +36,9 @@ extern crate serde_derive;
 extern crate log;
 
 #[macro_use]
+extern crate error_chain;
+
+#[macro_use]
 extern crate version;
 extern crate fst;
 extern crate byteorder;
