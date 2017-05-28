@@ -446,6 +446,7 @@ impl SegmentUpdater {
             for (_, merging_thread_handle) in new_merging_threads {
                 merging_thread_handle
                     .join()
+                    .map(|_| ())
                     .map_err(|_| ErrorKind::ErrorInThread("Merging thread failed.".into()))?;
             }
             // Our merging thread may have queued their completed
