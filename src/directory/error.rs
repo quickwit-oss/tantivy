@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::path::PathBuf;
 use std::io;
 use std::fmt;
@@ -15,6 +16,16 @@ impl fmt::Display for IOError {
             Some(ref path) => write!(f, "io error occurred on path '{:?}': '{}'", path, self.err),
             None => write!(f, "io error occurred: '{}'", self.err),
         }
+    }
+}
+
+impl StdError for IOError {
+    fn description(&self) -> &str {
+        "io error occurred"
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        Some(&self.err)
     }
 }
 
@@ -48,6 +59,25 @@ pub enum OpenDirectoryError {
     NotADirectory(PathBuf),
 }
 
+impl fmt::Display for OpenDirectoryError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            OpenDirectoryError::DoesNotExist(ref path) => write!(f, "the underlying directory '{:?}' does not exist", path),
+            OpenDirectoryError::NotADirectory(ref path) => write!(f, "the path '{:?}' exists but is not a directory", path)
+        }
+    }
+}
+
+impl StdError for OpenDirectoryError {
+    fn description(&self) -> &str {
+        "error occurred while opening a directory"
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        None
+    }
+}
+
 /// Error that may occur when starting to write in a file
 #[derive(Debug)]
 pub enum OpenWriteError {
@@ -62,6 +92,28 @@ pub enum OpenWriteError {
 impl From<IOError> for OpenWriteError {
     fn from(err: IOError) -> OpenWriteError {
         OpenWriteError::IOError(err)
+    }
+}
+
+impl fmt::Display for OpenWriteError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            OpenWriteError::FileAlreadyExists(ref path) => write!(f, "the file '{:?}' already exists", path),
+            OpenWriteError::IOError(ref err) => write!(f, "an io error occurred while opening a file for writing: '{}'", err)
+        }
+    }
+}
+
+impl StdError for OpenWriteError {
+    fn description(&self) -> &str {
+        "error occurred while opening a file for writing"
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            OpenWriteError::FileAlreadyExists(_) => None,
+            OpenWriteError::IOError(ref err) => Some(err)
+        }
     }
 }
 
@@ -81,6 +133,28 @@ impl From<IOError> for OpenReadError {
     }
 }
 
+impl fmt::Display for OpenReadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            OpenReadError::FileDoesNotExist(ref path) => write!(f, "the file '{:?}' does not exist", path),
+            OpenReadError::IOError(ref err) => write!(f, "an io error occurred while opening a file for reading: '{}'", err)
+        }
+    }
+}
+
+impl StdError for OpenReadError {
+    fn description(&self) -> &str {
+        "error occurred while opening a file for reading"
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            OpenReadError::FileDoesNotExist(_) => None,
+            OpenReadError::IOError(ref err) => Some(err)
+        }
+    }
+}
+
 /// Error that may occur when trying to delete a file
 #[derive(Debug)]
 pub enum DeleteError {
@@ -97,5 +171,29 @@ pub enum DeleteError {
 impl From<IOError> for DeleteError {
     fn from(err: IOError) -> DeleteError {
         DeleteError::IOError(err)
+    }
+}
+
+impl fmt::Display for DeleteError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DeleteError::FileDoesNotExist(ref path) => write!(f, "the file '{:?}' does not exist", path),
+            DeleteError::FileProtected(ref path) => write!(f, "the file '{:?}' is protected and can't be deleted", path),
+            DeleteError::IOError(ref err) => write!(f, "an io error occurred while opening a file for reading: '{}'", err)
+        }
+    }
+}
+
+impl StdError for DeleteError {
+    fn description(&self) -> &str {
+        "error occurred while opening a file for reading"
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        match *self {
+            DeleteError::FileDoesNotExist(_) => None,
+            DeleteError::FileProtected(ref path) => None,
+            DeleteError::IOError(ref err) => Some(err)
+        }
     }
 }
