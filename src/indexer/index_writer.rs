@@ -526,7 +526,7 @@ impl IndexWriter {
             let indexing_worker_result =
                 worker_handle
                          .join()
-                         .map_err(|e| Error::from(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+                         .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.
@@ -601,7 +601,7 @@ mod tests {
     use schema::{self, Document};
     use Index;
     use Term;
-    use Error;
+    use error::*;
     use env_logger;
 
     #[test]
@@ -610,7 +610,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
-            Err(Error::FileAlreadyExists(_)) => {}
+            Err(Error(ErrorKind::FileAlreadyExists(_), _)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
         }
     }
