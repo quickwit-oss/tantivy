@@ -186,7 +186,8 @@ impl PostingsSerializer {
             // On the other hand, positions are entirely buffered until the
             // end of the term, at which point they are compressed and written.
             if self.text_indexing_options.is_position_enabled() {
-                self.written_bytes_positions += try!(VInt(self.position_deltas.len() as u64)
+                self.written_bytes_positions +=
+                    try!(VInt(self.position_deltas.len() as u64)
                                                          .serialize(&mut self.positions_write));
                 let positions_encoded: &[u8] = self.positions_encoder
                     .compress_unsorted(&self.position_deltas[..]);

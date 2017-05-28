@@ -37,8 +37,7 @@ impl Query for BooleanQuery {
     }
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
-        let sub_weights =
-            try!(self.subqueries
+        let sub_weights = try!(self.subqueries
                      .iter()
                      .map(|&(ref _occur, ref subquery)| subquery.weight(searcher))
                      .collect());

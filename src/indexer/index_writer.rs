@@ -325,9 +325,9 @@ impl IndexWriter {
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
             join_handle
-                     .join()
-                     .expect("Indexing Worker thread panicked")
-                     .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
+                .join()
+                .expect("Indexing Worker thread panicked")
+                .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
         }
         drop(self.workers_join_handle);
 
@@ -525,8 +525,8 @@ impl IndexWriter {
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result =
                 worker_handle
-                         .join()
-                         .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+                    .join()
+                    .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.

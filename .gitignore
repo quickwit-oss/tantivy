@@ -6,3 +6,4 @@ Cargo.lock
 benchmark
 .DS_Store
 cpp/simdcomp/bitpackingbenchmark
+*.bk

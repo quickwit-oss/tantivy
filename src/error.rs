@@ -116,8 +116,9 @@ impl From<OpenDirectoryError> for Error {
                 ErrorKind::PathDoesNotExist(directory_path).into()
             }
             OpenDirectoryError::NotADirectory(directory_path) => {
-                ErrorKind::InvalidArgument(format!("{:?} is not a directory", directory_path)).into()
-            },
+                ErrorKind::InvalidArgument(format!("{:?} is not a directory", directory_path))
+                    .into()
+            }
         }
     }
 }
