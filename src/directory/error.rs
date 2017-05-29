@@ -197,9 +197,7 @@ impl fmt::Display for DeleteError {
                 write!(f, "the file '{:?}' is protected and can't be deleted", path)
             }
             DeleteError::IOError(ref err) => {
-                write!(f,
-                       "an io error occurred while deleting a file: '{}'",
-                       err)
+                write!(f, "an io error occurred while deleting a file: '{}'", err)
             }
         }
     }
