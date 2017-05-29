@@ -1,4 +1,4 @@
-use error::*;
+use error::{ErrorKind, Result};
 use core::SegmentReader;
 use core::Segment;
 use DocId;

@@ -1,5 +1,5 @@
 use Result;
-use error::*;
+use error::{ErrorKind, ResultExt};
 use serde_json;
 use schema::Schema;
 use std::sync::Arc;

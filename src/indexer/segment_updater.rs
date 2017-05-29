@@ -7,7 +7,7 @@ use core::SegmentMeta;
 use core::SerializableSegment;
 use directory::Directory;
 use indexer::stamper::Stamper;
-use error::*;
+use error::{Error, ErrorKind, Result};
 use futures_cpupool::CpuPool;
 use futures::Future;
 use futures::Canceled;

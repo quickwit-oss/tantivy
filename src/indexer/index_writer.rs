@@ -9,7 +9,7 @@ use core::SegmentReader;
 use indexer::stamper::Stamper;
 use datastruct::stacker::Heap;
 use directory::FileProtection;
-use error::*;
+use error::{Error, ErrorKind, Result, ResultExt};
 use Directory;
 use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
