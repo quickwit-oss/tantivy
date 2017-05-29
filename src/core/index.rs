@@ -1,5 +1,5 @@
 use Result;
-use Error;
+use error::{ErrorKind, ResultExt};
 use serde_json;
 use schema::Schema;
 use std::sync::Arc;
@@ -29,8 +29,7 @@ const NUM_SEARCHERS: usize = 12;
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
-    serde_json::from_str(&meta_string)
-        .map_err(|e| Error::CorruptedFile(META_FILEPATH.clone(), Box::new(e)))
+    serde_json::from_str(&meta_string).chain_err(|| ErrorKind::CorruptedFile(META_FILEPATH.clone()))
 }
 
 /// Tantivy's Search Index

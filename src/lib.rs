@@ -36,6 +36,9 @@ extern crate serde_derive;
 extern crate log;
 
 #[macro_use]
+extern crate error_chain;
+
+#[macro_use]
 extern crate version;
 extern crate fst;
 extern crate byteorder;
@@ -58,6 +61,8 @@ extern crate crossbeam;
 extern crate bit_set;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate owning_ref;
+extern crate stable_deref_trait;
 
 #[cfg(test)]
 extern crate env_logger;
@@ -83,7 +88,7 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use error::Error;
+pub use error::{Error, ErrorKind, ResultExt};
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, Error>;

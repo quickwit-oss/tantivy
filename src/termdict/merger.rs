@@ -48,6 +48,7 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
+#[allow(should_implement_trait)]
 pub struct TermMerger<'a, V>
     where V: 'a + BinarySerializable + Default
 {

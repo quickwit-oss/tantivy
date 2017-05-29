@@ -7,7 +7,7 @@ use core::SegmentMeta;
 use core::SerializableSegment;
 use directory::Directory;
 use indexer::stamper::Stamper;
-use Error;
+use error::{Error, ErrorKind, Result};
 use futures_cpupool::CpuPool;
 use futures::Future;
 use futures::Canceled;
@@ -19,7 +19,6 @@ use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
-use Result;
 use futures_cpupool::CpuFuture;
 use serde_json;
 use indexer::delete_queue::DeleteCursor;
@@ -117,7 +116,7 @@ fn perform_merge(segment_ids: &[SegmentId],
             error!("Error, had to abort merge as some of the segment is not managed anymore.");
             let msg = format!("Segment {:?} requested for merge is not managed.",
                               segment_id);
-            return Err(Error::InvalidArgument(msg));
+            bail!(ErrorKind::InvalidArgument(msg));
         }
     }
 
@@ -448,7 +447,7 @@ impl SegmentUpdater {
                 merging_thread_handle
                     .join()
                     .map(|_| ())
-                    .map_err(|_| Error::ErrorInThread("Merging thread failed.".to_string()))?
+                    .map_err(|_| ErrorKind::ErrorInThread("Merging thread failed.".into()))?;
             }
             // Our merging thread may have queued their completed
             self.run_async(move |_| {}).wait()?;

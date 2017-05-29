@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use serde_json;
-use directory::error::{OpenReadError, DeleteError, OpenWriteError};
+use directory::error::{IOError, OpenReadError, DeleteError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;
@@ -12,8 +12,7 @@ use std::io::Write;
 use core::MANAGED_FILEPATH;
 use std::collections::HashMap;
 use std::fmt;
-use Result;
-use Error;
+use error::{Result, ErrorKind, ResultExt};
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
@@ -86,7 +85,7 @@ impl ManagedDirectory {
                 let managed_files_json = String::from_utf8_lossy(&data);
                 let managed_files: HashSet<PathBuf> =
                     serde_json::from_str(&managed_files_json)
-                        .map_err(|e| Error::CorruptedFile(MANAGED_FILEPATH.clone(), Box::new(e)))?;
+                        .chain_err(|| ErrorKind::CorruptedFile(MANAGED_FILEPATH.clone()))?;
                 Ok(ManagedDirectory {
                        directory: box directory,
                        meta_informations: Arc::new(RwLock::new(MetaInformation {
@@ -230,7 +229,8 @@ impl Directory for ManagedDirectory {
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
-        self.register_file_as_managed(path)?;
+        self.register_file_as_managed(path)
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
         self.directory.open_write(path)
     }
 
