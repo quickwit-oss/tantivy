@@ -88,7 +88,7 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use error::{Error, ErrorKind};
+pub use error::{Error, ErrorKind, ResultExt};
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, Error>;
