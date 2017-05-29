@@ -198,7 +198,7 @@ impl fmt::Display for DeleteError {
             }
             DeleteError::IOError(ref err) => {
                 write!(f,
-                       "an io error occurred while opening a file for reading: '{}'",
+                       "an io error occurred while deleting a file: '{}'",
                        err)
             }
         }
@@ -207,7 +207,7 @@ impl fmt::Display for DeleteError {
 
 impl StdError for DeleteError {
     fn description(&self) -> &str {
-        "error occurred while opening a file for reading"
+        "error occurred while deleting a file"
     }
 
     fn cause(&self) -> Option<&StdError> {
