@@ -12,7 +12,7 @@ use std::io::Write;
 use core::MANAGED_FILEPATH;
 use std::collections::HashMap;
 use std::fmt;
-use error::*;
+use error::{Result, ErrorKind, ResultExt};
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
