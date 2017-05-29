@@ -223,8 +223,8 @@ impl<'a> BlockSegmentPostings<'a> {
     //
     // This does not reset the positions list.
     pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: &'a [u8]) {
-        let num_binpacked_blocks: usize = (doc_freq as usize) / NUM_DOCS_PER_BLOCK;
-        let num_vint_docs = (doc_freq as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
+        let num_binpacked_blocks: usize = doc_freq / NUM_DOCS_PER_BLOCK;
+        let num_vint_docs = doc_freq & (NUM_DOCS_PER_BLOCK - 1);
         self.num_binpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;

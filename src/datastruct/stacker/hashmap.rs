@@ -30,17 +30,13 @@ impl Default for BytesRef {
 struct KeyValue {
     key: BytesRef,
     value_addr: u32,
+    masked_hash: u32,
 }
 
 impl KeyValue {
     fn is_empty(&self) -> bool {
         self.key.stop == 0u32
     }
-}
-
-pub enum Entry {
-    Vacant(usize),
-    Occupied(u32),
 }
 
 
@@ -57,6 +53,7 @@ pub struct HashMap<'a> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     mask: usize,
+    num_bucket_power_of_2: usize,
     occupied: Vec<usize>,
 }
 
@@ -68,8 +65,7 @@ struct QuadraticProbing {
 }
 
 impl QuadraticProbing {
-    fn compute(key: &[u8], mask: usize) -> QuadraticProbing {
-        let hash = djb2(key) as usize;
+    fn compute(hash: usize, mask: usize) -> QuadraticProbing {
         QuadraticProbing {
             hash: hash,
             i: 0,
@@ -93,27 +89,30 @@ impl<'a> HashMap<'a> {
             table: table.into_boxed_slice(),
             heap: heap,
             mask: table_size - 1,
+            num_bucket_power_of_2: num_bucket_power_of_2,
             occupied: Vec::with_capacity(table_size / 2),
         }
     }
 
-    fn probe(&self, key: &[u8]) -> QuadraticProbing {
-        QuadraticProbing::compute(key, self.mask)
+    fn probe(&self, hash: u64) -> QuadraticProbing {
+        QuadraticProbing::compute(hash as usize, self.mask)
     }
 
     pub fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 10
+        self.table.len() < self.occupied.len() * 5
     }
 
+    #[inline(never)]
     fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
         self.heap.get_slice(bytes_ref)
     }
 
-    pub fn set_bucket(&mut self, key_bytes: &[u8], bucket: usize, addr: u32) -> u32 {
+    pub fn set_bucket(&mut self, masked_hash: u32, key_bytes: &[u8], bucket: usize, addr: u32) -> u32 {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
             key: self.heap.allocate_and_set(key_bytes),
             value_addr: addr,
+            masked_hash: masked_hash,
         };
         addr
     }
@@ -131,29 +130,28 @@ impl<'a> HashMap<'a> {
                  })
     }
 
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
-        let entry = self.lookup(key.as_ref());
-        match entry {
-            Entry::Occupied(addr) => self.heap.get_mut_ref(addr),
-            Entry::Vacant(bucket) => {
-                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
-                self.set_bucket(key.as_ref(), bucket, addr);
-                val
-            }
-        }
+
+    pub fn mask_hash(&self, hash: u64) -> u32 {
+        (hash >> self.num_bucket_power_of_2) as u32
     }
 
-    pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let key_bytes: &[u8] = key.as_ref();
-        let mut probe = self.probe(key_bytes);
+        let hash = djb2(key.as_ref());
+        let masked_hash = self.mask_hash(hash);
+        let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
-                return Entry::Vacant(bucket);
+                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
+                self.set_bucket(masked_hash, key.as_ref(), bucket, addr);
+                return val
             }
-            if self.get_key(kv.key) == key_bytes {
-                return Entry::Occupied(kv.value_addr);
+            if kv.masked_hash == masked_hash {
+                if self.get_key(kv.key) == key_bytes {
+                    return self.heap.get_mut_ref(kv.value_addr);
+                }
             }
         }
     }
