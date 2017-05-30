@@ -2,8 +2,8 @@ use common::BinarySerializable;
 use directory::WritePtr;
 use schema::Field;
 use common::bitpacker::{compute_num_bits, BitPacker};
+use common::CountingWriter;
 use std::io::{self, Write, Seek, SeekFrom};
-
 
 /// `FastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
@@ -26,8 +26,7 @@ use std::io::{self, Write, Seek, SeekFrom};
 /// * `close_field()`
 /// * `close()`
 pub struct FastFieldSerializer {
-    write: WritePtr,
-    written_size: usize,
+    write: CountingWriter<WritePtr>,
     fields: Vec<(Field, u32)>,
     min_value: u64,
     field_open: bool,
@@ -37,12 +36,12 @@ pub struct FastFieldSerializer {
 
 impl FastFieldSerializer {
     /// Constructor
-    pub fn new(mut write: WritePtr) -> io::Result<FastFieldSerializer> {
+    pub fn new(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
-        let written_size: usize = try!(0u32.serialize(&mut write));
+        let mut counting_writer = CountingWriter::wrap(write);
+        0u32.serialize(&mut counting_writer)?;
         Ok(FastFieldSerializer {
-               write: write,
-               written_size: written_size,
+               write: counting_writer,
                fields: Vec::new(),
                min_value: 0,
                field_open: false,
@@ -61,11 +60,11 @@ impl FastFieldSerializer {
         }
         self.min_value = min_value;
         self.field_open = true;
-        self.fields.push((field, self.written_size as u32));
-        let write: &mut Write = &mut self.write;
-        self.written_size += try!(min_value.serialize(write));
+        self.fields.push((field, self.write.written_bytes() as u32));
+        let write = &mut self.write;
+        min_value.serialize(write)?;
         let amplitude = max_value - min_value;
-        self.written_size += try!(amplitude.serialize(write));
+        amplitude.serialize(write)?;
         let num_bits = compute_num_bits(amplitude);
         self.bit_packer = BitPacker::new(num_bits as usize);
         Ok(())
@@ -88,7 +87,7 @@ impl FastFieldSerializer {
         // adding some padding to make sure we
         // can read the last elements with our u64
         // cursor
-        self.written_size += self.bit_packer.close(&mut self.write)?;
+        self.bit_packer.close(&mut self.write)?;
         Ok(())
     }
 
@@ -96,15 +95,16 @@ impl FastFieldSerializer {
     /// Closes the serializer
     ///
     /// After this call the data must be persistently save on disk.
-    pub fn close(mut self) -> io::Result<usize> {
+    pub fn close(self) -> io::Result<usize> {
         if self.field_open {
             return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
         }
-        let header_offset: usize = self.written_size;
-        self.written_size += try!(self.fields.serialize(&mut self.write));
-        try!(self.write.seek(SeekFrom::Start(0)));
-        try!((header_offset as u32).serialize(&mut self.write));
-        try!(self.write.flush());
-        Ok(self.written_size)
+        let header_offset: usize = self.write.written_bytes() as usize;
+        let (mut write, written_size) = self.write.finish()?;
+        self.fields.serialize(&mut write)?;
+        write.seek(SeekFrom::Start(0))?;
+        (header_offset as u32).serialize(&mut write)?;
+        write.flush()?;
+        Ok(written_size)
     }
 }

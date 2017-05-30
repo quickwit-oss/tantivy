@@ -24,10 +24,12 @@ pub struct TermInfo {
 
 
 impl BinarySerializable for TermInfo {
-    fn serialize(&self, writer: &mut io::Write) -> io::Result<usize> {
-        Ok(try!(self.doc_freq.serialize(writer)) + try!(self.postings_offset.serialize(writer)) +
-           try!(self.positions_offset.serialize(writer)))
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.doc_freq.serialize(writer)?;
+        self.postings_offset.serialize(writer)?;
+        self.positions_offset.serialize(writer)
     }
+
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let doc_freq = try!(u32::deserialize(reader));
         let postings_offset = try!(u32::deserialize(reader));
