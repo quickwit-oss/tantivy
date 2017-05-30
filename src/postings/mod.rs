@@ -383,6 +383,14 @@ mod tests {
             let field = Field(0);
             Term::from_field_text(field, "b")
         };
+        static ref TERM_C: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "c")
+        };
+        static ref TERM_D: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "d")
+        };
         static ref INDEX: Index = {
             let mut schema_builder = SchemaBuilder::default();
             let text_field = schema_builder.add_text_field("text", STRING);
@@ -402,6 +410,12 @@ mod tests {
                     }
                     if rng.gen_weighted_bool(10) {
                         doc.add_text(text_field, "b");
+                    }
+                    if rng.gen_weighted_bool(5) {
+                        doc.add_text(text_field, "c");
+                    }
+                    if rng.gen_weighted_bool(1) {
+                        doc.add_text(text_field, "d");
                     }
                     index_writer.add_document(doc);
                 }
@@ -436,8 +450,16 @@ mod tests {
             let segment_postings_b = segment_reader
                 .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
                 .unwrap();
+            let segment_postings_c = segment_reader
+                .read_postings(&*TERM_C, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let segment_postings_d = segment_reader
+                .read_postings(&*TERM_D, SegmentPostingsOption::NoFreq)
+                .unwrap();
             let mut intersection = IntersectionDocSet::from(vec![segment_postings_a,
-                                                                 segment_postings_b]);
+                                                                 segment_postings_b,
+                                                                 segment_postings_c,
+                                                                 segment_postings_d]);
             while intersection.advance() {}
         });
     }
