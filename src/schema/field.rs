@@ -18,7 +18,7 @@ impl BinarySerializable for Field {
         self.0.serialize(writer)
     }
 
-    fn deserialize(reader: &mut Read) -> io::Result<Field> {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Field> {
         u32::deserialize(reader).map(Field)
     }
 }

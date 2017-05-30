@@ -148,7 +148,7 @@ mod binary_serialize {
             }
             Ok(written_size)
         }
-        fn deserialize(reader: &mut Read) -> io::Result<Self> {
+        fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
             let type_code = try!(u8::deserialize(reader));
             match type_code {
                 TEXT_CODE => {

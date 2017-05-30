@@ -28,7 +28,7 @@ impl BinarySerializable for TermInfo {
         Ok(try!(self.doc_freq.serialize(writer)) + try!(self.postings_offset.serialize(writer)) +
            try!(self.positions_offset.serialize(writer)))
     }
-    fn deserialize(reader: &mut io::Read) -> io::Result<Self> {
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let doc_freq = try!(u32::deserialize(reader));
         let postings_offset = try!(u32::deserialize(reader));
         let positions_offset = try!(u32::deserialize(reader));
