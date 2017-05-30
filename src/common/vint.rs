@@ -36,7 +36,7 @@ impl BinarySerializable for VInt {
         Ok(written)
     }
 
-    fn deserialize(reader: &mut Read) -> io::Result<Self> {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = reader.bytes();
         let mut result = 0u64;
         let mut shift = 0u64;
