@@ -29,7 +29,7 @@ use std::mem;
 use std::mem::swap;
 use std::thread::JoinHandle;
 use super::directory_lock::DirectoryLock;
-use super::operation::AddOperation;
+use super::operation::{AddOperation, AddOperations};
 use super::segment_updater::SegmentUpdater;
 use std::thread;
 
@@ -42,10 +42,10 @@ pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
-const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
+const PIPELINE_MAX_SIZE_IN_DOCS: usize = 100_000;
 
-type DocumentSender = chan::Sender<AddOperation>;
-type DocumentReceiver = chan::Receiver<AddOperation>;
+type DocumentSender = chan::Sender<AddOperations>;
+type DocumentReceiver = chan::Receiver<AddOperations>;
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -250,32 +250,34 @@ fn index_documents(heap: &mut Heap,
                    segment: Segment,
                    schema: &Schema,
                    generation: usize,
-                   document_iterator: &mut Iterator<Item = AddOperation>,
+                   document_iterator: &mut Iterator<Item=AddOperations>,
                    segment_updater: &mut SegmentUpdater,
                    mut delete_cursor: DeleteCursor)
                    -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), schema)?;
-    for doc in document_iterator {
-        try!(segment_writer.add_document(&doc, schema));
-        // There is two possible conditions to close the segment.
-        // One is the memory arena dedicated to the segment is
-        // getting full.
-        if segment_writer.is_buffer_full() {
-            info!("Buffer limit reached, flushing segment with maxdoc={}.",
-                  segment_writer.max_doc());
-            break;
-        }
-        // The second is the term dictionary hash table
-        // is reaching saturation.
-        //
-        // Tantivy does not resize its hashtable. When it reaches
-        // capacity, we just stop indexing new document.
-        if segment_writer.is_term_saturated() {
-            info!("Term dic saturated, flushing segment with maxdoc={}.",
-                  segment_writer.max_doc());
-            break;
+    for docs in document_iterator {
+        for doc in docs {
+            try!(segment_writer.add_document(&doc, schema));
+            // There is two possible conditions to close the segment.
+            // One is the memory arena dedicated to the segment is
+            // getting full.
+            if segment_writer.is_buffer_full() {
+                info!("Buffer limit reached, flushing segment with maxdoc={}.",
+                    segment_writer.max_doc());
+                break;
+            }
+            // The second is the term dictionary hash table
+            // is reaching saturation.
+            //
+            // Tantivy does not resize its hashtable. When it reaches
+            // capacity, we just stop indexing new document.
+            if segment_writer.is_term_saturated() {
+                info!("Term dic saturated, flushing segment with maxdoc={}.",
+                    segment_writer.max_doc());
+                break;
+            }
         }
     }
     let num_docs = segment_writer.max_doc();
@@ -375,9 +377,7 @@ impl IndexWriter {
 
                 loop {
 
-                    let mut document_iterator =
-                        document_receiver_clone.clone().into_iter().peekable();
-
+                    let mut document_iterator = document_receiver_clone.clone().into_iter().peekable();
                     // the peeking here is to avoid
                     // creating a new segment's files
                     // if no document are available.
@@ -386,7 +386,7 @@ impl IndexWriter {
                     // peeked document now belongs to
                     // our local iterator.
                     if let Some(operation) = document_iterator.peek() {
-                        delete_cursor.skip_to(operation.opstamp);
+                        delete_cursor.skip_to(operation.first_opstamp());
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
@@ -583,10 +583,34 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation {
-            opstamp: opstamp,
+            opstamp: opstamp,   
             document: document,
         };
-        self.document_sender.send(add_operation);
+        self.document_sender.send(AddOperations::from(add_operation));
+        opstamp
+    }
+
+    /// Adds documents.
+    ///
+    /// If the indexing pipeline is full, this call may block.
+    ///
+    /// The opstamp is an increasing `u64` that can
+    /// be used by the client to align commits with its own
+    /// document queue.
+    ///
+    /// Currently it represents the number of documents that
+    /// have been added since the creation of the index.
+    pub fn add_documents(&mut self, documents: Vec<Document>) -> u64 {
+        let mut ops = Vec::with_capacity(documents.len());
+        let mut opstamp =  0u64;
+        for doc in documents {
+            opstamp = self.stamper.stamp();
+            ops.push(AddOperation {
+                opstamp: opstamp,
+                document: doc,
+            });
+        }
+        self.document_sender.send(AddOperations::from(ops));
         opstamp
     }
 }

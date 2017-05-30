@@ -63,6 +63,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate owning_ref;
 extern crate stable_deref_trait;
+extern crate murmurhash64;
 
 #[cfg(test)]
 extern crate env_logger;

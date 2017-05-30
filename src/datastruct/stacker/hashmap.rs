@@ -1,14 +1,13 @@
 use std::iter;
 use super::heap::{Heap, HeapAllocable, BytesRef};
+use murmurhash64::murmur_hash64a;
 
-/// dbj2 hash function
-fn djb2(key: &[u8]) -> u64 {
-    let mut state: u64 = 5381;
-    for &b in key {
-        state = (state << 5).wrapping_add(state).wrapping_add(b as u64);
-    }
-    state
+const SEED: u64 = 2915580697u64;
+
+fn hash(key: &[u8]) -> u64 {
+    murmur_hash64a(key, SEED)
 }
+
 
 impl Default for BytesRef {
     fn default() -> BytesRef {
@@ -99,7 +98,7 @@ impl<'a> HashMap<'a> {
     }
 
     pub fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 5
+        self.table.len() < self.occupied.len() * 3
     }
 
     #[inline(never)]
@@ -137,7 +136,7 @@ impl<'a> HashMap<'a> {
 
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let key_bytes: &[u8] = key.as_ref();
-        let hash = djb2(key.as_ref());
+        let hash = hash(key.as_ref());
         let masked_hash = self.mask_hash(hash);
         let mut probe = self.probe(hash);
         loop {
@@ -163,7 +162,6 @@ mod tests {
 
     use super::*;
     use super::super::heap::{Heap, HeapAllocable};
-    use super::djb2;
     use test::Bencher;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
@@ -218,20 +216,21 @@ mod tests {
         assert!(iter_values.next().is_none());
     }
 
-    #[bench]
-    fn bench_djb2(bench: &mut Bencher) {
-        let v = String::from("abwer");
-        bench.iter(|| djb2(v.as_bytes()));
-    }
+    // #[bench]
+    // fn bench_djb2(bench: &mut Bencher) {
+    //     let v = String::from("abwer");
+    //     bench.iter(|| djb2(v.as_bytes()));
+    // }
 
-    #[bench]
-    fn bench_siphasher(bench: &mut Bencher) {
-        let v = String::from("abwer");
-        bench.iter(|| {
-                       let mut h = DefaultHasher::new();
-                       h.write(v.as_bytes());
-                       h.finish()
-                   });
-    }
+    // #[bench]
+    // fn bench_siphasher(bench: &mut Bencher) {
+    //     let v = String::from("abwer");
+    //     bench.iter(|| {
+    //                    let mut h = DefaultHasher::new();
+    //                    h.write(v.as_bytes());
+    //                    h.finish()
+    //                });
+    // }
+
 
 }
