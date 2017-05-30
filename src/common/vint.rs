@@ -16,10 +16,10 @@ impl VInt {
 }
 
 impl BinarySerializable for VInt {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let mut remaining = self.0;
-        let mut written: usize = 0;
         let mut buffer = [0u8; 10];
+        let mut written = 0;
         loop {
             let next_byte: u8 = (remaining % 128u64) as u8;
             remaining /= 128u64;
@@ -32,8 +32,7 @@ impl BinarySerializable for VInt {
                 written += 1;
             }
         }
-        try!(writer.write_all(&buffer[0..written]));
-        Ok(written)
+        writer.write_all(&buffer[0..written])
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {

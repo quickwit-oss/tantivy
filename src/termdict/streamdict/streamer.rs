@@ -4,7 +4,6 @@ use std::cmp::max;
 use common::BinarySerializable;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
-use std::io::Read;
 
 pub(crate) fn stream_before<'a, V>(term_dictionary: &'a TermDictionaryImpl<V>,
                                    target_key: &[u8])

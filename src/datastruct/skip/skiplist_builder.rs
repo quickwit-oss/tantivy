@@ -18,7 +18,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     }
 
     fn write(&self, output: &mut Write) -> Result<(), io::Error> {
-        try!(output.write_all(&self.buffer));
+        output.write_all(&self.buffer)?;
         Ok(())
     }
 
@@ -36,8 +36,8 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u32;
-        try!(doc_id.serialize(&mut self.buffer));
-        try!(value.serialize(&mut self.buffer));
+        doc_id.serialize(&mut self.buffer)?;
+        value.serialize(&mut self.buffer)?;
         Ok(if self.remaining == 0 {
                self.remaining = self.period;
                Some((doc_id, offset))
@@ -89,7 +89,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         }
     }
 
-    pub fn write<W: Write>(self, output: &mut Write) -> io::Result<()> {
+    pub fn write<W: Write>(self, output: &mut W) -> io::Result<()> {
         let mut size: u32 = 0;
         let mut layer_sizes: Vec<u32> = Vec::new();
         size += self.data_layer.buffer.len() as u32;
@@ -98,10 +98,10 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
             size += layer.buffer.len() as u32;
             layer_sizes.push(size);
         }
-        try!(layer_sizes.serialize(output));
-        try!(self.data_layer.write(output));
+        layer_sizes.serialize(output)?;
+        self.data_layer.write(output)?;
         for layer in self.skip_layers.iter().rev() {
-            try!(layer.write(output));
+            layer.write(output)?;
         }
         Ok(())
     }

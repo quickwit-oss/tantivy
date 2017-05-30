@@ -130,23 +130,21 @@ mod binary_serialize {
     const I64_CODE: u8 = 2;
 
     impl BinarySerializable for Value {
-        fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
-            let mut written_size = 0;
+        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
             match *self {
                 Value::Str(ref text) => {
-                    written_size += try!(TEXT_CODE.serialize(writer));
-                    written_size += try!(text.serialize(writer));
+                    TEXT_CODE.serialize(writer)?;
+                    text.serialize(writer)
                 }
                 Value::U64(ref val) => {
-                    written_size += try!(U64_CODE.serialize(writer));
-                    written_size += try!(val.serialize(writer));
+                    U64_CODE.serialize(writer)?;
+                    val.serialize(writer)
                 }
                 Value::I64(ref val) => {
-                    written_size += try!(I64_CODE.serialize(writer));
-                    written_size += try!(val.serialize(writer));
+                    I64_CODE.serialize(writer)?;
+                    val.serialize(writer)
                 }
             }
-            Ok(written_size)
         }
         fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
             let type_code = try!(u8::deserialize(reader));
