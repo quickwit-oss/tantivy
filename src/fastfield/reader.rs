@@ -128,14 +128,18 @@ impl From<Vec<u64>> for U64FastFieldReader {
         }
         directory
             .open_read(path)
-                .chain_err(|| "Failed to open the file")
-            .and_then(|source| FastFieldsReader::from_source(source)
-                .chain_err(|| "Failed to read the file."))
-            .and_then(|ff_readers| ff_readers
-                .open_reader(field)
-                .ok_or_else(|| {"Failed to find the requested field".into() }))
+            .chain_err(|| "Failed to open the file")
+            .and_then(|source| {
+                          FastFieldsReader::from_source(source)
+                              .chain_err(|| "Failed to read the file.")
+                      })
+            .and_then(|ff_readers| {
+                          ff_readers
+                              .open_reader(field)
+                              .ok_or_else(|| "Failed to find the requested field".into())
+                      })
             .expect("This should never happen, please report.")
-            
+
     }
 }
 
