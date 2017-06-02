@@ -65,6 +65,10 @@ pub trait DocSet {
             None
         }
     }
+
+    /// Returns a best-effort hint of the
+    /// length of the docset.
+    fn size_hint(&self) -> usize;
 }
 
 
@@ -83,6 +87,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         let unboxed: &TDocSet = self.borrow();
         unboxed.doc()
     }
+
+    fn size_hint(&self) -> usize {
+        let unboxed: &TDocSet = self.borrow();
+        unboxed.size_hint()
+    }
 }
 
 impl<'a, TDocSet: DocSet> DocSet for &'a mut TDocSet {
@@ -99,5 +108,10 @@ impl<'a, TDocSet: DocSet> DocSet for &'a mut TDocSet {
     fn doc(&self) -> DocId {
         let unref: &TDocSet = *self;
         unref.doc()
+    }
+
+    fn size_hint(&self) -> usize {
+        let unref: &TDocSet = *self;
+        unref.size_hint()
     }
 }

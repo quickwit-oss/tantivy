@@ -5,6 +5,7 @@ use common::BinarySerializable;
 use std::io::{self, Write};
 use lz4;
 use datastruct::SkipListBuilder;
+use common::CountingWriter;
 
 const BLOCK_SIZE: usize = 16_384;
 
@@ -19,9 +20,8 @@ const BLOCK_SIZE: usize = 16_384;
 ///
 pub struct StoreWriter {
     doc: DocId,
-    written: u64,
     offset_index_writer: SkipListBuilder<u64>,
-    writer: WritePtr,
+    writer: CountingWriter<WritePtr>,
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
@@ -35,9 +35,8 @@ impl StoreWriter {
     pub fn new(writer: WritePtr) -> StoreWriter {
         StoreWriter {
             doc: 0,
-            written: 0,
             offset_index_writer: SkipListBuilder::new(3),
-            writer: writer,
+            writer: CountingWriter::wrap(writer),
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
         }
@@ -54,11 +53,12 @@ impl StoreWriter {
         for field_value in field_values {
             try!((*field_value).serialize(&mut self.intermediary_buffer));
         }
-        try!((self.intermediary_buffer.len() as u32).serialize(&mut self.current_block));
-        try!(self.current_block.write_all(&self.intermediary_buffer[..]));
+        (self.intermediary_buffer.len() as u32)
+            .serialize(&mut self.current_block)?;
+        self.current_block.write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
-            try!(self.write_and_compress_block());
+            self.write_and_compress_block()?;
         }
         Ok(())
     }
@@ -71,11 +71,11 @@ impl StoreWriter {
             let (_, encoder_result) = encoder.finish();
             try!(encoder_result);
         }
-        let compressed_block_size = self.intermediary_buffer.len() as u64;
-        self.written += try!((compressed_block_size as u32).serialize(&mut self.writer)) as u64;
-        try!(self.writer.write_all(&self.intermediary_buffer));
-        self.written += compressed_block_size;
-        try!(self.offset_index_writer.insert(self.doc, &self.written));
+        (self.intermediary_buffer.len() as u32)
+            .serialize(&mut self.writer)?;
+        self.writer.write_all(&self.intermediary_buffer)?;
+        self.offset_index_writer
+            .insert(self.doc, &(self.writer.written_bytes() as u64))?;
         self.current_block.clear();
         Ok(())
     }
@@ -89,9 +89,9 @@ impl StoreWriter {
         if !self.current_block.is_empty() {
             try!(self.write_and_compress_block());
         }
-        let header_offset: u64 = self.written;
+        let header_offset: u64 = self.writer.written_bytes() as u64;
         try!(self.offset_index_writer
-                 .write::<Box<Write>>(&mut self.writer));
+                 .write(&mut self.writer));
         try!(header_offset.serialize(&mut self.writer));
         try!(self.doc.serialize(&mut self.writer));
         self.writer.flush()

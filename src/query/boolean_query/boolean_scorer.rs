@@ -93,6 +93,18 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
 }
 
 impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
+    fn size_hint(&self) -> usize {
+        // TODO fix this. it should be the min
+        // of the MUST scorer
+        // and the max of the SHOULD scorers.
+        self.scorers
+            .iter()
+            .map(|scorer| scorer.size_hint())
+            .max()
+            .unwrap()
+    }
+
+
     fn advance(&mut self) -> bool {
         loop {
             self.score_combiner.clear();

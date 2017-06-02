@@ -67,6 +67,10 @@ impl<'a> DocSet for PhraseScorer<'a> {
     fn doc(&self) -> DocId {
         self.intersection_docset.doc()
     }
+
+    fn size_hint(&self) -> usize {
+        self.intersection_docset.size_hint()
+    }
 }
 
 

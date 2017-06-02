@@ -373,29 +373,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_intersection() {
-        {
-            let left = VecPostings::from(vec![1, 3, 9]);
-            let right = VecPostings::from(vec![3, 4, 9, 18]);
-            let mut intersection = IntersectionDocSet::from(vec![left, right]);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 3);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
-        }
-        {
-            let a = VecPostings::from(vec![1, 3, 9]);
-            let b = VecPostings::from(vec![3, 4, 9, 18]);
-            let c = VecPostings::from(vec![1, 5, 9, 111]);
-            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
-            assert!(intersection.advance());
-            assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
-        }
-    }
-
 
     lazy_static! {
         static ref TERM_A: Term = {
@@ -406,6 +383,14 @@ mod tests {
             let field = Field(0);
             Term::from_field_text(field, "b")
         };
+        static ref TERM_C: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "c")
+        };
+        static ref TERM_D: Term = {
+            let field = Field(0);
+            Term::from_field_text(field, "d")
+        };
         static ref INDEX: Index = {
             let mut schema_builder = SchemaBuilder::default();
             let text_field = schema_builder.add_text_field("text", STRING);
@@ -415,24 +400,22 @@ mod tests {
             let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
 
             let index = Index::create_in_ram(schema);
-            let mut count_a = 0;
-            let mut count_b = 0;
-            let posting_list_size = 100_000;
+            let posting_list_size = 1_000_000;
             {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-                for _ in 0 .. {
-                    if count_a >= posting_list_size &&
-                       count_b >= posting_list_size {
-                        break;
-                    }
+                for _ in 0 .. posting_list_size {
                     let mut doc = Document::default();
-                    if count_a < posting_list_size &&  rng.gen_weighted_bool(15) {
-                        count_a += 1;
+                    if rng.gen_weighted_bool(15) {
                         doc.add_text(text_field, "a");
                     }
-                    if count_b < posting_list_size && rng.gen_weighted_bool(10) {
-                        count_b += 1;
+                    if rng.gen_weighted_bool(10) {
                         doc.add_text(text_field, "b");
+                    }
+                    if rng.gen_weighted_bool(5) {
+                        doc.add_text(text_field, "c");
+                    }
+                    if rng.gen_weighted_bool(1) {
+                        doc.add_text(text_field, "d");
                     }
                     index_writer.add_document(doc);
                 }
@@ -467,8 +450,16 @@ mod tests {
             let segment_postings_b = segment_reader
                 .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
                 .unwrap();
+            let segment_postings_c = segment_reader
+                .read_postings(&*TERM_C, SegmentPostingsOption::NoFreq)
+                .unwrap();
+            let segment_postings_d = segment_reader
+                .read_postings(&*TERM_D, SegmentPostingsOption::NoFreq)
+                .unwrap();
             let mut intersection = IntersectionDocSet::from(vec![segment_postings_a,
-                                                                 segment_postings_b]);
+                                                                 segment_postings_b,
+                                                                 segment_postings_c,
+                                                                 segment_postings_d]);
             while intersection.advance() {}
         });
     }

@@ -12,6 +12,7 @@ use fastfield::FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
+use error::ResultExt;
 use common;
 use owning_ref::OwningRef;
 
@@ -125,9 +126,20 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(path).unwrap();
-        let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
-        fast_field_readers.open_reader(field).unwrap()
+        directory
+            .open_read(path)
+            .chain_err(|| "Failed to open the file")
+            .and_then(|source| {
+                          FastFieldsReader::from_source(source)
+                              .chain_err(|| "Failed to read the file.")
+                      })
+            .and_then(|ff_readers| {
+                          ff_readers
+                              .open_reader(field)
+                              .ok_or_else(|| "Failed to find the requested field".into())
+                      })
+            .expect("This should never happen, please report.")
+
     }
 }
 

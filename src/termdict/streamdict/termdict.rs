@@ -7,7 +7,7 @@ use common::VInt;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use std::marker::PhantomData;
-use super::CountingWriter;
+use common::CountingWriter;
 use std::cmp::Ordering;
 use postings::TermInfo;
 use fst::raw::Node;

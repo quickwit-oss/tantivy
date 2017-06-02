@@ -10,12 +10,11 @@ use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
 use DocId;
 use core::Segment;
-use std::io;
-use core::SegmentComponent;
-use std::io::Write;
+use std::io::{self, Write};
 use compression::VIntEncoder;
 use common::VInt;
 use common::BinarySerializable;
+use common::CountingWriter;
 use termdict::TermDictionaryBuilder;
 
 
@@ -52,10 +51,8 @@ use termdict::TermDictionaryBuilder;
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct PostingsSerializer {
     terms_fst_builder: TermDictionaryBuilderImpl<WritePtr, TermInfo>,
-    postings_write: WritePtr,
-    positions_write: WritePtr,
-    written_bytes_postings: usize,
-    written_bytes_positions: usize,
+    postings_write: CountingWriter<WritePtr>,
+    positions_write: CountingWriter<WritePtr>,
     last_doc_id_encoded: u32,
     positions_encoder: CompositeEncoder,
     block_encoder: BlockEncoder,
@@ -78,10 +75,8 @@ impl PostingsSerializer {
         let terms_fst_builder = try!(TermDictionaryBuilderImpl::new(terms_write));
         Ok(PostingsSerializer {
                terms_fst_builder: terms_fst_builder,
-               postings_write: postings_write,
-               positions_write: positions_write,
-               written_bytes_postings: 0,
-               written_bytes_positions: 0,
+               postings_write: CountingWriter::wrap(postings_write),
+               positions_write: CountingWriter::wrap(positions_write),
                last_doc_id_encoded: 0u32,
                positions_encoder: CompositeEncoder::new(),
                block_encoder: BlockEncoder::new(),
@@ -98,12 +93,10 @@ impl PostingsSerializer {
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
-        let terms_write = try!(segment.open_write(SegmentComponent::TERMS));
-        let postings_write = try!(segment.open_write(SegmentComponent::POSTINGS));
-        let positions_write = try!(segment.open_write(SegmentComponent::POSITIONS));
-        PostingsSerializer::new(terms_write,
-                                postings_write,
-                                positions_write,
+        use SegmentComponent::{TERMS, POSTINGS, POSITIONS};
+        PostingsSerializer::new(segment.open_write(TERMS)?,
+                                segment.open_write(POSTINGS)?,
+                                segment.open_write(POSITIONS)?,
                                 segment.schema())
     }
 
@@ -141,8 +134,8 @@ impl PostingsSerializer {
         self.position_deltas.clear();
         self.current_term_info = TermInfo {
             doc_freq: 0,
-            postings_offset: self.written_bytes_postings as u32,
-            positions_offset: self.written_bytes_positions as u32,
+            postings_offset: self.postings_write.written_bytes() as u32,
+            positions_offset: self.positions_write.written_bytes() as u32,
         };
         self.terms_fst_builder.insert_key(term)
     }
@@ -168,8 +161,7 @@ impl PostingsSerializer {
                     let block_encoded =
                         self.block_encoder
                             .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
-                    self.written_bytes_postings += block_encoded.len();
-                    try!(self.postings_write.write_all(block_encoded));
+                    self.postings_write.write_all(block_encoded)?;
                     self.doc_ids.clear();
                 }
                 // ... Idem for term frequencies
@@ -177,8 +169,7 @@ impl PostingsSerializer {
                     let block_encoded = self.block_encoder
                         .compress_vint_unsorted(&self.term_freqs[..]);
                     for num in block_encoded {
-                        self.written_bytes_postings +=
-                            try!(num.serialize(&mut self.postings_write));
+                        num.serialize(&mut self.postings_write)?;
                     }
                     self.term_freqs.clear();
                 }
@@ -186,13 +177,11 @@ impl PostingsSerializer {
             // On the other hand, positions are entirely buffered until the
             // end of the term, at which point they are compressed and written.
             if self.text_indexing_options.is_position_enabled() {
-                self.written_bytes_positions +=
-                    try!(VInt(self.position_deltas.len() as u64)
-                                                         .serialize(&mut self.positions_write));
+                let posdelta_len = VInt(self.position_deltas.len() as u64);
+                posdelta_len.serialize(&mut self.positions_write)?;
                 let positions_encoded: &[u8] = self.positions_encoder
                     .compress_unsorted(&self.position_deltas[..]);
-                try!(self.positions_write.write_all(positions_encoded));
-                self.written_bytes_positions += positions_encoded.len();
+                self.positions_write.write_all(positions_encoded)?;
                 self.position_deltas.clear();
             }
             self.term_open = false;
@@ -230,15 +219,13 @@ impl PostingsSerializer {
                     self.block_encoder
                         .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
-                try!(self.postings_write.write_all(block_encoded));
-                self.written_bytes_postings += block_encoded.len();
+                self.postings_write.write_all(block_encoded)?;
             }
             if self.text_indexing_options.is_termfreq_enabled() {
                 // encode the term_freqs
                 let block_encoded: &[u8] = self.block_encoder
                     .compress_block_unsorted(&self.term_freqs);
-                try!(self.postings_write.write_all(block_encoded));
-                self.written_bytes_postings += block_encoded.len();
+                self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();
             }
             self.doc_ids.clear();
