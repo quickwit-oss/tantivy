@@ -463,7 +463,6 @@ mod tests {
                 assert_eq!(mmap_directory.get_cache_info().mmapped.len(), i + 1);
             }
             let cache_info = mmap_directory.get_cache_info();
-            println!("{:?}", cache_info);
             assert_eq!(cache_info.counters.miss_empty, 30);
             assert_eq!(cache_info.counters.miss_weak, 10);
             assert_eq!(cache_info.mmapped.len(), 10);

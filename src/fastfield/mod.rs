@@ -306,10 +306,6 @@ mod tests {
                 fast_field_readers.open_reader(*FIELD).unwrap();
             let mut a = 0u64;
             for _ in 0..n {
-                println!("i {}=> {} {}",
-                         a,
-                         fast_field_reader.get(a as u32),
-                         permutation[a as usize]);
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
                 a = fast_field_reader.get(a as u32);
             }
