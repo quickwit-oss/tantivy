@@ -88,7 +88,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .cloned()
             .map(|(key, _)| Term::wrap(key).field())
             .enumerate();
-
+        
         let mut prev_field = Field(u32::max_value());
         for (offset, field) in term_offsets_it {
             if field != prev_field {
@@ -215,6 +215,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
                 position: u32,
                 term: &Term,
                 heap: &Heap) {
+        debug_assert!(term.as_slice().len() >= 4);
         let recorder: &mut Rec = term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
         if current_doc != doc {

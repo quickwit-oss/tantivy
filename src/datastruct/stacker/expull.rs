@@ -13,7 +13,7 @@ pub fn jump_needed(val: u32) -> bool {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpUnrolledLinkedList {
     len: u32,
     end: u32,
@@ -51,6 +51,12 @@ impl ExpUnrolledLinkedList {
     }
 }
 
+
+impl HeapAllocable for u32 {
+    fn with_addr(_addr: u32) -> u32 {
+        0u32
+    }
+}
 
 impl HeapAllocable for ExpUnrolledLinkedList {
     fn with_addr(addr: u32) -> ExpUnrolledLinkedList {

@@ -123,8 +123,9 @@ impl<Data> BitUnpacker<Data>
         let bit_shift = addr_in_bits & 7;
         debug_assert!(addr + 8 <= data.len(),
                       "The fast field field should have been padded with 7 bytes.");
-        let val_unshifted_unmasked: u64 =
-            unsafe { *(data.as_ptr().offset(addr as isize) as *const u64) };
+        let val_unshifted_unmasked: u64 = unsafe {
+            *(data[addr..].as_ptr() as *const u64)
+        };
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & mask)
     }
