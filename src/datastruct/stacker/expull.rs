@@ -33,7 +33,7 @@ impl ExpUnrolledLinkedList {
         }
     }
 
-    pub fn push(&mut self, val: u32, heap: &Heap) {
+    pub fn push(&mut self, self_addr: u32, val: u32, heap: &Heap) {
         self.len += 1;
         if jump_needed(self.len) {
             // we need to allocate another block.
@@ -42,12 +42,16 @@ impl ExpUnrolledLinkedList {
             // and we need to add 1u32 to store the pointer
             // to the next element.
             let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>();
+            let previous_end = self.end;
             let new_block_addr: u32 = heap.allocate_space(new_block_size);
-            heap.set(self.end, &new_block_addr);
-            self.end = new_block_addr;
+            heap.set(previous_end, &new_block_addr);
+            heap.set(new_block_addr, &val);
+            let new_self: &mut ExpUnrolledLinkedList = heap.get_mut_ref(self_addr);
+            new_self.end = new_block_addr + mem::size_of::<u32>() as u32;
+        } else {
+            heap.set(self.end, &val);
+            self.end += mem::size_of::<u32>() as u32;
         }
-        heap.set(self.end, &val);
-        self.end += mem::size_of::<u32>() as u32;
     }
 }
 

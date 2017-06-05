@@ -88,7 +88,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .cloned()
             .map(|(key, _)| Term::wrap(key).field())
             .enumerate();
-        
+
         let mut prev_field = Field(u32::max_value());
         for (offset, field) in term_offsets_it {
             if field != prev_field {
