@@ -1,13 +1,56 @@
 use std::iter;
 use super::heap::{Heap, HeapAllocable, BytesRef};
 
-/// dbj2 hash function
-fn djb2(key: &[u8]) -> u64 {
-    let mut state: u64 = 5381;
-    for &b in key {
-        state = (state << 5).wrapping_add(state).wrapping_add(b as u64);
+
+
+mod murmurhash2 {
+
+    const SEED: u32 = 3_242_157_231u32;
+
+    #[inline(always)]
+    pub fn murmurhash2(key: &[u8]) -> u32 {
+        let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
+        let m: u32 = 0x5bd1e995;
+        let r = 24;
+        let len = key.len() as u32;
+
+        let mut h: u32 = SEED ^ len;
+        let num_blocks = len >> 2;
+        for _ in 0..num_blocks {
+            let mut k: u32 = unsafe { *key_ptr };
+            k = k.wrapping_mul(m);
+            k ^= k >> r;
+            k = k.wrapping_mul(m);
+            k = k.wrapping_mul(m);
+            h ^= k;
+            key_ptr = key_ptr.wrapping_offset(1);
+        }
+
+        // Handle the last few bytes of the input array
+        let remaining = len & 3;
+        let key_ptr_u8: *const u8 = key_ptr as *const u8;
+        match remaining {
+            3 => {
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(2) as u32 } << 16;
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
+                h ^= unsafe { *key_ptr_u8 as u32 };
+                h = h.wrapping_mul(m);
+            }
+            2 => {
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
+                h ^= unsafe { *key_ptr_u8 as u32 };
+                h = h.wrapping_mul(m);
+            }
+            1 => {
+                h ^= unsafe { *key_ptr_u8 as u32 };
+                h = h.wrapping_mul(m);
+            }
+            _ => {}
+        }
+        h ^= h >> 13;
+        h = h.wrapping_mul(m);
+        h ^ (h >> 15)
     }
-    state
 }
 
 impl Default for BytesRef {
@@ -69,7 +112,7 @@ struct QuadraticProbing {
 
 impl QuadraticProbing {
     fn compute(key: &[u8], mask: usize) -> QuadraticProbing {
-        let hash = djb2(key) as usize;
+        let hash = murmurhash2::murmurhash2(key) as usize;
         QuadraticProbing {
             hash: hash,
             i: 0,
@@ -165,8 +208,9 @@ mod tests {
 
     use super::*;
     use super::super::heap::{Heap, HeapAllocable};
-    use super::djb2;
+    use super::murmurhash2::murmurhash2;
     use test::Bencher;
+    use std::collections::HashSet;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
 
@@ -220,10 +264,39 @@ mod tests {
         assert!(iter_values.next().is_none());
     }
 
+    #[test]
+    fn test_murmur() {
+        let s1 = "abcdef";
+        let s2 = "abcdeg";
+        for i in 0..5 {
+            assert_eq!(murmurhash2(&s1[i..5].as_bytes()),
+                       murmurhash2(&s2[i..5].as_bytes()));
+        }
+    }
+
+    #[test]
+    fn test_murmur_collisions() {
+        let mut set: HashSet<u32> = HashSet::default();
+        for i in 0..10_000 {
+            let s = format!("hash{}", i);
+            let hash = murmurhash2(s.as_bytes());
+            set.insert(hash);
+        }
+        assert_eq!(set.len(), 10_000);
+    }
+
     #[bench]
-    fn bench_djb2(bench: &mut Bencher) {
-        let v = String::from("abwer");
-        bench.iter(|| djb2(v.as_bytes()));
+    fn bench_murmurhash_2(b: &mut Bencher) {
+        let keys: Vec<&'static str> =
+            vec!["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
+        b.iter(|| {
+                   keys.iter()
+                       .map(|&s| s.as_bytes())
+                       .map(murmurhash2::murmurhash2)
+                       .map(|h| h as u64)
+                       .last()
+                       .unwrap()
+               });
     }
 
     #[bench]
