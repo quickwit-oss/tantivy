@@ -1,84 +1,54 @@
 extern crate regex;
 
-use std::str::Chars;
-use std::ascii::AsciiExt;
+mod analyzer;
+mod simple_tokenizer;
+mod lower_caser;
+mod remove_long;
+mod stemmer;
 
-pub struct TokenIter<'a> {
-    chars: Chars<'a>,
-    term_buffer: String,
+pub use self::analyzer::{Analyzer, Token, TokenFilterFactory, TokenStream};
+pub use self::simple_tokenizer::SimpleTokenizer;
+pub use self::remove_long::RemoveLongFilter;
+pub use self::lower_caser::LowerCaser;
+pub use self::stemmer::Stemmer;
+
+
+
+pub fn en_analyzer<'a>() -> impl Analyzer<'a> {
+    SimpleTokenizer
+        .filter(RemoveLongFilter::limit(20))
+        .filter(LowerCaser)
 }
 
-fn append_char_lowercase(c: char, term_buffer: &mut String) {
-    term_buffer.push(c.to_ascii_lowercase());
-}
+#[cfg(test)]
+mod test {
+    use super::{Analyzer, TokenStream, en_analyzer};
 
-pub trait StreamingIterator<'a, T> {
-    fn next(&'a mut self) -> Option<T>;
-}
-
-impl<'a, 'b> TokenIter<'b> {
-    fn consume_token(&'a mut self) -> Option<&'a str> {
-        for c in &mut self.chars {
-            if c.is_alphanumeric() {
-                append_char_lowercase(c, &mut self.term_buffer);
-            } else {
-                break;
-            }
-        }
-        Some(&self.term_buffer)
+    #[test]
+    fn test_tokenizer() {
+        let mut analyzer = en_analyzer();
+        let mut terms = analyzer.analyze("hello, happy tax payer!");
+        assert_eq!(terms.next().unwrap().term, "hello");
+        assert_eq!(terms.next().unwrap().term, "happy");
+        assert_eq!(terms.next().unwrap().term, "tax");
+        assert_eq!(terms.next().unwrap().term, "payer");
+        assert!(terms.next().is_none());
     }
-}
 
-
-impl<'a, 'b> StreamingIterator<'a, &'a str> for TokenIter<'b> {
-    #[inline]
-    fn next(&'a mut self) -> Option<&'a str> {
-        self.term_buffer.clear();
-        // skipping non-letter characters.
-        loop {
-            match self.chars.next() {
-                Some(c) => {
-                    if c.is_alphanumeric() {
-                        append_char_lowercase(c, &mut self.term_buffer);
-                        return self.consume_token();
-                    }
-                }
-                None => {
-                    return None;
-                }
-            }
-        }
+    #[test]
+    fn test_tokenizer_empty() {
+        let mut terms = en_analyzer().analyze("");
+        assert!(terms.next().is_none());
     }
-}
-
-pub struct SimpleTokenizer;
 
 
-impl SimpleTokenizer {
-    pub fn tokenize<'a>(&self, text: &'a str) -> TokenIter<'a> {
-        TokenIter {
-            term_buffer: String::new(),
-            chars: text.chars(),
-        }
+    #[test]
+    fn test_tokenizer_cjkchars() {
+        let mut terms = en_analyzer().analyze("hello,中国人民");
+        assert_eq!(terms.next().unwrap().term, "hello");
+        assert_eq!(terms.next().unwrap().term, "中国人民");
+        assert!(terms.next().is_none());
     }
+
 }
 
-
-#[test]
-fn test_tokenizer() {
-    let simple_tokenizer = SimpleTokenizer;
-    let mut term_reader = simple_tokenizer.tokenize("hello, happy tax payer!");
-    assert_eq!(term_reader.next().unwrap(), "hello");
-    assert_eq!(term_reader.next().unwrap(), "happy");
-    assert_eq!(term_reader.next().unwrap(), "tax");
-    assert_eq!(term_reader.next().unwrap(), "payer");
-    assert_eq!(term_reader.next(), None);
-}
-
-
-#[test]
-fn test_tokenizer_empty() {
-    let simple_tokenizer = SimpleTokenizer;
-    let mut term_reader = simple_tokenizer.tokenize("");
-    assert_eq!(term_reader.next(), None);
-}

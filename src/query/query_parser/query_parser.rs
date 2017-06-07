@@ -8,12 +8,11 @@ use query::Occur;
 use query::TermQuery;
 use postings::SegmentPostingsOption;
 use query::PhraseQuery;
-use analyzer::SimpleTokenizer;
-use analyzer::StreamingIterator;
+use analyzer::{SimpleTokenizer, TokenStream};
 use schema::{Term, FieldType};
 use std::str::FromStr;
 use std::num::ParseIntError;
-
+use analyzer::Analyzer;
 
 
 /// Possible error that may happen when parsing a query.
@@ -110,13 +109,13 @@ impl QueryParser {
     ///
     /// Implementing a lenient mode for this query parser is tracked
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
-    pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
+    pub fn parse_query(&mut self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
     }
 
     /// Parse the user query into an AST.
-    fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
+    fn parse_query_to_logical_ast(&mut self, query: &str) -> Result<LogicalAST, QueryParserError> {
         let (user_input_ast, _remaining) = parse_to_ast(query)
             .map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
@@ -128,7 +127,7 @@ impl QueryParser {
             .ok_or_else(|| QueryParserError::FieldDoesNotExist(String::from(field_name)))
     }
 
-    fn compute_logical_ast(&self,
+    fn compute_logical_ast(&mut self,
                            user_input_ast: UserInputAST)
                            -> Result<LogicalAST, QueryParserError> {
         let (occur, ast) = self.compute_logical_ast_with_occur(user_input_ast)?;
@@ -138,7 +137,7 @@ impl QueryParser {
         Ok(ast)
     }
 
-    fn compute_logical_ast_for_leaf(&self,
+    fn compute_logical_ast_for_leaf(&mut self,
                                     field: Field,
                                     phrase: &str)
                                     -> Result<Option<LogicalLiteral>, QueryParserError> {
@@ -163,9 +162,9 @@ impl QueryParser {
             FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
-                    let mut token_iter = self.analyzer.tokenize(phrase);
+                    let mut token_iter = self.analyzer.analyze(phrase);
                     while let Some(token) = token_iter.next() {
-                        let term = Term::from_field_text(field, token);
+                        let term = Term::from_field_text(field, &token.term);
                         terms.push(term);
                     }
                 } else {
@@ -191,7 +190,7 @@ impl QueryParser {
         }
     }
 
-    fn compute_logical_ast_with_occur(&self,
+    fn compute_logical_ast_with_occur(&mut self,
                                       user_input_ast: UserInputAST)
                                       -> Result<(Occur, LogicalAST), QueryParserError> {
         match user_input_ast {
@@ -341,15 +340,15 @@ mod test {
 
     #[test]
     pub fn test_parse_query_simple() {
-        let query_parser = make_query_parser();
+        let mut query_parser = make_query_parser();
         assert!(query_parser.parse_query("toto").is_ok());
     }
 
     #[test]
     pub fn test_parse_nonindexed_field_yields_error() {
-        let query_parser = make_query_parser();
+        let mut query_parser = make_query_parser();
 
-        let is_not_indexed_err = |query: &str| {
+        let mut is_not_indexed_err = |query: &str| {
             let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);
             if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
                 Some(field_name.clone())
@@ -377,7 +376,7 @@ mod test {
 
     #[test]
     pub fn test_parse_query_ints() {
-        let query_parser = make_query_parser();
+        let mut query_parser = make_query_parser();
         assert!(query_parser.parse_query("signed:2324").is_ok());
         assert!(query_parser.parse_query("signed:\"22\"").is_ok());
         assert!(query_parser.parse_query("signed:\"-2234\"").is_ok());

@@ -7,7 +7,7 @@ use postings::Recorder;
 use analyzer::SimpleTokenizer;
 use Result;
 use schema::{Schema, Field};
-use analyzer::StreamingIterator;
+use analyzer::{TokenStream, Analyzer};
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
@@ -155,11 +155,11 @@ pub trait PostingsWriter {
         let mut term = unsafe { Term::with_capacity(100) };
         term.set_field(field);
         for field_value in field_values {
-            let mut tokens = SimpleTokenizer.tokenize(field_value.value().text());
+            let mut tokens = SimpleTokenizer.analyze(field_value.value().text());
             // right now num_tokens and pos are redundant, but it should
             // change when we get proper analyzers
             while let Some(token) = tokens.next() {
-                term.set_text(token);
+                term.set_text(&token.term);
                 self.suscribe(term_index, doc_id, pos, &term, heap);
                 pos += 1u32;
                 num_tokens += 1u32;

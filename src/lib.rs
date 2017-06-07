@@ -63,6 +63,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate owning_ref;
 extern crate stable_deref_trait;
+extern crate rust_stemmers;
 
 #[cfg(test)]
 extern crate env_logger;
@@ -98,7 +99,7 @@ mod compression;
 mod indexer;
 mod common;
 mod error;
-mod analyzer;
+pub mod analyzer;
 mod datastruct;
 
 pub mod termdict;
