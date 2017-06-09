@@ -4,10 +4,9 @@ use schema::FieldValue;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
-use analyzer::SimpleTokenizer;
 use Result;
 use schema::{Schema, Field};
-use analyzer::{TokenStream, Analyzer};
+use analyzer::en_pipeline;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
@@ -154,16 +153,21 @@ pub trait PostingsWriter {
         let mut num_tokens: u32 = 0u32;
         let mut term = unsafe { Term::with_capacity(100) };
         term.set_field(field);
+        let mut pipeline = en_pipeline();
         for field_value in field_values {
-            let mut tokens = SimpleTokenizer.analyze(field_value.value().text());
-            // right now num_tokens and pos are redundant, but it should
-            // change when we get proper analyzers
-            while let Some(token) = tokens.next() {
-                term.set_text(&token.term);
-                self.suscribe(term_index, doc_id, pos, &term, heap);
-                pos += 1u32;
-                num_tokens += 1u32;
-            }
+            pipeline.analyze(field_value.value().text(),
+                             &mut |token| {
+                                      term.set_text(&token.term);
+                                      self.suscribe(term_index, doc_id, pos, &term, heap);
+                                      pos += 1u32;
+                                      num_tokens += 1u32;
+                                  });
+            // let mut tokens = SimpleTokenizer.token_stream(field_value.value().text());
+            // // right now num_tokens and pos are redundant, but it should
+            // // change when we get proper analyzers
+            // while let Some(token) = tokens.next() {
+
+            // }
             pos += 1;
             // THIS is to avoid phrase query accross field repetition.
             // span queries might still match though :|

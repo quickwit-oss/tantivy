@@ -79,6 +79,7 @@ extern crate test;
 #[cfg(test)]
 extern crate rand;
 
+extern crate tinysegmenter;
 
 #[cfg(test)]
 mod functional_test;

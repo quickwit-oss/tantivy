@@ -8,11 +8,10 @@ use query::Occur;
 use query::TermQuery;
 use postings::SegmentPostingsOption;
 use query::PhraseQuery;
-use analyzer::{SimpleTokenizer, TokenStream};
+use analyzer::{en_pipeline, TextPipeline};
 use schema::{Term, FieldType};
 use std::str::FromStr;
 use std::num::ParseIntError;
-use analyzer::Analyzer;
 
 
 /// Possible error that may happen when parsing a query.
@@ -75,7 +74,7 @@ pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
-    analyzer: Box<SimpleTokenizer>,
+    analyzer: Box<TextPipeline>,
 }
 
 impl QueryParser {
@@ -88,7 +87,7 @@ impl QueryParser {
             schema: schema,
             default_fields: default_fields,
             conjunction_by_default: false,
-            analyzer: box SimpleTokenizer,
+            analyzer: en_pipeline(),
         }
     }
 
@@ -162,11 +161,12 @@ impl QueryParser {
             FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
-                    let mut token_iter = self.analyzer.analyze(phrase);
-                    while let Some(token) = token_iter.next() {
-                        let term = Term::from_field_text(field, &token.term);
-                        terms.push(term);
-                    }
+                    self.analyzer
+                        .analyze(phrase,
+                                 &mut |token| {
+                                          let term = Term::from_field_text(field, &token.term);
+                                          terms.push(term);
+                                      });
                 } else {
                     terms.push(Term::from_field_text(field, phrase));
                 }

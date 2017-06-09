@@ -16,6 +16,7 @@ keywords = ["search", "information", "retrieval"]
 byteorder = "1.0"
 memmap = "0.4"
 lazy_static = "0.2.1"
+tinysegmenter = "0.1.0"
 regex = "0.2"
 fst = "0.1.37"
 atomicwrites = "0.1.3"

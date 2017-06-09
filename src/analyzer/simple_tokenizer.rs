@@ -7,14 +7,13 @@ pub struct SimpleTokenizer;
 pub struct SimpleTokenStream<'a> {
     text: &'a str,
     chars: CharIndices<'a>,
-    token: Token,   
+    token: Token,
 }
 
 impl<'a> Analyzer<'a> for SimpleTokenizer {
-
     type TokenStreamImpl = SimpleTokenStream<'a>;
 
-    fn analyze(&mut self, text: &'a str) -> Self::TokenStreamImpl {
+    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
         SimpleTokenStream {
             text: text,
             chars: text.char_indices(),
@@ -24,10 +23,9 @@ impl<'a> Analyzer<'a> for SimpleTokenizer {
 }
 
 impl<'a> SimpleTokenStream<'a> {
-        
     fn token_limit(&mut self) -> usize {
         (&mut self.chars)
-            .filter(|&(_, ref c)|  !c.is_alphanumeric())
+            .filter(|&(_, ref c)| !c.is_alphanumeric())
             .map(|(offset, _)| offset)
             .next()
             .unwrap_or(self.text.len())
@@ -35,7 +33,6 @@ impl<'a> SimpleTokenStream<'a> {
 }
 
 impl<'a> TokenStream for SimpleTokenStream<'a> {
-
     fn advance(&mut self) -> bool {
         self.token.term.clear();
         self.token.position += 1;
@@ -57,7 +54,7 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
             }
         }
     }
-    
+
     fn token(&self) -> &Token {
         &self.token
     }
@@ -65,5 +62,4 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
     fn token_mut(&mut self) -> &mut Token {
         &mut self.token
     }
-
 }

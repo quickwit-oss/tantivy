@@ -5,34 +5,34 @@ pub struct RemoveLongFilter {
     length_limit: usize,
 }
 
-impl RemoveLongFilter {    
+impl RemoveLongFilter {
     // the limit is in bytes of the UTF-8 representation.
     pub fn limit(length_limit: usize) -> RemoveLongFilter {
-        RemoveLongFilter {
-            length_limit: length_limit,
-        }
+        RemoveLongFilter { length_limit: length_limit }
     }
 }
 
 impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream {
-    
+    where TailTokenStream: TokenStream
+{
     fn predicate(&self, token: &Token) -> bool {
         token.term.len() < self.token_length_limit
     }
 
-    fn wrap(token_length_limit: usize, tail: TailTokenStream) -> RemoveLongFilterStream<TailTokenStream> {
+    fn wrap(token_length_limit: usize,
+            tail: TailTokenStream)
+            -> RemoveLongFilterStream<TailTokenStream> {
         RemoveLongFilterStream {
             token_length_limit: token_length_limit,
             tail: tail,
         }
-    } 
+    }
 }
 
 
-impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for RemoveLongFilter 
-    where TailTokenStream: TokenStream {
-    
+impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for RemoveLongFilter
+    where TailTokenStream: TokenStream
+{
     type ResultTokenStream = RemoveLongFilterStream<TailTokenStream>;
 
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
@@ -40,16 +40,16 @@ impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for RemoveLongFilter
     }
 }
 
-pub struct RemoveLongFilterStream<TailTokenStream> 
-    where TailTokenStream: TokenStream {
-
+pub struct RemoveLongFilterStream<TailTokenStream>
+    where TailTokenStream: TokenStream
+{
     token_length_limit: usize,
     tail: TailTokenStream,
 }
 
 impl<TailTokenStream> TokenStream for RemoveLongFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream {
-
+    where TailTokenStream: TokenStream
+{
     fn token(&self) -> &Token {
         self.tail.token()
     }
@@ -64,11 +64,9 @@ impl<TailTokenStream> TokenStream for RemoveLongFilterStream<TailTokenStream>
                 if self.predicate(self.tail.token()) {
                     return true;
                 }
-            }
-            else {
+            } else {
                 return false;
             }
         }
     }
-
 }
