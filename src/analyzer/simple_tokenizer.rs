@@ -35,7 +35,7 @@ impl<'a> SimpleTokenStream<'a> {
 impl<'a> TokenStream for SimpleTokenStream<'a> {
     fn advance(&mut self) -> bool {
         self.token.term.clear();
-        self.token.position += 1;
+        self.token.position = self.token.position.wrapping_add(1);
 
         loop {
             match self.chars.next() {

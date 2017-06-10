@@ -1,7 +1,7 @@
 use super::{Token, Analyzer, TokenStream};
 use tinysegmenter;
 
-pub struct JpTokenizer;
+pub struct JPTokenizer;
 
 #[derive(Eq, PartialEq)]
 enum Cursor {
@@ -10,13 +10,13 @@ enum Cursor {
     Terminated,
 }
 
-pub struct JpTokenizerStream {
+pub struct JPTokenizerStream {
     tokens: Vec<Token>,
     cursor: Cursor,
 }
 
-impl<'a> Analyzer<'a> for JpTokenizer {
-    type TokenStreamImpl = JpTokenizerStream;
+impl<'a> Analyzer<'a> for JPTokenizer {
+    type TokenStreamImpl = JPTokenizerStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
         let mut tokens = vec![];
@@ -32,14 +32,14 @@ impl<'a> Analyzer<'a> for JpTokenizer {
                             term: term,
                         });
         }
-        JpTokenizerStream {
+        JPTokenizerStream {
             tokens: tokens,
             cursor: Cursor::HasNotStarted,
         }
     }
 }
 
-impl<'a> TokenStream for JpTokenizerStream {
+impl<'a> TokenStream for JPTokenizerStream {
     fn advance(&mut self) -> bool {
         let new_cursor = match self.cursor {
             Cursor::HasNotStarted => {
@@ -60,7 +60,7 @@ impl<'a> TokenStream for JpTokenizerStream {
             Cursor::Terminated => Cursor::Terminated,
         };
         self.cursor = new_cursor;
-        return self.cursor != Cursor::Terminated;
+        self.cursor != Cursor::Terminated
     }
 
 

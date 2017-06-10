@@ -1,34 +1,29 @@
+use std::borrow::{Borrow, BorrowMut};
 
-
-
-pub trait TextPipeline {
-    fn analyze(&mut self, text: &str, sink: &mut FnMut(&Token));
+/// Token 
+pub struct Token {
+    /// Offset (byte index) of the first character of the token.
+    /// Offsets shall not be modified by token filters.
+    pub offset_from: usize,
+    /// Offset (byte index) of the last character of the token + 1.
+    /// The text that generated the token should be obtained by 
+    /// &text[token.offset_from..token.offset_to]
+    pub offset_to: usize,
+    /// Position, expressed in number of tokens.
+    pub position: usize,
+    /// Actual text content of the token.
+    pub term: String,
 }
 
-
-struct TextPipelineImpl<A>
-    where for<'a> A: Analyzer<'a> + 'static
-{
-    underlying: A,
-}
-
-impl<A> TextPipeline for TextPipelineImpl<A>
-    where for<'a> A: Analyzer<'a> + 'static
-{
-    fn analyze(&mut self, text: &str, sink: &mut FnMut(&Token)) {
-        let mut token_stream = self.underlying.token_stream(text);
-        while token_stream.advance() {
-            sink(token_stream.token());
+impl Default for Token {
+    fn default() -> Token {
+        Token {
+            offset_from: 0,
+            offset_to: 0,
+            position: usize::max_value(),
+            term: String::new(),
         }
     }
-}
-
-#[derive(Default)]
-pub struct Token {
-    pub offset_from: usize,
-    pub offset_to: usize,
-    pub position: usize,
-    pub term: String,
 }
 
 pub trait Analyzer<'a>: Sized {
@@ -46,11 +41,39 @@ pub trait Analyzer<'a>: Sized {
     }
 }
 
+pub trait BoxedAnalyzer {
+    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;    
+}
 
-pub fn boxed_pipeline<A: 'static + for<'a> Analyzer<'a>>(analyzer: A)
-                                                         -> Box<TextPipeline + 'static> {
-    let text_pipeline_impl = TextPipelineImpl { underlying: analyzer };
-    box text_pipeline_impl
+struct BoxableAnalyzer<A>(A) where A: for <'a> Analyzer<'a>;
+
+impl<A> BoxedAnalyzer for BoxableAnalyzer<A> where A: 'static + for <'a> Analyzer<'a> {
+    fn token_stream<'b>(&mut self, text: &'b str) -> Box<TokenStream + 'b> {
+        box self.0.token_stream(text)
+    }
+}
+
+pub fn box_analyzer<A>(a: A) -> Box<BoxedAnalyzer>
+    where A: 'static + for <'a> Analyzer<'a> {
+    box BoxableAnalyzer(a)
+}
+
+
+impl<'b> TokenStream for Box<TokenStream + 'b> {
+    fn advance(&mut self) -> bool {
+        let token_stream: &mut TokenStream = self.borrow_mut();
+        token_stream.advance()
+    }
+
+    fn token(&self) -> &Token {
+        let token_stream: &TokenStream = self.borrow();
+        token_stream.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        let token_stream: &mut TokenStream = self.borrow_mut();
+        token_stream.token_mut()
+    }
 }
 
 
@@ -67,6 +90,15 @@ pub trait TokenStream {
         } else {
             None
         }
+    }
+
+    fn process(&mut self, sink: &mut FnMut(&Token)) -> u32 {
+        let mut num_tokens_pushed = 0u32;
+        while self.advance() {
+            sink(self.token());
+            num_tokens_pushed += 1u32;
+        }
+        num_tokens_pushed
     }
 }
 

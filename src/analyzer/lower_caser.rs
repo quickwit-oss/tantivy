@@ -33,9 +33,9 @@ impl<TailTokenStream> TokenStream for LowerCaserTokenStream<TailTokenStream>
     fn advance(&mut self) -> bool {
         if self.tail.advance() {
             self.tail.token_mut().term.make_ascii_lowercase();
-            return true;
+            true
         } else {
-            return false;
+            false
         }
     }
 }

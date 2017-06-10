@@ -8,7 +8,7 @@ use query::Occur;
 use query::TermQuery;
 use postings::SegmentPostingsOption;
 use query::PhraseQuery;
-use analyzer::{en_pipeline, TextPipeline};
+use analyzer::{en_pipeline, BoxedAnalyzer};
 use schema::{Term, FieldType};
 use std::str::FromStr;
 use std::num::ParseIntError;
@@ -74,7 +74,7 @@ pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
-    analyzer: Box<TextPipeline>,
+    analyzer: Box<BoxedAnalyzer>,
 }
 
 impl QueryParser {
@@ -161,12 +161,11 @@ impl QueryParser {
             FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
-                    self.analyzer
-                        .analyze(phrase,
-                                 &mut |token| {
+                    let mut token_stream = self.analyzer.token_stream(phrase);
+                    token_stream.process(&mut |token| {
                                           let term = Term::from_field_text(field, &token.term);
                                           terms.push(term);
-                                      });
+                    });
                 } else {
                     terms.push(Term::from_field_text(field, phrase));
                 }
