@@ -127,6 +127,30 @@ impl<Data> BitUnpacker<Data>
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         (val_shifted & mask)
     }
+
+    pub fn get_range(&self, start: u32, output: &mut [u64]) {
+        if self.num_bits == 0 {
+            for val in output.iter_mut() {
+                *val = 0;
+            }
+        }
+        else {
+            let data: &[u8] = &*self.data;
+            let num_bits = self.num_bits;
+            let mask = self.mask;
+            
+            let mut addr_in_bits = (start as usize) * num_bits;
+            for i in 0..output.len() {
+                let addr = addr_in_bits >> 3;
+                let bit_shift = addr_in_bits & 7;
+                let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
+                let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+                output[i] = val_shifted & mask;
+                addr_in_bits += num_bits;
+            }
+        }
+        
+    }
 }
 
 

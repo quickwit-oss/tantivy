@@ -13,6 +13,7 @@ use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
 use error::ResultExt;
+use std::mem;
 use common;
 use owning_ref::OwningRef;
 
@@ -29,6 +30,7 @@ pub trait FastFieldReader: Sized {
     /// This accessor should return as fast as possible.
     fn get(&self, doc: DocId) -> Self::ValueType;
 
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]);
 
     /// Opens a fast field given a source.
     fn open(source: ReadOnlySource) -> Self;
@@ -77,6 +79,13 @@ impl FastFieldReader for U64FastFieldReader {
         match *field_type {
             FieldType::U64(ref integer_options) => integer_options.is_fast(),
             _ => false,
+        }
+    }
+
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]) {
+        self.bit_unpacker.get_range(start, output);
+        for out in output.iter_mut() {
+            *out += self.min_value;
         }
     }
 
@@ -179,6 +188,19 @@ impl FastFieldReader for I64FastFieldReader {
     /// is greater or equal to the segment's `maxdoc`.
     fn get(&self, doc: DocId) -> i64 {
         common::u64_to_i64(self.underlying.get(doc))
+    }
+
+    ///
+    /// # Panics
+    ///
+    /// May panic or return wrong random result if `doc`
+    /// is greater or equal to the segment's `maxdoc`.
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]) {
+        let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
+        self.underlying.get_range(start, output_u64);
+        for mut_val in output_u64.iter_mut() {
+            *mut_val ^= 1 << 63;
+        }
     }
 
     /// Opens a new fast field reader given a read only source.
