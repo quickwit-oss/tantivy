@@ -28,8 +28,21 @@ pub trait FastFieldReader: Sized {
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `doc` is greater than the segment
+    // `maxdoc`.
     fn get(&self, doc: DocId) -> Self::ValueType;
 
+    /// Fills an output buffer with the fast field values
+    /// associated with the `DocId` going from
+    /// `start` to `start + output.len()`.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `start + output.len()` is greater than
+    /// the segment's `maxdoc`.
     fn get_range(&self, start: u32, output: &mut [Self::ValueType]);
 
     /// Opens a fast field given a source.
