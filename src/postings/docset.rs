@@ -52,16 +52,16 @@ pub trait DocSet {
         }
     }
 
-    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> bool {
-        for buffer_val in buffer.iter_mut() {
+    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
+        for (i, buffer_val) in buffer.iter_mut().enumerate() {
             if self.advance() {
                 *buffer_val = self.doc();
             }
             else {
-                return false;
+                return i;
             }
         }
-        return true;
+        return buffer.len();
     }
 
     /// Returns the current document
