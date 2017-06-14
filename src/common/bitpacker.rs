@@ -15,7 +15,7 @@ use std::ops::Deref;
 /// reasons, we want to ensure that a value spawns over at most 8 bytes
 /// of aligns bytes.
 ///
-/// Spawning over 9 bytes is possible for instance, if we do
+/// Spanning over 9 bytes is possible for instance, if we do
 /// bitpacking with an amplitude of 63 bits.
 /// In this case, the second int will start on bit
 /// 63 (which belongs to byte 7) and ends at byte 15;

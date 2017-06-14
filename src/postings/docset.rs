@@ -52,6 +52,18 @@ pub trait DocSet {
         }
     }
 
+    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> bool {
+        for buffer_val in buffer.iter_mut() {
+            if self.advance() {
+                *buffer_val = self.doc();
+            }
+            else {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// Returns the current document
     fn doc(&self) -> DocId;
 

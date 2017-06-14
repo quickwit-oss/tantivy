@@ -1,20 +1,17 @@
 use std::io;
 use std::collections::HashMap;
 use directory::ReadOnlySource;
-use common::BinarySerializable;
+use common::{self, BinarySerializable};
+use common::bitpacker::{compute_num_bits, BitUnpacker};
 use DocId;
 use schema::{Field, SchemaBuilder};
 use std::path::Path;
 use schema::FAST;
 use directory::{WritePtr, RAMDirectory, Directory};
-use fastfield::FastFieldSerializer;
-use fastfield::FastFieldsWriter;
-use common::bitpacker::compute_num_bits;
-use common::bitpacker::BitUnpacker;
+use fastfield::{FastFieldSerializer, FastFieldsWriter};
 use schema::FieldType;
 use error::ResultExt;
 use std::mem;
-use common;
 use owning_ref::OwningRef;
 
 /// Trait for accessing a fastfield.
@@ -212,7 +209,7 @@ impl FastFieldReader for I64FastFieldReader {
         let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
         self.underlying.get_range(start, output_u64);
         for mut_val in output_u64.iter_mut() {
-            *mut_val ^= 1 << 63;
+            *mut_val = common::u64_to_i64(*mut_val as u64) as u64;
         }
     }
 
