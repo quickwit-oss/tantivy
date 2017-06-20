@@ -2,6 +2,7 @@
 use std::str::CharIndices;
 use super::{Token, Analyzer, TokenStream};
 
+#[derive(Clone)]
 pub struct SimpleTokenizer;
 
 pub struct SimpleTokenStream<'a> {

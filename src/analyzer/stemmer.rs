@@ -2,14 +2,14 @@ use std::sync::Arc;
 use super::{TokenFilterFactory, TokenStream, Token};
 use rust_stemmers::{self, Algorithm};
 
+#[derive(Clone)]
 pub struct Stemmer {
-    stemmer: Arc<rust_stemmers::Stemmer>,
+    stemmer_algorithm: Arc<Algorithm>,
 }
 
 impl Stemmer {
     pub fn new() -> Stemmer {
-        let inner_stemmer = rust_stemmers::Stemmer::create(Algorithm::English);
-        Stemmer { stemmer: Arc::new(inner_stemmer) }
+        Stemmer { stemmer_algorithm: Arc::new(Algorithm::English) }
     }
 }
 
@@ -19,7 +19,8 @@ impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for Stemmer
     type ResultTokenStream = StemmerTokenStream<TailTokenStream>;
 
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        StemmerTokenStream::wrap(self.stemmer.clone(), token_stream)
+        let inner_stemmer = rust_stemmers::Stemmer::create(Algorithm::English);
+        StemmerTokenStream::wrap(inner_stemmer, token_stream)
     }
 }
 
@@ -28,7 +29,7 @@ pub struct StemmerTokenStream<TailTokenStream>
     where TailTokenStream: TokenStream
 {
     tail: TailTokenStream,
-    stemmer: Arc<rust_stemmers::Stemmer>,
+    stemmer: rust_stemmers::Stemmer,
 }
 
 impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
@@ -58,7 +59,7 @@ impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
 impl<TailTokenStream> StemmerTokenStream<TailTokenStream>
     where TailTokenStream: TokenStream
 {
-    fn wrap(stemmer: Arc<rust_stemmers::Stemmer>,
+    fn wrap(stemmer: rust_stemmers::Stemmer,
             tail: TailTokenStream)
             -> StemmerTokenStream<TailTokenStream> {
         StemmerTokenStream {

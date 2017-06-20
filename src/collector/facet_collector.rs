@@ -103,7 +103,7 @@ mod tests {
         {
             // perform the query
             let mut facet_collectors = chain().push(&mut ffvf_i64).push(&mut ffvf_u64);
-            let mut query_parser = QueryParser::new(schema, vec![text_field]);
+            let mut query_parser = QueryParser::for_index(index, vec![text_field]);
             let query = query_parser.parse_query("text:text").unwrap();
             query.search(&searcher, &mut facet_collectors).unwrap();
         }

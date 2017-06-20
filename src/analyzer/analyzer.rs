@@ -1,4 +1,8 @@
+/// The analyzer module contains all of the tools used to process
+/// text in `tantivy`.
+
 use std::borrow::{Borrow, BorrowMut};
+use analyzer::TokenStreamChain;
 
 /// Token 
 pub struct Token {
@@ -26,7 +30,7 @@ impl Default for Token {
     }
 }
 
-pub trait Analyzer<'a>: Sized {
+pub trait Analyzer<'a>: Sized + Clone {
     type TokenStreamImpl: TokenStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl;
@@ -41,20 +45,49 @@ pub trait Analyzer<'a>: Sized {
     }
 }
 
-pub trait BoxedAnalyzer {
-    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;    
+pub trait BoxedAnalyzer: Send + Sync {
+    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;
+    fn token_stream_texts<'b>(&mut self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
+    fn boxed_clone(&self) -> Box<BoxedAnalyzer>;
 }
 
-struct BoxableAnalyzer<A>(A) where A: for <'a> Analyzer<'a>;
+#[derive(Clone)]
+struct BoxableAnalyzer<A>(A) where A: for <'a> Analyzer<'a> + Send + Sync;
 
-impl<A> BoxedAnalyzer for BoxableAnalyzer<A> where A: 'static + for <'a> Analyzer<'a> {
-    fn token_stream<'b>(&mut self, text: &'b str) -> Box<TokenStream + 'b> {
+impl<A> BoxedAnalyzer for BoxableAnalyzer<A> where A: 'static + Send + Sync + for <'a> Analyzer<'a> {
+    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a> {
         box self.0.token_stream(text)
+    }
+
+    fn token_stream_texts<'b>(&mut self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
+        assert!(texts.len() > 0);
+        if texts.len() == 1 {
+            box self.0.token_stream(texts[0])
+        }
+        else {
+            let mut offsets = vec!();
+            let mut total_offset = 0;
+            for text in texts {
+                offsets.push(total_offset);
+                total_offset += text.len();
+            }
+            let token_streams: Vec<_> = texts
+                .iter()
+                .map(|text| {
+                    self.0.token_stream(text)
+                })
+                .collect();
+            box TokenStreamChain::new(offsets, token_streams)
+        }
+    }
+
+    fn boxed_clone(&self) -> Box<BoxedAnalyzer> {
+        box self.clone()
     }
 }
 
 pub fn box_analyzer<A>(a: A) -> Box<BoxedAnalyzer>
-    where A: 'static + for <'a> Analyzer<'a> {
+    where A: 'static + Send + Sync + for <'a> Analyzer<'a> {
     box BoxableAnalyzer(a)
 }
 
@@ -102,7 +135,7 @@ pub trait TokenStream {
     }
 }
 
-
+#[derive(Clone)]
 pub struct ChainAnalyzer<HeadTokenFilterFactory, TailAnalyzer> {
     head: HeadTokenFilterFactory,
     tail: TailAnalyzer,
@@ -117,13 +150,13 @@ impl<'a, HeadTokenFilterFactory, TailAnalyzer> Analyzer<'a>
     type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
-        let tail_token_stream = self.tail.token_stream(text);
+        let tail_token_stream = self.tail.token_stream(text );
         self.head.transform(tail_token_stream)
     }
 }
 
 
-pub trait TokenFilterFactory<TailTokenStream: TokenStream> {
+pub trait TokenFilterFactory<TailTokenStream: TokenStream>: Clone {
     type ResultTokenStream: TokenStream;
 
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream;

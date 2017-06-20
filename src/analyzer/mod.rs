@@ -4,45 +4,31 @@ mod analyzer;
 mod simple_tokenizer;
 mod lower_caser;
 mod remove_long;
-mod remove_nonalphanum;
 mod stemmer;
-mod jp_tokenizer;
+mod analyzer_manager;
+mod japanese_tokenizer;
+mod token_stream_chain;
 
-pub use self::analyzer::{box_analyzer, Analyzer, Token, TokenFilterFactory,
-                         TokenStream};
+pub use self::analyzer::{box_analyzer, Analyzer, Token, TokenFilterFactory, TokenStream};
+pub use self::analyzer::BoxedAnalyzer;
+pub use self::analyzer_manager::AnalyzerManager;
 pub use self::simple_tokenizer::SimpleTokenizer;
-pub use self::jp_tokenizer::JPTokenizer;
+pub use self::token_stream_chain::TokenStreamChain;
+pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::lower_caser::LowerCaser;
 pub use self::stemmer::Stemmer;
-pub use self::remove_nonalphanum::RemoveNonAlphaFilter;
-pub use self::analyzer::BoxedAnalyzer;
-
-
-pub fn en_pipeline<'a>() -> Box<BoxedAnalyzer> {
-    box_analyzer(
-        SimpleTokenizer
-                       .filter(RemoveLongFilter::limit(20))
-                       .filter(LowerCaser)
-                       .filter(Stemmer::new())
-    )
-}
-
-pub fn jp_pipeline<'a>() -> Box<BoxedAnalyzer> {
-    box_analyzer(
-        JPTokenizer
-            .filter(RemoveLongFilter::limit(20))
-            .filter(RemoveNonAlphaFilter)
-    )
-}
 
 #[cfg(test)]
 mod test {
-    use super::{en_pipeline, jp_pipeline, Token};
+    use super::Token;
+    use super::AnalyzerManager;
 
     #[test]
     fn test_en_analyzer() {
-        let mut en_analyzer = en_pipeline();
+        let analyzer_manager = AnalyzerManager::default();
+        assert!(analyzer_manager.get("en_doesnotexist").is_none());
+        let mut en_analyzer = analyzer_manager.get("en_stem").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
@@ -57,7 +43,9 @@ mod test {
 
     #[test]
     fn test_jp_analyzer() {
-        let mut en_analyzer = jp_pipeline();
+        let analyzer_manager = AnalyzerManager::default();
+        let mut en_analyzer = analyzer_manager.get("ja").unwrap();
+        
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
@@ -73,7 +61,8 @@ mod test {
 
     #[test]
     fn test_tokenizer_empty() {
-        let mut en_analyzer = en_pipeline();
+        let analyzer_manager = AnalyzerManager::default();
+        let mut en_analyzer = analyzer_manager.get("en_stem").unwrap();
         {
             let mut tokens: Vec<String> = vec![];
             {

@@ -23,6 +23,7 @@ use directory::ManagedDirectory;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
+use analyzer::AnalyzerManager;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -37,6 +38,7 @@ pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
+    analyzers: AnalyzerManager
 }
 
 
@@ -64,6 +66,10 @@ impl Index {
         Index::from_directory(directory, schema)
     }
 
+    pub fn analyzers(&self) -> AnalyzerManager {
+        self.analyzers.clone()
+    }
+
     /// Creates a new index in a temp directory.
     ///
     /// The index will use the `MMapDirectory` in a newly created directory.
@@ -85,6 +91,7 @@ impl Index {
             directory: directory,
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
+            analyzers: AnalyzerManager::default(),
         };
         try!(index.load_searchers());
         Ok(index)
@@ -242,6 +249,7 @@ impl Clone for Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
+            analyzers: self.analyzers.clone()
         }
     }
 }

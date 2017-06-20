@@ -14,6 +14,8 @@ use datastruct::stacker::Heap;
 use indexer::index_writer::MARGIN_IN_BYTES;
 use super::operation::AddOperation;
 use postings::MultiFieldPostingsWriter;
+use analyzer::BoxedAnalyzer;
+use schema::Value;
 
 
 /// A `SegmentWriter` is in charge of creating segment index from a
@@ -29,6 +31,7 @@ pub struct SegmentWriter<'a> {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FastFieldsWriter,
     doc_opstamps: Vec<u64>,
+    analyzers: Vec<Option<Box<BoxedAnalyzer>>>
 }
 
 
@@ -60,6 +63,18 @@ impl<'a> SegmentWriter<'a> {
                        -> Result<SegmentWriter<'a>> {
         let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
         let multifield_postings = MultiFieldPostingsWriter::new(schema, heap);
+        let analyzers = schema.fields()
+            .iter()
+            .map(|field_entry| field_entry.field_type())
+            .map(|field_type| {
+                match field_type {
+                    &FieldType::Str(ref text_options) => {
+                        segment.index().analyzers().get("simple")
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
         Ok(SegmentWriter {
                heap: heap,
                max_doc: 0,
@@ -68,6 +83,7 @@ impl<'a> SegmentWriter<'a> {
                segment_serializer: segment_serializer,
                fast_field_writers: FastFieldsWriter::from_schema(schema),
                doc_opstamps: Vec::with_capacity(1_000),
+               analyzers: analyzers,
            })
     }
 
@@ -117,17 +133,32 @@ impl<'a> SegmentWriter<'a> {
             let field_options = schema.get_field_entry(field);
             match *field_options.field_type() {
                 FieldType::Str(ref text_options) => {
-                    let num_tokens: u32 = if text_options.get_indexing_options().is_tokenized() {
-                        self.multifield_postings
-                            .index_text(doc_id, field, &field_values)
-                    } else {
-                        let num_field_values = field_values.len() as u32;
-                        for field_value in field_values {
-                            let term = Term::from_field_text(field, field_value.value().text());
-                            self.multifield_postings.suscribe(doc_id, &term);
-                        }
-                        num_field_values
-                    };
+                    let num_tokens: u32 =
+                        if text_options.get_indexing_options().is_tokenized() {
+                            if let Some(ref mut analyzer) = self.analyzers[field.0 as usize] {
+                                let texts: Vec<&str> = field_values.iter()
+                                    .flat_map(|field_value| {
+                                        match field_value.value() {
+                                            &Value::Str(ref text) => Some(text.as_str()),
+                                            _ => None
+                                        }
+                                    })
+                                    .collect();
+                                let mut token_stream = analyzer.token_stream_texts(&texts[..]);
+                                self.multifield_postings.index_text(doc_id, field, &mut token_stream)
+                            }
+                            else {
+                                0u32
+                            }
+                            
+                        } else {
+                            let num_field_values = field_values.len() as u32;
+                            for field_value in field_values {
+                                let term = Term::from_field_text(field, field_value.value().text());
+                                self.multifield_postings.suscribe(doc_id, &term);
+                            }
+                            num_field_values
+                        };
                     self.fieldnorms_writer
                         .get_field_writer(field)
                         .map(|field_norms_writer| field_norms_writer.add_val(num_tokens as u64));

@@ -1,7 +1,10 @@
 use super::{Token, Analyzer, TokenStream};
 use tinysegmenter;
 
-pub struct JPTokenizer;
+
+/// Simple japanese tokenizer based on the `tinysegmenter` crate.
+#[derive(Clone)]
+pub struct JapaneseTokenizer;
 
 #[derive(Eq, PartialEq)]
 enum Cursor {
@@ -10,13 +13,13 @@ enum Cursor {
     Terminated,
 }
 
-pub struct JPTokenizerStream {
+pub struct JapaneseTokenizerStream {
     tokens: Vec<Token>,
     cursor: Cursor,
 }
 
-impl<'a> Analyzer<'a> for JPTokenizer {
-    type TokenStreamImpl = JPTokenizerStream;
+impl<'a> Analyzer<'a> for JapaneseTokenizer {
+    type TokenStreamImpl = JapaneseTokenizerStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
         let mut tokens = vec![];
@@ -25,21 +28,23 @@ impl<'a> Analyzer<'a> for JPTokenizer {
         for (pos, term) in tinysegmenter::tokenize(text).into_iter().enumerate() {
             offset_from = offset_to;
             offset_to = offset_from + term.len();
-            tokens.push(Token {
-                            offset_from: offset_from,
-                            offset_to: offset_to,
-                            position: pos,
-                            term: term,
-                        });
+            if term.chars().all(char::is_alphanumeric) {
+                tokens.push(Token {
+                    offset_from: offset_from,
+                    offset_to: offset_to,
+                    position: pos,
+                    term: term,
+                });
+            }
         }
-        JPTokenizerStream {
+        JapaneseTokenizerStream {
             tokens: tokens,
             cursor: Cursor::HasNotStarted,
         }
     }
 }
 
-impl<'a> TokenStream for JPTokenizerStream {
+impl<'a> TokenStream for JapaneseTokenizerStream {
     fn advance(&mut self) -> bool {
         let new_cursor = match self.cursor {
             Cursor::HasNotStarted => {

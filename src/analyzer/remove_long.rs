@@ -1,6 +1,12 @@
 use super::{TokenFilterFactory, TokenStream, Token};
 
 
+/// `RemoveLongFilter` removes tokens that are longer 
+/// than a given number of bytes (in UTF-8 representation).
+///
+/// It is especially useful when indexing unconstrained content.
+/// e.g. Mail containing base-64 encoded pictures etc.
+#[derive(Clone)]
 pub struct RemoveLongFilter {
     length_limit: usize,
 }

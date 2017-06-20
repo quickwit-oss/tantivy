@@ -1,18 +1,18 @@
 use DocId;
 use schema::Term;
-use schema::FieldValue;
 use postings::PostingsSerializer;
 use std::io;
 use postings::Recorder;
 use Result;
 use schema::{Schema, Field};
-use analyzer::{en_pipeline, Token};
+use analyzer::Token;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use schema::FieldEntry;
 use schema::FieldType;
+use analyzer::TokenStream;
 use schema::TextIndexingOptions;
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry,
@@ -62,9 +62,9 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         }
     }
 
-    pub fn index_text(&mut self, doc: DocId, field: Field, field_values: &[&FieldValue]) -> u32 {
+    pub fn index_text(&mut self, doc: DocId, field: Field, token_stream: &mut TokenStream) -> u32 {
         let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
-        postings_writer.index_text(&mut self.term_index, doc, field, field_values, self.heap)
+        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, self.heap)
     }
 
     pub fn suscribe(&mut self, doc: DocId, term: &Term) {
@@ -140,39 +140,24 @@ pub trait PostingsWriter {
                  serializer: &mut PostingsSerializer,
                  heap: &Heap)
                  -> io::Result<()>;
-
+    
     /// Tokenize a text and suscribe all of its token.
     fn index_text<'a>(&mut self,
                       term_index: &mut HashMap,
                       doc_id: DocId,
                       field: Field,
-                      field_values: &[&'a FieldValue],
+                      token_stream: &mut TokenStream,
                       heap: &Heap)
                       -> u32 {
         
-        let mut num_tokens: u32 = 0u32;
         let mut term = unsafe { Term::with_capacity(100) };
-        
         term.set_field(field);
-        let mut analyzer = en_pipeline();
-
-        let mut overall_position = 0u32;
+        let mut sink = |token: &Token| {
+            term.set_text(token.term.as_str());
+            self.suscribe(term_index, doc_id, token.position as u32, &term, heap);
+        };
         
-        for field_value in field_values {
-            // TODO fix position when more than one value.
-            let mut token_stream = analyzer.token_stream(field_value.value().text());
-            let mut local_position = 0;
-            num_tokens += {
-                let mut sink = |token: &Token| {
-                    term.set_text(token.term.as_str());
-                    local_position = token.position as u32;
-                    self.suscribe(term_index, doc_id, overall_position + local_position, &term, heap);
-                };
-                token_stream.process(&mut sink)
-            };
-            overall_position += local_position + 2u32;
-        }
-        num_tokens
+        token_stream.process(&mut sink)
     }
 }
 
@@ -213,6 +198,7 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 }
 
 impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
+    
     fn suscribe(&mut self,
                 term_index: &mut HashMap,
                 doc: DocId,

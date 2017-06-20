@@ -8,11 +8,11 @@ use query::Occur;
 use query::TermQuery;
 use postings::SegmentPostingsOption;
 use query::PhraseQuery;
-use analyzer::{en_pipeline, BoxedAnalyzer};
 use schema::{Term, FieldType};
 use std::str::FromStr;
+use analyzer::AnalyzerManager;
 use std::num::ParseIntError;
-
+use core::Index;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -74,7 +74,7 @@ pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
-    analyzer: Box<BoxedAnalyzer>,
+    analyzer_manager: AnalyzerManager,
 }
 
 impl QueryParser {
@@ -82,13 +82,23 @@ impl QueryParser {
     /// * schema - index Schema
     /// * default_fields - fields used to search if no field is specifically defined
     ///   in the query.
-    pub fn new(schema: Schema, default_fields: Vec<Field>) -> QueryParser {
+    pub fn new(schema: Schema,
+               default_fields: Vec<Field>,
+               analyzer_manager: AnalyzerManager) -> QueryParser {
         QueryParser {
             schema: schema,
             default_fields: default_fields,
             conjunction_by_default: false,
-            analyzer: en_pipeline(),
+            analyzer_manager: analyzer_manager,
         }
+    }
+
+    pub fn for_index(index: Index,
+                     default_fields: Vec<Field>) -> QueryParser {
+        QueryParser::new(
+            index.schema(),
+            default_fields,
+            index.analyzers())
     }
 
     /// Set the default way to compose queries to a conjunction.
@@ -135,7 +145,7 @@ impl QueryParser {
         }
         Ok(ast)
     }
-
+    
     fn compute_logical_ast_for_leaf(&mut self,
                                     field: Field,
                                     phrase: &str)
@@ -143,6 +153,11 @@ impl QueryParser {
 
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
+        let mut analyzer = self.analyzer_manager
+            .get("simple")
+            .ok_or_else(|| {
+                QueryParserError::FieldNotIndexed(field_entry.name().to_string())
+            })?;
         if !field_type.is_indexed() {
             let field_name = field_entry.name().to_string();
             return Err(QueryParserError::FieldNotIndexed(field_name));
@@ -161,7 +176,7 @@ impl QueryParser {
             FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
                 if str_options.get_indexing_options().is_tokenized() {
-                    let mut token_stream = self.analyzer.token_stream(phrase);
+                    let mut token_stream = analyzer.token_stream(phrase);
                     token_stream.process(&mut |token| {
                                           let term = Term::from_field_text(field, &token.term);
                                           terms.push(term);
@@ -296,6 +311,7 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
 #[cfg(test)]
 mod test {
     use schema::{SchemaBuilder, Term, TEXT, STRING, STORED, INT_INDEXED};
+    use analyzer::AnalyzerManager;
     use query::Query;
     use schema::Field;
     use super::QueryParser;
@@ -314,7 +330,8 @@ mod test {
         schema_builder.add_text_field("nottokenized", STRING);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
-        QueryParser::new(schema, default_fields)
+        let analyzer_manager = AnalyzerManager::default();
+        QueryParser::new(schema, default_fields, analyzer_manager)
     }
 
 
