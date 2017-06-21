@@ -52,14 +52,7 @@ mod murmurhash2 {
 }
 
 
-impl Default for BytesRef {
-    fn default() -> BytesRef {
-        BytesRef {
-            start: 0u32,
-            stop: 0u32,
-        }
-    }
-}
+
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
@@ -69,15 +62,15 @@ impl Default for BytesRef {
 /// For this reason, the (start, stop) information is actually redundant
 /// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
+#[repr(packed)]
 struct KeyValue {
     key: BytesRef,
-    value_addr: u32,
-    masked_hash: u32,
+    hash: u32,
 }
 
 impl KeyValue {
     fn is_empty(&self) -> bool {
-        self.key.stop == 0u32
+        self.key.is_null()
     }
 }
 
@@ -95,7 +88,6 @@ pub struct HashMap<'a> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     mask: usize,
-    num_bucket_power_of_2: usize,
     occupied: Vec<usize>,
 }
 
@@ -131,12 +123,11 @@ impl<'a> HashMap<'a> {
             table: table.into_boxed_slice(),
             heap: heap,
             mask: table_size - 1,
-            num_bucket_power_of_2: num_bucket_power_of_2,
             occupied: Vec::with_capacity(table_size / 2),
         }
     }
 
-    fn probe(&self, hash: u64) -> QuadraticProbing {
+    fn probe(&self, hash: u32) -> QuadraticProbing {
         QuadraticProbing::compute(hash as usize, self.mask)
     }
 
@@ -149,17 +140,15 @@ impl<'a> HashMap<'a> {
         self.heap.get_slice(bytes_ref)
     }
 
-    pub fn set_bucket(&mut self, masked_hash: u32, key_bytes: &[u8], bucket: usize, addr: u32) -> u32 {
+    pub fn set_bucket(&mut self, hash: u32, key_bytes_ref: BytesRef, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
-            key: self.heap.allocate_and_set(key_bytes),
-            value_addr: addr,
-            masked_hash: masked_hash,
+            key: key_bytes_ref,
+            hash: hash,
         };
-        addr
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item=(&'a [u8], u32)> + 'b {
         let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
@@ -167,32 +156,31 @@ impl<'a> HashMap<'a> {
             .cloned()
             .map(move |bucket: usize| {
                      let kv = table[bucket];
-                     let addr = kv.value_addr;
+                     let key = heap.get_slice(kv.key);
+                     let addr: u32 = kv.key.addr() + 2 + key.len() as u32;
                      (heap.get_slice(kv.key), addr)
                  })
     }
 
 
-    pub fn mask_hash(&self, hash: u64) -> u32 {
-        (hash >> self.num_bucket_power_of_2) as u32
-    }
-
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let key_bytes: &[u8] = key.as_ref();
-        let hash = murmurhash2::murmurhash2(key) as usize;
-        let masked_hash = self.mask_hash(hash);
+        let hash = murmurhash2::murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
+                let key_bytes_ref = self.heap.allocate_and_set(key_bytes);
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
-                self.set_bucket(masked_hash, key.as_ref(), bucket, addr);
+                assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
+                self.set_bucket(hash, key_bytes_ref, bucket);
                 return val
             }
-            if kv.masked_hash == masked_hash {
-                if self.get_key(kv.key) == key_bytes {
-                    return self.heap.get_mut_ref(kv.value_addr);
+            if kv.hash == hash {
+                let stored_key: &[u8] = self.get_key(kv.key);
+                if stored_key == key_bytes {
+                    return self.heap.get_mut_ref(kv.key.addr() + 2 + stored_key.len() as u32);
                 }
             }
         }
@@ -208,8 +196,6 @@ mod tests {
     use super::murmurhash2::murmurhash2;
     use test::Bencher;
     use std::collections::HashSet;
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::Hasher;
 
     struct TestValue {
         val: u32,
@@ -295,7 +281,6 @@ mod tests {
                        .unwrap()
                });
     }
->>>>>>> master
 
 
 }

@@ -1,12 +1,26 @@
 use std::cell::UnsafeCell;
 use std::mem;
 use std::ptr;
+use byteorder::{NativeEndian, ByteOrder};
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
 #[derive(Copy, Clone)]
-pub struct BytesRef {
-    pub start: u32,
-    pub stop: u32,
+pub struct BytesRef(u32);
+
+impl BytesRef {
+    pub fn is_null(&self) -> bool {
+        self.0 == u32::max_value()
+    }
+
+    pub fn addr(&self) -> u32 {
+        self.0
+    }
+}
+
+impl Default for BytesRef {
+    fn default() -> BytesRef {
+        BytesRef(u32::max_value())
+    }
 }
 
 /// Object that can be allocated in tantivy's custom `Heap`.
@@ -70,7 +84,7 @@ impl Heap {
     /// Fetches the `&[u8]` stored on the slice defined by the `BytesRef`
     /// given as argumetn
     pub fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
-        self.inner().get_slice(bytes_ref.start, bytes_ref.stop)
+        self.inner().get_slice(bytes_ref)
     }
 
     /// Stores an item's data in the heap, at the given `address`.
@@ -144,14 +158,19 @@ impl InnerHeap {
         }
     }
 
-    fn get_slice(&self, start: u32, stop: u32) -> &[u8] {
+
+    fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
+        let start = bytes_ref.0;
         if start >= self.buffer_len {
             self.next_heap
                 .as_ref()
                 .unwrap()
-                .get_slice(start - self.buffer_len, stop - self.buffer_len)
-        } else {
-            &self.buffer[start as usize..stop as usize]
+                .get_slice(BytesRef(start - self.buffer_len))
+        }
+        else {
+            let start = start as usize;
+            let len = NativeEndian::read_u16(&self.buffer[start..start + 2]) as usize;
+            &self.buffer[start + 2.. start + 2 + len]
         }
     }
 
@@ -167,13 +186,13 @@ impl InnerHeap {
     }
 
     fn allocate_and_set(&mut self, data: &[u8]) -> BytesRef {
-        let start = self.allocate_space(data.len());
-        let stop = start + data.len() as u32;
-        self.get_mut_slice(start, stop).clone_from_slice(data);
-        BytesRef {
-            start: start as u32,
-            stop: stop as u32,
-        }
+        assert!(data.len() < u16::max_value() as usize);
+        let total_len = 2 + data.len();
+        let start = self.allocate_space(total_len);
+        let total_buff = self.get_mut_slice(start, start + total_len as u32);
+        NativeEndian::write_u16(&mut total_buff[0..2], data.len() as u16);
+        &mut total_buff[2..].clone_from_slice(data);
+        BytesRef(start)
     }
 
     fn get_mut(&mut self, addr: u32) -> *mut u8 {
@@ -187,8 +206,6 @@ impl InnerHeap {
             unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
         }
     }
-
-
 
     fn get_mut_ref<Item>(&mut self, addr: u32) -> &mut Item {
         if addr >= self.buffer_len {
