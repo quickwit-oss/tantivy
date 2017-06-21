@@ -152,6 +152,10 @@ impl<'a> DocSet for SegmentPostings<'a> {
         }
     }
 
+    fn size_hint(&self) -> usize {
+        self.len()
+    }
+
     #[inline]
     fn doc(&self) -> DocId {
         let docs = self.block_cursor.docs();

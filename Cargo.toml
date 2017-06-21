@@ -42,7 +42,6 @@ futures-cpupool = "0.1"
 error-chain = "0.8"
 owning_ref = "0.3"
 stable_deref_trait = "1.0.0"
-murmurhash64 = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"

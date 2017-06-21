@@ -10,12 +10,13 @@ pub struct IntersectionDocSet<TDocSet: DocSet> {
 }
 
 impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
-    fn from(docsets: Vec<TDocSet>) -> IntersectionDocSet<TDocSet> {
+    fn from(mut docsets: Vec<TDocSet>) -> IntersectionDocSet<TDocSet> {
         assert!(docsets.len() >= 2);
+        docsets.sort_by_key(|docset| docset.size_hint());
         IntersectionDocSet {
             docsets: docsets,
             finished: false,
-            doc: DocId::max_value(),
+            doc: 0u32,
         }
     }
 }
@@ -31,41 +32,103 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
 
 
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
+    fn size_hint(&self) -> usize {
+        self.docsets
+            .iter()
+            .map(|docset| docset.size_hint())
+            .min()
+            .unwrap() // safe as docsets cannot be empty.
+    }
+
+    #[allow(never_loop)]
     fn advance(&mut self) -> bool {
         if self.finished {
             return false;
         }
-        let num_docsets = self.docsets.len();
-        let mut count_matching = 0;
-        let mut doc_candidate = 0;
-        let mut ord = 0;
-        loop {
-            let mut doc_set = &mut self.docsets[ord];
-            match doc_set.skip_next(doc_candidate) {
-                SkipResult::Reached => {
-                    count_matching += 1;
-                    if count_matching == num_docsets {
-                        self.doc = doc_candidate;
-                        return true;
+
+        let mut candidate_doc = self.doc;
+        let mut candidate_ord = self.docsets.len();
+
+        'outer: loop {
+
+            for (ord, docset) in self.docsets.iter_mut().enumerate() {
+                if ord != candidate_ord {
+                    // `candidate_ord` is already at the
+                    // right position.
+                    //
+                    // Calling `skip_next` would advance this docset
+                    // and miss it.
+                    match docset.skip_next(candidate_doc) {
+                        SkipResult::Reached => {}
+                        SkipResult::OverStep => {
+                            // this is not in the intersection,
+                            // let's update our candidate.
+                            candidate_doc = docset.doc();
+                            candidate_ord = ord;
+                            continue 'outer;
+                        }
+                        SkipResult::End => {
+                            self.finished = true;
+                            return false;
+                        }
                     }
                 }
-                SkipResult::End => {
-                    self.finished = true;
-                    return false;
-                }
-                SkipResult::OverStep => {
-                    count_matching = 1;
-                    doc_candidate = doc_set.doc();
-                }
             }
-            ord += 1;
-            if ord == num_docsets {
-                ord = 0;
-            }
+
+            self.doc = candidate_doc;
+            return true;
         }
     }
 
     fn doc(&self) -> DocId {
         self.doc
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use postings::{DocSet, VecPostings, IntersectionDocSet};
+
+    #[test]
+    fn test_intersection() {
+        {
+            let left = VecPostings::from(vec![1, 3, 9]);
+            let right = VecPostings::from(vec![3, 4, 9, 18]);
+            let mut intersection = IntersectionDocSet::from(vec![left, right]);
+            assert!(intersection.advance());
+            assert_eq!(intersection.doc(), 3);
+            assert!(intersection.advance());
+            assert_eq!(intersection.doc(), 9);
+            assert!(!intersection.advance());
+        }
+        {
+            let a = VecPostings::from(vec![1, 3, 9]);
+            let b = VecPostings::from(vec![3, 4, 9, 18]);
+            let c = VecPostings::from(vec![1, 5, 9, 111]);
+            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
+            assert!(intersection.advance());
+            assert_eq!(intersection.doc(), 9);
+            assert!(!intersection.advance());
+        }
+    }
+
+    #[test]
+    fn test_intersection_zero() {
+        let left = VecPostings::from(vec![0]);
+        let right = VecPostings::from(vec![0]);
+        let mut intersection = IntersectionDocSet::from(vec![left, right]);
+        assert!(intersection.advance());
+        assert_eq!(intersection.doc(), 0);
+    }
+
+    #[test]
+    fn test_intersection_empty() {
+        let a = VecPostings::from(vec![1, 3]);
+        let b = VecPostings::from(vec![1, 4]);
+        let c = VecPostings::from(vec![3, 9]);
+        let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
+        assert!(!intersection.advance());
     }
 }

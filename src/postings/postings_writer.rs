@@ -215,6 +215,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
                 position: u32,
                 term: &Term,
                 heap: &Heap) {
+        debug_assert!(term.as_slice().len() >= 4);
         let recorder: &mut Rec = term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
         if current_doc != doc {

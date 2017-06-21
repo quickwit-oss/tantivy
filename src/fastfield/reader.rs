@@ -12,6 +12,8 @@ use fastfield::FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
+use error::ResultExt;
+use std::mem;
 use common;
 use owning_ref::OwningRef;
 
@@ -26,8 +28,22 @@ pub trait FastFieldReader: Sized {
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `doc` is greater than the segment
+    // `maxdoc`.
     fn get(&self, doc: DocId) -> Self::ValueType;
 
+    /// Fills an output buffer with the fast field values
+    /// associated with the `DocId` going from
+    /// `start` to `start + output.len()`.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `start + output.len()` is greater than
+    /// the segment's `maxdoc`.
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]);
 
     /// Opens a fast field given a source.
     fn open(source: ReadOnlySource) -> Self;
@@ -79,6 +95,13 @@ impl FastFieldReader for U64FastFieldReader {
         }
     }
 
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]) {
+        self.bit_unpacker.get_range(start, output);
+        for out in output.iter_mut() {
+            *out += self.min_value;
+        }
+    }
+
     /// Opens a new fast field reader given a read only source.
     ///
     /// # Panics
@@ -125,9 +148,20 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(path).unwrap();
-        let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
-        fast_field_readers.open_reader(field).unwrap()
+        directory
+            .open_read(path)
+            .chain_err(|| "Failed to open the file")
+            .and_then(|source| {
+                          FastFieldsReader::from_source(source)
+                              .chain_err(|| "Failed to read the file.")
+                      })
+            .and_then(|ff_readers| {
+                          ff_readers
+                              .open_reader(field)
+                              .ok_or_else(|| "Failed to find the requested field".into())
+                      })
+            .expect("This should never happen, please report.")
+
     }
 }
 
@@ -167,6 +201,19 @@ impl FastFieldReader for I64FastFieldReader {
     /// is greater or equal to the segment's `maxdoc`.
     fn get(&self, doc: DocId) -> i64 {
         common::u64_to_i64(self.underlying.get(doc))
+    }
+
+    ///
+    /// # Panics
+    ///
+    /// May panic or return wrong random result if `doc`
+    /// is greater or equal to the segment's `maxdoc`.
+    fn get_range(&self, start: u32, output: &mut [Self::ValueType]) {
+        let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
+        self.underlying.get_range(start, output_u64);
+        for mut_val in output_u64.iter_mut() {
+            *mut_val ^= 1 << 63;
+        }
     }
 
     /// Opens a new fast field reader given a read only source.

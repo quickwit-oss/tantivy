@@ -381,8 +381,6 @@ mod tests {
     }
   }
 ]"#;
-        println!("{}", schema_json);
-        println!("{}", expected);
         assert_eq!(schema_json, expected);
 
         let schema: Schema = serde_json::from_str(expected).unwrap();

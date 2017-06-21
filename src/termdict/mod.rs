@@ -411,7 +411,6 @@ mod tests {
         {
             for i in (0..20).chain((BLOCK_SIZE - 10..BLOCK_SIZE + 10)) {
                 for j in 0..3 {
-                    println!("i {} j {}", i, j);
                     let &(ref fst_key, _) = &ids[i];
                     let &(ref last_key, _) = &ids[i + j];
                     let mut streamer = term_dictionary
@@ -420,7 +419,6 @@ mod tests {
                         .lt(last_key.as_bytes())
                         .into_stream();
                     for _ in 0..j {
-                        println!("ij");
                         assert!(streamer.next().is_some());
                     }
                     assert!(streamer.next().is_none());

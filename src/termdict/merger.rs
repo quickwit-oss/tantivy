@@ -48,7 +48,6 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
-#[allow(should_implement_trait)]
 pub struct TermMerger<'a, V>
     where V: 'a + BinarySerializable + Default
 {
@@ -131,6 +130,7 @@ impl<'a, V> TermMerger<'a, V>
     }
 
     /// Iterates through terms
+    #[allow(should_implement_trait)]
     pub fn next(&mut self) -> Option<Term<&[u8]>> {
         if self.advance() {
             Some(Term::wrap(self.current_streamers[0].streamer.key()))

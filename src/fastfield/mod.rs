@@ -211,7 +211,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_signed_intfastfield() {
         let path = Path::new("test");
@@ -244,6 +243,11 @@ mod tests {
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
                 assert_eq!(fast_field_reader.get(doc as u32), i);
+            }
+            let mut buffer = vec![0i64; 100];
+            fast_field_reader.get_range(53, &mut buffer[..]);
+            for i in 0..100 {
+                assert_eq!(buffer[i], -100i64 + 53i64 + i as i64);
             }
         }
     }
@@ -306,10 +310,6 @@ mod tests {
                 fast_field_readers.open_reader(*FIELD).unwrap();
             let mut a = 0u64;
             for _ in 0..n {
-                println!("i {}=> {} {}",
-                         a,
-                         fast_field_reader.get(a as u32),
-                         permutation[a as usize]);
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
                 a = fast_field_reader.get(a as u32);
             }

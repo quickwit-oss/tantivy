@@ -93,8 +93,9 @@ impl Heap {
 
 struct InnerHeap {
     buffer: Vec<u8>,
+    buffer_len: u32,
     used: u32,
-    has_been_resized: bool,
+    next_heap: Option<Box<InnerHeap>>,
 }
 
 
@@ -103,13 +104,15 @@ impl InnerHeap {
         let buffer: Vec<u8> = vec![0u8; num_bytes];
         InnerHeap {
             buffer: buffer,
+            buffer_len: num_bytes as u32,
+            next_heap: None,
             used: 0u32,
-            has_been_resized: false,
         }
     }
 
     pub fn clear(&mut self) {
         self.used = 0u32;
+        self.next_heap = None;
     }
 
     pub fn capacity(&self) -> u32 {
@@ -119,30 +122,48 @@ impl InnerHeap {
     // Returns the number of free bytes. If the buffer
     // has reached it's capacity and overflowed to another buffer, return 0.
     pub fn num_free_bytes(&self) -> u32 {
-        if self.has_been_resized {
+        if self.next_heap.is_some() {
             0u32
         } else {
-            (self.buffer.len() as u32) - self.used
+            self.buffer_len - self.used
         }
     }
 
     pub fn allocate_space(&mut self, num_bytes: usize) -> u32 {
         let addr = self.used;
         self.used += num_bytes as u32;
-        let buffer_len = self.buffer.len();
-        if self.used > buffer_len as u32 {
-            self.buffer.resize(buffer_len * 2, 0u8);
-            self.has_been_resized = true
+        if self.used <= self.buffer_len {
+            addr
+        } else {
+            if self.next_heap.is_none() {
+                info!(r#"Exceeded heap size.
+                    The segment will be committed right after indexing this document."#,);
+                self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
+            }
+            self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len
         }
-        addr
     }
 
     fn get_slice(&self, start: u32, stop: u32) -> &[u8] {
-        &self.buffer[start as usize..stop as usize]
+        if start >= self.buffer_len {
+            self.next_heap
+                .as_ref()
+                .unwrap()
+                .get_slice(start - self.buffer_len, stop - self.buffer_len)
+        } else {
+            &self.buffer[start as usize..stop as usize]
+        }
     }
 
     fn get_mut_slice(&mut self, start: u32, stop: u32) -> &mut [u8] {
-        &mut self.buffer[start as usize..stop as usize]
+        if start >= self.buffer_len {
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut_slice(start - self.buffer_len, stop - self.buffer_len)
+        } else {
+            &mut self.buffer[start as usize..stop as usize]
+        }
     }
 
     fn allocate_and_set(&mut self, data: &[u8]) -> BytesRef {
@@ -156,23 +177,46 @@ impl InnerHeap {
     }
 
     fn get_mut(&mut self, addr: u32) -> *mut u8 {
-        let addr_isize = addr as isize;
-        unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
+        if addr >= self.buffer_len {
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut(addr - self.buffer_len)
+        } else {
+            let addr_isize = addr as isize;
+            unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
+        }
     }
+
+
 
     fn get_mut_ref<Item>(&mut self, addr: u32) -> &mut Item {
-        let v_ptr_u8 = self.get_mut(addr) as *mut u8;
-        let v_ptr = v_ptr_u8 as *mut Item;
-        unsafe { &mut *v_ptr }
+        if addr >= self.buffer_len {
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut_ref(addr - self.buffer_len)
+        } else {
+            let v_ptr_u8 = self.get_mut(addr) as *mut u8;
+            let v_ptr = v_ptr_u8 as *mut Item;
+            unsafe { &mut *v_ptr }
+        }
     }
 
-    fn set<Item>(&mut self, addr: u32, val: &Item) {
-        let v_ptr: *const Item = val as *const Item;
-        let v_ptr_u8: *const u8 = v_ptr as *const u8;
-        debug_assert!(addr + mem::size_of::<Item>() as u32 <= self.used);
-        unsafe {
-            let dest_ptr: *mut u8 = self.get_mut(addr);
-            ptr::copy(v_ptr_u8, dest_ptr, mem::size_of::<Item>());
+    pub fn set<Item>(&mut self, addr: u32, val: &Item) {
+        if addr >= self.buffer_len {
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .set(addr - self.buffer_len, val);
+        } else {
+            let v_ptr: *const Item = val as *const Item;
+            let v_ptr_u8: *const u8 = v_ptr as *const u8;
+            debug_assert!(addr + mem::size_of::<Item>() as u32 <= self.used);
+            unsafe {
+                let dest_ptr: *mut u8 = self.get_mut(addr);
+                ptr::copy(v_ptr_u8, dest_ptr, mem::size_of::<Item>());
+            }
         }
     }
 }

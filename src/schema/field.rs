@@ -14,11 +14,11 @@ use common::BinarySerializable;
 pub struct Field(pub u32);
 
 impl BinarySerializable for Field {
-    fn serialize(&self, writer: &mut Write) -> io::Result<usize> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.0.serialize(writer)
     }
 
-    fn deserialize(reader: &mut Read) -> io::Result<Field> {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Field> {
         u32::deserialize(reader).map(Field)
     }
 }

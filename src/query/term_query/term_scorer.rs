@@ -32,6 +32,11 @@ impl<TPostings> DocSet for TermScorer<TPostings>
     fn doc(&self) -> DocId {
         self.postings.doc()
     }
+
+
+    fn size_hint(&self) -> usize {
+        self.postings.size_hint()
+    }
 }
 
 impl<TPostings> Scorer for TermScorer<TPostings>
