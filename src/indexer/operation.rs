@@ -25,13 +25,9 @@ pub enum AddOperations {
 impl AddOperations {
     pub fn first_opstamp(&self) -> u64 {
         match *self {
-            AddOperations::Single(ref op) => {
-                op.opstamp
-            }
-            AddOperations::Multiple(ref ops) => {
-                ops[0].opstamp
-            }
-         }
+            AddOperations::Single(ref op) => op.opstamp,
+            AddOperations::Multiple(ref ops) => ops[0].opstamp,
+        }
     }
 }
 
@@ -48,19 +44,14 @@ impl From<Vec<AddOperation>> for AddOperations {
 }
 
 impl IntoIterator for AddOperations {
-    
     type Item = AddOperation;
 
-    type IntoIter = Box<Iterator<Item=AddOperation>>;
+    type IntoIter = Box<Iterator<Item = AddOperation>>;
 
-     fn into_iter(self) -> Self::IntoIter {
-         match self {
-             AddOperations::Single(op) => {
-                 Box::new(Some(op).into_iter())
-             }
-             AddOperations::Multiple(ops) => {
-                Box::new(ops.into_iter())
-             }
-         }
-     }
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            AddOperations::Single(op) => Box::new(Some(op).into_iter()),
+            AddOperations::Multiple(ops) => Box::new(ops.into_iter()),
+        }
+    }
 }

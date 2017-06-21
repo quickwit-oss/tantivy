@@ -166,11 +166,10 @@ impl InnerHeap {
                 .as_ref()
                 .unwrap()
                 .get_slice(BytesRef(start - self.buffer_len))
-        }
-        else {
+        } else {
             let start = start as usize;
             let len = NativeEndian::read_u16(&self.buffer[start..start + 2]) as usize;
-            &self.buffer[start + 2.. start + 2 + len]
+            &self.buffer[start + 2..start + 2 + len]
         }
     }
 

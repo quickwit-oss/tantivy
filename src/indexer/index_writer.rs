@@ -250,7 +250,7 @@ fn index_documents(heap: &mut Heap,
                    segment: Segment,
                    schema: &Schema,
                    generation: usize,
-                   document_iterator: &mut Iterator<Item=AddOperations>,
+                   document_iterator: &mut Iterator<Item = AddOperations>,
                    segment_updater: &mut SegmentUpdater,
                    mut delete_cursor: DeleteCursor)
                    -> Result<bool> {
@@ -377,7 +377,8 @@ impl IndexWriter {
 
                 loop {
 
-                    let mut document_iterator = document_receiver_clone.clone().into_iter().peekable();
+                    let mut document_iterator =
+                        document_receiver_clone.clone().into_iter().peekable();
                     // the peeking here is to avoid
                     // creating a new segment's files
                     // if no document are available.
@@ -583,10 +584,11 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation {
-            opstamp: opstamp,   
+            opstamp: opstamp,
             document: document,
         };
-        self.document_sender.send(AddOperations::from(add_operation));
+        self.document_sender
+            .send(AddOperations::from(add_operation));
         opstamp
     }
 
@@ -602,13 +604,13 @@ impl IndexWriter {
     /// have been added since the creation of the index.
     pub fn add_documents(&mut self, documents: Vec<Document>) -> u64 {
         let mut ops = Vec::with_capacity(documents.len());
-        let mut opstamp =  0u64;
+        let mut opstamp = 0u64;
         for doc in documents {
             opstamp = self.stamper.stamp();
             ops.push(AddOperation {
-                opstamp: opstamp,
-                document: doc,
-            });
+                         opstamp: opstamp,
+                         document: doc,
+                     });
         }
         self.document_sender.send(AddOperations::from(ops));
         opstamp

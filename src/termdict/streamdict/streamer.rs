@@ -125,7 +125,7 @@ impl<'a, V> TermStreamerBuilderImpl<'a, V>
             origin: origin,
             offset_from: 0,
             offset_to: data.len(),
-            current_key: Vec::with_capacity(300)
+            current_key: Vec::with_capacity(300),
         }
     }
 }
@@ -174,7 +174,7 @@ impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
         self.current_key.truncate(common_length);
         let added_length: usize = deserialize_vint(&mut self.cursor) as usize;
         self.current_key.extend(&self.cursor[..added_length]);
-        
+
         self.cursor = &self.cursor[added_length..];
         self.current_value =
             V::deserialize(&mut self.cursor)

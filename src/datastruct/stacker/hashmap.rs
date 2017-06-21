@@ -148,7 +148,7 @@ impl<'a> HashMap<'a> {
         };
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item=(&'a [u8], u32)> + 'b {
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
         let heap: &'a Heap = self.heap;
         let table: &'b [KeyValue] = &self.table;
         self.occupied
@@ -175,12 +175,12 @@ impl<'a> HashMap<'a> {
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
                 self.set_bucket(hash, key_bytes_ref, bucket);
-                return val
-            }
-            if kv.hash == hash {
+                return val;
+            } else if kv.hash == hash {
                 let stored_key: &[u8] = self.get_key(kv.key);
                 if stored_key == key_bytes {
-                    return self.heap.get_mut_ref(kv.key.addr() + 2 + stored_key.len() as u32);
+                    let expull_addr = kv.key.addr() + 2 + stored_key.len() as u32;
+                    return self.heap.get_mut_ref(expull_addr);
                 }
             }
         }
