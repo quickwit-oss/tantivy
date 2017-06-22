@@ -4,6 +4,9 @@ use std::ptr;
 use byteorder::{NativeEndian, ByteOrder};
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
+///
+/// The slice will encode the length of the `&[u8]` slice
+/// on 16-bits, and then the data is encoded.
 #[derive(Copy, Clone)]
 pub struct BytesRef(u32);
 
@@ -158,7 +161,6 @@ impl InnerHeap {
         }
     }
 
-
     fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
         let start = bytes_ref.0;
         if start >= self.buffer_len {
@@ -190,7 +192,7 @@ impl InnerHeap {
         let start = self.allocate_space(total_len);
         let total_buff = self.get_mut_slice(start, start + total_len as u32);
         NativeEndian::write_u16(&mut total_buff[0..2], data.len() as u16);
-        &mut total_buff[2..].clone_from_slice(data);
+        total_buff[2..].clone_from_slice(data);
         BytesRef(start)
     }
 

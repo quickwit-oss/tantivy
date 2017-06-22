@@ -64,13 +64,13 @@ mod murmurhash2 {
 #[derive(Copy, Clone, Default)]
 #[repr(packed)]
 struct KeyValue {
-    key: BytesRef,
+    key_value_addr: BytesRef,
     hash: u32,
 }
 
 impl KeyValue {
     fn is_empty(&self) -> bool {
-        self.key.is_null()
+        self.key_value_addr.is_null()
     }
 }
 
@@ -136,29 +136,27 @@ impl<'a> HashMap<'a> {
     }
 
     #[inline(never)]
-    fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
-        self.heap.get_slice(bytes_ref)
+    fn get_key_value(&self, bytes_ref: BytesRef) -> (&[u8], u32) {
+        let key_bytes: &[u8] = self.heap.get_slice(bytes_ref);
+        let expull_addr: u32 = bytes_ref.addr() + 2 + key_bytes.len() as u32;
+        (key_bytes, expull_addr)
     }
 
     pub fn set_bucket(&mut self, hash: u32, key_bytes_ref: BytesRef, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
-            key: key_bytes_ref,
+            key_value_addr: key_bytes_ref,
             hash: hash,
         };
     }
 
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
-        let heap: &'a Heap = self.heap;
-        let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
             .cloned()
             .map(move |bucket: usize| {
-                     let kv = table[bucket];
-                     let key = heap.get_slice(kv.key);
-                     let addr: u32 = kv.key.addr() + 2 + key.len() as u32;
-                     (heap.get_slice(kv.key), addr)
+                     let kv = self.table[bucket];
+                     self.get_key_value(kv.key_value_addr)
                  })
     }
 
@@ -177,9 +175,8 @@ impl<'a> HashMap<'a> {
                 self.set_bucket(hash, key_bytes_ref, bucket);
                 return val;
             } else if kv.hash == hash {
-                let stored_key: &[u8] = self.get_key(kv.key);
+                let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    let expull_addr = kv.key.addr() + 2 + stored_key.len() as u32;
                     return self.heap.get_mut_ref(expull_addr);
                 }
             }
