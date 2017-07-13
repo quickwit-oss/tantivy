@@ -46,16 +46,16 @@ pub struct MultiFieldPostingsWriter<'a> {
 impl<'a> MultiFieldPostingsWriter<'a> {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
-    pub fn new(schema: &Schema, heap: &'a Heap) -> MultiFieldPostingsWriter<'a> {
-        let capacity = heap.capacity();
-        let hashmap_size = hashmap_size_in_bits(capacity);
-        let term_index = HashMap::new(hashmap_size, heap);
+    pub fn new(schema: &Schema, table_bits: usize, heap: &'a Heap) -> MultiFieldPostingsWriter<'a> {
+        let term_index = HashMap::new(table_bits, heap);
+        let per_field_postings_writers: Vec<_> = schema
+            .fields()
+            .iter()
+            .map(|field_entry| {
+                posting_from_field_entry(field_entry, heap)
+            })
+            .collect();
 
-        let mut per_field_postings_writers: Vec<_> = vec![];
-        for field_entry in schema.fields() {
-            let field_entry = posting_from_field_entry(field_entry, heap);
-            per_field_postings_writers.push(field_entry);
-        }
         MultiFieldPostingsWriter {
             heap: heap,
             term_index: term_index,
@@ -179,20 +179,6 @@ pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
     _recorder_type: PhantomData<Rec>,
 }
 
-/// Given a `Heap` size, computes a relevant size for the `HashMap`.
-fn hashmap_size_in_bits(heap_capacity: u32) -> usize {
-    let num_buckets_usable = heap_capacity / 100;
-    let hash_table_size = num_buckets_usable * 2;
-    let mut pow = 512;
-    for num_bits in 10..32 {
-        pow <<= 1;
-        if pow > hash_table_size {
-            return num_bits;
-        }
-    }
-    32
-}
-
 impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
     /// constructor
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
@@ -244,11 +230,3 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     }
 }
 
-
-#[test]
-fn test_hashmap_size() {
-    assert_eq!(hashmap_size_in_bits(10), 10);
-    assert_eq!(hashmap_size_in_bits(0), 10);
-    assert_eq!(hashmap_size_in_bits(100_000), 11);
-    assert_eq!(hashmap_size_in_bits(300_000_000), 23);
-}

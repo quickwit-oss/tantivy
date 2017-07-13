@@ -1,13 +1,10 @@
-mod hashmap;
+pub(crate) mod hashmap;
 mod heap;
 mod expull;
 
 pub use self::heap::{Heap, HeapAllocable};
 pub use self::expull::ExpUnrolledLinkedList;
 pub use self::hashmap::{HashMap, Entry};
-
-
-
 
 #[test]
 fn test_unrolled_linked_list() {

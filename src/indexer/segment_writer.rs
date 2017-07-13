@@ -55,11 +55,12 @@ impl<'a> SegmentWriter<'a> {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(heap: &'a Heap,
+                       table_bits: usize,
                        mut segment: Segment,
                        schema: &Schema)
                        -> Result<SegmentWriter<'a>> {
-        let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, heap);
+        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
         Ok(SegmentWriter {
                heap: heap,
                max_doc: 0,

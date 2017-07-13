@@ -1,4 +1,5 @@
 use std::iter;
+use std::mem;
 use super::heap::{Heap, HeapAllocable, BytesRef};
 
 
@@ -61,6 +62,28 @@ impl Default for BytesRef {
         }
     }
 }
+
+/// Split the thread memory budget into
+/// - the heap size
+/// - the hash table "table" itself.
+///
+/// Returns (the heap size in bytes, the hash table size in number of bits)
+pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
+    let table_size_limit: usize = per_thread_memory_budget / 6;
+    let compute_table_size = |num_bits: usize| {
+        let table_size: usize = (1 << num_bits) * mem::size_of::<KeyValue>();
+        table_size * mem::size_of::<KeyValue>()
+    };
+    let table_num_bits: usize = (1..)
+        .into_iter()
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
+        .last()
+        .expect(&format!("Per thread memory is too small: {}", per_thread_memory_budget));
+    let table_size = compute_table_size(table_num_bits);
+    let heap_size = per_thread_memory_budget - table_size;
+    (heap_size, table_num_bits)
+}
+
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
@@ -213,6 +236,7 @@ mod tests {
     use std::collections::HashSet;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::Hasher;
+    use super::split_memory;
 
     struct TestValue {
         val: u32,
@@ -227,6 +251,14 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_hashmap_size() {
+        assert_eq!(split_memory(100_000), (90_784, 6));
+        assert_eq!(split_memory(1_000_000), (852_544, 10));
+        assert_eq!(split_memory(10_000_000), (8_820_352, 13));
+    }
+
 
     #[test]
     fn test_hash_map() {

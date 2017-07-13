@@ -38,11 +38,6 @@ impl Heap {
         self.inner().clear();
     }
 
-    /// Return the heap capacity.
-    pub fn capacity(&self) -> u32 {
-        self.inner().capacity()
-    }
-
     /// Return amount of free space, in bytes.
     pub fn num_free_bytes(&self) -> u32 {
         self.inner().num_free_bytes()
@@ -113,10 +108,6 @@ impl InnerHeap {
     pub fn clear(&mut self) {
         self.used = 0u32;
         self.next_heap = None;
-    }
-
-    pub fn capacity(&self) -> u32 {
-        self.buffer.len() as u32
     }
 
     // Returns the number of free bytes. If the buffer

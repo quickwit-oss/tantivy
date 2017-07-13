@@ -14,6 +14,7 @@ use Directory;
 use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use futures::Canceled;
+use datastruct::stacker::hashmap::split_memory;
 use futures::Future;
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::MergePolicy;
@@ -111,7 +112,7 @@ pub fn open_index_writer(index: &Index,
                        HEAP_SIZE_LIMIT));
     }
 
-    let directory_lock = try!(DirectoryLock::lock(index.directory().box_clone()));
+    let directory_lock = DirectoryLock::lock(index.directory().box_clone())?;
 
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
         chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -149,7 +150,7 @@ pub fn open_index_writer(index: &Index,
 
         worker_id: 0,
     };
-    try!(index_writer.start_workers());
+    index_writer.start_workers()?;
     Ok(index_writer)
 }
 
@@ -247,6 +248,7 @@ pub fn advance_deletes(mut segment: Segment,
 }
 
 fn index_documents(heap: &mut Heap,
+                   table_size: usize,
                    segment: Segment,
                    schema: &Schema,
                    generation: usize,
@@ -256,7 +258,7 @@ fn index_documents(heap: &mut Heap,
                    -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
-    let mut segment_writer = SegmentWriter::for_segment(heap, segment.clone(), schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
     for doc in document_iterator {
         try!(segment_writer.add_document(&doc, schema));
         // There is two possible conditions to close the segment.
@@ -312,7 +314,6 @@ fn index_documents(heap: &mut Heap,
 
 }
 
-
 impl IndexWriter {
     /// The index writer
     pub fn wait_merging_threads(mut self) -> Result<()> {
@@ -320,7 +321,6 @@ impl IndexWriter {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
         drop(self.document_sender);
-
 
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
@@ -363,7 +363,8 @@ impl IndexWriter {
         let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
-        let mut heap = Heap::with_capacity(self.heap_size_in_bytes_per_thread);
+        let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
+        let mut heap = Heap::with_capacity(heap_size);
 
         let generation = self.generation;
 
@@ -395,6 +396,7 @@ impl IndexWriter {
                     }
                     let segment = segment_updater.new_segment();
                     index_documents(&mut heap,
+                                    table_size,
                                     segment,
                                     &schema,
                                     generation,

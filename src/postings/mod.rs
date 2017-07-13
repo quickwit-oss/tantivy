@@ -80,9 +80,10 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
+
         let heap = Heap::with_capacity(10_000_000);
         {
-            let mut segment_writer = SegmentWriter::for_segment(&heap, segment.clone(), &schema)
+            let mut segment_writer = SegmentWriter::for_segment(&heap, 18, segment.clone(), &schema)
                 .unwrap();
             {
                 let mut doc = Document::default();
