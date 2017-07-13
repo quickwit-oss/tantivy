@@ -364,6 +364,7 @@ impl IndexWriter {
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
         let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
+        info!("heap size {}, table_size {}", heap_size, table_size);
         let mut heap = Heap::with_capacity(heap_size);
 
         let generation = self.generation;

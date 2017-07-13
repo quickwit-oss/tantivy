@@ -320,13 +320,13 @@ mod tests {
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-                   let n = test::black_box(7000u32);
-                   let mut a = 0u64;
-                   for i in Iterator::step_by((0u32..n), 7) {
-                       a ^= permutation[i as usize];
-                   }
-                   a
-               });
+            let n = test::black_box(7000u32);
+            let mut a = 0u64;
+            for i in Iterator::step_by((0u32..n), 7) {
+                a ^= permutation[i as usize];
+            }
+            a
+        });
     }
 
     #[bench]
@@ -363,13 +363,13 @@ mod tests {
             let fast_field_reader: U64FastFieldReader =
                 fast_field_readers.open_reader(*FIELD).unwrap();
             b.iter(|| {
-                       let n = test::black_box(7000u32);
-                       let mut a = 0u64;
-                       for i in Iterator::step_by((0u32..n), 7) {
-                           a ^= fast_field_reader.get(i);
-                       }
-                       a
-                   });
+                let n = test::black_box(7000u32);
+                let mut a = 0u64;
+                for i in Iterator::step_by((0u32..n), 7) {
+                    a ^= fast_field_reader.get(i);
+                }
+                a
+            });
         }
     }
 

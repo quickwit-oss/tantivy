@@ -11,9 +11,10 @@ Tantivy 0.4.0
   - Searching for a int term via the query parser was broken `(age:1)`
   - Searching for a non-indexed field returns an explicit Error
   - Phrase query for non-tokenized field are not tokenized by the query parser.
-- Faster indexing (@fulmicoton)
+- Faster/Better indexing (@fulmicoton)
     - using murmurhash2
     - faster merging
+    - more memory efficient fast field writer (@lnicola )
     - better handling of collisions
     - lesser memory usage
 - Added API, most notably to iterate over ranges of terms (@fulmicoton)

@@ -125,7 +125,7 @@ impl<'a, V> TermStreamerBuilderImpl<'a, V>
             origin: origin,
             offset_from: 0,
             offset_to: data.len(),
-            current_key: vec![],
+            current_key: Vec::with_capacity(300),
         }
     }
 }
@@ -153,7 +153,7 @@ fn deserialize_vint(data: &mut &[u8]) -> u64 {
     let mut shift = 0;
     for i in 0.. {
         let b = data[i];
-        res += ((b % 128u8) as u64) << shift;
+        res |= ((b % 128u8) as u64) << shift;
         if b & 128u8 != 0u8 {
             *data = &data[(i + 1)..];
             break;
@@ -173,8 +173,8 @@ impl<'a, V> TermStreamer<V> for TermStreamerImpl<'a, V>
         let common_length: usize = deserialize_vint(&mut self.cursor) as usize;
         self.current_key.truncate(common_length);
         let added_length: usize = deserialize_vint(&mut self.cursor) as usize;
-        self.current_key
-            .extend_from_slice(&self.cursor[..added_length]);
+        self.current_key.extend(&self.cursor[..added_length]);
+
         self.cursor = &self.cursor[added_length..];
         self.current_value =
             V::deserialize(&mut self.cursor)

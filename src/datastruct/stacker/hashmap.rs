@@ -2,8 +2,6 @@ use std::iter;
 use std::mem;
 use super::heap::{Heap, HeapAllocable, BytesRef};
 
-
-
 mod murmurhash2 {
 
     const SEED: u32 = 3_242_157_231u32;
@@ -54,14 +52,8 @@ mod murmurhash2 {
     }
 }
 
-impl Default for BytesRef {
-    fn default() -> BytesRef {
-        BytesRef {
-            start: 0u32,
-            stop: 0u32,
-        }
-    }
-}
+
+
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -69,7 +61,7 @@ impl Default for BytesRef {
 ///
 /// Returns (the heap size in bytes, the hash table size in number of bits)
 pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
-    let table_size_limit: usize = per_thread_memory_budget / 6;
+    let table_size_limit: usize = per_thread_memory_budget / 3;
     let compute_table_size = |num_bits: usize| {
         let table_size: usize = (1 << num_bits) * mem::size_of::<KeyValue>();
         table_size * mem::size_of::<KeyValue>()
@@ -93,20 +85,16 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
 /// For this reason, the (start, stop) information is actually redundant
 /// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
+#[repr(packed)]
 struct KeyValue {
-    key: BytesRef,
-    value_addr: u32,
+    key_value_addr: BytesRef,
+    hash: u32,
 }
 
 impl KeyValue {
     fn is_empty(&self) -> bool {
-        self.key.stop == 0u32
+        self.key_value_addr.is_null()
     }
-}
-
-pub enum Entry {
-    Vacant(usize),
-    Occupied(u32),
 }
 
 
@@ -134,8 +122,7 @@ struct QuadraticProbing {
 }
 
 impl QuadraticProbing {
-    fn compute(key: &[u8], mask: usize) -> QuadraticProbing {
-        let hash = murmurhash2::murmurhash2(key) as usize;
+    fn compute(hash: usize, mask: usize) -> QuadraticProbing {
         QuadraticProbing {
             hash: hash,
             i: 0,
@@ -163,63 +150,58 @@ impl<'a> HashMap<'a> {
         }
     }
 
-    fn probe(&self, key: &[u8]) -> QuadraticProbing {
-        QuadraticProbing::compute(key, self.mask)
+    fn probe(&self, hash: u32) -> QuadraticProbing {
+        QuadraticProbing::compute(hash as usize, self.mask)
     }
 
     pub fn is_saturated(&self) -> bool {
-        self.table.len() < self.occupied.len() * 10
+        self.table.len() < self.occupied.len() * 3
     }
 
-    fn get_key(&self, bytes_ref: BytesRef) -> &[u8] {
-        self.heap.get_slice(bytes_ref)
+    #[inline(never)]
+    fn get_key_value(&self, bytes_ref: BytesRef) -> (&[u8], u32) {
+        let key_bytes: &[u8] = self.heap.get_slice(bytes_ref);
+        let expull_addr: u32 = bytes_ref.addr() + 2 + key_bytes.len() as u32;
+        (key_bytes, expull_addr)
     }
 
-    pub fn set_bucket(&mut self, key_bytes: &[u8], bucket: usize, addr: u32) -> u32 {
+    pub fn set_bucket(&mut self, hash: u32, key_bytes_ref: BytesRef, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
-            key: self.heap.allocate_and_set(key_bytes),
-            value_addr: addr,
+            key_value_addr: key_bytes_ref,
+            hash: hash,
         };
-        addr
     }
 
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
-        let heap: &'a Heap = self.heap;
-        let table: &'b [KeyValue] = &self.table;
         self.occupied
             .iter()
             .cloned()
             .map(move |bucket: usize| {
-                     let kv = table[bucket];
-                     let addr = kv.value_addr;
-                     (heap.get_slice(kv.key), addr)
+                     let kv = self.table[bucket];
+                     self.get_key_value(kv.key_value_addr)
                  })
     }
 
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
-        let entry = self.lookup(key.as_ref());
-        match entry {
-            Entry::Occupied(addr) => self.heap.get_mut_ref(addr),
-            Entry::Vacant(bucket) => {
-                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
-                self.set_bucket(key.as_ref(), bucket, addr);
-                val
-            }
-        }
-    }
 
-    pub fn lookup<S: AsRef<[u8]>>(&self, key: S) -> Entry {
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let key_bytes: &[u8] = key.as_ref();
-        let mut probe = self.probe(key_bytes);
+        let hash = murmurhash2::murmurhash2(key.as_ref());
+        let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
-                return Entry::Vacant(bucket);
-            }
-            if self.get_key(kv.key) == key_bytes {
-                return Entry::Occupied(kv.value_addr);
+                let key_bytes_ref = self.heap.allocate_and_set(key_bytes);
+                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
+                assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
+                self.set_bucket(hash, key_bytes_ref, bucket);
+                return val;
+            } else if kv.hash == hash {
+                let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
+                if stored_key == key_bytes {
+                    return self.heap.get_mut_ref(expull_addr);
+                }
             }
         }
     }
@@ -234,9 +216,8 @@ mod tests {
     use super::murmurhash2::murmurhash2;
     use test::Bencher;
     use std::collections::HashSet;
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::Hasher;
     use super::split_memory;
+
 
     struct TestValue {
         val: u32,
@@ -254,8 +235,8 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (90_784, 6));
-        assert_eq!(split_memory(1_000_000), (852_544, 10));
+        assert_eq!(split_memory(100_000), (83_616, 8));
+        assert_eq!(split_memory(1_000_000), (868_928, 11));
         assert_eq!(split_memory(10_000_000), (8_820_352, 13));
     }
 
@@ -331,14 +312,5 @@ mod tests {
                });
     }
 
-    #[bench]
-    fn bench_siphasher(bench: &mut Bencher) {
-        let v = String::from("abwer");
-        bench.iter(|| {
-                       let mut h = DefaultHasher::new();
-                       h.write(v.as_bytes());
-                       h.finish()
-                   });
-    }
 
 }
