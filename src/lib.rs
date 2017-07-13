@@ -8,7 +8,7 @@
 #![feature(integer_atomics)]
 
 #![cfg_attr(test, feature(test))]
-#![cfg_attr(test, feature(step_by))]
+#![cfg_attr(test, feature(iterator_step_by))]
 
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
