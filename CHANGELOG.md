@@ -21,10 +21,13 @@ Tantivy 0.4.0
 - Made the doc! macro public (@fulmicoton)
 - Added an alternative implementation of the streaming dictionary (@fulmicoton)
 
+
+
 Tantivy 0.3.1
 ==========================
 
 - Expose a method to trigger files garbage collection
+
 
 
 Tantivy 0.3
@@ -46,6 +49,7 @@ Tantivy 0.3 is NOT backward compatible with tantivy 0.2
 code and index format.
 You should not expect backward compatibility before 
 tantivy 1.0.
+
 
 
 New Features
