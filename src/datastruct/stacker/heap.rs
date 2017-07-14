@@ -144,8 +144,7 @@ impl InnerHeap {
             addr
         } else {
             if self.next_heap.is_none() {
-                info!(r#"Exceeded heap size.
-                    The segment will be committed right after indexing this document."#,);
+                info!(r#"Exceeded heap size. The segment will be committed right after indexing this document."#,);
                 self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
             }
             self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len

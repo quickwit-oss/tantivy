@@ -117,6 +117,7 @@ impl ManagedDirectory {
     /// an error is simply logged, and the file remains in the list of managed
     /// files.
     pub fn garbage_collect(&mut self, living_files: HashSet<PathBuf>) {
+        info!("Garbage collect");
         let mut files_to_delete = vec![];
         {
             // releasing the lock as .delete() will use it too.
