@@ -19,10 +19,10 @@ It is strongly inspired by Lucene's design.
 - Basic query language
 - Phrase queries
 - Incremental indexing
-- Multithreaded indexing (indexing English Wikipedia takes 4 minutes on my desktop)
+- Multithreaded indexing (indexing English Wikipedia takes < 3 minutes on my desktop)
 - mmap based
 - optional SIMD integer compression
-- u32 fast fields (equivalent of doc values in Lucene)
+- u64 and i64 fast fields (equivalent of doc values in Lucene)
 - LZ4 compressed document store
 - Cheesy logo with a horse
 
