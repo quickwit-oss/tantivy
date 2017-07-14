@@ -235,9 +235,9 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (83_616, 8));
-        assert_eq!(split_memory(1_000_000), (868_928, 11));
-        assert_eq!(split_memory(10_000_000), (8_820_352, 13));
+        assert_eq!(split_memory(100_000), (67232, 9));
+        assert_eq!(split_memory(1_000_000), (737856, 12));
+        assert_eq!(split_memory(10_000_000), (7902848, 15));
     }
 
 
