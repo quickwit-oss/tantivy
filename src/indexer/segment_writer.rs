@@ -116,6 +116,9 @@ impl<'a> SegmentWriter<'a> {
         self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_options = schema.get_field_entry(field);
+            if !field_options.is_indexed() {
+                continue;
+            }
             match *field_options.field_type() {
                 FieldType::Str(ref text_options) => {
                     let num_tokens: u32 = if text_options.get_indexing_options().is_tokenized() {
