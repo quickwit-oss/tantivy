@@ -173,7 +173,7 @@ pub trait TermStreamer<V>: Sized {
     ///
     /// If the end of the stream as been reached, and `.next()`
     /// has been called and returned `None`, `.key()` remains
-    /// the value of the last key encounterred.
+    /// the value of the last key encountered.
     ///
     /// Before any call to `.next()`, `.key()` returns an empty array.
     fn key(&self) -> &[u8];
@@ -181,7 +181,7 @@ pub trait TermStreamer<V>: Sized {
     /// Accesses the current value.
     ///
     /// Calling `.value()` after the end of the stream will return the
-    /// last `.value()` encounterred.
+    /// last `.value()` encountered.
     ///
     /// # Panics
     ///

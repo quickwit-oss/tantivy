@@ -9,7 +9,7 @@ use schema::TextIndexingOptions;
 /// At this point the JSON is known to be valid.
 #[derive(Debug)]
 pub enum ValueParsingError {
-    /// Encounterred a numerical value that overflows or underflow its integer type.
+    /// Encountered a numerical value that overflows or underflow its integer type.
     OverflowError(String),
     /// The json node is not of the correct type.
     /// (e.g. 3 for a `Str` type or `"abc"` for a u64 type)

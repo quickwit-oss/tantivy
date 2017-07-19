@@ -239,7 +239,7 @@ impl IndexMerger {
                 segment_postings_option = field_entry
                     .field_type()
                     .get_segment_postings_option()
-                    .expect("Encounterred a field that is not supposed to be
+                    .expect("Encountered a field that is not supposed to be
                          indexed. Have you modified the index?");
                 last_field = Some(current_field);
 

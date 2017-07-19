@@ -188,7 +188,7 @@ impl SegmentReader {
 
 
     /// Returns the segment postings associated with the term, and with the given option,
-    /// or `None` if the term has never been encounterred and indexed.
+    /// or `None` if the term has never been encountered and indexed.
     ///
     /// If the field was not indexed with the indexing options that cover
     /// the requested options, the returned `SegmentPostings` the method does not fail
