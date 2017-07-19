@@ -240,7 +240,7 @@ impl IndexMerger {
                     .field_type()
                     .get_segment_postings_option()
                     .expect("Encounterred a field that is not supposed to be
-                         indexed. Have you modified the index?");
+                         indexed. Have you modified the schema?");
                 last_field = Some(current_field);
 
                 // it is perfectly safe to call `.new_field`
