@@ -266,9 +266,10 @@ impl SegmentUpdater {
 
     fn garbage_collect_files_exec(&self) {
         info!("Running garbage collection");
-        let living_files = self.0.segment_manager.list_files();
         let mut index = self.0.index.clone();
-        index.directory_mut().garbage_collect(living_files);
+        index.directory_mut().garbage_collect(|| {
+            self.0.segment_manager.list_files()
+        });
     }
 
     pub fn commit(&self, opstamp: u64) -> Result<()> {

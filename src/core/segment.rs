@@ -125,11 +125,11 @@ mod tests {
         {
             let _file_protection = segment.protect_from_delete(SegmentComponent::POSTINGS);
             assert!(directory.exists(&*path));
-            directory.garbage_collect(living_files.clone());
+            directory.garbage_collect(|| { living_files.clone() });
             assert!(directory.exists(&*path));
         }
 
-        directory.garbage_collect(living_files);
+        directory.garbage_collect(|| { living_files });
         assert!(!directory.exists(&*path));
     }
 
