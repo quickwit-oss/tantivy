@@ -1,3 +1,22 @@
+
+Tantivy 0.4.3
+==========================
+
+- Bugfix race condition when deleting files. (#198)
+
+
+Tantivy 0.4.2
+==========================
+
+- Prevent usage of AVX2 instructions (#201)
+
+
+Tantivy 0.4.1
+==========================
+
+- Bugfix for non-indexed fields. (#199)
+
+
 Tantivy 0.4.0
 ==========================
 
