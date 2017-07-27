@@ -12,6 +12,7 @@ mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod shared_vec_slice;
+mod s3_directory;
 
 /// Errors specific to the directory module.
 pub mod error;
@@ -27,6 +28,7 @@ pub use self::mmap_directory::MmapDirectory;
 
 pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
 pub(crate) use self::read_only_source::SourceRead;
+pub(crate) use self::s3_directory::S3Directory;
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}
