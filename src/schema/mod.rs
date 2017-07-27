@@ -1,5 +1,5 @@
 /*!
-
+How Tantivy defines schema
 
 # Schema definition
 

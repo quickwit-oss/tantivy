@@ -1,7 +1,8 @@
-/// Query module
-///
-/// The query module regroups all of tantivy's query objects
-///
+/*!
+Query module
+
+The query module regroups all of tantivy's query objects
+*/
 
 mod query;
 mod boolean_query;

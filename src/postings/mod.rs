@@ -1,3 +1,7 @@
+/*!
+Postings module (also called inverted index)
+*/
+
 /// Postings module
 ///
 /// Postings, also called inverted lists, is the key datastructure
