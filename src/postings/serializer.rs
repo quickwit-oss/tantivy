@@ -168,9 +168,7 @@ impl PostingsSerializer {
                 if self.text_indexing_options.is_termfreq_enabled() {
                     let block_encoded = self.block_encoder
                         .compress_vint_unsorted(&self.term_freqs[..]);
-                    for num in block_encoded {
-                        num.serialize(&mut self.postings_write)?;
-                    }
+                    self.postings_write.write_all(block_encoded)?;
                     self.term_freqs.clear();
                 }
             }
