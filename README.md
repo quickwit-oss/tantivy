@@ -38,12 +38,10 @@ It will walk you through getting a wikipedia search engine up and running in a f
     - [For the last released version](https://docs.rs/tantivy/)
     - [For the last master branch](https://tantivy-search.github.io/tantivy/tantivy/index.html)
 
-# Compiling 
+# Compiling
 
 Tantivy requires Rust Nightly because it uses requires the features [`box_syntax`](https://doc.rust-lang.org/stable/book/box-syntax-and-patterns.html), [`optin_builtin_traits`](https://github.com/rust-lang/rfcs/blob/master/text/0019-opt-in-builtin-traits.md), and [`conservative_impl_trait`](https://github.com/rust-lang/rfcs/blob/master/text/1522-conservative-impl-trait.md).
-By default, `tantivy` uses a git submodule called `simdcomp`.
-After cloning the repository, you will need to initialize and update
-the submodules. The project can then be built using `cargo`.
+The project can then be built using `cargo`.
 
     git clone git@github.com:tantivy-search/tantivy.git
     cd tantivy
@@ -54,9 +52,9 @@ Alternatively, if you are trying to compile `tantivy` without simd compression,
 you can disable this functionality. In this case, this submodule is not required
 and you can compile tantivy by using the `--no-default-features` flag.
 
-    cargo build --no-default-features 
+    cargo build --no-default-features
 
 
 # Contribute
 
-Send me an email (paul.masurel at gmail.com) if you want to contribute to tantivy. 
+Send me an email (paul.masurel at gmail.com) if you want to contribute to tantivy.
