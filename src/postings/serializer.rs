@@ -7,7 +7,7 @@ use schema::FieldType;
 use schema::Schema;
 use schema::TextIndexingOptions;
 use directory::WritePtr;
-use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
+use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder};
 use DocId;
 use core::Segment;
 use std::io::{self, Write};
@@ -16,6 +16,7 @@ use common::VInt;
 use common::BinarySerializable;
 use common::CountingWriter;
 use termdict::TermDictionaryBuilder;
+use datastruct::{SkipList, SkipListBuilder};
 
 
 /// `PostingsSerializer` is in charge of serializing
@@ -52,17 +53,62 @@ use termdict::TermDictionaryBuilder;
 pub struct PostingsSerializer {
     terms_fst_builder: TermDictionaryBuilderImpl<WritePtr, TermInfo>,
     postings_write: CountingWriter<WritePtr>,
-    positions_write: CountingWriter<WritePtr>,
     last_doc_id_encoded: u32,
-    positions_encoder: CompositeEncoder,
+    positions_writer: PositionWriter,
     block_encoder: BlockEncoder,
     doc_ids: Vec<DocId>,
     term_freqs: Vec<u32>,
-    position_deltas: Vec<u32>,
     schema: Schema,
     text_indexing_options: TextIndexingOptions,
     term_open: bool,
     current_term_info: TermInfo,
+}
+
+struct PositionWriter {
+    buffer: Vec<u32>,
+    write: CountingWriter<WritePtr>,
+    block_encoder: BlockEncoder,
+}
+
+impl PositionWriter {
+    fn new(write: WritePtr) -> PositionWriter {
+        PositionWriter {
+            buffer: Vec::with_capacity(NUM_DOCS_PER_BLOCK),
+            write: CountingWriter::wrap(write),
+            block_encoder: BlockEncoder::new(),
+        }
+    }
+
+    fn addr(&self) -> (u32, u8) {
+        (self.write.written_bytes() as u32, self.buffer.len() as u8)
+    }
+
+    fn write_block(&mut self) -> io::Result<()> {
+        assert_eq!(self.buffer.len(), NUM_DOCS_PER_BLOCK);
+        let block_compressed: &[u8] = self.block_encoder.compress_block_unsorted(&self.buffer);
+        self.write.write_all(block_compressed)?;
+        self.buffer.clear();
+        Ok(())
+    }
+
+    fn write(&mut self, mut vals: &[u32]) -> io::Result<()> {
+        let mut buffer_len = self.buffer.len();
+        while vals.len() + buffer_len >= NUM_DOCS_PER_BLOCK {
+            let len_to_completion = NUM_DOCS_PER_BLOCK - buffer_len;
+            self.buffer.extend_from_slice(&vals[..len_to_completion]);
+            self.write_block()?;
+            vals = &vals[len_to_completion..];
+            buffer_len = self.buffer.len();
+        }
+        self.buffer.extend_from_slice(&vals);
+        Ok(())
+    }
+
+    fn close(mut self) -> io::Result<()> {
+        self.buffer.resize(NUM_DOCS_PER_BLOCK, 0u32);
+        self.write_block()?;
+        self.write.flush()
+    }
 }
 
 impl PostingsSerializer {
@@ -72,17 +118,15 @@ impl PostingsSerializer {
                positions_write: WritePtr,
                schema: Schema)
                -> Result<PostingsSerializer> {
-        let terms_fst_builder = try!(TermDictionaryBuilderImpl::new(terms_write));
+        let terms_fst_builder = TermDictionaryBuilderImpl::new(terms_write)?;
         Ok(PostingsSerializer {
                terms_fst_builder: terms_fst_builder,
                postings_write: CountingWriter::wrap(postings_write),
-               positions_write: CountingWriter::wrap(positions_write),
+               positions_writer: PositionWriter::new(positions_write),
                last_doc_id_encoded: 0u32,
-               positions_encoder: CompositeEncoder::new(),
                block_encoder: BlockEncoder::new(),
                doc_ids: Vec::new(),
                term_freqs: Vec::new(),
-               position_deltas: Vec::new(),
                schema: schema,
                text_indexing_options: TextIndexingOptions::Unindexed,
                term_open: false,
@@ -131,11 +175,12 @@ impl PostingsSerializer {
         self.doc_ids.clear();
         self.last_doc_id_encoded = 0;
         self.term_freqs.clear();
-        self.position_deltas.clear();
+        let (filepos, offset) = self.positions_writer.addr();
         self.current_term_info = TermInfo {
             doc_freq: 0,
             postings_offset: self.postings_write.written_bytes() as u32,
-            positions_offset: self.positions_write.written_bytes() as u32,
+            positions_offset: filepos,
+            positions_inner_offset: offset,
         };
         self.terms_fst_builder.insert_key(term)
     }
@@ -172,16 +217,6 @@ impl PostingsSerializer {
                     self.term_freqs.clear();
                 }
             }
-            // On the other hand, positions are entirely buffered until the
-            // end of the term, at which point they are compressed and written.
-            if self.text_indexing_options.is_position_enabled() {
-                let posdelta_len = VInt(self.position_deltas.len() as u64);
-                posdelta_len.serialize(&mut self.positions_write)?;
-                let positions_encoded: &[u8] = self.positions_encoder
-                    .compress_unsorted(&self.position_deltas[..]);
-                self.positions_write.write_all(positions_encoded)?;
-                self.position_deltas.clear();
-            }
             self.term_open = false;
         }
         Ok(())
@@ -208,7 +243,7 @@ impl PostingsSerializer {
             self.term_freqs.push(term_freq as u32);
         }
         if self.text_indexing_options.is_position_enabled() {
-            self.position_deltas.extend_from_slice(position_deltas);
+            self.positions_writer.write(position_deltas)?;
         }
         if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
             {
@@ -233,10 +268,10 @@ impl PostingsSerializer {
 
     /// Closes the serializer.
     pub fn close(mut self) -> io::Result<()> {
-        try!(self.close_term());
-        try!(self.terms_fst_builder.finish());
-        try!(self.postings_write.flush());
-        try!(self.positions_write.flush());
+        self.close_term()?;
+        self.terms_fst_builder.finish()?;
+        self.postings_write.flush()?;
+        self.positions_writer.close()?;
         Ok(())
     }
 }

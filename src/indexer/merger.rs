@@ -28,29 +28,6 @@ pub struct IndexMerger {
 }
 
 
-struct DeltaPositionComputer {
-    buffer: Vec<u32>,
-}
-
-impl DeltaPositionComputer {
-    fn new() -> DeltaPositionComputer {
-        DeltaPositionComputer { buffer: vec![0u32; 512] }
-    }
-
-    fn compute_delta_positions(&mut self, positions: &[u32]) -> &[u32] {
-        if positions.len() > self.buffer.len() {
-            self.buffer.resize(positions.len(), 0u32);
-        }
-        let mut last_pos = 0u32;
-        for (i, position) in positions.iter().cloned().enumerate() {
-            self.buffer[i] = position - last_pos;
-            last_pos = position;
-        }
-        &self.buffer[..positions.len()]
-    }
-}
-
-
 fn compute_min_max_val(u64_reader: &U64FastFieldReader,
                        max_doc: DocId,
                        delete_bitset: &DeleteBitSet)
@@ -193,7 +170,6 @@ impl IndexMerger {
     fn write_postings(&self, serializer: &mut PostingsSerializer) -> Result<()> {
 
         let mut merged_terms = TermMerger::from(&self.readers[..]);
-        let mut delta_position_computer = DeltaPositionComputer::new();
 
         let mut max_doc = 0;
 
@@ -294,9 +270,7 @@ impl IndexMerger {
                         old_to_new_doc_id[segment_postings.doc() as usize] {
                         // we make sure to only write the term iff
                         // there is at least one document.
-                        let delta_positions: &[u32] =
-                            delta_position_computer
-                                .compute_delta_positions(segment_postings.positions());
+                        let delta_positions: &[u32] = segment_postings.delta_positions();
                         let term_freq = segment_postings.term_freq();
                         serializer
                             .write_doc(remapped_doc_id, term_freq, delta_positions)?;

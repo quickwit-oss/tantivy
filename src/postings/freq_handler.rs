@@ -1,27 +1,16 @@
 use compression::BlockDecoder;
-use common::VInt;
-use common::BinarySerializable;
-use compression::{CompositeDecoder, VIntDecoder};
+use compression::VIntDecoder;
 use postings::SegmentPostingsOption;
 use compression::NUM_DOCS_PER_BLOCK;
-
+use std::cell::UnsafeCell;
 
 /// `FreqHandler`  is in charge of decompressing
 /// frequencies and/or positions.
 pub struct FreqHandler {
     freq_decoder: BlockDecoder,
-    positions: Vec<u32>,
+    positions: UnsafeCell<Vec<u32>>,
     option: SegmentPostingsOption,
     positions_offsets: [usize; NUM_DOCS_PER_BLOCK + 1],
-}
-
-
-fn read_positions(data: &[u8]) -> Vec<u32> {
-    let mut composite_reader = CompositeDecoder::new();
-    let mut readable: &[u8] = data;
-    let uncompressed_len = VInt::deserialize(&mut readable).unwrap().0 as usize;
-    composite_reader.uncompress_unsorted(readable, uncompressed_len);
-    composite_reader.into()
 }
 
 
@@ -31,7 +20,7 @@ impl FreqHandler {
     pub fn new_without_freq() -> FreqHandler {
         FreqHandler {
             freq_decoder: BlockDecoder::with_val(1u32),
-            positions: Vec::new(),
+            positions: UnsafeCell::new(Vec::with_capacity(0)),
             option: SegmentPostingsOption::NoFreq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
@@ -41,23 +30,23 @@ impl FreqHandler {
     pub fn new_with_freq() -> FreqHandler {
         FreqHandler {
             freq_decoder: BlockDecoder::new(),
-            positions: Vec::new(),
+            positions: UnsafeCell::new(Vec::with_capacity(0)),
             option: SegmentPostingsOption::Freq,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
 
     /// Returns a `FreqHandler` that decodes `DocId`s, term frequencies, and term positions.
-    pub fn new_with_freq_and_position(position_data: &[u8]) -> FreqHandler {
-        let positions = read_positions(position_data);
+    pub fn new_with_freq_and_position(position_data: &[u8], within_block_offset: u8) -> FreqHandler {
         FreqHandler {
             freq_decoder: BlockDecoder::new(),
-            positions: positions,
+            positions: UnsafeCell::new(Vec::with_capacity(NUM_DOCS_PER_BLOCK)),
             option: SegmentPostingsOption::FreqAndPositions,
             positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
 
+    /*
     fn fill_positions_offset(&mut self) {
         let mut cur_position: usize = self.positions_offsets[NUM_DOCS_PER_BLOCK];
         let mut i: usize = 0;
@@ -75,7 +64,7 @@ impl FreqHandler {
             self.positions_offsets[i] = cur_position;
             last_cur_position = cur_position;
         }
-    }
+    }*/
 
 
     /// Accessor to term frequency
@@ -91,10 +80,30 @@ impl FreqHandler {
     /// idx is the offset of the current doc in the block.
     /// It takes value between 0 and 128.
     pub fn positions(&self, idx: usize) -> &[u32] {
-        let start = self.positions_offsets[idx];
-        let stop = self.positions_offsets[idx + 1];
-        &self.positions[start..stop]
+        //unsafe { &self.positions.get() }
+        println!("fix positions");
+        self.delta_positions(idx)
+
     }
+
+    /// Accessor to the delta positions.
+    /// Delta positions is simply the difference between
+    /// two consecutive positions.
+    /// The first delta position is the first position of the
+    /// term in the document.
+    ///
+    /// For instance, if positions are `[7,13,17]`
+    /// then delta positions `[7, 6, 4]`
+    ///
+    /// idx is the offset of the current doc in the docid/freq block.
+    /// It takes value between 0 and 128.
+    pub fn delta_positions(&self, idx: usize) -> &[u32] {
+        let freq = self.freq(idx);
+        let positions: &mut Vec<u32> = unsafe { &mut *self.positions.get() };
+        positions.resize(freq as usize, 0u32);
+        &positions[..]
+    }
+
 
     /// Decompresses a complete frequency block
     pub fn read_freq_block<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
@@ -103,7 +112,7 @@ impl FreqHandler {
             SegmentPostingsOption::Freq => self.freq_decoder.uncompress_block_unsorted(data),
             SegmentPostingsOption::FreqAndPositions => {
                 let remaining: &'a [u8] = self.freq_decoder.uncompress_block_unsorted(data);
-                self.fill_positions_offset();
+                // self.fill_positions_offset();
                 remaining
             }
         }
@@ -118,7 +127,7 @@ impl FreqHandler {
             }
             SegmentPostingsOption::FreqAndPositions => {
                 self.freq_decoder.uncompress_vint_unsorted(data, num_els);
-                self.fill_positions_offset();
+                // self.fill_positions_offset();
             }
         }
     }

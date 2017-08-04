@@ -1,10 +1,6 @@
 #![allow(dead_code)]
 
 
-mod composite;
-pub use self::composite::{CompositeEncoder, CompositeDecoder};
-
-
 #[cfg(not(feature="simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;

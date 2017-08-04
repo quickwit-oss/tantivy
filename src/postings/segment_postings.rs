@@ -179,6 +179,11 @@ impl<'a> Postings for SegmentPostings<'a> {
     fn positions(&self) -> &[u32] {
         self.block_cursor.freq_handler().positions(self.cur)
     }
+
+    fn delta_positions(&self) -> &[u32] {
+        self.block_cursor.freq_handler().delta_positions(self.cur)
+    }
+
 }
 
 /// `BlockSegmentPostings` is a cursor iterating over blocks

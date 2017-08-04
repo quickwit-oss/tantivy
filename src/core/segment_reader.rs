@@ -240,7 +240,7 @@ impl SegmentReader {
             SegmentPostingsOption::FreqAndPositions => {
                 let offset = term_info.positions_offset as usize;
                 let offseted_position_data = &self.positions_data[offset..];
-                FreqHandler::new_with_freq_and_position(offseted_position_data)
+                FreqHandler::new_with_freq_and_position(offseted_position_data, term_info.positions_inner_offset)
             }
         };
         BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler)

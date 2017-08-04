@@ -54,6 +54,11 @@ impl Postings for VecPostings {
     fn positions(&self) -> &[u32] {
         &EMPTY_ARRAY
     }
+
+    fn delta_positions(&self) -> &[u32] {
+        &EMPTY_ARRAY
+    }
+
 }
 
 #[cfg(test)]
