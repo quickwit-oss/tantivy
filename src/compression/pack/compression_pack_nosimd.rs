@@ -1,12 +1,13 @@
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::{BitPacker, BitUnpacker};
+use common::CountingWriter;
 use std::cmp;
 use std::io::Write;
 use super::super::NUM_DOCS_PER_BLOCK;
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1;
 
-pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> usize {
+pub fn compress_sorted(vals: &mut [u32], output: &mut [u8], offset: u32) -> usize {
     let mut max_delta = 0;
     {
         let mut local_offset = offset;
@@ -18,16 +19,14 @@ pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> 
             local_offset = val;
         }
     }
-    let num_bits = compute_num_bits(max_delta);
-    output.write_all(&[num_bits]).unwrap();
+    let mut counting_writer = CountingWriter::wrap(output);
+    let num_bits = compute_num_bits(max_delta as u64);
+    counting_writer.write_all(&[num_bits]).unwrap();
     let mut bit_packer = BitPacker::new(num_bits as usize);
     for val in vals {
-        bit_packer.write(*val, &mut output).unwrap();
+        bit_packer.write(*val as u64, &mut counting_writer).unwrap();
     }
-    1 +
-    bit_packer
-        .close(&mut output)
-        .expect("packing in memory should never fail")
+    counting_writer.written_bytes()
 }
 
 
@@ -54,22 +53,23 @@ impl BlockEncoder {
     }
 
     pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
-        let compressed_size: usize = {
-            let mut output: &mut [u8] = &mut self.output;
+        let compressed_size = {
+            let output: &mut [u8] = &mut self.output;
             let max = vals.iter()
                 .cloned()
                 .max()
                 .expect("compress unsorted called with an empty array");
-            let num_bits = compute_num_bits(max);
-            output.write_all(&[num_bits]).unwrap();
+            let num_bits = compute_num_bits(max as u64);
+            let mut counting_writer = CountingWriter::wrap(output);
+            counting_writer.write_all(&[num_bits]).unwrap();
             let mut bit_packer = BitPacker::new(num_bits as usize);
             for val in vals {
-                bit_packer.write(*val, &mut output).unwrap();
+                bit_packer.write(*val as u64, &mut counting_writer).unwrap();
             }
-            1 +
-            bit_packer
-                .close(&mut output)
-                .expect("packing in memory should never fail")
+            bit_packer.flush(&mut counting_writer);
+            // we voluntarility avoid writing "closing", because we
+            // do not want 7 bytes of padding here.
+            counting_writer.written_bytes()
         };
         &self.output[..compressed_size]
     }
@@ -102,7 +102,7 @@ impl BlockDecoder {
             let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
             for i in 0..NUM_DOCS_PER_BLOCK {
                 let delta = bit_unpacker.get(i);
-                let val = offset + delta;
+                let val = offset + delta as u32;
                 self.output[i] = val;
                 offset = val;
             }
@@ -116,7 +116,7 @@ impl BlockDecoder {
         let num_bits = compressed_data[0];
         let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
         for i in 0..NUM_DOCS_PER_BLOCK {
-            self.output[i] = bit_unpacker.get(i);
+            self.output[i] = bit_unpacker.get(i) as u32;
         }
         let consumed_size = 1 + (num_bits as usize * NUM_DOCS_PER_BLOCK + 7) / 8;
         self.output_len = NUM_DOCS_PER_BLOCK;
