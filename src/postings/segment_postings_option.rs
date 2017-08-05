@@ -16,6 +16,22 @@ pub enum SegmentPostingsOption {
     FreqAndPositions,
 }
 
+impl SegmentPostingsOption {
+    pub fn has_freq(&self) -> bool {
+        match *self {
+            SegmentPostingsOption::NoFreq => false,
+            _ => true,
+        }
+    }
+
+    pub fn has_positions(&self) -> bool {
+        match *self {
+            SegmentPostingsOption::FreqAndPositions => true,
+            _ => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

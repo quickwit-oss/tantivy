@@ -9,7 +9,7 @@ pub struct CompressedIntStream<'a> {
 }
 
 impl<'a> CompressedIntStream<'a> {
-    fn wrap(buffer: &'a [u8]) -> CompressedIntStream<'a> {
+    pub fn wrap(buffer: &'a [u8]) -> CompressedIntStream<'a> {
         CompressedIntStream {
             buffer: buffer,
             block_decoder: BlockDecoder::new(),
@@ -17,7 +17,7 @@ impl<'a> CompressedIntStream<'a> {
         }
     }
 
-    fn read(&mut self, mut output: &mut [u32]) {
+    pub fn read(&mut self, mut output: &mut [u32]) {
         let mut num_els: usize = output.len();
         let mut start: usize = 0;
         loop {
@@ -41,7 +41,7 @@ impl<'a> CompressedIntStream<'a> {
         }
     }
 
-    fn skip(&mut self, mut skip_len: usize) {
+    pub fn skip(&mut self, mut skip_len: usize) {
         let available = NUM_DOCS_PER_BLOCK - self.inner_offset;
         if available >= skip_len {
             self.inner_offset += skip_len;

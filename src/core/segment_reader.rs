@@ -4,6 +4,7 @@ use core::SegmentId;
 use core::SegmentComponent;
 use schema::Term;
 use common::HasLen;
+use compression::CompressedIntStream;
 use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::DeleteBitSet;
@@ -220,7 +221,23 @@ impl SegmentReader {
                                        -> SegmentPostings {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
         let delete_bitset = self.delete_bitset.clone();
-        SegmentPostings::from_block_postings(block_postings, delete_bitset)
+        let position_stream = {
+            if option.has_positions() {
+                let position_offset = term_info.positions_offset;
+                let positions_data = &self.positions_data[position_offset as usize..];
+                let mut stream = CompressedIntStream::wrap(positions_data);
+                stream.skip(term_info.positions_inner_offset as usize);
+                Some(stream)
+            }
+            else {
+                None
+            }
+        };
+        SegmentPostings::from_block_postings(
+            block_postings,
+            delete_bitset,
+            position_stream
+        )
     }
 
 
@@ -234,16 +251,11 @@ impl SegmentReader {
                                              -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = &self.postings_data[offset..];
-        let freq_handler = match option {
-            SegmentPostingsOption::NoFreq => FreqHandler::new_without_freq(),
-            SegmentPostingsOption::Freq => FreqHandler::new_with_freq(),
-            SegmentPostingsOption::FreqAndPositions => {
-                let offset = term_info.positions_offset as usize;
-                let offseted_position_data = &self.positions_data[offset..];
-                FreqHandler::new_with_freq_and_position(offseted_position_data, term_info.positions_inner_offset)
-            }
-        };
-        BlockSegmentPostings::from_data(term_info.doc_freq as usize, postings_data, freq_handler)
+        let has_freq = option.has_freq();
+        BlockSegmentPostings::from_data(
+            term_info.doc_freq as usize,
+            postings_data,
+            has_freq)
     }
 
 
