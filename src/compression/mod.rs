@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
 
+mod stream;
+
+pub use self::stream::CompressedIntStream;
+
 #[cfg(not(feature="simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;
@@ -13,7 +17,7 @@ mod pack {
     pub use self::compression_pack_simd::*;
 }
 
-pub use self::pack::{BlockEncoder, BlockDecoder};
+pub use self::pack::{BlockEncoder, BlockDecoder, compressedbytes};
 
 #[cfg( any(not(feature="simdcompression"), target_env="msvc") )]
 mod vint {

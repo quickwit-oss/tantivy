@@ -10,7 +10,6 @@ pub struct FreqHandler {
     freq_decoder: BlockDecoder,
     positions: UnsafeCell<Vec<u32>>,
     option: SegmentPostingsOption,
-    positions_offsets: [usize; NUM_DOCS_PER_BLOCK + 1],
 }
 
 
@@ -22,7 +21,6 @@ impl FreqHandler {
             freq_decoder: BlockDecoder::with_val(1u32),
             positions: UnsafeCell::new(Vec::with_capacity(0)),
             option: SegmentPostingsOption::NoFreq,
-            positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
 
@@ -32,7 +30,6 @@ impl FreqHandler {
             freq_decoder: BlockDecoder::new(),
             positions: UnsafeCell::new(Vec::with_capacity(0)),
             option: SegmentPostingsOption::Freq,
-            positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
 
@@ -42,7 +39,6 @@ impl FreqHandler {
             freq_decoder: BlockDecoder::new(),
             positions: UnsafeCell::new(Vec::with_capacity(NUM_DOCS_PER_BLOCK)),
             option: SegmentPostingsOption::FreqAndPositions,
-            positions_offsets: [0; NUM_DOCS_PER_BLOCK + 1],
         }
     }
 
