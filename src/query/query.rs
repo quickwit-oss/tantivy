@@ -8,7 +8,10 @@ use std::fmt;
 use std::any::Any;
 
 
-/// Query trait are in charge of defining :
+/// The `Query` trait defines a set of documents and a scoring method
+/// for those documents.
+///
+/// The `Query` trait is in charge of defining :
 ///
 /// - a set of documents
 /// - a way to score these documents
@@ -68,7 +71,10 @@ pub trait Query: fmt::Debug {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
                     let _ = segment_search_timer.open("set_segment");
-                    try!(collector.set_segment(segment_ord as SegmentLocalId, segment_reader));
+                    try!(collector.set_segment(
+                        segment_ord as SegmentLocalId,
+                        segment_reader,
+                    ));
                 }
                 let mut scorer = try!(weight.scorer(segment_reader));
                 {
