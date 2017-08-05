@@ -12,7 +12,6 @@ mod term_info;
 mod vec_postings;
 mod segment_postings;
 mod intersection;
-mod freq_handler;
 mod docset;
 mod segment_postings_option;
 
@@ -28,7 +27,6 @@ pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
 pub use self::intersection::IntersectionDocSet;
-pub use self::freq_handler::FreqHandler;
 pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 
@@ -63,18 +61,18 @@ mod tests {
         let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
         posting_serializer.new_field(text_field);
         posting_serializer.new_term("abc".as_bytes()).unwrap();
-        for doc_id in 0u32..3u32 {
-            let positions = vec![1, 2, 3, 2];
-            posting_serializer.write_doc(doc_id, 2, &positions).unwrap();
+        for doc_id in 0u32..120u32 {
+            let delta_positions = vec![1, 2, 3, 2];
+            posting_serializer.write_doc(doc_id, 2, &delta_positions).unwrap();
         }
         posting_serializer.close_term().unwrap();
         posting_serializer.close().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
-        assert!(read.len() <= 16);
+        assert!(read.len() <= 140);
     }
 
     #[test]
-    pub fn test_position_and_fieldnorm() {
+    pub fn test_position_and_fieldnorm1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -143,6 +141,7 @@ mod tests {
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 0);
                 assert_eq!(postings_a.term_freq(), 6);
+                assert_eq!(postings_a.positions(), [0, 2, 4, 6, 7, 13]);
                 assert_eq!(postings_a.positions(), [0, 2, 4, 6, 7, 13]);
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 1u32);

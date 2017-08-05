@@ -4,9 +4,65 @@ use postings::{Postings, DocSet, HasLen, SkipResult};
 use std::cmp;
 use fst::Streamer;
 use fastfield::DeleteBitSet;
-
+use std::cell::UnsafeCell;
 
 const EMPTY_DATA: [u8; 0] = [0u8; 0];
+const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
+
+struct PositionComputer<'a> {
+    // store the amount of position int
+    // before reading positions.
+    //
+    // if none, position are already loaded in
+    // the positions vec.
+    position_to_skip: Option<usize>,
+
+    delta_positions: Vec<u32>,
+    positions: Vec<u32>,
+    positions_stream: CompressedIntStream<'a>,
+}
+
+impl<'a> PositionComputer<'a> {
+
+    pub fn new(positions_stream: CompressedIntStream<'a>) -> PositionComputer<'a> {
+        PositionComputer {
+            position_to_skip: None,
+            positions: vec!(),
+            delta_positions: vec!(),
+            positions_stream: positions_stream,
+        }
+    }
+
+    pub fn add_skip(&mut self, num_skip: usize) {
+        self.position_to_skip = Some(
+            self.position_to_skip
+                .map(|prev_skip| prev_skip + num_skip)
+                .unwrap_or(0)
+            );
+        }
+
+    pub fn positions(&mut self, term_freq: usize) -> &[u32] {
+        self.delta_positions(term_freq);
+        &self.positions[..term_freq]
+    }
+
+    pub fn delta_positions(&mut self, term_freq: usize) -> &[u32] {
+        if let Some(num_skip) = self.position_to_skip {
+            self.delta_positions.resize(term_freq, 0u32);
+            self.positions_stream.skip(num_skip);
+            self.positions_stream.read(&mut self.delta_positions[..term_freq]);
+            self.positions.resize(term_freq, 0u32);
+            let mut cum = 0u32;
+            for i in 0..term_freq as usize {
+                cum += self.delta_positions[i];
+                self.positions[i] = cum;
+            }
+            self.position_to_skip = None;
+        }
+        &self.delta_positions[..term_freq]
+    }
+}
+
 
 
 /// `SegmentPostings` represents the inverted list or postings associated to
@@ -18,8 +74,10 @@ pub struct SegmentPostings<'a> {
     block_cursor: BlockSegmentPostings<'a>,
     cur: usize,
     delete_bitset: DeleteBitSet,
-    positions_stream: Option<CompressedIntStream<'a>>,
+
+    position_computer: Option<UnsafeCell<PositionComputer<'a>>>,
 }
+
 
 impl<'a> SegmentPostings<'a> {
     /// Reads a Segment postings from an &[u8]
@@ -30,24 +88,27 @@ impl<'a> SegmentPostings<'a> {
     ///   frequencies and/or positions
     pub fn from_block_postings(segment_block_postings: BlockSegmentPostings<'a>,
                                delete_bitset: DeleteBitSet,
-                               positions_stream: Option<CompressedIntStream<'a>>)
+                               positions_stream_opt: Option<CompressedIntStream<'a>>)
                                -> SegmentPostings<'a> {
+        let position_computer = positions_stream_opt.map(|stream| {
+            UnsafeCell::new(PositionComputer::new(stream))
+        });
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: NUM_DOCS_PER_BLOCK, // cursor within the block
             delete_bitset: delete_bitset,
-            positions_stream: positions_stream
+            position_computer: position_computer,
         }
     }
 
     /// Returns an empty segment postings object
-    pub fn empty() -> SegmentPostings<'static> {
+    pub fn empty() -> SegmentPostings<'a> {
         let empty_block_cursor = BlockSegmentPostings::empty();
         SegmentPostings {
             block_cursor: empty_block_cursor,
             delete_bitset: DeleteBitSet::empty(),
             cur: NUM_DOCS_PER_BLOCK,
-            positions_stream: None,
+            position_computer: None,
         }
     }
 }
@@ -58,7 +119,9 @@ impl<'a> DocSet for SegmentPostings<'a> {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
+        let mut pos_to_skip = 0u32;
         loop {
+            pos_to_skip += self.term_freq();
             self.cur += 1;
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
@@ -68,6 +131,11 @@ impl<'a> DocSet for SegmentPostings<'a> {
                 }
             }
             if !self.delete_bitset.is_deleted(self.doc()) {
+                if let Some(ref mut position_computer) = self.position_computer.as_mut() {
+                    unsafe {
+                        (*position_computer.get()).add_skip(pos_to_skip as usize);
+                    }
+                }
                 return true;
             }
         }
@@ -181,11 +249,26 @@ impl<'a> Postings for SegmentPostings<'a> {
     }
 
     fn positions(&self) -> &[u32] {
-        unimplemented!();
+        let term_freq = self.term_freq();
+        let position_computer_ptr: *mut PositionComputer = self.position_computer
+            .as_ref()
+            .expect("Segment reader does not have positions.")
+            .get();
+        unsafe {
+            (&mut *position_computer_ptr).positions(term_freq as usize)
+        }
     }
 
     fn delta_positions(&self) -> &[u32] {
-        unimplemented!();
+        let term_freq = self.term_freq();
+        self.position_computer
+            .as_ref()
+            .map(|position_computer| {
+                unsafe {
+                    (&mut *position_computer.get()).delta_positions(term_freq as usize)
+                }
+            })
+            .unwrap_or(&EMPTY_POSITIONS[..])
     }
 
 }
@@ -333,7 +416,7 @@ impl<'a> BlockSegmentPostings<'a> {
             num_vint_docs: 0,
 
             doc_decoder: BlockDecoder::new(),
-            freq_decoder: BlockDecoder::new(),
+            freq_decoder: BlockDecoder::with_val(1),
             has_freq: false,
 
             remaining_data: &EMPTY_DATA,
