@@ -144,7 +144,7 @@ pub mod merge_policy {
     pub use indexer::DefaultMergePolicy;
 }
 
-/// A u32 identifying a document within a segment.
+/// A `u32` identifying a document within a segment.
 /// Documents have their `DocId` assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
