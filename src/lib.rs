@@ -146,6 +146,11 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
 
+#[cfg(feature = "s3")]
+extern crate rusoto_core;
+#[cfg(feature = "s3")]
+extern crate rusoto_s3;
+
 #[cfg(test)]
 #[macro_use]
 extern crate matches;

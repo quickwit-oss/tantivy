@@ -18,10 +18,13 @@ use std::io::{BufWriter, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::result;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
+use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
+use rusoto_s3::{S3, S3Client, HeadBucketRequest};
 
 fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
     let file = File::open(&full_path).map_err(|e| if e.kind() ==
@@ -151,7 +154,7 @@ impl MmapCache {
 pub struct S3Directory {
     root_path: PathBuf,
     bucket: String,
-    region: String,
+    region: Region,
     mmap_cache: Arc<RwLock<MmapCache>>,
     _temp_directory: Arc<Option<TempDir>>,
 }
@@ -172,18 +175,29 @@ impl S3Directory {
         bucket: String,
         directory_path: &Path,
     ) -> Result<S3Directory, OpenDirectoryError> {
-        if !directory_path.exists() {
+
+        // TODO: how to handle the error case here
+        let reg = Region::from_str(&region);
+
+        // TODO: handle missing creds
+        let client = default_tls_client().unwrap();
+        let provider = DefaultCredentialsProvider::new().unwrap();
+        let s3 = S3Client::new(client, provider, Region::from_str(&region).unwrap());
+
+        // does bucket exist?
+        let exist_check = s3.head_bucket(&HeadBucketRequest { bucket: bucket.clone() });
+        if !reg.is_ok() {
+            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(region)))
+        } else if !exist_check.is_ok() {
             Err(OpenDirectoryError::DoesNotExist(
                 PathBuf::from(directory_path),
             ))
-        } else if !directory_path.is_dir() {
-            Err(OpenDirectoryError::NotADirectory(
-                PathBuf::from(directory_path),
-            ))
         } else {
+
+            // TODO: how to store the client?
             Ok(S3Directory {
                 bucket,
-                region,
+                region: Region::from_str(&region).unwrap(),
                 root_path: PathBuf::from(directory_path),
                 mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
                 _temp_directory: Arc::new(None),
@@ -396,9 +410,34 @@ impl Directory for S3Directory {
 mod tests {
 
     // There are more tests in directory/mod.rs
-    // The following tests are specific to the MmapDirectory
+    // The following tests are specific to the S3Directory
 
     use super::*;
+
+    #[test]
+    fn bad_region() {
+        // empty file is actually an edge case because those
+        // cannot be mmapped.
+        //
+        // In that case the directory returns a SharedVecSlice.
+        let mut s3dir = S3Directory::open(
+            "us-nowhere-1".to_string(),
+            "tantivy-test-bucket".to_string(),
+            &PathBuf::from("/"),
+        ).unwrap();
+
+    }
+
+    #[test]
+    fn no_bucket() {
+
+        let mut s3dir = S3Directory::open(
+            "us-nowhere-1".to_string(),
+            "tantivy-test-bucket-nope".to_string(),
+            &PathBuf::from("/"),
+        ).unwrap();
+
+    }
 
     #[test]
     fn test_open_empty() {
@@ -406,80 +445,15 @@ mod tests {
         // cannot be mmapped.
         //
         // In that case the directory returns a SharedVecSlice.
-        let mut mmap_directory = S3Directory::create_from_tempdir().unwrap();
-        let path = PathBuf::from("test");
-        {
-            let mut w = mmap_directory.open_write(&path).unwrap();
-            w.flush().unwrap();
-        }
-        let readonlymap = mmap_directory.open_read(&path).unwrap();
-        assert_eq!(readonlymap.len(), 0);
+        let mut s3dir = S3Directory::open(
+            "us-east-1".to_string(),
+            "tantivy-test-bucket".to_string(),
+            &PathBuf::from("/"),
+        ).unwrap();
+
     }
 
     #[test]
-    fn test_cache() {
-        let content = "abc".as_bytes();
-
-        // here we test if the cache releases
-        // mmaps correctly.
-        let mut mmap_directory = S3Directory::create_from_tempdir().unwrap();
-        let paths: Vec<PathBuf> = (0..10)
-            .map(|i| PathBuf::from(&*format!("file_{}", i)))
-            .collect();
-        {
-            for path in &paths {
-                let mut w = mmap_directory.open_write(path).unwrap();
-                w.write(content).unwrap();
-                w.flush().unwrap();
-            }
-        }
-        {
-            for path in &paths {
-                {
-                    let _r = mmap_directory.open_read(path).unwrap();
-                    assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 1);
-                }
-                assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
-            }
-        }
-        assert_eq!(mmap_directory.get_cache_info().counters.miss_empty, 10);
-
-
-        {
-            // test weak miss
-            // the first pass create the weak refs.
-            for path in &paths {
-                let _r = mmap_directory.open_read(path).unwrap();
-            }
-            // ... the second hits the weak refs.
-            for path in &paths {
-                let _r = mmap_directory.open_read(path).unwrap();
-            }
-            let cache_info = mmap_directory.get_cache_info();
-            assert_eq!(cache_info.counters.miss_empty, 20);
-            assert_eq!(cache_info.counters.miss_weak, 10);
-        }
-
-        {
-            let mut saved_readmmaps = vec![];
-            // Keeps reference alive
-            for (i, path) in paths.iter().enumerate() {
-                let r = mmap_directory.open_read(path).unwrap();
-                saved_readmmaps.push(r);
-                assert_eq!(mmap_directory.get_cache_info().mmapped.len(), i + 1);
-            }
-            let cache_info = mmap_directory.get_cache_info();
-            assert_eq!(cache_info.counters.miss_empty, 30);
-            assert_eq!(cache_info.counters.miss_weak, 10);
-            assert_eq!(cache_info.mmapped.len(), 10);
-
-            for saved_readmmap in saved_readmmaps {
-                assert_eq!(saved_readmmap.as_slice(), content);
-            }
-        }
-
-        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
-
-    }
+    fn test_cache() {}
 
 }

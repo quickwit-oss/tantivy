@@ -12,6 +12,8 @@ mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod shared_vec_slice;
+
+#[cfg(feature = "s3")]
 mod s3_directory;
 
 /// Errors specific to the directory module.
@@ -28,6 +30,7 @@ pub use self::mmap_directory::MmapDirectory;
 
 pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
 pub(crate) use self::read_only_source::SourceRead;
+#[cfg(feature = "s3")]
 pub(crate) use self::s3_directory::S3Directory;
 
 /// Synonym of Seek + Write

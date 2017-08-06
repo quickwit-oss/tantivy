@@ -62,6 +62,7 @@ default = ["mmap"]
 simd = ["bitpacking/simd"]
 mmap = ["fst/mmap", "atomicwrites"]
 unstable = ["simd"]
+s3 = []
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
