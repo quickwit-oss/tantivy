@@ -175,67 +175,44 @@ impl S3Directory {
         bucket: String,
         directory_path: &Path,
     ) -> Result<S3Directory, OpenDirectoryError> {
+        // TODO: should I use a different error type? probably
 
-        // TODO: how to handle the error case here
-        let reg = Region::from_str(&region);
+        let region = Region::from_str(&region).map_err(|_| {
+            OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/region"))
+        })?;
 
         // TODO: handle missing creds
-        let client = default_tls_client().unwrap();
-        let provider = DefaultCredentialsProvider::new().unwrap();
-        let s3 = S3Client::new(client, provider, Region::from_str(&region).unwrap());
+        let client = default_tls_client().map_err(|_| {
+            OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/tls/client"))
+        })?;
+
+        let provider = DefaultCredentialsProvider::new().map_err(|_| {
+            OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/creds"))
+        })?;
+
+        let s3 = S3Client::new(client, provider, region.clone());
 
         // does bucket exist?
-        let exist_check = s3.head_bucket(&HeadBucketRequest { bucket: bucket.clone() });
-        if !reg.is_ok() {
-            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(region)))
-        } else if !exist_check.is_ok() {
-            Err(OpenDirectoryError::DoesNotExist(
-                PathBuf::from(directory_path),
-            ))
-        } else {
+        s3.head_bucket(&HeadBucketRequest { bucket: bucket.clone() })
+            .map_err(|_| {
+                OpenDirectoryError::DoesNotExist(PathBuf::from("/no/bucket"))
+            })?;
 
-            // TODO: how to store the client?
-            Ok(S3Directory {
-                bucket,
-                region: Region::from_str(&region).unwrap(),
-                root_path: PathBuf::from(directory_path),
-                mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
-                _temp_directory: Arc::new(None),
-            })
-        }
+        // TODO: how to store the client?
+        Ok(S3Directory {
+            bucket,
+            region: region,
+            root_path: PathBuf::from(directory_path),
+            mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
+            _temp_directory: Arc::new(None),
+        })
+
     }
 
     /// Joins a relative_path to the directory `root_path`
     /// to create a proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.root_path.join(relative_path)
-    }
-
-    /// Sync the root directory.
-    /// In certain FS, this is required to persistently create
-    /// a file.
-    fn sync_directory(&self) -> Result<(), io::Error> {
-        let mut open_opts = OpenOptions::new();
-
-        // Linux needs read to be set, otherwise returns EINVAL
-        // write must not be set, or it fails with EISDIR
-        open_opts.read(true);
-
-        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
-        // and calling sync_all() only works if write access is requested.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-            use winapi::winbase;
-
-            open_opts.write(true).custom_flags(
-                winbase::FILE_FLAG_BACKUP_SEMANTICS,
-            );
-        }
-
-        let fd = try!(open_opts.open(&self.root_path));
-        try!(fd.sync_all());
-        Ok(())
     }
 
     /// Returns some statistical information
@@ -323,12 +300,6 @@ impl Directory for S3Directory {
             |e| IOError::with_path(path.to_owned(), e),
         )?;
 
-        // Apparetntly, on some filesystem syncing the parent
-        // directory is required.
-        self.sync_directory().map_err(|e| {
-            IOError::with_path(path.to_owned(), e)
-        })?;
-
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
     }
@@ -349,11 +320,7 @@ impl Directory for S3Directory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => {
-                self.sync_directory().map_err(|e| {
-                    IOError::with_path(path.to_owned(), e).into()
-                })
-            }
+            Ok(_) => Ok(()),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
                     Err(DeleteError::FileDoesNotExist(path.to_owned()))
