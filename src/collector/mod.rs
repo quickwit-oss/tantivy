@@ -1,3 +1,6 @@
+/*!
+Collector module
+*/
 use SegmentReader;
 use SegmentLocalId;
 use DocId;

@@ -103,24 +103,12 @@ mod analyzer;
 mod datastruct;
 
 pub mod termdict;
-
-/// Row-oriented, slow, compressed storage of documents
 pub mod store;
-
-/// Query module
 pub mod query;
-
 pub mod directory;
-
-/// Collector module
 pub mod collector;
-
-/// Postings module (also called inverted index)
 pub mod postings;
-
-/// Schema
 pub mod schema;
-
 pub mod fastfield;
 
 
@@ -156,15 +144,19 @@ pub mod merge_policy {
     pub use indexer::DefaultMergePolicy;
 }
 
-/// u32 identifying a document within a segment.
-/// Documents have their doc id assigned incrementally,
+/// A `u32` identifying a document within a segment.
+/// Documents have their `DocId` assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
 
-/// f32 the score of a document.
+/// A f32 that represents the relevance of the document to the query
+///
+/// This is modelled internally as a `f32`. The
+/// larger the number, the more relevant the document
+/// to the search
 pub type Score = f32;
 
-/// A segment local id identifies a segment.
+/// A `SegmentLocalId` identifies a segment.
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
