@@ -1,7 +1,7 @@
 /*!
-How Tantivy defines schema
 
-# Schema definition
+
+# Setting your schema in Tantivy
 
 Tantivy has a very strict schema.
 The schema defines information about the fields your index contains, that is, for each field:
