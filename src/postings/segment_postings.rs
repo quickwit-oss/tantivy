@@ -16,8 +16,6 @@ struct PositionComputer<'a> {
     // if none, position are already loaded in
     // the positions vec.
     position_to_skip: Option<usize>,
-
-    delta_positions: Vec<u32>,
     positions: Vec<u32>,
     positions_stream: CompressedIntStream<'a>,
 }
@@ -28,7 +26,6 @@ impl<'a> PositionComputer<'a> {
         PositionComputer {
             position_to_skip: None,
             positions: vec!(),
-            delta_positions: vec!(),
             positions_stream: positions_stream,
         }
     }
@@ -42,24 +39,21 @@ impl<'a> PositionComputer<'a> {
         }
 
     pub fn positions(&mut self, term_freq: usize) -> &[u32] {
-        self.delta_positions(term_freq);
-        &self.positions[..term_freq]
-    }
-
-    pub fn delta_positions(&mut self, term_freq: usize) -> &[u32] {
         if let Some(num_skip) = self.position_to_skip {
-            self.delta_positions.resize(term_freq, 0u32);
-            self.positions_stream.skip(num_skip);
-            self.positions_stream.read(&mut self.delta_positions[..term_freq]);
+
             self.positions.resize(term_freq, 0u32);
+
+            self.positions_stream.skip(num_skip);
+            self.positions_stream.read(&mut self.positions[..term_freq]);
+
             let mut cum = 0u32;
             for i in 0..term_freq as usize {
-                cum += self.delta_positions[i];
+                cum += self.positions[i];
                 self.positions[i] = cum;
             }
             self.position_to_skip = None;
         }
-        &self.delta_positions[..term_freq]
+        &self.positions[..term_freq]
     }
 }
 
@@ -74,7 +68,6 @@ pub struct SegmentPostings<'a> {
     block_cursor: BlockSegmentPostings<'a>,
     cur: usize,
     delete_bitset: DeleteBitSet,
-
     position_computer: Option<UnsafeCell<PositionComputer<'a>>>,
 }
 
@@ -111,6 +104,16 @@ impl<'a> SegmentPostings<'a> {
             position_computer: None,
         }
     }
+
+
+    fn position_add_skip<F: FnOnce()->usize>(&self, num_skips_fn: F) {
+        if let Some(ref position_computer) = self.position_computer.as_ref() {
+            let num_skips = num_skips_fn();
+            unsafe {
+                (*position_computer.get()).add_skip(num_skips);
+            }
+        }
+    }
 }
 
 
@@ -119,9 +122,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        let mut pos_to_skip = 0u32;
         loop {
-            pos_to_skip += self.term_freq();
             self.cur += 1;
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
@@ -130,12 +131,8 @@ impl<'a> DocSet for SegmentPostings<'a> {
                     return false;
                 }
             }
+            self.position_add_skip(|| { self.term_freq() as usize });
             if !self.delete_bitset.is_deleted(self.doc()) {
-                if let Some(ref mut position_computer) = self.position_computer.as_mut() {
-                    unsafe {
-                        (*position_computer.get()).add_skip(pos_to_skip as usize);
-                    }
-                }
                 return true;
             }
         }
@@ -147,6 +144,10 @@ impl<'a> DocSet for SegmentPostings<'a> {
             return SkipResult::End;
         }
 
+        // in the following, thanks to the call to advance above,
+        // we know that the position is not loaded and we need
+        // to skip every doc_freq we cross.
+
         // skip blocks until one that might contain the target
         loop {
             // check if we need to go to the next block
@@ -155,13 +156,26 @@ impl<'a> DocSet for SegmentPostings<'a> {
                 (block_docs[self.cur], block_docs[block_docs.len() - 1])
             };
             if target > last_doc_in_block {
+
+                // we add skip for the current term independantly,
+                // so that position_add_skip will decide if it should
+                // just set itself to Some(0) or effectively
+                // add the term freq.
+                //let num_skips: u32 = ;
+                self.position_add_skip(|| {
+                    let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
+                    let sum_freq: u32 = freqs_skipped.iter().cloned().sum();
+                    sum_freq as usize
+                });
+
                 if !self.block_cursor.advance() {
                     return SkipResult::End;
                 }
+
                 self.cur = 0;
             } else {
                 if target < current_doc {
-                    // We've overpassed the target after the first `advance` call
+                    // We've passed the target after the first `advance` call
                     // or we're at the beginning of a block.
                     // Either way, we're on the first `DocId` greater than `target`
                     return SkipResult::OverStep;
@@ -207,6 +221,13 @@ impl<'a> DocSet for SegmentPostings<'a> {
 
             // `doc` is now >= `target`
             let doc = block_docs[start];
+
+            self.position_add_skip(|| {
+                let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
+                let sum_freqs: u32 = freqs_skipped.iter().sum();
+                sum_freqs as usize
+            });
+
             self.cur = start;
 
             if !self.delete_bitset.is_deleted(doc) {
@@ -228,6 +249,7 @@ impl<'a> DocSet for SegmentPostings<'a> {
         self.len()
     }
 
+    /// Return the current document's `DocId`.
     #[inline]
     fn doc(&self) -> DocId {
         let docs = self.block_cursor.docs();
@@ -250,26 +272,17 @@ impl<'a> Postings for SegmentPostings<'a> {
 
     fn positions(&self) -> &[u32] {
         let term_freq = self.term_freq();
-        let position_computer_ptr: *mut PositionComputer = self.position_computer
-            .as_ref()
-            .expect("Segment reader does not have positions.")
-            .get();
-        unsafe {
-            (&mut *position_computer_ptr).positions(term_freq as usize)
-        }
-    }
-
-    fn delta_positions(&self) -> &[u32] {
-        let term_freq = self.term_freq();
         self.position_computer
             .as_ref()
             .map(|position_computer| {
                 unsafe {
-                    (&mut *position_computer.get()).delta_positions(term_freq as usize)
+                    (&mut *position_computer.get()).positions(term_freq as usize)
                 }
             })
             .unwrap_or(&EMPTY_POSITIONS[..])
     }
+
+
 
 }
 
@@ -351,16 +364,19 @@ impl<'a> BlockSegmentPostings<'a> {
         self.doc_decoder.output_array()
     }
 
+    /// Return the document at index `idx` of the block.
     #[inline]
     pub fn doc(&self, idx: usize) -> u32 {
         self.doc_decoder.output(idx)
     }
 
+    /// Return the array of `term freq` in the block.
     #[inline]
     pub fn freqs(&self) -> &[u32] {
         self.freq_decoder.output_array()
     }
 
+    /// Return the frequency at index `idx` of the block.
     #[inline]
     pub fn freq(&self, idx: usize) -> u32 {
         self.freq_decoder.output(idx)

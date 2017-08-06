@@ -197,10 +197,10 @@ impl SegmentReader {
     /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
-    pub fn read_postings<'a>(&'a self,
+    pub fn read_postings(&self,
                          term: &Term,
                          option: SegmentPostingsOption)
-                         -> Option<SegmentPostings<'a>> {
+                         -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));

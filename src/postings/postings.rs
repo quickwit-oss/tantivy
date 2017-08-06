@@ -17,16 +17,6 @@ pub trait Postings: DocSet {
     /// Returns the list of positions of the term, expressed as a list of
     /// token ordinals.
     fn positions(&self) -> &[u32];
-    /// Return the list of delta positions.
-    ///
-    /// Delta positions is simply the difference between
-    /// two consecutive positions.
-    /// The first delta position is the first position of the
-    /// term in the document.
-    ///
-    /// For instance, if positions are `[7,13,17]`
-    /// then delta positions `[7, 6, 4]`
-    fn delta_positions(&self) -> &[u32];
 }
 
 impl<TPostings: Postings> Postings for Box<TPostings> {
@@ -39,11 +29,6 @@ impl<TPostings: Postings> Postings for Box<TPostings> {
         let unboxed: &TPostings = self.borrow();
         unboxed.positions()
     }
-
-    fn delta_positions(&self) -> &[u32] {
-        let unboxed: &TPostings = self.borrow();
-        unboxed.delta_positions()
-    }
 }
 
 impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
@@ -55,10 +40,5 @@ impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
     fn positions(&self) -> &[u32] {
         let unref: &TPostings = *self;
         unref.positions()
-    }
-
-    fn delta_positions(&self) -> &[u32] {
-        let unref: &TPostings = *self;
-        unref.delta_positions()
     }
 }

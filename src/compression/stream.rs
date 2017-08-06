@@ -1,6 +1,6 @@
 use compression::BlockDecoder;
 use compression::NUM_DOCS_PER_BLOCK;
-use compression::compressedbytes;
+use compression::compressed_block_size;
 
 pub struct CompressedIntStream<'a> {
     buffer: &'a [u8],
@@ -52,8 +52,8 @@ impl<'a> CompressedIntStream<'a> {
             while skip_len >= NUM_DOCS_PER_BLOCK {
                 skip_len -= NUM_DOCS_PER_BLOCK;
                 let num_bits: u8 = self.buffer[0];
-                let block_len = compressedbytes(128, num_bits);
-                self.buffer = &self.buffer[1 + block_len..];
+                let block_len = compressed_block_size(num_bits);
+                self.buffer = &self.buffer[block_len..];
             }
             self.buffer = self.block_decoder.uncompress_block_unsorted(self.buffer);
             self.inner_offset = skip_len;
@@ -66,8 +66,7 @@ impl<'a> CompressedIntStream<'a> {
 pub mod tests {
 
     use super::CompressedIntStream;
-    use tests;
-    use compression::compressedbytes;
+    use compression::compressed_block_size;
     use compression::NUM_DOCS_PER_BLOCK;
     use compression::BlockEncoder;
 
@@ -78,7 +77,7 @@ pub mod tests {
         for chunk in vals.chunks(NUM_DOCS_PER_BLOCK) {
             let compressed_block = encoder.compress_block_unsorted(chunk);
             let num_bits = compressed_block[0];
-            assert_eq!(compressedbytes(128, num_bits) + 1, compressed_block.len());
+            assert_eq!(compressed_block_size(num_bits), compressed_block.len());
             buffer.extend_from_slice(compressed_block);
         }
         buffer

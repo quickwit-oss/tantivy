@@ -12,11 +12,8 @@ use DocId;
 use core::Segment;
 use std::io::{self, Write};
 use compression::VIntEncoder;
-use common::VInt;
-use common::BinarySerializable;
 use common::CountingWriter;
 use termdict::TermDictionaryBuilder;
-use datastruct::{SkipList, SkipListBuilder};
 
 
 /// `PostingsSerializer` is in charge of serializing

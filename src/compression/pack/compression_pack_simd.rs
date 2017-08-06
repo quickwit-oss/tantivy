@@ -16,13 +16,7 @@ mod simdcomp {
         pub fn compress_unsorted(data: *const u32, output: *mut u8) -> size_t;
 
         pub fn uncompress_unsorted(compressed_data: *const u8, output: *mut u32) -> size_t;
-
-        pub fn compressedbytes(length: u32, num_bits: u8) -> size_t;
     }
-}
-
-pub fn compressedbytes(length: u32, num_bits: u8) -> usize {
-    unsafe { simdcomp::compressedbytes(length, num_bits) }
 }
 
 fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
@@ -123,4 +117,5 @@ mod tests {
         let compressed = encoder.compress_block_sorted(&data, 0u32);
         assert_eq!(compressed.len(), 17);
     }
+
 }
