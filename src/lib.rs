@@ -151,7 +151,7 @@ pub type DocId = u32;
 
 /// A f32 that represents the relevance of the document to the query
 ///
-/// This is modelled interanally as a `f32`. The
+/// This is modelled internally as a `f32`. The
 /// larger the number, the more relevant the document
 /// to the search
 pub type Score = f32;
