@@ -17,7 +17,7 @@ mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
 use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
-pub use self::serializer::PostingsSerializer;
+pub use self::serializer::InvertedIndexSerializer;
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
@@ -58,7 +58,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
-        let mut posting_serializer = PostingsSerializer::open(&mut segment).unwrap();
+        let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
         posting_serializer.new_field(text_field);
         posting_serializer.new_term("abc".as_bytes()).unwrap();
         for doc_id in 0u32..120u32 {

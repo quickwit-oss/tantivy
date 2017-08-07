@@ -1,7 +1,7 @@
 use DocId;
 use schema::Term;
 use schema::FieldValue;
-use postings::PostingsSerializer;
+use postings::InvertedIndexSerializer;
 use std::io;
 use postings::Recorder;
 use analyzer::SimpleTokenizer;
@@ -78,7 +78,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     /// It pushes all term, one field at a time, towards the
     /// postings serializer.
     #[allow(needless_range_loop)]
-    pub fn serialize(&self, serializer: &mut PostingsSerializer) -> Result<()> {
+    pub fn serialize(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
         let mut term_offsets: Vec<(&[u8], u32)> = self.term_index.iter().collect();
         term_offsets.sort_by_key(|&(k, _v)| k);
 
@@ -138,7 +138,7 @@ pub trait PostingsWriter {
     fn serialize(&self,
                  field: Field,
                  term_addrs: &[(&[u8], u32)],
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()>;
 
@@ -216,7 +216,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     fn serialize(&self,
                  field: Field,
                  term_addrs: &[(&[u8], u32)],
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
         serializer.new_field(field);

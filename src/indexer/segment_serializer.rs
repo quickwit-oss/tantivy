@@ -4,7 +4,7 @@ use core::Segment;
 use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
 use store::StoreWriter;
-use postings::PostingsSerializer;
+use postings::InvertedIndexSerializer;
 
 
 /// Segment serializer is in charge of laying out on disk
@@ -13,7 +13,7 @@ pub struct SegmentSerializer {
     store_writer: StoreWriter,
     fast_field_serializer: FastFieldSerializer,
     fieldnorms_serializer: FastFieldSerializer,
-    postings_serializer: PostingsSerializer,
+    postings_serializer: InvertedIndexSerializer,
 }
 
 impl SegmentSerializer {
@@ -27,7 +27,7 @@ impl SegmentSerializer {
         let fieldnorms_write = try!(segment.open_write(SegmentComponent::FIELDNORMS));
         let fieldnorms_serializer = try!(FastFieldSerializer::new(fieldnorms_write));
 
-        let postings_serializer = try!(PostingsSerializer::open(segment));
+        let postings_serializer = try!(InvertedIndexSerializer::open(segment));
         Ok(SegmentSerializer {
                postings_serializer: postings_serializer,
                store_writer: StoreWriter::new(store_write),
@@ -37,7 +37,7 @@ impl SegmentSerializer {
     }
 
     /// Accessor to the `PostingsSerializer`.
-    pub fn get_postings_serializer(&mut self) -> &mut PostingsSerializer {
+    pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer {
         &mut self.postings_serializer
     }
 

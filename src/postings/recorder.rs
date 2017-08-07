@@ -1,6 +1,6 @@
 use DocId;
 use std::io;
-use postings::PostingsSerializer;
+use postings::InvertedIndexSerializer;
 use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
@@ -29,7 +29,7 @@ pub trait Recorder: HeapAllocable {
     /// Pushes the postings information to the serializer.
     fn serialize(&self,
                  self_addr: u32,
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()>;
 }
@@ -66,7 +66,7 @@ impl Recorder for NothingRecorder {
 
     fn serialize(&self,
                  self_addr: u32,
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
         for doc in self.stack.iter(self_addr, heap) {
@@ -118,7 +118,7 @@ impl Recorder for TermFrequencyRecorder {
 
     fn serialize(&self,
                  self_addr: u32,
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
         // the last document has not been closed...
@@ -173,7 +173,7 @@ impl Recorder for TFAndPositionRecorder {
 
     fn serialize(&self,
                  self_addr: u32,
-                 serializer: &mut PostingsSerializer,
+                 serializer: &mut InvertedIndexSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);

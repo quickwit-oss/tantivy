@@ -5,7 +5,7 @@ use DocId;
 use core::SerializableSegment;
 use schema::FieldValue;
 use indexer::SegmentSerializer;
-use postings::PostingsSerializer;
+use postings::InvertedIndexSerializer;
 use fastfield::U64FastFieldReader;
 use itertools::Itertools;
 use postings::Postings;
@@ -192,7 +192,7 @@ impl IndexMerger {
         Ok(())
     }
 
-    fn write_postings(&self, serializer: &mut PostingsSerializer) -> Result<()> {
+    fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
 
         let mut delta_computer = DeltaComputer::new();
         let mut merged_terms = TermMerger::from(&self.readers[..]);
