@@ -16,7 +16,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
-use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest};
+use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest, DeleteObjectRequest};
 
 fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
     // TODO: handle missing creds
@@ -96,6 +96,41 @@ impl InnerDirectory {
         let data = cache.get(path).unwrap();
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
+    }
+
+    fn delete(&self, path: &Path, client: &S3) -> result::Result<(), DeleteError> {
+        let mut writable_map = self.cache.write().map_err(|_| {
+            let msg = format!(
+                "Failed to acquire write lock for the \
+                                            directory when trying to delete {:?}",
+                path
+            );
+            let io_err = make_io_err(msg);
+            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        // TODO: this is comical and I'm more than likely over thinking it
+        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
+            let msg = format!("Could not build key path");
+            let io_err = make_io_err(msg);
+            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+        let obj = client
+            .delete_object(&DeleteObjectRequest {
+                bucket: self.bucket.clone(),
+                key,
+                ..Default::default()
+            })
+            .map_err(|_| {
+                let msg = format!("No key found for {:?}", path);
+                let io_err = make_io_err(msg);
+                DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
+
+        match writable_map.remove(path) {
+            Some(_) => Ok(()),
+            None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+        }
     }
 
     fn exists(&self, path: &Path, client: &S3) -> bool {
@@ -210,7 +245,13 @@ impl Directory for S3Directory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        unimplemented!()
+        let s3 = self.get_client().map_err(|_| {
+            let msg = format!("Could not get s3 client");
+            let io_err = make_io_err(msg);
+            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        self.fs.delete(&self.resolve_path(path), s3.as_ref())
     }
 
     fn exists(&self, path: &Path) -> bool {
