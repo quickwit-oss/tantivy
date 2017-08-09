@@ -27,29 +27,106 @@ fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
 }
 
 #[derive(Clone)]
-struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
+struct InnerDirectory {
+    bucket: String,
+    cache: Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>,
+}
 
 impl InnerDirectory {
-    fn new() -> InnerDirectory {
-        InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
+    fn new(bucket: String) -> InnerDirectory {
+        InnerDirectory {
+            cache: Arc::new(RwLock::new(HashMap::new())),
+            bucket,
+        }
+    }
+
+    fn open_read(&self, path: &Path, client: &S3) -> result::Result<ReadOnlySource, OpenReadError> {
+        debug!("Open Read {:?}", path);
+
+        let cache = self.cache.read().map_err(|_| {
+            let msg = format!(
+                "Failed to acquire read lock for the \
+                                            directory when trying to read {:?}",
+                path
+            );
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        if !cache.contains_key(path) {
+            let mut map = self.cache.write().map_err(|_| {
+                let msg = format!(
+                    "Failed to acquire write lock for the \
+                                            directory when trying to read {:?}",
+                    path
+                );
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
+
+            // TODO: this is comical and I'm more than likely over thinking it
+            let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
+                let msg = format!("Could not build key path");
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
+
+            let obj = client
+                .get_object(&GetObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key,
+                    ..Default::default()
+                })
+                .map_err(|_| {
+                    let msg = format!("No key found for {:?}", path);
+                    let io_err = make_io_err(msg);
+                    OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+                })?;
+
+            map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
+        }
+
+        //TODO: map_err
+        let data = cache.get(path).unwrap();
+
+        Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.cache
+            .read()
+            .expect("Failed to get read lock directory.")
+            .contains_key(path)
     }
 }
 
-/// Directory storing data in files, read via mmap.
+/// Directory storing data in s3 bucket
 ///
-/// The Mmap object are cached to limit the
-/// system calls.
+/// The s3 bucket has a cache to limit the amount of
+/// API calls
 #[derive(Clone)]
 pub struct S3Directory {
-    root_path: PathBuf,
+    /// the bucket to store files in
     bucket: String,
+
+    /// the region the bucket exists in
     region: Region,
+
+    /// Path in the s3 bucket to store objects
+    root_path: PathBuf,
+
     fs: InnerDirectory,
 }
 
 impl fmt::Debug for S3Directory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "S3Directory({:?})", self.root_path)
+        write!(
+            f,
+            "S3Directory({:?} {} {:?})",
+            self.region,
+            self.bucket,
+            self.root_path
+        )
     }
 }
 
@@ -83,10 +160,10 @@ impl S3Directory {
         // TODO: how to store the client?
         // `S3` does not implement `std::marker::Sync` so it can't be on the struct
         Ok(S3Directory {
-            bucket,
+            bucket: bucket.clone(),
             region: region,
             root_path: PathBuf::from(directory_path),
-            fs: InnerDirectory::new(),
+            fs: InnerDirectory::new(bucket),
         })
 
     }
@@ -104,59 +181,13 @@ impl S3Directory {
 
 impl Directory for S3Directory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        debug!("Open Read {:?}", path);
-
-        let cache = self.fs.0.read().map_err(|_| {
-            let msg = format!(
-                "Failed to acquire read lock for the \
-                                            directory when trying to read {:?}",
-                path
-            );
+        let s3 = self.get_client().map_err(|_| {
+            let msg = format!("Could not get s3 client");
             let io_err = make_io_err(msg);
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        if !cache.contains_key(path) {
-            let mut map = self.fs.0.write().map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire write lock for the \
-                                            directory when trying to read {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })?;
-
-            let s3 = self.get_client().map_err(|_| {
-                let msg = format!("Could not get s3 client");
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })?;
-
-            let full_path = self.resolve_path(path);
-            let key = full_path.into_os_string().into_string().map_err(|_| {
-                let msg = format!("Could not build key path");
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })?;
-
-            let obj = s3.get_object(&GetObjectRequest {
-                bucket: self.bucket.clone(),
-                key,
-                ..Default::default()
-            }).map_err(|_| {
-                    let msg = format!("No key found for {:?}", path);
-                    let io_err = make_io_err(msg);
-                    OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-                })?;
-
-            map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
-        }
-
-        //TODO: map_err
-        let data = cache.get(path).unwrap();
-
-        Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
+        self.fs.open_read(&self.resolve_path(path), s3.as_ref())
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -168,7 +199,13 @@ impl Directory for S3Directory {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        unimplemented!()
+        let s3 = self.get_client().map_err(|_| {
+            let msg = format!("Could not get s3 client");
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        self.fs.exists(&self.resolve_path(path))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
