@@ -40,6 +40,41 @@ impl InnerDirectory {
         }
     }
 
+    fn load_missing_key(&self, client: &S3, path: &Path) -> Result<(), OpenReadError> {
+        let mut map = self.cache.write().map_err(|_| {
+            let msg = format!(
+                "Failed to acquire write lock for the \
+                                            directory when trying to read {:?}",
+                path
+            );
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        // TODO: this is comical and I'm more than likely over thinking it
+        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
+            let msg = format!("Could not build key path");
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        let obj = client
+            .get_object(&GetObjectRequest {
+                bucket: self.bucket.clone(),
+                key,
+                ..Default::default()
+            })
+            .map_err(|_| {
+                let msg = format!("No key found for {:?}", path);
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
+
+        map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
+
+        Ok(())
+    }
+
     fn open_read(&self, path: &Path, client: &S3) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
 
@@ -54,36 +89,7 @@ impl InnerDirectory {
         })?;
 
         if !cache.contains_key(path) {
-            let mut map = self.cache.write().map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire write lock for the \
-                                            directory when trying to read {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })?;
-
-            // TODO: this is comical and I'm more than likely over thinking it
-            let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
-                let msg = format!("Could not build key path");
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })?;
-
-            let obj = client
-                .get_object(&GetObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key,
-                    ..Default::default()
-                })
-                .map_err(|_| {
-                    let msg = format!("No key found for {:?}", path);
-                    let io_err = make_io_err(msg);
-                    OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-                })?;
-
-            map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
+            self.load_missing_key(client, path)?;
         }
 
         //TODO: map_err
@@ -100,28 +106,9 @@ impl InnerDirectory {
 
         let mut exist = cache_exist;
         if !cache_exist {
-            let mut map = self.cache.write().expect(
-                "Failed to get write lock directory.",
-            );
+            let r = self.load_missing_key(client, path);
 
-            // TODO: this is comical and I'm more than likely over thinking it
-            let key = path.as_os_str().to_os_string().into_string().expect(
-                "Failed to convert path",
-            );
-
-            let obj_check = client.get_object(&GetObjectRequest {
-                bucket: self.bucket.clone(),
-                key,
-                ..Default::default()
-            });
-
-            if obj_check.is_ok() {
-                let obj = obj_check.unwrap();
-                map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
-                exist = true;
-            } else {
-                exist = false
-            }
+            exist = r.is_ok();
         }
 
         exist
