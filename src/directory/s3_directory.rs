@@ -92,11 +92,39 @@ impl InnerDirectory {
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
     }
 
-    fn exists(&self, path: &Path) -> bool {
-        self.cache
+    fn exists(&self, path: &Path, client: &S3) -> bool {
+        let cache_exist = self.cache
             .read()
             .expect("Failed to get read lock directory.")
-            .contains_key(path)
+            .contains_key(path);
+
+        let mut exist = cache_exist;
+        if !cache_exist {
+            let mut map = self.cache.write().expect(
+                "Failed to get write lock directory.",
+            );
+
+            // TODO: this is comical and I'm more than likely over thinking it
+            let key = path.as_os_str().to_os_string().into_string().expect(
+                "Failed to convert path",
+            );
+
+            let obj_check = client.get_object(&GetObjectRequest {
+                bucket: self.bucket.clone(),
+                key,
+                ..Default::default()
+            });
+
+            if obj_check.is_ok() {
+                let obj = obj_check.unwrap();
+                map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
+                exist = true;
+            } else {
+                exist = false
+            }
+        }
+
+        exist
     }
 }
 
@@ -199,13 +227,9 @@ impl Directory for S3Directory {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        let s3 = self.get_client().map_err(|_| {
-            let msg = format!("Could not get s3 client");
-            let io_err = make_io_err(msg);
-            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-        })?;
+        let s3 = self.get_client().expect("Failed to build s3 client");
 
-        self.fs.exists(&self.resolve_path(path))
+        self.fs.exists(&self.resolve_path(path), s3.as_ref())
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
