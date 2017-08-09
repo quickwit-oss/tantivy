@@ -7,6 +7,7 @@ use directory::WritePtr;
 use std::collections::HashMap;
 use std::convert::From;
 use std::default::Default;
+use std::error::Error;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -16,6 +17,14 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
 use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest};
+
+fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
+    // TODO: handle missing creds
+    let client = default_tls_client()?;
+    let provider = DefaultCredentialsProvider::new()?;
+
+    Ok(Box::new(S3Client::new(client, provider, region)))
+}
 
 #[derive(Clone)]
 struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
@@ -56,21 +65,14 @@ impl S3Directory {
     ) -> Result<S3Directory, OpenDirectoryError> {
         // TODO: should I use a different error type? probably
 
+        // TODO: should I use the Rusoto Region type in the method call?
         let region = Region::from_str(&region).map_err(|_| {
             OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/region"))
         })?;
 
-        // TODO: handle missing creds
-        let client = default_tls_client().map_err(|_| {
-            OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/tls/client"))
+        let s3 = get_client(region.clone()).map_err(|_| {
+            OpenDirectoryError::DoesNotExist(PathBuf::from("/cant/s3"))
         })?;
-
-        let provider = DefaultCredentialsProvider::new().map_err(|_| {
-            OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/creds"))
-        })?;
-
-        // TODO: do I want to save this off?
-        let s3 = S3Client::new(client, provider, region.clone());
 
         // does bucket exist?
         s3.head_bucket(&HeadBucketRequest { bucket: bucket.clone() })
@@ -79,6 +81,7 @@ impl S3Directory {
             })?;
 
         // TODO: how to store the client?
+        // `S3` does not implement `std::marker::Sync` so it can't be on the struct
         Ok(S3Directory {
             bucket,
             region: region,
@@ -88,20 +91,8 @@ impl S3Directory {
 
     }
 
-    fn get_client(&self) -> Box<S3> {
-        let client = default_tls_client()
-            .map_err(|_| {
-                OpenReadError::FileDoesNotExist(PathBuf::from("/bad/tls/client"))
-            })
-            .unwrap();
-
-        let provider = DefaultCredentialsProvider::new()
-            .map_err(|_| {
-                OpenReadError::FileDoesNotExist(PathBuf::from("/bad/creds"))
-            })
-            .unwrap();
-
-        Box::new(S3Client::new(client, provider, self.region.clone()))
+    fn get_client(&self) -> Result<Box<S3>, Box<Error>> {
+        get_client(self.region.clone())
     }
 
     /// Joins a relative_path to the directory `root_path`
@@ -126,8 +117,6 @@ impl Directory for S3Directory {
         })?;
 
         if !cache.contains_key(path) {
-            let full_path = self.resolve_path(path);
-
             let mut map = self.fs.0.write().map_err(|_| {
                 let msg = format!(
                     "Failed to acquire write lock for the \
@@ -138,12 +127,22 @@ impl Directory for S3Directory {
                 OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
             })?;
 
-            let s3 = self.get_client();
+            let s3 = self.get_client().map_err(|_| {
+                let msg = format!("Could not get s3 client");
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
+
+            let full_path = self.resolve_path(path);
+            let key = full_path.into_os_string().into_string().map_err(|_| {
+                let msg = format!("Could not build key path");
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })?;
 
             let obj = s3.get_object(&GetObjectRequest {
                 bucket: self.bucket.clone(),
-                // TODO: this may not be the best approach
-                key: full_path.clone().into_os_string().into_string().unwrap(),
+                key,
                 ..Default::default()
             }).map_err(|_| {
                     let msg = format!("No key found for {:?}", path);
@@ -151,10 +150,10 @@ impl Directory for S3Directory {
                     OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
                 })?;
 
-
             map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
         }
 
+        //TODO: map_err
         let data = cache.get(path).unwrap();
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
