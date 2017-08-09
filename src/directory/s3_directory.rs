@@ -5,6 +5,7 @@ use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::convert::From;
 use std::default::Default;
 use std::error::Error;
@@ -40,17 +41,7 @@ impl InnerDirectory {
         }
     }
 
-    fn load_missing_key(&self, client: &S3, path: &Path) -> Result<(), OpenReadError> {
-        let mut map = self.cache.write().map_err(|_| {
-            let msg = format!(
-                "Failed to acquire write lock for the \
-                                            directory when trying to read {:?}",
-                path
-            );
-            let io_err = make_io_err(msg);
-            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-        })?;
-
+    fn fetch(&self, client: &S3, path: &Path) -> Result<Arc<Vec<u8>>, OpenReadError> {
         // TODO: this is comical and I'm more than likely over thinking it
         let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
             let msg = format!("Could not build key path");
@@ -70,17 +61,16 @@ impl InnerDirectory {
                 OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
             })?;
 
-        map.insert(PathBuf::from(path), Arc::new(obj.body.unwrap()));
-
-        Ok(())
+        Ok(Arc::new(obj.body.unwrap()))
     }
 
     fn open_read(&self, path: &Path, client: &S3) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
 
-        let cache = self.cache.read().map_err(|_| {
+        // TODO: I punted on this, since I'm switching to an inner `Directory` instance
+        let mut cache = self.cache.write().map_err(|_| {
             let msg = format!(
-                "Failed to acquire read lock for the \
+                "Failed to acquire write lock for the \
                                             directory when trying to read {:?}",
                 path
             );
@@ -88,12 +78,9 @@ impl InnerDirectory {
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        if !cache.contains_key(path) {
-            self.load_missing_key(client, path)?;
-        }
-
-        //TODO: map_err
-        let data = cache.get(path).unwrap();
+        let data = cache.entry(PathBuf::from(path)).or_insert_with(|| {
+            self.fetch(client, path).unwrap()
+        });
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
     }
@@ -134,19 +121,30 @@ impl InnerDirectory {
     }
 
     fn exists(&self, path: &Path, client: &S3) -> bool {
-        let cache_exist = self.cache
-            .read()
-            .expect("Failed to get read lock directory.")
-            .contains_key(path);
+        let cache = self.cache.read().expect(
+            "Failed to get read lock directory.",
+        );
 
-        let mut exist = cache_exist;
-        if !cache_exist {
-            let r = self.load_missing_key(client, path);
-
-            exist = r.is_ok();
+        let key = PathBuf::from(path);
+        if cache.contains_key(&key) {
+            true
+        } else {
+            let mut cache = self.cache.write().expect(
+                "Failed to get write lock directory",
+            );
+            match cache.entry(key) {
+                Entry::Occupied(_) => true,
+                Entry::Vacant(entry) => {
+                    match self.fetch(client, path) {
+                        Ok(data) => {
+                            entry.insert(data);
+                            true
+                        }
+                        Err(_) => false,
+                    }
+                }
+            }
         }
-
-        exist
     }
 }
 
