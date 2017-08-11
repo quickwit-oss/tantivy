@@ -17,8 +17,9 @@ mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
 use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
-pub use self::serializer::InvertedIndexSerializer;
+pub use self::serializer::{InvertedIndexSerializer, FieldSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
+
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
@@ -59,13 +60,15 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
         let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
-        posting_serializer.new_field(text_field);
-        posting_serializer.new_term("abc".as_bytes()).unwrap();
-        for doc_id in 0u32..120u32 {
-            let delta_positions = vec![1, 2, 3, 2];
-            posting_serializer.write_doc(doc_id, 2, &delta_positions).unwrap();
+        {
+            let mut field_serializer = posting_serializer.new_field(text_field);
+            field_serializer.new_term("abc".as_bytes()).unwrap();
+            for doc_id in 0u32..120u32 {
+                let delta_positions = vec![1, 2, 3, 2];
+                field_serializer.write_doc(doc_id, 2, &delta_positions).unwrap();
+            }
+            field_serializer.close_term().unwrap();
         }
-        posting_serializer.close_term().unwrap();
         posting_serializer.close().unwrap();
         let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
         assert!(read.len() <= 140);

@@ -19,7 +19,6 @@ use store::StoreWriter;
 use std::cmp::{min, max};
 use schema::Term;
 use termdict::TermStreamer;
-use postings::SegmentPostingsOption;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -215,103 +214,115 @@ impl IndexMerger {
             merged_doc_id_map.push(segment_local_map);
         }
 
-        let mut last_field: Option<Field> = None;
+        // Create the total list of doc ids
+        // by stacking the doc ids from the different segment.
+        //
+        // In the new segments, the doc id from the different
+        // segment are stacked so that :
+        // - Segment 0's doc ids become doc id [0, seg.max_doc]
+        // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
+        // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
+        //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
+        // ...
+        if !merged_terms.advance() {
+            return Ok(());
+        }
 
-        let mut segment_postings_option = SegmentPostingsOption::FreqAndPositions;
+        let mut current_field = Term::wrap(merged_terms.key()).field();
 
-        while merged_terms.advance() {
+        loop {
+            // this loop processes all fields.
+            let mut field_serializer = serializer.new_field(current_field);
 
-            // Create the total list of doc ids
-            // by stacking the doc ids from the different segment.
-            //
-            // In the new segments, the doc id from the different
-            // segment are stacked so that :
-            // - Segment 0's doc ids become doc id [0, seg.max_doc]
-            // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
-            // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
-            //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
-            // ...
-            let term = Term::wrap(merged_terms.key());
-            let current_field = term.field();
-
-            if last_field != Some(current_field) {
-                // we reached a new field.
-                let field_entry = self.schema.get_field_entry(current_field);
-                // ... set segment postings option the new field.
-                segment_postings_option = field_entry
-                    .field_type()
-                    .get_segment_postings_option()
-                    .expect("Encountered a field that is not supposed to be
+            // we reached a new field.
+            let field_entry = self.schema.get_field_entry(current_field);
+            // ... set segment postings option the new field.
+            let segment_postings_option = field_entry
+                .field_type()
+                .get_segment_postings_option()
+                .expect("Encountered a field that is not supposed to be
                          indexed. Have you modified the schema?");
 
-                last_field = Some(current_field);
+            loop {
+                // this loops processes a field.
+                {
+                    let term = Term::wrap(merged_terms.key());
 
-                // it is perfectly safe to call `.new_field`
-                // even if there is no postings associated.
-                serializer.new_field(current_field);
-            }
+                    // Let's compute the list of non-empty posting lists
+                    let segment_postings: Vec<_> = merged_terms
+                        .current_kvs()
+                        .iter()
+                        .flat_map(|heap_item| {
+                            let segment_ord = heap_item.segment_ord;
+                            let term_info = heap_item.streamer.value();
+                            let segment_reader = &self.readers[heap_item.segment_ord];
+                            let mut segment_postings =
+                                segment_reader
+                                    .read_postings_from_terminfo(term_info, segment_postings_option);
+                            if segment_postings.advance() {
+                                Some((segment_ord, segment_postings))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
 
-            // Let's compute the list of non-empty posting lists
-            let segment_postings: Vec<_> = merged_terms
-                .current_kvs()
-                .iter()
-                .flat_map(|heap_item| {
-                    let segment_ord = heap_item.segment_ord;
-                    let term_info = heap_item.streamer.value();
-                    let segment_reader = &self.readers[heap_item.segment_ord];
-                    let mut segment_postings =
-                        segment_reader
-                            .read_postings_from_terminfo(term_info, segment_postings_option);
-                    if segment_postings.advance() {
-                        Some((segment_ord, segment_postings))
-                    } else {
-                        None
+                    // At this point, `segment_postings` contains the posting list
+                    // of all of the segments containing the given term.
+                    //
+                    // These segments are non-empty and advance has already been called.
+
+                    if !segment_postings.is_empty() {
+                        // If not, the `term` will be entirely removed.
+
+                        // We know that there is at least one document containing
+                        // the term, so we add it.
+                        field_serializer.new_term(term.as_ref())?;
+
+                        // We can now serialize this postings, by pushing each document to the
+                        // postings serializer.
+
+                        for (segment_ord, mut segment_postings) in segment_postings {
+                            let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
+                            loop {
+                                // `.advance()` has been called once before the loop.
+                                // Hence we cannot use a `while segment_postings.advance()` loop.
+                                if let Some(remapped_doc_id) =
+                                old_to_new_doc_id[segment_postings.doc() as usize] {
+                                    // we make sure to only write the term iff
+                                    // there is at least one document.
+                                    let positions: &[u32] = segment_postings.positions();
+                                    let term_freq = segment_postings.term_freq();
+                                    let delta_positions = delta_computer.compute_delta(positions);
+                                    field_serializer
+                                        .write_doc(remapped_doc_id, term_freq, delta_positions)?;
+                                }
+                                if !segment_postings.advance() {
+                                    break;
+                                }
+                            }
+                        }
+
+                        // closing the term.
+                        field_serializer.close_term()?;
                     }
-                })
-                .collect();
 
-            // At this point, `segment_postings` contains the posting list
-            // of all of the segments containing the given term.
-            //
-            // These segments are non-empty and advance has already been called.
+                }
 
-            if segment_postings.is_empty() {
-                // by continuing here, the `term` will be entirely removed.
-                continue;
-            }
 
-            // We know that there is at least one document containing
-            // the term, so we add it.
-            serializer.new_term(term.as_ref())?;
+                if !merged_terms.advance() {
+                    return Ok(())
+                }
 
-            // We can now serialize this postings, by pushing each document to the
-            // postings serializer.
-
-            for (segment_ord, mut segment_postings) in segment_postings {
-                let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-                loop {
-                    // `.advance()` has been called once before the loop.
-                    // Hence we cannot use a `while segment_postings.advance()` loop.
-                    if let Some(remapped_doc_id) =
-                        old_to_new_doc_id[segment_postings.doc() as usize] {
-                        // we make sure to only write the term iff
-                        // there is at least one document.
-                        let positions: &[u32] = segment_postings.positions();
-                        let term_freq = segment_postings.term_freq();
-                        let delta_positions = delta_computer.compute_delta(positions);
-                        serializer
-                            .write_doc(remapped_doc_id, term_freq, delta_positions)?;
-                    }
-                    if !segment_postings.advance() {
+                {
+                    let next_term_field = Term::wrap(merged_terms.key()).field();
+                    if next_term_field != current_field {
+                        current_field = next_term_field;
                         break;
                     }
                 }
             }
-
-            // closing the term.
-            serializer.close_term()?;
         }
-        Ok(())
     }
 
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
@@ -319,9 +330,9 @@ impl IndexMerger {
             let store_reader = reader.get_store_reader();
             for doc_id in 0..reader.max_doc() {
                 if !reader.is_deleted(doc_id) {
-                    let doc = try!(store_reader.get(doc_id));
+                    let doc = store_reader.get(doc_id)?;
                     let field_values: Vec<&FieldValue> = doc.field_values().iter().collect();
-                    try!(store_writer.store(&field_values));
+                    store_writer.store(&field_values)?;
                 }
             }
         }
@@ -331,11 +342,11 @@ impl IndexMerger {
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> Result<u32> {
-        try!(self.write_postings(serializer.get_postings_serializer()));
-        try!(self.write_fieldnorms(serializer.get_fieldnorms_serializer()));
-        try!(self.write_fast_fields(serializer.get_fast_field_serializer()));
-        try!(self.write_storable_fields(serializer.get_store_writer()));
-        try!(serializer.close());
+        self.write_postings(serializer.get_postings_serializer())?;
+        self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
+        self.write_fast_fields(serializer.get_fast_field_serializer())?;
+        self.write_storable_fields(serializer.get_store_writer())?;
+        serializer.close()?;
         Ok(self.max_doc)
     }
 }

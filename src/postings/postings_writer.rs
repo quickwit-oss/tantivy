@@ -1,7 +1,7 @@
 use DocId;
 use schema::Term;
 use schema::FieldValue;
-use postings::InvertedIndexSerializer;
+use postings::{InvertedIndexSerializer, FieldSerializer};
 use std::io;
 use postings::Recorder;
 use analyzer::SimpleTokenizer;
@@ -101,8 +101,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let (field, start) = offsets[i];
             let (_, stop) = offsets[i + 1];
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
-            postings_writer
-                .serialize(field, &term_offsets[start..stop], serializer, self.heap)?;
+            let field_serializer = serializer.new_field(field);
+            postings_writer.serialize(&term_offsets[start..stop], field_serializer, self.heap)?;
         }
         Ok(())
     }
@@ -136,9 +136,8 @@ pub trait PostingsWriter {
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(&self,
-                 field: Field,
                  term_addrs: &[(&[u8], u32)],
-                 serializer: &mut InvertedIndexSerializer,
+                 serializer: FieldSerializer,
                  heap: &Heap)
                  -> io::Result<()>;
 
@@ -214,17 +213,15 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     }
 
     fn serialize(&self,
-                 field: Field,
                  term_addrs: &[(&[u8], u32)],
-                 serializer: &mut InvertedIndexSerializer,
+                 mut serializer: FieldSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
-        serializer.new_field(field);
         for &(term_bytes, addr) in term_addrs {
             let recorder: &mut Rec = self.heap.get_mut_ref(addr);
-            try!(serializer.new_term(term_bytes));
-            try!(recorder.serialize(addr, serializer, heap));
-            try!(serializer.close_term());
+            serializer.new_term(term_bytes)?;
+            recorder.serialize(addr, &mut serializer, heap)?;
+            serializer.close_term()?;
         }
         Ok(())
     }
