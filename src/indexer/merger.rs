@@ -233,7 +233,7 @@ impl IndexMerger {
 
         loop {
             // this loop processes all fields.
-            let mut field_serializer = serializer.new_field(current_field);
+            let mut field_serializer = serializer.new_field(current_field)?;
 
             // we reached a new field.
             let field_entry = self.schema.get_field_entry(current_field);
@@ -312,6 +312,7 @@ impl IndexMerger {
 
 
                 if !merged_terms.advance() {
+                    field_serializer.close()?;
                     return Ok(())
                 }
 
@@ -319,6 +320,7 @@ impl IndexMerger {
                     let next_term_field = Term::wrap(merged_terms.key()).field();
                     if next_term_field != current_field {
                         current_field = next_term_field;
+                        field_serializer.close()?;
                         break;
                     }
                 }

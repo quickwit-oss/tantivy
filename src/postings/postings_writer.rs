@@ -101,7 +101,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let (field, start) = offsets[i];
             let (_, stop) = offsets[i + 1];
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
-            let field_serializer = serializer.new_field(field);
+            let field_serializer = serializer.new_field(field)?;
             postings_writer.serialize(&term_offsets[start..stop], field_serializer, self.heap)?;
         }
         Ok(())

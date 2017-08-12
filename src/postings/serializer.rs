@@ -13,6 +13,7 @@ use core::Segment;
 use std::io::{self, Write};
 use compression::VIntEncoder;
 use common::CountingWriter;
+use common::CompositeWrite;
 use termdict::TermDictionaryBuilder;
 
 
@@ -48,25 +49,24 @@ use termdict::TermDictionaryBuilder;
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
 pub struct InvertedIndexSerializer {
-    terms_fst_builder: TermDictionaryBuilderImpl<WritePtr, TermInfo>,
-    postings_serializer: PostingsSerializer,
-    positions_serializer: PositionSerializer,
+    terms_write: CompositeWrite<WritePtr>,
+    postings_write: CompositeWrite<WritePtr>,
+    positions_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
 
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
-    fn new(terms_write: WritePtr,
-               postings_write: WritePtr,
-               positions_write: WritePtr,
-               schema: Schema)
+    fn new(terms_write: CompositeWrite<WritePtr>,
+           postings_write: CompositeWrite<WritePtr>,
+           positions_write: CompositeWrite<WritePtr>,
+           schema: Schema)
                -> Result<InvertedIndexSerializer> {
-        let terms_fst_builder = TermDictionaryBuilderImpl::new(terms_write)?;
         Ok(InvertedIndexSerializer {
-            terms_fst_builder: terms_fst_builder,
-            positions_serializer: PositionSerializer::new(positions_write),
-            postings_serializer: PostingsSerializer::new(postings_write),
+            terms_write: terms_write,
+            postings_write: postings_write,
+            positions_write: positions_write,
             schema: schema,
         })
     }
@@ -75,17 +75,19 @@ impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
         use SegmentComponent::{TERMS, POSTINGS, POSITIONS};
-        InvertedIndexSerializer::new(segment.open_write(TERMS)?,
-                                     segment.open_write(POSTINGS)?,
-                                     segment.open_write(POSITIONS)?,
-                                     segment.schema())
+        InvertedIndexSerializer::new(
+            CompositeWrite::wrap(
+                segment.open_write(TERMS)?),
+                CompositeWrite::wrap(segment.open_write(POSTINGS)?),
+                CompositeWrite::wrap(segment.open_write(POSITIONS)?),
+                segment.schema())
     }
 
     /// Must be called before starting pushing terms of
     /// a given field.
     ///
     /// Loads the indexing options for the given field.
-    pub fn new_field(&mut self, field: Field) -> FieldSerializer {
+    pub fn new_field(&mut self, field: Field) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let text_indexing_options = match *field_entry.field_type() {
             FieldType::Str(ref text_options) => text_options.get_indexing_options(),
@@ -98,46 +100,32 @@ impl InvertedIndexSerializer {
                 }
             }
         };
+        let term_dictionary_write = self.terms_write.for_field(field);
+        let postings_write = self.postings_write.for_field(field);
+        let positions_write = self.positions_write.for_field(field);
         FieldSerializer::new(
             text_indexing_options,
-            &mut self.terms_fst_builder,
-            &mut self.postings_serializer,
-            &mut self.positions_serializer,
+            term_dictionary_write,
+            postings_write,
+            positions_write
         )
     }
 
     /// Closes the serializer.
-    pub fn close(self) -> io::Result<()> {
-        self.terms_fst_builder.finish()?;
-        self.postings_serializer.close()?;
-        self.positions_serializer.close()?;
+    pub fn close(mut self) -> io::Result<()> {
+        self.terms_write.close()?;
+        self.postings_write.close()?;
+        self.positions_write.close()?;
         Ok(())
     }
 }
 
 
-/*
-let field_entry: &FieldEntry = self.schema.get_field_entry(field);
-self.text_indexing_options = match *field_entry.field_type() {
-    FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-    FieldType::U64(ref int_options) |
-    FieldType::I64(ref int_options) => {
-        if int_options.is_indexed() {
-            TextIndexingOptions::Unindexed
-        } else {
-            TextIndexingOptions::Untokenized
-        }
-    }
-};
-self.postings_serializer.set_termfreq_enabled(self.text_indexing_options.is_termfreq_enabled());
-
-  */
-
 pub struct FieldSerializer<'a> {
     text_indexing_options: TextIndexingOptions,
-    terms_fst_builder: &'a mut TermDictionaryBuilderImpl<WritePtr, TermInfo>,
-    postings_serializer: &'a mut PostingsSerializer,
-    positions_serializer: &'a mut PositionSerializer,
+    term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>, TermInfo>,
+    postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
+    positions_serializer: PositionSerializer<&'a mut CountingWriter<WritePtr>>,
     current_term_info: TermInfo,
     term_open: bool,
 }
@@ -147,21 +135,24 @@ impl<'a> FieldSerializer<'a> {
 
     fn new(
         text_indexing_options: TextIndexingOptions,
-        terms_fst_builder: &'a mut TermDictionaryBuilderImpl<WritePtr, TermInfo>,
-        postings_serializer: &'a mut PostingsSerializer,
-        positions_serializer: &'a mut PositionSerializer
-    ) -> FieldSerializer<'a> {
+        term_dictionary_write: &'a mut CountingWriter<WritePtr>,
+        postings_write: &'a mut CountingWriter<WritePtr>,
+        positions_write: &'a mut CountingWriter<WritePtr>
+    ) -> io::Result<FieldSerializer<'a>> {
 
-        postings_serializer.set_termfreq_enabled(text_indexing_options.is_termfreq_enabled());
+        let term_freq_enabled = text_indexing_options.is_termfreq_enabled();
+        let term_dictionary_builder = TermDictionaryBuilderImpl::new(term_dictionary_write)?;
+        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
+        let positions_serializer = PositionSerializer::new(positions_write);
 
-        FieldSerializer {
+        Ok(FieldSerializer {
             text_indexing_options: text_indexing_options,
-            terms_fst_builder: terms_fst_builder,
+            term_dictionary_builder: term_dictionary_builder,
             postings_serializer: postings_serializer,
             positions_serializer: positions_serializer,
             current_term_info: TermInfo::default(),
             term_open: false,
-        }
+        })
     }
 
     fn current_term_info(&self) -> TermInfo {
@@ -185,7 +176,7 @@ impl<'a> FieldSerializer<'a> {
         self.term_open = true;
         self.postings_serializer.clear();
         self.current_term_info = self.current_term_info();
-        self.terms_fst_builder.insert_key(term)
+        self.term_dictionary_builder.insert_key(term)
     }
 
     /// Serialize the information that a document contains the current term,
@@ -216,10 +207,18 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.terms_fst_builder.insert_value(&self.current_term_info)?;
+            self.term_dictionary_builder.insert_value(&self.current_term_info)?;
             self.postings_serializer.close_term()?;
             self.term_open = false;
         }
+        Ok(())
+    }
+
+    pub fn close(mut self) -> io::Result<()> {
+        self.close_term()?;
+        self.positions_serializer.close()?;
+        self.postings_serializer.close()?;
+        self.term_dictionary_builder.finish()?;
         Ok(())
     }
 }
@@ -228,8 +227,8 @@ impl<'a> FieldSerializer<'a> {
 
 
 
-struct PostingsSerializer {
-    postings_write: CountingWriter<WritePtr>,
+struct PostingsSerializer<W: Write> {
+    postings_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
@@ -239,8 +238,8 @@ struct PostingsSerializer {
     termfreq_enabled: bool,
 }
 
-impl PostingsSerializer {
-    fn new(write: WritePtr) -> PostingsSerializer {
+impl<W: Write> PostingsSerializer<W> {
+    fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
             postings_write: CountingWriter::wrap(write),
 
@@ -249,7 +248,7 @@ impl PostingsSerializer {
             term_freqs: vec!(),
 
             last_doc_id_encoded: 0u32,
-            termfreq_enabled: false,
+            termfreq_enabled: termfreq_enabled,
         }
     }
 
@@ -277,10 +276,6 @@ impl PostingsSerializer {
             self.doc_ids.clear();
         }
         Ok(())
-    }
-
-    fn set_termfreq_enabled(&mut self, termfreq_enabled: bool) {
-        self.termfreq_enabled = termfreq_enabled;
     }
 
     fn close_term(&mut self) -> io::Result<()> {
@@ -325,14 +320,14 @@ impl PostingsSerializer {
     }
 }
 
-struct PositionSerializer {
+struct PositionSerializer<W: Write> {
     buffer: Vec<u32>,
-    write: CountingWriter<WritePtr>,
+    write: CountingWriter<W>, // See if we can offset the original counting writer.
     block_encoder: BlockEncoder,
 }
 
-impl PositionSerializer {
-    fn new(write: WritePtr) -> PositionSerializer {
+impl<W: Write> PositionSerializer<W> {
+    fn new(write: W) -> PositionSerializer<W> {
         PositionSerializer {
             buffer: Vec::with_capacity(NUM_DOCS_PER_BLOCK),
             write: CountingWriter::wrap(write),
