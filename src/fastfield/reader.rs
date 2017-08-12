@@ -1,6 +1,6 @@
 use std::io;
-use std::collections::HashMap;
 use directory::ReadOnlySource;
+use common::CompositeFile;
 use common::BinarySerializable;
 use DocId;
 use schema::{Field, SchemaBuilder};
@@ -240,8 +240,7 @@ impl FastFieldReader for I64FastFieldReader {
 /// It contains a mapping that associated these fields to
 /// the proper slice in the fastfield reader file.
 pub struct FastFieldsReader {
-    source: ReadOnlySource,
-    field_offsets: HashMap<Field, (u32, u32)>,
+    composite_file: CompositeFile,
 }
 
 impl FastFieldsReader {
@@ -251,31 +250,9 @@ impl FastFieldsReader {
     /// the list of the offset is read (as a footer of the
     /// data file).
     pub fn from_source(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
-        let header_offset;
-        let field_offsets: Vec<(Field, u32)>;
-        {
-            let buffer = source.as_slice();
-            {
-                let mut cursor = buffer;
-                header_offset = u32::deserialize(&mut cursor)?;
-            }
-            {
-                let mut cursor = &buffer[header_offset as usize..];
-                field_offsets = Vec::deserialize(&mut cursor)?;
-            }
-        }
-        let mut end_offsets: Vec<u32> = field_offsets.iter().map(|&(_, offset)| offset).collect();
-        end_offsets.push(header_offset);
-        let mut field_offsets_map: HashMap<Field, (u32, u32)> = HashMap::new();
-        for (field_start_offsets, stop_offset) in
-            field_offsets.iter().zip(end_offsets.iter().skip(1)) {
-            let (field, start_offset) = *field_start_offsets;
-            field_offsets_map.insert(field, (start_offset, *stop_offset));
-        }
         Ok(FastFieldsReader {
-               field_offsets: field_offsets_map,
-               source: source,
-           })
+            composite_file: CompositeFile::open(source)?,
+        })
     }
 
     /// Returns the u64 fast value reader if the field
@@ -287,11 +264,8 @@ impl FastFieldsReader {
     /// # Panics
     /// May panic if the index is corrupted.
     pub fn open_reader<FFReader: FastFieldReader>(&self, field: Field) -> Option<FFReader> {
-        self.field_offsets
-            .get(&field)
-            .map(|&(start, stop)| {
-                     let field_source = self.source.slice(start as usize, stop as usize);
-                     FFReader::open(field_source)
-                 })
+        self.composite_file
+            .open_read(field)
+            .map(FFReader::open)
     }
 }

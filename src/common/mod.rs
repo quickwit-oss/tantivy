@@ -2,8 +2,11 @@ mod serialize;
 mod timer;
 mod vint;
 mod counting_writer;
+mod composite_file;
 pub mod bitpacker;
 
+
+pub(crate) use self::composite_file::{CompositeWrite, CompositeFile};
 pub use self::serialize::BinarySerializable;
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;

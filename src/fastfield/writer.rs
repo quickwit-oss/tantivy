@@ -208,13 +208,14 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        serializer.new_u64_fast_field(self.field, min, max)?;
+
+        let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
 
         let mut cursor = self.vals.as_slice();
         while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-            serializer.add_val(val)?;
+            single_field_serializer.add_val(val)?;
         }
 
-        serializer.close_field()
+        single_field_serializer.close_field()
     }
 }

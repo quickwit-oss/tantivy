@@ -175,18 +175,19 @@ impl IndexMerger {
 
             assert!(min_val <= max_val);
 
-            fast_field_serializer
+
+            let mut fast_single_field_serializer = fast_field_serializer
                 .new_u64_fast_field(field, min_val, max_val)?;
             for (max_doc, u64_reader, delete_bitset) in u64_readers {
                 for doc_id in 0..max_doc {
                     if !delete_bitset.is_deleted(doc_id) {
                         let val = u64_reader.get(doc_id);
-                        fast_field_serializer.add_val(val)?;
+                        fast_single_field_serializer.add_val(val)?;
                     }
                 }
             }
 
-            fast_field_serializer.close_field()?;
+            fast_single_field_serializer.close_field()?;
         }
         Ok(())
     }
