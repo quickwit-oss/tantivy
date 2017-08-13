@@ -26,7 +26,6 @@ impl FieldReader {
         positions_source: ReadOnlySource,
         delete_bitset: DeleteBitSet,
         schema: Schema,
-
     ) -> io::Result<FieldReader> {
 
         Ok(FieldReader {

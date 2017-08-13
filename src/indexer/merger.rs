@@ -217,7 +217,7 @@ impl IndexMerger {
 
             let field_term_streams = field_readers
                 .iter()
-                .map(|field_reader| field_reader.terms().stream()   )
+                .map(|field_reader| field_reader.terms().stream())
                 .collect();
 
             let mut merged_terms = TermMerger::new(field_term_streams);
@@ -298,7 +298,6 @@ impl IndexMerger {
 
                     // We can now serialize this postings, by pushing each document to the
                     // postings serializer.
-
                     for (segment_ord, mut segment_postings) in segment_postings {
                         let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
                         loop {
@@ -329,9 +328,6 @@ impl IndexMerger {
             field_serializer.close()?;
 
         }
-        /*
-
-        */
         Ok(())
     }
 

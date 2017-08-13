@@ -1,9 +1,7 @@
-use std::io;
 use directory::ReadOnlySource;
-use common::CompositeFile;
 use common::BinarySerializable;
 use DocId;
-use schema::{Field, SchemaBuilder};
+use schema::{SchemaBuilder};
 use std::path::Path;
 use schema::FAST;
 use directory::{WritePtr, RAMDirectory, Directory};
@@ -12,8 +10,8 @@ use fastfield::FastFieldsWriter;
 use common::bitpacker::compute_num_bits;
 use common::bitpacker::BitUnpacker;
 use schema::FieldType;
-use error::ResultExt;
 use std::mem;
+use common::CompositeFile;
 use common;
 use owning_ref::OwningRef;
 
@@ -148,24 +146,16 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
-        panic!("TODO fix me");
-        /*
-        directory
-            .open_read(path)
-            .chain_err(|| "Failed to open the file")
-            .and_then(|source| {
-                CompositeFile::open(source)
-                    .chain_err(|| "Failed to read the file.")
-            })
-            .and_then(|composite_file| {
-                composite_file.open_read(field)
 
-                  ff_readers
-                      .open_reader(field)
-                      .ok_or_else(|| "Failed to find the requested field".into())
-              })
-            .expect("This should never happen, please report.")
-        */
+        let source = directory
+            .open_read(path)
+            .expect("Failed to open the file");
+        let composite_file = CompositeFile::open(source)
+            .expect("Failed to read the composite file");
+
+        let field_source = composite_file.open_read(field)
+            .expect("File component not found");
+        U64FastFieldReader::open(field_source)
     }
 }
 
