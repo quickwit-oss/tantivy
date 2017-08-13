@@ -17,7 +17,7 @@ use common::CompositeFile;
 use std::fmt;
 use core::FieldReader;
 use schema::Field;
-use fastfield::{FastFieldsReader, FastFieldReader, U64FastFieldReader};
+use fastfield::{FastFieldReader, U64FastFieldReader};
 use schema::Schema;
 
 
@@ -43,10 +43,10 @@ pub struct SegmentReader {
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
+    fast_fields_composite: CompositeFile,
+    fieldnorms_composite: CompositeFile,
 
     store_reader: StoreReader,
-    fast_fields_reader: Arc<FastFieldsReader>,
-    fieldnorms_reader: Arc<FastFieldsReader>,
     delete_bitset: DeleteBitSet,
     schema: Schema,
 }
@@ -75,11 +75,6 @@ impl SegmentReader {
         self.delete_bitset.len() as DocId
     }
 
-    #[doc(hidden)]
-    pub fn fast_fields_reader(&self) -> &FastFieldsReader {
-        &*self.fast_fields_reader
-    }
-
     /// Accessor to a segment's fast field reader given a field.
     ///
     /// Returns the u64 fast value reader if the field
@@ -91,16 +86,17 @@ impl SegmentReader {
     /// # Panics
     /// May panic if the index is corrupted.
     pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>
-        (&self,
-         field: Field)
-         -> fastfield::Result<TFastFieldReader> {
+        (&self, field: Field) -> fastfield::Result<TFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         if !TFastFieldReader::is_enabled(field_entry.field_type()) {
             Err(FastFieldNotAvailableError::new(field_entry))
         } else {
-            Ok(self.fast_fields_reader
-                   .open_reader(field)
-                   .expect("Fast field file corrupted."))
+            self.fast_fields_composite
+                .open_read(field)
+                .ok_or_else(|| {
+                    FastFieldNotAvailableError::new(field_entry)
+                })
+                .map(TFastFieldReader::open)
         }
     }
 
@@ -113,7 +109,9 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
-        self.fieldnorms_reader.open_reader(field)
+        self.fieldnorms_composite
+            .open_read(field)
+            .map(U64FastFieldReader::open)
     }
 
     /// Accessor to the segment's `StoreReader`.
@@ -143,11 +141,11 @@ impl SegmentReader {
         };
 
 
-        let fast_field_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
-        let fast_fields_reader = FastFieldsReader::from_source(fast_field_data)?;
+        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_composite = CompositeFile::open(fast_fields_data)?;
 
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
-        let fieldnorms_reader = FastFieldsReader::from_source(fieldnorms_data)?;
+        let fieldnorms_composite = CompositeFile::open(fieldnorms_data)?;
 
 
         let delete_bitset = if segment.meta().has_deletes() {
@@ -161,12 +159,12 @@ impl SegmentReader {
         Ok(SegmentReader {
            field_reader_cache: Arc::new(RwLock::new(HashMap::new())),
            segment_meta: segment.meta().clone(),
-           postings_composite: postings_composite,
            termdict_composite: termdict_composite,
+           postings_composite: postings_composite,
+           fast_fields_composite: fast_fields_composite,
+           fieldnorms_composite: fieldnorms_composite,
            segment_id: segment.id(),
            store_reader: store_reader,
-           fast_fields_reader: Arc::new(fast_fields_reader),
-           fieldnorms_reader: Arc::new(fieldnorms_reader),
            delete_bitset: delete_bitset,
            positions_composite: positions_composite,
            schema: schema,

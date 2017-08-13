@@ -148,20 +148,24 @@ impl From<Vec<u64>> for U64FastFieldReader {
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
         }
+        panic!("TODO fix me");
+        /*
         directory
             .open_read(path)
             .chain_err(|| "Failed to open the file")
             .and_then(|source| {
-                          FastFieldsReader::from_source(source)
-                              .chain_err(|| "Failed to read the file.")
-                      })
-            .and_then(|ff_readers| {
-                          ff_readers
-                              .open_reader(field)
-                              .ok_or_else(|| "Failed to find the requested field".into())
-                      })
-            .expect("This should never happen, please report.")
+                CompositeFile::open(source)
+                    .chain_err(|| "Failed to read the file.")
+            })
+            .and_then(|composite_file| {
+                composite_file.open_read(field)
 
+                  ff_readers
+                      .open_reader(field)
+                      .ok_or_else(|| "Failed to find the requested field".into())
+              })
+            .expect("This should never happen, please report.")
+        */
     }
 }
 
@@ -229,43 +233,5 @@ impl FastFieldReader for I64FastFieldReader {
             FieldType::I64(ref integer_options) => integer_options.is_fast(),
             _ => false,
         }
-    }
-}
-
-
-
-/// The `FastFieldsReader` is the datastructure containing
-/// all of the fast fields' data.
-///
-/// It contains a mapping that associated these fields to
-/// the proper slice in the fastfield reader file.
-pub struct FastFieldsReader {
-    composite_file: CompositeFile,
-}
-
-impl FastFieldsReader {
-    /// Opens a `FastFieldsReader`
-    ///
-    /// When opening the fast field reader, the
-    /// the list of the offset is read (as a footer of the
-    /// data file).
-    pub fn from_source(source: ReadOnlySource) -> io::Result<FastFieldsReader> {
-        Ok(FastFieldsReader {
-            composite_file: CompositeFile::open(source)?,
-        })
-    }
-
-    /// Returns the u64 fast value reader if the field
-    /// is a u64 field indexed as "fast".
-    ///
-    /// Return None if the field is not a u64 field
-    /// indexed with the fast option.
-    ///
-    /// # Panics
-    /// May panic if the index is corrupted.
-    pub fn open_reader<FFReader: FastFieldReader>(&self, field: Field) -> Option<FFReader> {
-        self.composite_file
-            .open_read(field)
-            .map(FFReader::open)
     }
 }

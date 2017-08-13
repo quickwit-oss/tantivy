@@ -23,7 +23,6 @@ pub struct Searcher {
     segment_readers: Vec<SegmentReader>,
 }
 
-
 impl Searcher {
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///

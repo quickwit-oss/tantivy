@@ -58,7 +58,9 @@ fn extract_fieldnorm_reader(segment_reader: &SegmentReader,
 fn extract_fast_field_reader(segment_reader: &SegmentReader,
                              field: Field)
                              -> Option<U64FastFieldReader> {
-    segment_reader.fast_fields_reader().open_reader(field)
+    segment_reader.get_fast_field_reader(field)
+        .ok()
+
 }
 
 struct DeltaComputer {
