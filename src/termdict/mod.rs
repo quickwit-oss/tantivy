@@ -282,9 +282,6 @@ mod tests {
         assert!(!stream.advance());
     }
 
-
-
-
     #[test]
     fn test_term_iterator() {
         let mut schema_builder = SchemaBuilder::default();
@@ -319,13 +316,16 @@ mod tests {
         }
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let mut term_it = searcher.terms();
+
+        let field_searcher = searcher.field(text_field).unwrap();
+        let mut term_it = field_searcher.terms();
         let mut term_string = String::new();
         while term_it.advance() {
             let term = Term::from_bytes(term_it.key());
             term_string.push_str(term.text());
         }
         assert_eq!(&*term_string, "abcdef");
+
     }
 
 

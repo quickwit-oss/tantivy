@@ -2,26 +2,21 @@ use Result;
 use core::Segment;
 use core::SegmentId;
 use core::SegmentComponent;
-use schema::Term;
+use std::sync::RwLock;
 use common::HasLen;
-use compression::CompressedIntStream;
 use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::DeleteBitSet;
 use store::StoreReader;
 use schema::Document;
-use directory::ReadOnlySource;
 use DocId;
 use std::str;
-use termdict::TermDictionary;
-use std::cmp;
-use postings::TermInfo;
-use termdict::TermDictionaryImpl;
 use std::sync::Arc;
+use std::collections::HashMap;
+use common::CompositeFile;
 use std::fmt;
+use core::FieldReader;
 use schema::Field;
-use postings::SegmentPostingsOption;
-use postings::{SegmentPostings, BlockSegmentPostings};
 use fastfield::{FastFieldsReader, FastFieldReader, U64FastFieldReader};
 use schema::Schema;
 
@@ -40,15 +35,19 @@ use schema::Schema;
 ///
 #[derive(Clone)]
 pub struct SegmentReader {
+    field_reader_cache: Arc<RwLock<HashMap<Field, Arc<FieldReader>>>>,
+
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
-    terms: Arc<TermDictionaryImpl>,
-    postings_data: ReadOnlySource,
+
+    termdict_composite: CompositeFile,
+    postings_composite: CompositeFile,
+    positions_composite: CompositeFile,
+
     store_reader: StoreReader,
     fast_fields_reader: Arc<FastFieldsReader>,
     fieldnorms_reader: Arc<FastFieldsReader>,
     delete_bitset: DeleteBitSet,
-    positions_data: ReadOnlySource,
     schema: Schema,
 }
 
@@ -117,14 +116,6 @@ impl SegmentReader {
         self.fieldnorms_reader.open_reader(field)
     }
 
-    /// Returns the number of documents containing the term.
-    pub fn doc_freq(&self, term: &Term) -> u32 {
-        match self.get_term_info(term) {
-            Some(term_info) => term_info.doc_freq,
-            None => 0,
-        }
-    }
-
     /// Accessor to the segment's `StoreReader`.
     pub fn get_store_reader(&self) -> &StoreReader {
         &self.store_reader
@@ -133,13 +124,24 @@ impl SegmentReader {
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
 
-        let source = segment.open_read(SegmentComponent::TERMS)?;
-        let terms = TermDictionaryImpl::from_source(source)?;
+        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
+        let termdict_composite = CompositeFile::open(termdict_source)?;
 
         let store_source = segment.open_read(SegmentComponent::STORE)?;
         let store_reader = StoreReader::from_source(store_source);
 
-        let postings_shared_mmap = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_composite =  CompositeFile::open(postings_source)?;
+
+        let positions_composite = {
+            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
+                CompositeFile::open(source)?
+            }
+            else {
+                CompositeFile::empty()
+            }
+        };
+
 
         let fast_field_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_reader = FastFieldsReader::from_source(fast_field_data)?;
@@ -147,9 +149,6 @@ impl SegmentReader {
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorms_reader = FastFieldsReader::from_source(fieldnorms_data)?;
 
-        let positions_data = segment
-            .open_read(SegmentComponent::POSITIONS)
-            .unwrap_or_else(|_| ReadOnlySource::empty());
 
         let delete_bitset = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;
@@ -160,22 +159,53 @@ impl SegmentReader {
 
         let schema = segment.schema();
         Ok(SegmentReader {
-               segment_meta: segment.meta().clone(),
-               postings_data: postings_shared_mmap,
-               terms: Arc::new(terms),
-               segment_id: segment.id(),
-               store_reader: store_reader,
-               fast_fields_reader: Arc::new(fast_fields_reader),
-               fieldnorms_reader: Arc::new(fieldnorms_reader),
-               delete_bitset: delete_bitset,
-               positions_data: positions_data,
-               schema: schema,
-           })
+           field_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+           segment_meta: segment.meta().clone(),
+           postings_composite: postings_composite,
+           termdict_composite: termdict_composite,
+           segment_id: segment.id(),
+           store_reader: store_reader,
+           fast_fields_reader: Arc::new(fast_fields_reader),
+           fieldnorms_reader: Arc::new(fieldnorms_reader),
+           delete_bitset: delete_bitset,
+           positions_composite: positions_composite,
+           schema: schema,
+        })
     }
 
-    /// Return the term dictionary datastructure.
-    pub fn terms(&self) -> &TermDictionaryImpl {
-        &self.terms
+    pub fn field_reader(&self, field: Field) -> Result<Arc<FieldReader>> {
+        if let Some(field_reader) = self.field_reader_cache.read()
+            .unwrap() // TODO
+            .get(&field) {
+            return Ok(field_reader.clone());
+        }
+
+        // TODO better error
+        let termdict_source = self.termdict_composite
+            .open_read(field)
+            .ok_or("Field not found")?;
+
+        let postings_source = self.postings_composite
+            .open_read(field)
+            .ok_or("field not found")?;
+
+        let positions_source = self.positions_composite
+            .open_read(field)
+            .ok_or("field not found")?;
+
+        let field_reader = Arc::new(FieldReader::new(
+            termdict_source,
+            postings_source,
+            positions_source,
+            self.delete_bitset.clone(),
+            self.schema.clone(),
+        )?);
+
+        self.field_reader_cache
+            .write()
+            .unwrap() // TODO
+            .insert(field, field_reader.clone());
+        Ok(field_reader)
     }
 
     /// Returns the document (or to be accurate, its stored field)
@@ -186,100 +216,6 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-
-    /// Returns the segment postings associated with the term, and with the given option,
-    /// or `None` if the term has never been encountered and indexed.
-    ///
-    /// If the field was not indexed with the indexing options that cover
-    /// the requested options, the returned `SegmentPostings` the method does not fail
-    /// and returns a `SegmentPostings` with as much information as possible.
-    ///
-    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a
-    /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
-    /// with `DocId`s and frequencies.
-    pub fn read_postings(&self,
-                         term: &Term,
-                         option: SegmentPostingsOption)
-                         -> Option<SegmentPostings> {
-        let field = term.field();
-        let field_entry = self.schema.get_field_entry(field);
-        let term_info = get!(self.get_term_info(term));
-        let maximum_option = get!(field_entry.field_type().get_segment_postings_option());
-        let best_effort_option = cmp::min(maximum_option, option);
-        Some(self.read_postings_from_terminfo(&term_info, best_effort_option))
-    }
-
-
-    /// Returns a posting object given a `term_info`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most user should prefer using `read_postings` instead.
-    pub fn read_postings_from_terminfo(&self,
-                                       term_info: &TermInfo,
-                                       option: SegmentPostingsOption)
-                                       -> SegmentPostings {
-        let block_postings = self.read_block_postings_from_terminfo(term_info, option);
-        let delete_bitset = self.delete_bitset.clone();
-        let position_stream = {
-            if option.has_positions() {
-                let position_offset = term_info.positions_offset;
-                let positions_data = &self.positions_data[position_offset as usize..];
-                let mut stream = CompressedIntStream::wrap(positions_data);
-                stream.skip(term_info.positions_inner_offset as usize);
-                Some(stream)
-            }
-            else {
-                None
-            }
-        };
-        SegmentPostings::from_block_postings(
-            block_postings,
-            delete_bitset,
-            position_stream
-        )
-    }
-
-
-    /// Returns a block postings given a `term_info`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most user should prefer using `read_postings` instead.
-    pub fn read_block_postings_from_terminfo(&self,
-                                             term_info: &TermInfo,
-                                             option: SegmentPostingsOption)
-                                             -> BlockSegmentPostings {
-        let offset = term_info.postings_offset as usize;
-        let postings_data = &self.postings_data[offset..];
-        let has_freq = option.has_freq();
-        BlockSegmentPostings::from_data(
-            term_info.doc_freq as usize,
-            postings_data,
-            has_freq)
-    }
-
-
-    /// Resets the block segment to another position of the postings
-    /// file.
-    ///
-    /// This is useful for enumerating through a list of terms,
-    /// and consuming the associated posting lists while avoiding
-    /// reallocating a `BlockSegmentPostings`.
-    ///
-    /// # Warning
-    ///
-    /// This does not reset the positions list.
-    pub fn reset_block_postings_from_terminfo<'a>(&'a self,
-                                                  term_info: &TermInfo,
-                                                  block_postings: &mut BlockSegmentPostings<'a>) {
-        let offset = term_info.postings_offset as usize;
-        let postings_data: &'a [u8] = &self.postings_data[offset..];
-        block_postings.reset(term_info.doc_freq as usize, postings_data);
-    }
-
-    /// Returns the term info associated with the term.
-    pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
-        self.terms.get(term.as_slice())
-    }
 
     /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {

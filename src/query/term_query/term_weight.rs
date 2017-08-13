@@ -27,12 +27,14 @@ impl TermWeight {
         1.0 + (self.num_docs as f32 / (self.doc_freq as f32 + 1.0)).ln()
     }
 
-    pub fn specialized_scorer<'a>(&self,
-                                  reader: &'a SegmentReader)
-                                  -> Result<TermScorer<SegmentPostings<'a>>> {
+    pub fn specialized_scorer(&self,
+                                  reader: &SegmentReader)
+                                  -> Result<TermScorer<SegmentPostings>> {
         let field = self.term.field();
+        let field_reader = reader.field_reader(field)?;
+        // TODO move field reader too
         let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);
-        let postings: Option<SegmentPostings<'a>> = reader.read_postings(&self.term, self.segment_postings_options);
+        let postings: Option<SegmentPostings> = field_reader.read_postings(&self.term, self.segment_postings_options);
         Ok(postings
                .map(|segment_postings| {
                         TermScorer {

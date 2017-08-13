@@ -52,6 +52,7 @@ impl<W: Write> CompositeWrite<W> {
 }
 
 
+#[derive(Clone)]
 pub struct CompositeFile {
     data: ReadOnlySource,
     offsets_index: HashMap<Field, (usize, usize)>,
@@ -93,6 +94,14 @@ impl CompositeFile {
             offsets_index: field_index,
         })
     }
+
+    pub fn empty() -> CompositeFile {
+        CompositeFile {
+            offsets_index: HashMap::new(),
+            data: ReadOnlySource::empty(),
+        }
+    }
+
 
     pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
         self.offsets_index

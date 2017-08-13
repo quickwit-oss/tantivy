@@ -1,11 +1,8 @@
 use std::collections::BinaryHeap;
-use core::SegmentReader;
 use termdict::TermStreamerImpl;
 use common::BinarySerializable;
-use postings::TermInfo;
 use std::cmp::Ordering;
 use termdict::TermStreamer;
-use termdict::TermDictionary;
 use schema::Term;
 
 pub struct HeapItem<'a, V>
@@ -58,7 +55,7 @@ pub struct TermMerger<'a, V>
 impl<'a, V> TermMerger<'a, V>
     where V: 'a + BinarySerializable + Default
 {
-    fn new(streams: Vec<TermStreamerImpl<'a, V>>) -> TermMerger<'a, V> {
+    pub fn new(streams: Vec<TermStreamerImpl<'a, V>>) -> TermMerger<'a, V> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams
@@ -141,12 +138,3 @@ impl<'a, V> TermMerger<'a, V>
 }
 
 
-
-impl<'a> From<&'a [SegmentReader]> for TermMerger<'a, TermInfo> {
-    fn from(segment_readers: &'a [SegmentReader]) -> TermMerger<'a, TermInfo> {
-        TermMerger::new(segment_readers
-                            .iter()
-                            .map(|reader| reader.terms().stream())
-                            .collect())
-    }
-}

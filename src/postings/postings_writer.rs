@@ -101,8 +101,9 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let (field, start) = offsets[i];
             let (_, stop) = offsets[i + 1];
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
-            let field_serializer = serializer.new_field(field)?;
-            postings_writer.serialize(&term_offsets[start..stop], field_serializer, self.heap)?;
+            let mut field_serializer = serializer.new_field(field)?;
+            postings_writer.serialize(&term_offsets[start..stop], &mut field_serializer, self.heap)?;
+            field_serializer.close()?;
         }
         Ok(())
     }
@@ -137,7 +138,7 @@ pub trait PostingsWriter {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(&self,
                  term_addrs: &[(&[u8], u32)],
-                 serializer: FieldSerializer,
+                 serializer: &mut FieldSerializer,
                  heap: &Heap)
                  -> io::Result<()>;
 
@@ -214,13 +215,13 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
 
     fn serialize(&self,
                  term_addrs: &[(&[u8], u32)],
-                 mut serializer: FieldSerializer,
+                 serializer: &mut FieldSerializer,
                  heap: &Heap)
                  -> io::Result<()> {
         for &(term_bytes, addr) in term_addrs {
             let recorder: &mut Rec = self.heap.get_mut_ref(addr);
             serializer.new_term(term_bytes)?;
-            recorder.serialize(addr, &mut serializer, heap)?;
+            recorder.serialize(addr, serializer, heap)?;
             serializer.close_term()?;
         }
         Ok(())

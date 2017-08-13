@@ -78,19 +78,19 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_sorted<'a>(&mut self,
-                                       compressed_data: &'a [u8],
-                                       offset: u32)
-                                       -> &'a [u8] {
+    pub fn uncompress_block_sorted(&mut self,
+                                   compressed_data: &[u8],
+                                   offset: u32)
+                                       -> usize {
         let consumed_size = uncompress_sorted(compressed_data, &mut self.output, offset);
         self.output_len = NUM_DOCS_PER_BLOCK;
-        &compressed_data[consumed_size..]
+        consumed_size
     }
 
-    pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> &'a [u8] {
+    pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
         let consumed_size = uncompress_unsorted(compressed_data, &mut self.output);
         self.output_len = NUM_DOCS_PER_BLOCK;
-        &compressed_data[consumed_size..]
+        consumed_size
     }
 
     #[inline]

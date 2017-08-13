@@ -5,11 +5,15 @@ use std::cmp;
 use fst::Streamer;
 use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
+use directory::{SourceRead, ReadOnlySource};
 
-const EMPTY_DATA: [u8; 0] = [0u8; 0];
+
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
-struct PositionComputer<'a> {
+
+
+
+struct PositionComputer {
     // store the amount of position int
     // before reading positions.
     //
@@ -17,12 +21,12 @@ struct PositionComputer<'a> {
     // the positions vec.
     position_to_skip: Option<usize>,
     positions: Vec<u32>,
-    positions_stream: CompressedIntStream<'a>,
+    positions_stream: CompressedIntStream,
 }
 
-impl<'a> PositionComputer<'a> {
+impl PositionComputer {
 
-    pub fn new(positions_stream: CompressedIntStream<'a>) -> PositionComputer<'a> {
+    pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
         PositionComputer {
             position_to_skip: None,
             positions: vec!(),
@@ -64,25 +68,25 @@ impl<'a> PositionComputer<'a> {
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-pub struct SegmentPostings<'a> {
-    block_cursor: BlockSegmentPostings<'a>,
+pub struct SegmentPostings {
+    block_cursor: BlockSegmentPostings,
     cur: usize,
     delete_bitset: DeleteBitSet,
-    position_computer: Option<UnsafeCell<PositionComputer<'a>>>,
+    position_computer: Option<UnsafeCell<PositionComputer>>,
 }
 
 
-impl<'a> SegmentPostings<'a> {
+impl SegmentPostings {
     /// Reads a Segment postings from an &[u8]
     ///
     /// * `len` - number of document in the posting lists.
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_block_postings(segment_block_postings: BlockSegmentPostings<'a>,
+    pub fn from_block_postings(segment_block_postings: BlockSegmentPostings,
                                delete_bitset: DeleteBitSet,
-                               positions_stream_opt: Option<CompressedIntStream<'a>>)
-                               -> SegmentPostings<'a> {
+                               positions_stream_opt: Option<CompressedIntStream>)
+                               -> SegmentPostings {
         let position_computer = positions_stream_opt.map(|stream| {
             UnsafeCell::new(PositionComputer::new(stream))
         });
@@ -95,7 +99,7 @@ impl<'a> SegmentPostings<'a> {
     }
 
     /// Returns an empty segment postings object
-    pub fn empty() -> SegmentPostings<'a> {
+    pub fn empty() -> SegmentPostings {
         let empty_block_cursor = BlockSegmentPostings::empty();
         SegmentPostings {
             block_cursor: empty_block_cursor,
@@ -117,7 +121,7 @@ impl<'a> SegmentPostings<'a> {
 }
 
 
-impl<'a> DocSet for SegmentPostings<'a> {
+impl DocSet for SegmentPostings {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     #[inline]
@@ -259,13 +263,13 @@ impl<'a> DocSet for SegmentPostings<'a> {
     }
 }
 
-impl<'a> HasLen for SegmentPostings<'a> {
+impl HasLen for SegmentPostings {
     fn len(&self) -> usize {
         self.block_cursor.doc_freq()
     }
 }
 
-impl<'a> Postings for SegmentPostings<'a> {
+impl Postings for SegmentPostings {
     fn term_freq(&self) -> u32 {
         self.block_cursor.freq(self.cur)
     }
@@ -286,6 +290,7 @@ impl<'a> Postings for SegmentPostings<'a> {
 
 }
 
+
 /// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
 ///
@@ -293,7 +298,7 @@ impl<'a> Postings for SegmentPostings<'a> {
 ///
 /// While it is useful for some very specific high-performance
 /// use cases, you should prefer using `SegmentPostings` for most usage.
-pub struct BlockSegmentPostings<'a> {
+pub struct BlockSegmentPostings {
     doc_decoder: BlockDecoder,
     freq_decoder: BlockDecoder,
     has_freq: bool,
@@ -302,14 +307,14 @@ pub struct BlockSegmentPostings<'a> {
     doc_offset: DocId,
     num_binpacked_blocks: usize,
     num_vint_docs: usize,
-    remaining_data: &'a [u8],
+    remaining_data: SourceRead,
 }
 
-impl<'a> BlockSegmentPostings<'a> {
+impl BlockSegmentPostings {
     pub(crate) fn from_data(doc_freq: usize,
-                            data: &'a [u8],
+                            data: SourceRead,
                             has_freq: bool)
-                            -> BlockSegmentPostings<'a> {
+                            -> BlockSegmentPostings {
         let num_binpacked_blocks: usize = (doc_freq as usize) / NUM_DOCS_PER_BLOCK;
         let num_vint_docs = (doc_freq as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
         BlockSegmentPostings {
@@ -337,7 +342,7 @@ impl<'a> BlockSegmentPostings<'a> {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: &'a [u8]) {
+    pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: SourceRead) {
         let num_binpacked_blocks: usize = doc_freq / NUM_DOCS_PER_BLOCK;
         let num_vint_docs = doc_freq & (NUM_DOCS_PER_BLOCK - 1);
         self.num_binpacked_blocks = num_binpacked_blocks;
@@ -398,25 +403,30 @@ impl<'a> BlockSegmentPostings<'a> {
     pub fn advance(&mut self) -> bool {
         if self.num_binpacked_blocks > 0 {
             // TODO could self.doc_offset be just a local variable?
-            self.remaining_data =
-                self.doc_decoder
-                    .uncompress_block_sorted(self.remaining_data, self.doc_offset);
+
+            let num_consumed_bytes = self
+                    .doc_decoder
+                    .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
+            self.remaining_data.advance(num_consumed_bytes);
+
             if self.has_freq {
-                self.remaining_data = self.freq_decoder.uncompress_block_unsorted(self.remaining_data);
+                let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(self.remaining_data.as_ref());
+                self.remaining_data.advance(num_consumed_bytes);
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(NUM_DOCS_PER_BLOCK - 1);
             self.num_binpacked_blocks -= 1;
             true
         } else if self.num_vint_docs > 0 {
-            self.remaining_data =
+            let num_compressed_bytes =
                 self.doc_decoder
-                    .uncompress_vint_sorted(self.remaining_data,
+                    .uncompress_vint_sorted(self.remaining_data.as_ref(),
                                             self.doc_offset,
                                             self.num_vint_docs);
+            self.remaining_data.advance(num_compressed_bytes);
             if self.has_freq {
                 self.freq_decoder
-                    .uncompress_vint_unsorted(self.remaining_data, self.num_vint_docs);
+                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
             }
             self.num_vint_docs = 0;
             true
@@ -426,7 +436,7 @@ impl<'a> BlockSegmentPostings<'a> {
     }
 
     /// Returns an empty segment postings object
-    pub fn empty() -> BlockSegmentPostings<'static> {
+    pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             num_binpacked_blocks: 0,
             num_vint_docs: 0,
@@ -435,14 +445,14 @@ impl<'a> BlockSegmentPostings<'a> {
             freq_decoder: BlockDecoder::with_val(1),
             has_freq: false,
 
-            remaining_data: &EMPTY_DATA,
+            remaining_data: From::from(ReadOnlySource::empty()),
             doc_offset: 0,
             doc_freq: 0,
         }
     }
 }
 
-impl<'a, 'b> Streamer<'b> for BlockSegmentPostings<'a> {
+impl<'b> Streamer<'b> for BlockSegmentPostings {
     type Item = &'b [DocId];
 
     fn next(&'b mut self) -> Option<&'b [DocId]> {
@@ -498,10 +508,11 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let segment_reader = searcher.segment_reader(0);
+        let field_reader = segment_reader.field_reader(int_field).unwrap();
         let term = Term::from_field_u64(int_field, 0u64);
-        let term_info = segment_reader.get_term_info(&term).unwrap();
+        let term_info = field_reader.get_term_info(&term).unwrap();
         let mut block_segments =
-            segment_reader
+            field_reader
                 .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
@@ -538,17 +549,19 @@ mod tests {
         let mut block_segments;
         {
             let term = Term::from_field_u64(int_field, 0u64);
-            let term_info = segment_reader.get_term_info(&term).unwrap();
+            let field_reader = segment_reader.field_reader(int_field).unwrap();
+            let term_info = field_reader.get_term_info(&term).unwrap();
             block_segments =
-                segment_reader
+                field_reader
                     .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
         }
         assert!(block_segments.advance());
         assert!(block_segments.docs() == &[0, 2, 4]);
         {
             let term = Term::from_field_u64(int_field, 1u64);
-            let term_info = segment_reader.get_term_info(&term).unwrap();
-            segment_reader.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
+            let field_reader = segment_reader.field_reader(int_field).unwrap();
+            let term_info = field_reader.get_term_info(&term).unwrap();
+            field_reader.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
         }
         assert!(block_segments.advance());
         assert!(block_segments.docs() == &[1, 3, 5]);
