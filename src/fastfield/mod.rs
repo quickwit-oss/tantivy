@@ -97,17 +97,15 @@ mod tests {
         {
             assert_eq!(source.len(), 35 as usize);
         }
-        // TODO uncomment
-        /*
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let composite_file = CompositeFile::open(source).unwrap();
+            let field_source = composite_file.open_read(*FIELD).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
         }
-        */
     }
 
     #[test]

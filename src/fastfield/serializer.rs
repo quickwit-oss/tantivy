@@ -59,7 +59,7 @@ impl FastFieldSerializer {
     /// Closes the serializer
     ///
     /// After this call the data must be persistently save on disk.
-    pub fn close(mut self) -> io::Result<()> {
+    pub fn close(self) -> io::Result<()> {
         self.composite_write.close()
     }
 }

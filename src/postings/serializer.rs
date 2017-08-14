@@ -112,7 +112,7 @@ impl InvertedIndexSerializer {
     }
 
     /// Closes the serializer.
-    pub fn close(mut self) -> io::Result<()> {
+    pub fn close(self) -> io::Result<()> {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
@@ -222,9 +222,6 @@ impl<'a> FieldSerializer<'a> {
         Ok(())
     }
 }
-
-// TODO is the last term always closed?
-
 
 
 struct PostingsSerializer<W: Write> {

@@ -27,7 +27,7 @@ impl<W: Write> CompositeWrite<W> {
         &mut self.write
     }
 
-    pub fn close(&mut self) -> io::Result<()> {
+    pub fn close(mut self) -> io::Result<()> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
 
