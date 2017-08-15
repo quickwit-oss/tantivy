@@ -14,8 +14,6 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W, V = TermInfo>
-    where W: Write,
-          V: BinarySerializable + Default
 {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
@@ -96,7 +94,6 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
 
 /// See [`TermDictionary`](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl<V = TermInfo>
-    where V: BinarySerializable + Default
 {
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,

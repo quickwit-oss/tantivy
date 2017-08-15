@@ -5,8 +5,7 @@ use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
-pub struct TermStreamerBuilderImpl<'a, V>
-    where V: 'a + BinarySerializable + Default
+pub struct TermStreamerBuilderImpl<'a, V: 'a>
 {
     fst_map: &'a TermDictionaryImpl<V>,
     stream_builder: StreamBuilder<'a>,
@@ -63,8 +62,7 @@ impl<'a, V> TermStreamerBuilder<V> for TermStreamerBuilderImpl<'a, V>
 
 
 /// See [`TermStreamer`](./trait.TermStreamer.html)
-pub struct TermStreamerImpl<'a, V>
-    where V: 'a + BinarySerializable + Default
+pub struct TermStreamerImpl<'a, V: 'a>
 {
     fst_map: &'a TermDictionaryImpl<V>,
     stream: Stream<'a>,
