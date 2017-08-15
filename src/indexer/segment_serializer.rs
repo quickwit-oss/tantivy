@@ -21,10 +21,10 @@ impl SegmentSerializer {
         let store_write = try!(segment.open_write(SegmentComponent::STORE));
 
         let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));
-        let fast_field_serializer = try!(FastFieldSerializer::new(fast_field_write));
+        let fast_field_serializer = try!(FastFieldSerializer::from_write(fast_field_write));
 
         let fieldnorms_write = try!(segment.open_write(SegmentComponent::FIELDNORMS));
-        let fieldnorms_serializer = try!(FastFieldSerializer::new(fieldnorms_write));
+        let fieldnorms_serializer = try!(FastFieldSerializer::from_write(fieldnorms_write));
 
         let postings_serializer = try!(InvertedIndexSerializer::open(segment));
         Ok(SegmentSerializer {

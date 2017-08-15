@@ -3,11 +3,14 @@ use common::CountingWriter;
 use std::collections::HashMap;
 use schema::Field;
 use common::VInt;
+use directory::WritePtr;
 use std::io;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 
-pub struct CompositeWrite<W: Write> {
+
+
+pub struct CompositeWrite<W=WritePtr> {
     write: CountingWriter<W>,
     offsets: HashMap<Field, usize>,
 }

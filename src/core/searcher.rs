@@ -71,6 +71,8 @@ impl Searcher {
         query.search(self, collector)
     }
 
+
+    // This API may change in the future.
     pub fn field(&self, field: Field) -> Result<FieldSearcher> {
         let field_readers = self.segment_readers
             .iter()
@@ -81,6 +83,7 @@ impl Searcher {
         Ok(FieldSearcher::new(field_readers))
     }
 }
+
 
 
 

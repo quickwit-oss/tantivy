@@ -95,7 +95,6 @@ mod streamdict;
 pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
                            TermStreamerBuilderImpl};
 
-
 mod merger;
 use std::io;
 
@@ -325,7 +324,6 @@ mod tests {
             term_string.push_str(term.text());
         }
         assert_eq!(&*term_string, "abcdef");
-
     }
 
 

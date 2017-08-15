@@ -85,7 +85,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 13u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14u64);
@@ -114,7 +114,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 4u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14_082_001u64);
@@ -156,7 +156,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, 100_000u64);
@@ -185,7 +185,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             // forcing the amplitude to be high
             add_single_field_doc(&mut fast_field_writers, *FIELD, 0u64);
@@ -224,7 +224,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             for i in -100i64..10_000i64 {
                 let mut doc = Document::default();
@@ -266,7 +266,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
@@ -300,7 +300,7 @@ mod tests {
         let mut directory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
@@ -355,7 +355,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
@@ -388,7 +388,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);

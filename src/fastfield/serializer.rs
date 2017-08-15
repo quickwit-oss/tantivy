@@ -31,8 +31,10 @@ pub struct FastFieldSerializer {
 }
 
 impl FastFieldSerializer {
+
+
     /// Constructor
-    pub fn new(write: WritePtr) -> io::Result<FastFieldSerializer> {
+    pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
         Ok(FastFieldSerializer {
