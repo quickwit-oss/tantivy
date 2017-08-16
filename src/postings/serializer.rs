@@ -5,7 +5,6 @@ use schema::Field;
 use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
-use schema::TextIndexingOptions;
 use directory::WritePtr;
 use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder};
 use DocId;
@@ -88,22 +87,11 @@ impl InvertedIndexSerializer {
     /// Loads the indexing options for the given field.
     pub fn new_field(&mut self, field: Field) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
-        let text_indexing_options = match *field_entry.field_type() {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-            FieldType::U64(ref int_options) |
-            FieldType::I64(ref int_options) => {
-                if int_options.is_indexed() {
-                    TextIndexingOptions::Unindexed
-                } else {
-                    TextIndexingOptions::Untokenized
-                }
-            }
-        };
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
         FieldSerializer::new(
-            text_indexing_options,
+            field_entry.field_type().clone(),
             term_dictionary_write,
             postings_write,
             positions_write
@@ -121,10 +109,9 @@ impl InvertedIndexSerializer {
 
 
 pub struct FieldSerializer<'a> {
-    text_indexing_options: TextIndexingOptions,
-    term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>, TermInfo>,
+    term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
     postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
-    positions_serializer: PositionSerializer<&'a mut CountingWriter<WritePtr>>,
+    positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
 }
@@ -133,29 +120,46 @@ pub struct FieldSerializer<'a> {
 impl<'a> FieldSerializer<'a> {
 
     fn new(
-        text_indexing_options: TextIndexingOptions,
+        field_type: FieldType,
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
-        positions_write: &'a mut CountingWriter<WritePtr>
+        positions_write: &'a mut CountingWriter<WritePtr>,
     ) -> io::Result<FieldSerializer<'a>> {
 
-        let term_freq_enabled = text_indexing_options.is_termfreq_enabled();
-        let term_dictionary_builder = TermDictionaryBuilderImpl::new(term_dictionary_write)?;
+        let (term_freq_enabled, position_enabled): (bool, bool) =
+            match field_type {
+                FieldType::Str(ref text_options) => {
+                    let text_indexing_options = text_options.get_indexing_options();
+                    (text_indexing_options.is_termfreq_enabled(), text_indexing_options.is_position_enabled())
+                },
+                _ => {
+                    (false, false)
+                }
+            };
+        let term_dictionary_builder = TermDictionaryBuilderImpl::new(term_dictionary_write, field_type)?;
         let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
-        let positions_serializer = PositionSerializer::new(positions_write);
+        let positions_serializer_opt =
+            if position_enabled {
+                Some(PositionSerializer::new(positions_write))
+            }
+            else {
+                None
+            };
 
         Ok(FieldSerializer {
-            text_indexing_options: text_indexing_options,
             term_dictionary_builder: term_dictionary_builder,
             postings_serializer: postings_serializer,
-            positions_serializer: positions_serializer,
+            positions_serializer_opt: positions_serializer_opt,
             current_term_info: TermInfo::default(),
             term_open: false,
         })
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let (filepos, offset) = self.positions_serializer.addr();
+        let (filepos, offset) = self.positions_serializer_opt
+                .as_ref()
+                .map(|positions_serializer| positions_serializer.addr())
+                .unwrap_or((0u32, 0u8));
         TermInfo {
             doc_freq: 0,
             postings_offset: self.postings_serializer.addr(),
@@ -194,8 +198,8 @@ impl<'a> FieldSerializer<'a> {
                      -> io::Result<()> {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq)?;
-        if self.text_indexing_options.is_position_enabled() {
-            self.positions_serializer.write(position_deltas)?;
+        if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
+            positions_serializer.write(position_deltas)?;
         }
         Ok(())
     }
@@ -215,7 +219,9 @@ impl<'a> FieldSerializer<'a> {
 
     pub fn close(mut self) -> io::Result<()> {
         self.close_term()?;
-        self.positions_serializer.close()?;
+        if let Some(positions_serializer) = self.positions_serializer_opt {
+            positions_serializer.close()?;
+        }
         self.postings_serializer.close()?;
         self.term_dictionary_builder.finish()?;
         Ok(())

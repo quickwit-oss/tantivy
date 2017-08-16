@@ -1,39 +1,34 @@
 use std::collections::BinaryHeap;
 use termdict::TermStreamerImpl;
-use common::BinarySerializable;
 use std::cmp::Ordering;
 use termdict::TermStreamer;
 use schema::Term;
 
-pub struct HeapItem<'a, V>
-    where V: 'a + BinarySerializable + Default
+pub struct HeapItem<'a>
 {
-    pub streamer: TermStreamerImpl<'a, V>,
+    pub streamer: TermStreamerImpl<'a>,
     pub segment_ord: usize,
 }
 
-impl<'a, V> PartialEq for HeapItem<'a, V>
-    where V: 'a + BinarySerializable + Default
+impl<'a> PartialEq for HeapItem<'a>
 {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl<'a, V> Eq for HeapItem<'a, V> where V: 'a + BinarySerializable + Default {}
+impl<'a> Eq for HeapItem<'a>  {}
 
-impl<'a, V> PartialOrd for HeapItem<'a, V>
-    where V: 'a + BinarySerializable + Default
+impl<'a> PartialOrd for HeapItem<'a>
 {
-    fn partial_cmp(&self, other: &HeapItem<'a, V>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &HeapItem<'a>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, V> Ord for HeapItem<'a, V>
-    where V: 'a + BinarySerializable + Default
+impl<'a> Ord for HeapItem<'a>
 {
-    fn cmp(&self, other: &HeapItem<'a, V>) -> Ordering {
+    fn cmp(&self, other: &HeapItem<'a>) -> Ordering {
         (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
     }
 }
@@ -45,17 +40,15 @@ impl<'a, V> Ord for HeapItem<'a, V>
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
-pub struct TermMerger<'a, V>
-    where V: 'a + BinarySerializable + Default
+pub struct TermMerger<'a>
 {
-    heap: BinaryHeap<HeapItem<'a, V>>,
-    current_streamers: Vec<HeapItem<'a, V>>,
+    heap: BinaryHeap<HeapItem<'a>>,
+    current_streamers: Vec<HeapItem<'a>>,
 }
 
-impl<'a, V> TermMerger<'a, V>
-    where V: 'a + BinarySerializable + Default
+impl<'a> TermMerger<'a>
 {
-    pub fn new(streams: Vec<TermStreamerImpl<'a, V>>) -> TermMerger<'a, V> {
+    pub fn new(streams: Vec<TermStreamerImpl<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams
@@ -122,7 +115,7 @@ impl<'a, V> TermMerger<'a, V>
     /// This method may be called
     /// iff advance() has been called before
     /// and "true" was returned.
-    pub fn current_kvs(&self) -> &[HeapItem<'a, V>] {
+    pub fn current_kvs(&self) -> &[HeapItem<'a>] {
         &self.current_streamers[..]
     }
 

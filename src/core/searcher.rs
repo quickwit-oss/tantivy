@@ -11,7 +11,6 @@ use termdict::{TermMerger, TermDictionary};
 use std::sync::Arc;
 use std::fmt;
 use core::FieldReader;
-use postings::TermInfo;
 
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -103,7 +102,7 @@ impl FieldSearcher {
 
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
-    pub fn terms(&self) -> TermMerger<TermInfo> {
+    pub fn terms(&self) -> TermMerger {
         let term_streamers: Vec<_> = self.field_readers
             .iter()
             .map(|field_reader| {
