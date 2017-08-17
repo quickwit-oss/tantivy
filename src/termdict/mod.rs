@@ -198,23 +198,25 @@ mod tests {
     use super::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl};
     use directory::{RAMDirectory, Directory, ReadOnlySource};
     use std::path::PathBuf;
-    use schema::{Term, SchemaBuilder, Document, TEXT};
+    use schema::{FieldType, Term, SchemaBuilder, Document, TEXT};
     use core::Index;
     use std::str;
     use termdict::TermStreamer;
     use termdict::TermStreamerBuilder;
     use termdict::TermDictionary;
     use termdict::TermDictionaryBuilder;
-    use schema::{FieldType, TextOptions};
     use postings::TermInfo;
 
     const BLOCK_SIZE: usize = 1_500;
 
 
     fn make_term_info(val: u32) -> TermInfo {
-        let mut term_info = TermInfo::default();
-        term_info.doc_freq = val;
-        term_info
+        TermInfo {
+            doc_freq: val,
+            positions_offset: val * 2u32,
+            postings_offset: val * 3u32,
+            positions_inner_offset: 5u8,
+        }
     }
 
     #[test]
@@ -223,7 +225,7 @@ mod tests {
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
-            let field_type = FieldType::Str(TextOptions::default());
+            let field_type = FieldType::Str(TEXT);
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type).unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u32))
@@ -310,7 +312,7 @@ mod tests {
         let ids: Vec<_> = (0u32..10_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
-        let field_type = FieldType::Str(TextOptions::default());
+        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
@@ -327,7 +329,7 @@ mod tests {
             while let Some((streamer_k, streamer_v)) = streamer.next() {
                 let &(ref key, ref v) = &ids[i];
                 assert_eq!(streamer_k.as_ref(), key.as_bytes());
-                assert_eq!(streamer_v.doc_freq, *v);
+                assert_eq!(streamer_v, &make_term_info(*v));
                 i += 1;
             }
         }
@@ -341,7 +343,7 @@ mod tests {
         let ids: Vec<_> = (0u32..50_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
-        let field_type = FieldType::Str(TextOptions::default());
+        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
@@ -366,6 +368,7 @@ mod tests {
                     let &(ref key, ref v) = &ids[i + j];
                     assert_eq!(str::from_utf8(streamer_k.as_ref()).unwrap(), key);
                     assert_eq!(streamer_v.doc_freq, *v);
+                    assert_eq!(streamer_v, &make_term_info(*v));
                 }
             }
         }
@@ -408,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_stream_range_boundaries() {
-        let field_type = FieldType::Str(TextOptions::default());
+        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for i in 0u8..10u8 {
