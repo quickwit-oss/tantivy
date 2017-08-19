@@ -3,7 +3,6 @@
 use std::io::{self, Write};
 use fst;
 use fst::raw::Fst;
-use common::VInt;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use common::CountingWriter;
@@ -12,13 +11,15 @@ use std::cmp::Ordering;
 use postings::TermInfo;
 use schema::FieldType;
 use fst::raw::Node;
+use compression::NUM_DOCS_PER_BLOCK;
 use super::make_deserializer_options;
 use super::TermDeserializerOption;
 use super::streamer::stream_before;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
+use super::{TermBlockEncoder, TermInfoBlockEncoder};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
 
-const BLOCK_SIZE: usize = 1024;
+const INDEX_INTERVAL: usize = 1024;
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -28,19 +29,16 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 pub struct TermDictionaryBuilderImpl<W>
 {
     write: CountingWriter<W>,
+
+    term_block_encoder: TermBlockEncoder,
+    terminfo_block_encoder: TermInfoBlockEncoder,
+
     block_index: fst::MapBuilder<Vec<u8>>,
     last_key: Vec<u8>,
+
     len: usize,
-    deserializer_options: TermDeserializerOption,
 }
 
-fn common_prefix_length(left: &[u8], right: &[u8]) -> usize {
-    left.iter()
-        .cloned()
-        .zip(right.iter().cloned())
-        .take_while(|&(b1, b2)| b1 == b2)
-        .count()
-}
 
 fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
     while let Some(transition) = node.transitions().last() {
@@ -66,30 +64,31 @@ impl<W> TermDictionaryBuilderImpl<W>
     ///
     /// Prefer using `.insert(key, value)`
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
-        if self.len % BLOCK_SIZE == 0 {
+        if self.len % INDEX_INTERVAL == 0 {
             self.add_index_entry();
         }
+        self.last_key.clear();
+        self.last_key.extend_from_slice(key);
+        self.term_block_encoder.encode(key);
         self.len += 1;
-        let common_len = common_prefix_length(key, &self.last_key);
-        VInt(common_len as u64).serialize(&mut self.write)?;
-        self.last_key.truncate(common_len);
-        self.last_key.extend_from_slice(&key[common_len..]);
-        VInt((key.len() - common_len) as u64)
-            .serialize(&mut self.write)?;
-        self.write.write_all(&key[common_len..])?;
+        Ok(())
+    }
+
+    fn flush_block(&mut self) -> io::Result<()> {
+        let block_size = self.term_block_encoder.len();
+        if block_size > 0 {
+            self.write.write(&[block_size as u8])?;
+            self.term_block_encoder.flush(&mut self.write)?;
+            self.terminfo_block_encoder.flush(&mut self.write)?;
+        }
         Ok(())
     }
 
     pub(crate) fn insert_value(&mut self, value: &TermInfo) -> io::Result<()> {
-
-        VInt(value.doc_freq as u64).serialize(&mut self.write)?;
-        VInt(value.postings_offset as u64).serialize(&mut self.write)?;
-
-        if self.deserializer_options == TermDeserializerOption::StrWithPositions {
-            VInt(value.positions_offset as u64).serialize(&mut self.write)?;
-            self.write.write_all(&[value.positions_inner_offset])?;
+        self.terminfo_block_encoder.encode(value);
+        if self.len % NUM_DOCS_PER_BLOCK == 0 {
+            self.flush_block()?;
         }
-
         Ok(())
     }
 }
@@ -107,13 +106,15 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
             write.write_all(&[data.len() as u8])?;
             write.write_all(&data[..])?;
         }
+        let has_positions = deserializer_options.has_positions();
         Ok(TermDictionaryBuilderImpl {
-               write: CountingWriter::wrap(write),
-               block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
-               last_key: Vec::with_capacity(128),
-               len: 0,
-               deserializer_options: deserializer_options,
-           })
+            term_block_encoder: TermBlockEncoder::new(),
+            terminfo_block_encoder: TermInfoBlockEncoder::new(has_positions),
+            write: CountingWriter::wrap(write),
+            block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
+            last_key: Vec::with_capacity(128),
+            len: 0,
+        })
     }
 
     /// Inserts a `(key, value)` pair in the term dictionary.
@@ -128,7 +129,9 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     /// Finalize writing the builder, and returns the underlying
     /// `Write` object.
     fn finish(mut self) -> io::Result<W> {
+        self.flush_block()?;
         self.add_index_entry();
+        self.write.write_all(&[0u8])?;
         let (mut w, split_len) = self.write.finish()?;
         let fst_write = self.block_index.into_inner().map_err(convert_fst_error)?;
         w.write_all(&fst_write)?;
@@ -253,7 +256,7 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
             let position = streamer.key().cmp(target_key.as_ref());
             match position {
                 Ordering::Less => {}
-                Ordering::Equal => return Some(streamer.extract_value()),
+                Ordering::Equal => return Some(streamer.value().clone()),
                 Ordering::Greater => {
                     return None;
                 }

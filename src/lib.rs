@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_docfreq() {
+    fn test_docfreq1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -300,7 +300,6 @@ mod tests {
             assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
-
 
     #[test]
     fn test_fieldnorm() {
