@@ -10,14 +10,80 @@ use std::convert::From;
 use std::default::Default;
 use std::error::Error;
 use std::fmt;
-use std::io;
+use std::io::{self, BufWriter, Cursor, Write, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
-use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest, DeleteObjectRequest};
+use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest, DeleteObjectRequest,
+                PutObjectRequest};
+
+/// Writer associated with the `RAMDirectory`
+///
+/// The Writer just writes a buffer.
+///
+/// # Panics
+///
+/// On drop, if the writer was left in a *dirty* state.
+/// That is, if flush was not called after the last call
+/// to write.
+///
+struct VecWriter {
+    path: PathBuf,
+    shared_directory: InnerDirectory,
+    data: Cursor<Vec<u8>>,
+    is_flushed: bool,
+    s3: Box<S3>,
+}
+
+impl VecWriter {
+    fn new(s3: Box<S3>, path_buf: PathBuf, shared_directory: InnerDirectory) -> VecWriter {
+        VecWriter {
+            path: path_buf,
+            data: Cursor::new(Vec::new()),
+            shared_directory: shared_directory,
+            is_flushed: true,
+            s3,
+        }
+    }
+}
+
+impl Drop for VecWriter {
+    fn drop(&mut self) {
+        if !self.is_flushed {
+            panic!(
+                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
+                self.path
+            )
+        }
+    }
+}
+
+impl Seek for VecWriter {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.data.seek(pos)
+    }
+}
+
+impl Write for VecWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.is_flushed = false;
+        try!(self.data.write_all(buf));
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.is_flushed = true;
+        try!(self.shared_directory.write(
+            self.s3.as_ref(),
+            self.path.clone(),
+            self.data.get_ref(),
+        ));
+        Ok(())
+    }
+}
 
 fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
     // TODO: handle missing creds
@@ -39,6 +105,25 @@ impl InnerDirectory {
             cache: Arc::new(RwLock::new(HashMap::new())),
             bucket,
         }
+    }
+
+    fn write(&self, client: &S3, path: PathBuf, data: &[u8]) -> io::Result<bool> {
+        let mut map = try!(self.cache.write().map_err(|_| {
+            make_io_err(format!(
+                "Failed to lock the directory, when trying to write {:?}",
+                path
+            ))
+        }));
+
+        let result = client
+            .put_object(&PutObjectRequest { ..Default::default() })
+            .map_err(|_| {
+                let msg = format!("Error writing for {:?}", path);
+                make_io_err(msg)
+            })?;
+
+
+        Ok(true)
     }
 
     fn fetch(&self, client: &S3, path: &Path) -> Result<Arc<Vec<u8>>, OpenReadError> {
@@ -259,11 +344,20 @@ impl Directory for S3Directory {
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        unimplemented!()
+        let read = self.open_read(path)?;
+        Ok(read.as_slice().to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
-        unimplemented!()
+        let s3 = self.get_client().expect("Failed to build s3 client");
+        let s3_2 = self.get_client().expect("Failed to build s3 client");
+
+        let path_buf = PathBuf::from(path);
+        let mut vec_writer = VecWriter::new(s3_2, path_buf.clone(), self.fs.clone());
+        try!(self.fs.write(s3.as_ref(), path_buf, &Vec::new()));
+        try!(vec_writer.write_all(data));
+        try!(vec_writer.flush());
+        Ok(())
     }
 
     fn box_clone(&self) -> Box<Directory> {
