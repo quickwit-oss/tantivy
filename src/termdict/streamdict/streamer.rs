@@ -104,7 +104,6 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let data: &[u8] = self.term_dictionary.stream_data();
         let start = self.offset_from;
         let stop = max(self.offset_to, start);
-        println!("current_key {:?}", self.current_key);
         TermStreamerImpl {
             remaining_in_block: 0,
             cursor: &data[start..stop],
