@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.4.0-alpha"
+version = "0.5.0-dev"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 build = "build.rs"
 license = "MIT"
@@ -26,7 +26,7 @@ tempdir = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-bincode = "0.7.0-alpha7"
+bincode = "0.8"
 libc = {version = "0.2.20", optional=true}
 num_cpus = "1.2"
 itertools = "0.5.9"
@@ -61,7 +61,7 @@ debug-assertions = false
 
 
 [features]
-default = ["simdcompression"]
+default = ["simdcompression", "streamdict"]
 simdcompression = ["libc", "gcc"]
 streamdict = []
 

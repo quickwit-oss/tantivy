@@ -2,7 +2,7 @@ use std::io::Write;
 use std::io;
 
 
-pub struct CountingWriter<W: Write> {
+pub struct CountingWriter<W> {
     underlying: W,
     written_bytes: usize,
 }

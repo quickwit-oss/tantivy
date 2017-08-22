@@ -7,7 +7,9 @@ mod segment;
 mod index_meta;
 mod pool;
 mod segment_meta;
+mod field_reader;
 
+pub use self::field_reader::FieldReader;
 pub use self::searcher::Searcher;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
@@ -17,7 +19,6 @@ pub use self::segment::SerializableSegment;
 pub use self::index::Index;
 pub use self::segment_meta::SegmentMeta;
 pub use self::index_meta::IndexMeta;
-
 
 use std::path::PathBuf;
 

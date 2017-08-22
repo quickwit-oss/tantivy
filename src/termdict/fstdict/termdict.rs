@@ -3,7 +3,7 @@ use fst;
 use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
-use std::marker::PhantomData;
+use bincode;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
@@ -13,18 +13,14 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 }
 
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
-pub struct TermDictionaryBuilderImpl<W, V = TermInfo>
-    where W: Write,
-          V: BinarySerializable + Default
+pub struct TermDictionaryBuilderImpl<W>
 {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
-    _phantom_: PhantomData<V>,
 }
 
-impl<W, V> TermDictionaryBuilderImpl<W, V>
-    where W: Write,
-          V: BinarySerializable + Default
+impl<W> TermDictionaryBuilderImpl<W>
+    where W: Write
 {
     /// # Warning
     /// Horribly dangerous internal API
@@ -49,20 +45,18 @@ impl<W, V> TermDictionaryBuilderImpl<W, V>
     }
 }
 
-impl<W, V> TermDictionaryBuilder<W, V> for TermDictionaryBuilderImpl<W, V>
-    where W: Write,
-          V: BinarySerializable + Default
+impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
+    where W: Write
 {
-    fn new(w: W) -> io::Result<Self> {
+    fn new(w: W, field_option: FieldOption) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
                fst_builder: fst_builder,
                data: Vec::new(),
-               _phantom_: PhantomData,
            })
     }
 
-    fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &V) -> io::Result<()> {
+    fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
         let key = key_ref.as_ref();
         self.fst_builder
             .insert(key, self.data.len() as u64)
@@ -95,16 +89,13 @@ fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
 }
 
 /// See [`TermDictionary`](./trait.TermDictionary.html)
-pub struct TermDictionaryImpl<V = TermInfo>
-    where V: BinarySerializable + Default
+pub struct TermDictionaryImpl
 {
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,
-    _phantom_: PhantomData<V>,
 }
 
-impl<V> TermDictionaryImpl<V>
-    where V: BinarySerializable + Default
+impl TermDictionaryImpl
 {
     /// Deserialize and returns the value at address `offset`
     pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
@@ -115,12 +106,11 @@ impl<V> TermDictionaryImpl<V>
 }
 
 
-impl<'a, V> TermDictionary<'a, V> for TermDictionaryImpl<V>
-    where V: BinarySerializable + Default + 'a
+impl<'a> TermDictionary<'a> for TermDictionaryImpl
 {
-    type Streamer = TermStreamerImpl<'a, V>;
+    type Streamer = TermStreamerImpl<'a>;
 
-    type StreamBuilder = TermStreamerBuilderImpl<'a, V>;
+    type StreamBuilder = TermStreamerBuilderImpl<'a>;
 
     fn from_source(source: ReadOnlySource) -> io::Result<Self> {
         let total_len = source.len();
@@ -134,7 +124,6 @@ impl<'a, V> TermDictionary<'a, V> for TermDictionaryImpl<V>
         Ok(TermDictionaryImpl {
                fst_index: fst_index,
                values_mmap: values_source,
-               _phantom_: PhantomData,
            })
     }
 
@@ -147,7 +136,7 @@ impl<'a, V> TermDictionary<'a, V> for TermDictionaryImpl<V>
                  })
     }
 
-    fn range(&self) -> TermStreamerBuilderImpl<V> {
+    fn range(&self) -> TermStreamerBuilderImpl {
         TermStreamerBuilderImpl::new(self, self.fst_index.range())
     }
 }

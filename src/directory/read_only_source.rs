@@ -2,6 +2,8 @@ use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
+use std::slice;
+use std::io::{self, Read};
 use stable_deref_trait::StableDeref;
 
 /// Read object that represents files in tantivy.
@@ -62,6 +64,11 @@ impl ReadOnlySource {
             }
         }
     }
+
+    pub fn slice_from(&self, from_offset: usize) -> ReadOnlySource {
+        let len = self.len();
+        self.slice(from_offset, len)
+    }
 }
 
 impl HasLen for ReadOnlySource {
@@ -80,5 +87,40 @@ impl From<Vec<u8>> for ReadOnlySource {
     fn from(data: Vec<u8>) -> ReadOnlySource {
         let shared_data = SharedVecSlice::from(data);
         ReadOnlySource::Anonymous(shared_data)
+    }
+}
+
+pub struct SourceRead {
+    _data_owner: ReadOnlySource,
+    cursor: &'static [u8]
+}
+
+impl SourceRead {
+    pub fn advance(&mut self, len: usize) {
+        self.cursor = &self.cursor[len..];
+    }
+}
+
+impl AsRef<[u8]> for SourceRead {
+    fn as_ref(&self) -> &[u8] {
+        self.cursor
+    }
+}
+
+impl From<ReadOnlySource> for SourceRead {
+    fn from(source: ReadOnlySource) -> SourceRead {
+        let len = source.len();
+        let slice_ptr = source.as_slice().as_ptr();
+        let static_slice = unsafe { slice::from_raw_parts(slice_ptr, len) };
+        SourceRead {
+            _data_owner: source,
+            cursor: static_slice,
+        }
+    }
+}
+
+impl Read for SourceRead {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.cursor.read(buf)
     }
 }

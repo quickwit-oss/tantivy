@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 
-mod composite;
-pub use self::composite::{CompositeEncoder, CompositeDecoder};
+mod stream;
 
+pub use self::stream::CompressedIntStream;
 
 #[cfg(not(feature="simdcompression"))]
 mod pack {
@@ -31,6 +31,10 @@ mod vint {
     pub use self::compression_vint_simd::*;
 }
 
+/// Returns the size in bytes of a compressed block, given num_bits.
+pub fn compressed_block_size(num_bits: u8) -> usize {
+    1 + (num_bits as usize) * 16
+}
 
 pub trait VIntEncoder {
     fn compress_vint_sorted(&mut self, input: &[u32], offset: u32) -> &[u8];
@@ -42,11 +46,11 @@ pub trait VIntDecoder {
                                   compressed_data: &'a [u8],
                                   offset: u32,
                                   num_els: usize)
-                                  -> &'a [u8];
+                                  -> usize;
     fn uncompress_vint_unsorted<'a>(&mut self,
                                     compressed_data: &'a [u8],
                                     num_els: usize)
-                                    -> &'a [u8];
+                                    -> usize;
 }
 
 impl VIntEncoder for BlockEncoder {
@@ -64,7 +68,7 @@ impl VIntDecoder for BlockDecoder {
                                   compressed_data: &'a [u8],
                                   offset: u32,
                                   num_els: usize)
-                                  -> &'a [u8] {
+                                  -> usize {
         self.output_len = num_els;
         vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
     }
@@ -72,7 +76,7 @@ impl VIntDecoder for BlockDecoder {
     fn uncompress_vint_unsorted<'a>(&mut self,
                                     compressed_data: &'a [u8],
                                     num_els: usize)
-                                    -> &'a [u8] {
+                                    -> usize {
         self.output_len = num_els;
         vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
     }
@@ -87,6 +91,7 @@ pub mod tests {
     use super::*;
     use tests;
     use test::Bencher;
+    use std::iter;
 
     #[test]
     fn test_encode_sorted_block() {
@@ -95,8 +100,8 @@ pub mod tests {
         let compressed_data = encoder.compress_block_sorted(&vals, 0);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 0);
-            assert_eq!(remaining_data.len(), 0);
+            let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 0);
+            assert_eq!(consumed_num_bytes, compressed_data.len());
         }
         for i in 0..128 {
             assert_eq!(vals[i], decoder.output(i));
@@ -110,8 +115,8 @@ pub mod tests {
         let compressed_data = encoder.compress_block_sorted(&vals, 10);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(compressed_data, 10);
-            assert_eq!(remaining_data.len(), 0);
+            let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 10);
+            assert_eq!(consumed_num_bytes, compressed_data.len());
         }
         for i in 0..128 {
             assert_eq!(vals[i], decoder.output(i));
@@ -129,9 +134,9 @@ pub mod tests {
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_sorted(&compressed, 10);
-            assert_eq!(remaining_data.len(), 1);
-            assert_eq!(remaining_data[0], 173u8);
+            let consumed_num_bytes = decoder.uncompress_block_sorted(&compressed, 10);
+            assert_eq!(consumed_num_bytes, compressed.len() - 1);
+            assert_eq!(compressed[consumed_num_bytes], 173u8);
         }
         for i in 0..n {
             assert_eq!(vals[i], decoder.output(i));
@@ -149,9 +154,9 @@ pub mod tests {
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
         {
-            let remaining_data = decoder.uncompress_block_unsorted(&compressed);
-            assert_eq!(remaining_data.len(), 1);
-            assert_eq!(remaining_data[0], 173u8);
+            let consumed_num_bytes = decoder.uncompress_block_unsorted(&compressed);
+            assert_eq!(consumed_num_bytes + 1, compressed.len());
+            assert_eq!(compressed[consumed_num_bytes], 173u8);
         }
         for i in 0..n {
             assert_eq!(vals[i], decoder.output(i));
@@ -169,9 +174,9 @@ pub mod tests {
                 let encoded_data = encoder.compress_vint_sorted(&input, *offset);
                 assert!(encoded_data.len() <= expected_length);
                 let mut decoder = BlockDecoder::new();
-                let remaining_data =
+                let consumed_num_bytes =
                     decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
-                assert_eq!(0, remaining_data.len());
+                assert_eq!(consumed_num_bytes, encoded_data.len());
                 assert_eq!(input, decoder.output_array());
             }
         }
@@ -194,6 +199,19 @@ pub mod tests {
         b.iter(|| { decoder.uncompress_block_sorted(compressed, 0u32); });
     }
 
+    #[test]
+    fn test_all_docs_compression_numbits() {
+        for num_bits in 0..33 {
+            let mut data: Vec<u32> = iter::repeat(0u32).take(128).collect();
+            if num_bits > 0 {
+                data[0] = 1 << (num_bits - 1);
+            }
+            let mut encoder = BlockEncoder::new();
+            let compressed = encoder.compress_block_unsorted(&data);
+            assert_eq!(compressed[0] as usize, num_bits);
+            assert_eq!(compressed.len(), compressed_block_size(compressed[0]));
+        }
+    }
 
     const NUM_INTS_BENCH_VINT: usize = 10;
 

@@ -32,7 +32,7 @@ mod delete;
 pub use self::delete::write_delete_bitset;
 pub use self::delete::DeleteBitSet;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-pub use self::reader::{FastFieldsReader, U64FastFieldReader, I64FastFieldReader};
+pub use self::reader::{U64FastFieldReader, I64FastFieldReader};
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
 pub use self::error::{Result, FastFieldNotAvailableError};
@@ -51,6 +51,7 @@ mod tests {
     use fastfield::FastFieldReader;
     use rand::Rng;
     use rand::SeedableRng;
+    use common::CompositeFile;
     use rand::XorShiftRng;
 
     lazy_static! {
@@ -84,7 +85,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 13u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14u64);
@@ -94,12 +95,13 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 38 as usize);
+            assert_eq!(source.len(), 35 as usize);
         }
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let composite_file = CompositeFile::open(source).unwrap();
+            let field_source = composite_file.open_read(*FIELD).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
@@ -112,7 +114,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 4u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14_082_001u64);
@@ -128,12 +130,12 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 63 as usize);
+            assert_eq!(source.len(), 60 as usize);
         }
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
             assert_eq!(fast_field_reader.get(0), 4u64);
             assert_eq!(fast_field_reader.get(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get(2), 3_052u64);
@@ -154,7 +156,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, 100_000u64);
@@ -164,12 +166,12 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 36 as usize);
+            assert_eq!(source.len(), 33 as usize);
         }
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u64);
             }
@@ -183,7 +185,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             // forcing the amplitude to be high
             add_single_field_doc(&mut fast_field_writers, *FIELD, 0u64);
@@ -197,12 +199,13 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 80044 as usize);
+            assert_eq!(source.len(), 80041 as usize);
         }
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(fast_field_reader.get(doc),
@@ -221,7 +224,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             for i in -100i64..10_000i64 {
                 let mut doc = Document::default();
@@ -233,12 +236,13 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 17711 as usize);
+            assert_eq!(source.len(), 17708 as usize);
         }
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: I64FastFieldReader =
-                fast_field_readers.open_reader(i64_field).unwrap();
+                I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
+
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
             for (doc, i) in (-100i64..10_000i64).enumerate() {
@@ -262,7 +266,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
@@ -272,9 +276,10 @@ mod tests {
 
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: I64FastFieldReader =
-                fast_field_readers.open_reader(i64_field).unwrap();
+                I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
             assert_eq!(fast_field_reader.get(0u32), 0i64);
         }
     }
@@ -295,7 +300,7 @@ mod tests {
         let mut directory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
@@ -305,9 +310,10 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+
             let mut a = 0u64;
             for _ in 0..n {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
@@ -320,13 +326,13 @@ mod tests {
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-                   let n = test::black_box(7000u32);
-                   let mut a = 0u64;
-                   for i in (0u32..n).step_by(7) {
-                       a ^= permutation[i as usize];
-                   }
-                   a
-               });
+            let n = test::black_box(7000u32);
+            let mut a = 0u64;
+            for i in Iterator::step_by((0u32..n), 7) {
+                a ^= permutation[i as usize];
+            }
+            a
+        });
     }
 
     #[bench]
@@ -349,7 +355,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
@@ -359,17 +365,19 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+
+
             b.iter(|| {
-                       let n = test::black_box(7000u32);
-                       let mut a = 0u64;
-                       for i in (0u32..n).step_by(7) {
-                           a ^= fast_field_reader.get(i);
-                       }
-                       a
-                   });
+                let n = test::black_box(7000u32);
+                let mut a = 0u64;
+                for i in Iterator::step_by((0u32..n), 7) {
+                    a ^= fast_field_reader.get(i);
+                }
+                a
+            });
         }
     }
 
@@ -380,7 +388,7 @@ mod tests {
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::new(write).unwrap();
+            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
@@ -390,9 +398,10 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_field_readers = FastFieldsReader::from_source(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(source).unwrap();
             let fast_field_reader: U64FastFieldReader =
-                fast_field_readers.open_reader(*FIELD).unwrap();
+                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+
             b.iter(|| {
                        let n = test::black_box(1000u32);
                        let mut a = 0u32;

@@ -55,11 +55,12 @@ impl<'a> SegmentWriter<'a> {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(heap: &'a Heap,
+                       table_bits: usize,
                        mut segment: Segment,
                        schema: &Schema)
                        -> Result<SegmentWriter<'a>> {
-        let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, heap);
+        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
         Ok(SegmentWriter {
                heap: heap,
                max_doc: 0,
@@ -115,6 +116,9 @@ impl<'a> SegmentWriter<'a> {
         self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_options = schema.get_field_entry(field);
+            if !field_options.is_indexed() {
+                continue;
+            }
             match *field_options.field_type() {
                 FieldType::Str(ref text_options) => {
                     let num_tokens: u32 = if text_options.get_indexing_options().is_tokenized() {

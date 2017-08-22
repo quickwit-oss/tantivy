@@ -3,7 +3,8 @@ use directory::WritePtr;
 use schema::Field;
 use common::bitpacker::{compute_num_bits, BitPacker};
 use common::CountingWriter;
-use std::io::{self, Write, Seek, SeekFrom};
+use common::CompositeWrite;
+use std::io::{self, Write};
 
 /// `FastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
@@ -26,27 +27,19 @@ use std::io::{self, Write, Seek, SeekFrom};
 /// * `close_field()`
 /// * `close()`
 pub struct FastFieldSerializer {
-    write: CountingWriter<WritePtr>,
-    fields: Vec<(Field, u32)>,
-    min_value: u64,
-    field_open: bool,
-    bit_packer: BitPacker,
+    composite_write: CompositeWrite<WritePtr>,
 }
 
-
 impl FastFieldSerializer {
+
+
     /// Constructor
-    pub fn new(write: WritePtr) -> io::Result<FastFieldSerializer> {
+    pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
-        let mut counting_writer = CountingWriter::wrap(write);
-        0u32.serialize(&mut counting_writer)?;
+        let composite_write = CompositeWrite::wrap(write);
         Ok(FastFieldSerializer {
-               write: counting_writer,
-               fields: Vec::new(),
-               min_value: 0,
-               field_open: false,
-               bit_packer: BitPacker::new(0),
-           })
+            composite_write: composite_write,
+        })
     }
 
     /// Start serializing a new u64 fast field
@@ -54,22 +47,47 @@ impl FastFieldSerializer {
                               field: Field,
                               min_value: u64,
                               max_value: u64)
-                              -> io::Result<()> {
-        if self.field_open {
-            return Err(io::Error::new(io::ErrorKind::Other, "Previous field not closed"));
-        }
-        self.min_value = min_value;
-        self.field_open = true;
-        self.fields.push((field, self.write.written_bytes() as u32));
-        let write = &mut self.write;
+                              -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
+        let field_write = self
+            .composite_write
+            .for_field(field);
+        FastSingleFieldSerializer::open(
+            field_write,
+            min_value,
+            max_value)
+    }
+
+
+    /// Closes the serializer
+    ///
+    /// After this call the data must be persistently save on disk.
+    pub fn close(self) -> io::Result<()> {
+        self.composite_write.close()
+    }
+}
+
+pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
+    bit_packer: BitPacker,
+    write: &'a mut W,
+    min_value: u64,
+}
+
+impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
+
+    fn open(write: &'a mut W,
+           min_value: u64,
+           max_value: u64) -> io::Result<FastSingleFieldSerializer<'a, W>> {
         min_value.serialize(write)?;
         let amplitude = max_value - min_value;
         amplitude.serialize(write)?;
         let num_bits = compute_num_bits(amplitude);
-        self.bit_packer = BitPacker::new(num_bits as usize);
-        Ok(())
+        let bit_packer = BitPacker::new(num_bits as usize);
+        Ok(FastSingleFieldSerializer {
+            write: write,
+            bit_packer: bit_packer,
+            min_value: min_value,
+        })
     }
-
 
     /// Pushes a new value to the currently open u64 fast field.
     pub fn add_val(&mut self, val: u64) -> io::Result<()> {
@@ -78,33 +96,7 @@ impl FastFieldSerializer {
         Ok(())
     }
 
-    /// Close the u64 fast field.
-    pub fn close_field(&mut self) -> io::Result<()> {
-        if !self.field_open {
-            return Err(io::Error::new(io::ErrorKind::Other, "Current field is already closed"));
-        }
-        self.field_open = false;
-        // adding some padding to make sure we
-        // can read the last elements with our u64
-        // cursor
-        self.bit_packer.close(&mut self.write)?;
-        Ok(())
-    }
-
-
-    /// Closes the serializer
-    ///
-    /// After this call the data must be persistently save on disk.
-    pub fn close(self) -> io::Result<usize> {
-        if self.field_open {
-            return Err(io::Error::new(io::ErrorKind::Other, "Last field not closed"));
-        }
-        let header_offset: usize = self.write.written_bytes() as usize;
-        let (mut write, written_size) = self.write.finish()?;
-        self.fields.serialize(&mut write)?;
-        write.seek(SeekFrom::Start(0))?;
-        (header_offset as u32).serialize(&mut write)?;
-        write.flush()?;
-        Ok(written_size)
+    pub fn close_field(mut self) -> io::Result<()> {
+        self.bit_packer.close(&mut self.write)
     }
 }

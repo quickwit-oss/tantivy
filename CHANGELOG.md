@@ -1,19 +1,53 @@
+
+Tantivy 0.4.3
+==========================
+
+- Bugfix race condition when deleting files. (#198)
+
+
+Tantivy 0.4.2
+==========================
+
+- Prevent usage of AVX2 instructions (#201)
+
+
+Tantivy 0.4.1
+==========================
+
+- Bugfix for non-indexed fields. (#199)
+
+
 Tantivy 0.4.0
 ==========================
-- Raise the limit of number of fields (previously 256 fields)
-- Removed u32 fields. They are replaced by u64 and i64 fields (#65)
+
+- Raise the limit of number of fields (previously 256 fields) (@fulmicoton)
+- Removed u32 fields. They are replaced by u64 and i64 fields (#65) (@fulmicoton)
 - Optimized skip in SegmentPostings (#130) (@lnicola)
 - Replacing rustc_serialize by serde. Kudos to @KodrAus and @lnicola
-- QueryParser:
+- Using error-chain (@KodrAus)
+- QueryParser: (@fulmicoton)
   - Explicit error returned when searched for a term that is not indexed
   - Searching for a int term via the query parser was broken `(age:1)`
   - Searching for a non-indexed field returns an explicit Error
   - Phrase query for non-tokenized field are not tokenized by the query parser.
+- Faster/Better indexing (@fulmicoton)
+    - using murmurhash2
+    - faster merging
+    - more memory efficient fast field writer (@lnicola )
+    - better handling of collisions
+    - lesser memory usage
+- Added API, most notably to iterate over ranges of terms (@fulmicoton)
+- Bugfix that was preventing to unmap segment files, on index drop (@fulmicoton)
+- Made the doc! macro public (@fulmicoton)
+- Added an alternative implementation of the streaming dictionary (@fulmicoton)
+
+
 
 Tantivy 0.3.1
 ==========================
 
 - Expose a method to trigger files garbage collection
+
 
 
 Tantivy 0.3
@@ -35,6 +69,7 @@ Tantivy 0.3 is NOT backward compatible with tantivy 0.2
 code and index format.
 You should not expect backward compatibility before 
 tantivy 1.0.
+
 
 
 New Features

@@ -49,20 +49,18 @@ pub fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
 pub fn uncompress_sorted<'a>(compressed_data: &'a [u8],
                              output: &mut [u32],
                              offset: u32)
-                             -> &'a [u8] {
-    let consumed_bytes = unsafe {
+                             -> usize {
+    unsafe {
         streamvbyte::streamvbyte_delta_decode(compressed_data.as_ptr(),
                                               output.as_mut_ptr(),
                                               output.len() as u32,
                                               offset)
-    };
-    &compressed_data[consumed_bytes..]
+    }
 }
 
 #[inline(always)]
-pub fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> &'a [u8] {
-    let consumed_bytes = unsafe {
+pub fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> usize {
+    unsafe {
         streamvbyte::streamvbyte_decode(compressed_data.as_ptr(), output.as_mut_ptr(), output.len())
-    };
-    &compressed_data[consumed_bytes..]
+    }
 }

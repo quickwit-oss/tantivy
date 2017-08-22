@@ -116,7 +116,8 @@ impl ManagedDirectory {
     /// If a file cannot be deleted (for permission reasons for instance)
     /// an error is simply logged, and the file remains in the list of managed
     /// files.
-    pub fn garbage_collect(&mut self, living_files: HashSet<PathBuf>) {
+    pub fn garbage_collect<L: FnOnce()-> HashSet<PathBuf> >(&mut self, get_living_files: L) {
+        info!("Garbage collect");
         let mut files_to_delete = vec![];
         {
             // releasing the lock as .delete() will use it too.
@@ -124,6 +125,17 @@ impl ManagedDirectory {
                 self.meta_informations
                     .read()
                     .expect("Managed directory rlock poisoned in garbage collect.");
+
+            // It is crucial to get the living files after acquiring the
+            // read lock of meta informations. That way, we
+            // avoid the following scenario.
+            //
+            // 1) we get the list of living files.
+            // 2) someone creates a new file.
+            // 3) we start garbage collection and remove this file
+            // even though it is a living file.
+            let living_files = get_living_files();
+
             for managed_path in &meta_informations_rlock.managed_paths {
                 if !living_files.contains(managed_path) {
                     files_to_delete.push(managed_path.clone());
@@ -315,7 +327,7 @@ mod tests {
             {
                 let living_files: HashSet<PathBuf> =
                     [TEST_PATH1.to_owned()].into_iter().cloned().collect();
-                managed_directory.garbage_collect(living_files);
+                managed_directory.garbage_collect(|| { living_files });
             }
             {
                 assert!(managed_directory.exists(*TEST_PATH1));
@@ -331,7 +343,7 @@ mod tests {
             }
             {
                 let living_files: HashSet<PathBuf> = HashSet::new();
-                managed_directory.garbage_collect(living_files);
+                managed_directory.garbage_collect(|| { living_files });
             }
             {
                 assert!(!managed_directory.exists(*TEST_PATH1));
@@ -354,7 +366,7 @@ mod tests {
         assert!(managed_directory.exists(*TEST_PATH1));
 
         let _mmap_read = managed_directory.open_read(*TEST_PATH1).unwrap();
-        managed_directory.garbage_collect(living_files.clone());
+        managed_directory.garbage_collect(|| { living_files.clone() });
         if cfg!(target_os = "windows") {
             // On Windows, gc should try and fail the file as it is mmapped.
             assert!(managed_directory.exists(*TEST_PATH1));
@@ -362,7 +374,7 @@ mod tests {
             drop(_mmap_read);
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
-            managed_directory.garbage_collect(living_files);
+            managed_directory.garbage_collect(|| { living_files });
             assert!(!managed_directory.exists(*TEST_PATH1));
         } else {
             assert!(!managed_directory.exists(*TEST_PATH1));
@@ -386,11 +398,11 @@ mod tests {
 
         {
             let _file_protection = managed_directory.protect_file_from_delete(*TEST_PATH1);
-            managed_directory.garbage_collect(living_files.clone());
+            managed_directory.garbage_collect(|| { living_files.clone() });
             assert!(managed_directory.exists(*TEST_PATH1));
         }
 
-        managed_directory.garbage_collect(living_files.clone());
+        managed_directory.garbage_collect(|| { living_files.clone() });
         assert!(!managed_directory.exists(*TEST_PATH1));
 
 

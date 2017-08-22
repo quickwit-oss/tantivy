@@ -18,7 +18,7 @@ pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> 
             local_offset = val;
         }
     }
-    let num_bits = compute_num_bits(max_delta);
+    let num_bits = compute_num_bits(max_delta as u64);
     output.write_all(&[num_bits]).unwrap();
     let mut bit_packer = BitPacker::new(num_bits as usize);
     for val in vals {

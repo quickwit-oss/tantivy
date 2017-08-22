@@ -258,26 +258,30 @@ impl SegmentUpdater {
     }
 
     pub fn garbage_collect_files(&self) -> Result<()> {
-        self.run_async(move |segment_updater| { segment_updater.garbage_collect_files_exec(); })
-            .wait()
+        self.run_async(move |segment_updater| {
+            segment_updater.garbage_collect_files_exec();
+        })
+        .wait()
     }
 
     fn garbage_collect_files_exec(&self) {
-        let living_files = self.0.segment_manager.list_files();
+        info!("Running garbage collection");
         let mut index = self.0.index.clone();
-        index.directory_mut().garbage_collect(living_files);
+        index.directory_mut().garbage_collect(|| {
+            self.0.segment_manager.list_files()
+        });
     }
 
     pub fn commit(&self, opstamp: u64) -> Result<()> {
         self.run_async(move |segment_updater| if segment_updater.is_alive() {
-                           let segment_entries = segment_updater
-                               .purge_deletes(opstamp)
-                               .expect("Failed purge deletes");
-                           segment_updater.0.segment_manager.commit(segment_entries);
-                           segment_updater.save_metas(opstamp);
-                           segment_updater.garbage_collect_files_exec();
-                           segment_updater.consider_merge_options();
-                       })
+                       let segment_entries = segment_updater
+                           .purge_deletes(opstamp)
+                           .expect("Failed purge deletes");
+                       segment_updater.0.segment_manager.commit(segment_entries);
+                       segment_updater.save_metas(opstamp);
+                       segment_updater.garbage_collect_files_exec();
+                       segment_updater.consider_merge_options();
+                   })
             .wait()
     }
 
@@ -379,7 +383,7 @@ impl SegmentUpdater {
                  -> Result<()> {
 
         self.run_async(move |segment_updater| {
-            debug!("End merge {:?}", after_merge_segment_entry.meta());
+            info!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
             let mut _file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
@@ -410,7 +414,9 @@ impl SegmentUpdater {
             segment_updater.0.segment_manager.end_merge(&before_merge_segment_ids,
                                                         after_merge_segment_entry);
             segment_updater.consider_merge_options();
+            info!("save metas");
             segment_updater.save_metas(segment_updater.0.index.opstamp());
+            segment_updater.garbage_collect_files_exec();
         }).wait()
     }
 

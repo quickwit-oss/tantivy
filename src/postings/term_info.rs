@@ -20,6 +20,8 @@ pub struct TermInfo {
     pub postings_offset: u32,
     /// Offset within the position (`.pos`) file.
     pub positions_offset: u32,
+    /// Offset within the position block.
+    pub positions_inner_offset: u8,
 }
 
 
@@ -27,17 +29,20 @@ impl BinarySerializable for TermInfo {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         self.doc_freq.serialize(writer)?;
         self.postings_offset.serialize(writer)?;
-        self.positions_offset.serialize(writer)
+        self.positions_offset.serialize(writer)?;
+        self.positions_inner_offset.serialize(writer)
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let doc_freq = try!(u32::deserialize(reader));
-        let postings_offset = try!(u32::deserialize(reader));
-        let positions_offset = try!(u32::deserialize(reader));
+        let doc_freq = u32::deserialize(reader)?;
+        let postings_offset = u32::deserialize(reader)?;
+        let positions_offset = u32::deserialize(reader)?;
+        let positions_inner_offset = u8::deserialize(reader)?;
         Ok(TermInfo {
-               doc_freq: doc_freq,
-               postings_offset: postings_offset,
-               positions_offset: positions_offset,
-           })
+            doc_freq: doc_freq,
+            postings_offset: postings_offset,
+            positions_offset: positions_offset,
+            positions_inner_offset: positions_inner_offset,
+        })
     }
 }

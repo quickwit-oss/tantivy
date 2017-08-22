@@ -7,3 +7,5 @@ benchmark
 .DS_Store
 cpp/simdcomp/bitpackingbenchmark
 *.bk
+.idea
+trace.dat
