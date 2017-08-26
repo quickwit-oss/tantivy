@@ -194,7 +194,7 @@ impl SegmentManager {
             .writing
             .remove(&after_merge_segment_entry.segment_id());
 
-        let mut target_register: &mut SegmentRegister = {
+        let target_register: &mut SegmentRegister = {
             if registers_lock
                    .uncommitted
                    .contains_all(before_merge_segment_ids) {

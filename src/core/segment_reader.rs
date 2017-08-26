@@ -4,10 +4,12 @@ use core::SegmentId;
 use core::SegmentComponent;
 use std::sync::RwLock;
 use common::HasLen;
+use error::ErrorKind;
 use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::DeleteBitSet;
 use store::StoreReader;
+use directory::ReadOnlySource;
 use schema::Document;
 use DocId;
 use std::str;
@@ -171,25 +173,39 @@ impl SegmentReader {
         })
     }
 
+
+    /// Returns a field reader associated to the field given in argument.
+    ///
+    /// The field reader is in charge of iterating through the
+    /// term dictionary associated to a specific field,
+    /// and opening the posting list associated to any term.
     pub fn field_reader(&self, field: Field) -> Result<Arc<FieldReader>> {
         if let Some(field_reader) = self.field_reader_cache.read()
-            .unwrap() // TODO
+            .expect("Lock poisoned. This should never happen")
             .get(&field) {
             return Ok(field_reader.clone());
         }
 
         // TODO better error
-        let termdict_source = self.termdict_composite
+        let termdict_source: ReadOnlySource = self.termdict_composite
             .open_read(field)
-            .ok_or("Field not found")?;
+            .ok_or_else(|| {
+                ErrorKind::SchemaError(
+                    format!("Could not find {:?} term dictionary", field)
+                )
+            })?;
 
         let postings_source = self.postings_composite
             .open_read(field)
-            .ok_or("field not found")?;
+            .ok_or_else(|| {
+                ErrorKind::SchemaError(format!("Could not find {:?} postings", field))
+            })?;
 
         let positions_source = self.positions_composite
             .open_read(field)
-            .ok_or("field not found")?;
+            .ok_or_else(|| {
+                ErrorKind::SchemaError(format!("Could not find {:?} positions", field))
+            })?;
 
         let field_reader = Arc::new(FieldReader::new(
             termdict_source,
@@ -201,7 +217,7 @@ impl SegmentReader {
 
         self.field_reader_cache
             .write()
-            .unwrap() // TODO
+            .expect("Field reader cache lock poisoned. This should never happen.")
             .insert(field, field_reader.clone());
         Ok(field_reader)
     }

@@ -136,9 +136,12 @@ impl From<Vec<u64>> for U64FastFieldReader {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-            for val in vals {
-                let mut fast_field_writer = fast_field_writers.get_field_writer(field).unwrap();
-                fast_field_writer.add_val(val);
+            // TODO Error not unwrap
+            {
+                let fast_field_writer = fast_field_writers.get_field_writer(field).unwrap();
+                for val in vals {
+                    fast_field_writer.add_val(val);
+                }
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();

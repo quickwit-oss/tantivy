@@ -10,6 +10,7 @@ use schema;
 use fastfield::FastFieldNotAvailableError;
 use serde_json;
 
+
 error_chain!(
     errors {
         /// Path does not exist.

@@ -18,7 +18,7 @@ impl CompressedIntStream {
         }
     }
 
-    pub fn read(&mut self, mut output: &mut [u32]) {
+    pub fn read(&mut self, output: &mut [u32]) {
         let mut num_els: usize = output.len();
         let mut start: usize = 0;
         loop {

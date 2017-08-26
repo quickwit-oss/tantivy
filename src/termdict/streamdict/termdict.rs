@@ -6,18 +6,14 @@ use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use common::CountingWriter;
-use bincode;
-use std::cmp::Ordering;
 use postings::TermInfo;
 use schema::FieldType;
+use super::DeltaEncoder;
 use fst::raw::Node;
-use compression::NUM_DOCS_PER_BLOCK;
-use super::make_deserializer_options;
-use super::TermDeserializerOption;
-use super::streamer::stream_before;
+use common::VInt;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
-use super::{TermBlockEncoder, TermInfoBlockEncoder};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
+use termdict::TermStreamerBuilder;
 
 const INDEX_INTERVAL: usize = 1024;
 
@@ -25,17 +21,30 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
+fn has_positions(field_type: &FieldType) -> bool {
+    match *field_type {
+        FieldType::Str(ref text_options) => {
+            let indexing_options = text_options.get_indexing_options();
+            if indexing_options.is_position_enabled() {
+                true
+            }
+                else {
+                    false
+                }
+        }
+        _ => {
+            false
+        }
+    }
+}
+
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W>
 {
+    has_positions: bool,
     write: CountingWriter<W>,
-
-    term_block_encoder: TermBlockEncoder,
-    terminfo_block_encoder: TermInfoBlockEncoder,
-
+    delta_encoder: DeltaEncoder,
     block_index: fst::MapBuilder<Vec<u8>>,
-    last_key: Vec<u8>,
-
     len: usize,
 }
 
@@ -52,7 +61,7 @@ impl<W> TermDictionaryBuilderImpl<W>
 {
     fn add_index_entry(&mut self) {
         self.block_index
-            .insert(&self.last_key, self.write.written_bytes() as u64)
+            .insert(&self.delta_encoder.term(), self.write.written_bytes() as u64)
             .unwrap();
     }
 
@@ -67,27 +76,20 @@ impl<W> TermDictionaryBuilderImpl<W>
         if self.len % INDEX_INTERVAL == 0 {
             self.add_index_entry();
         }
-        self.last_key.clear();
-        self.last_key.extend_from_slice(key);
-        self.term_block_encoder.encode(key);
+        let (common_prefix_len, suffix) = self.delta_encoder.encode(key);
+        VInt(common_prefix_len as u64).serialize(&mut self.write)?;
+        VInt(suffix.len() as u64).serialize(&mut self.write)?;
+        self.write.write_all(suffix)?;
         self.len += 1;
         Ok(())
     }
 
-    fn flush_block(&mut self) -> io::Result<()> {
-        let block_size = self.term_block_encoder.len();
-        if block_size > 0 {
-            self.write.write(&[block_size as u8])?;
-            self.term_block_encoder.flush(&mut self.write)?;
-            self.terminfo_block_encoder.flush(&mut self.write)?;
-        }
-        Ok(())
-    }
-
     pub(crate) fn insert_value(&mut self, value: &TermInfo) -> io::Result<()> {
-        self.terminfo_block_encoder.encode(value);
-        if self.len % NUM_DOCS_PER_BLOCK == 0 {
-            self.flush_block()?;
+        VInt(value.doc_freq as u64).serialize(&mut self.write)?;
+        VInt(value.postings_offset as u64).serialize(&mut self.write)?;
+        if self.has_positions {
+            VInt(value.positions_offset as u64).serialize(&mut self.write)?;
+            self.write.write(&[value.positions_inner_offset])?;
         }
         Ok(())
     }
@@ -98,21 +100,14 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
 {
     /// Creates a new `TermDictionaryBuilder`
     fn new(mut write: W, field_type: FieldType) -> io::Result<Self> {
-        let deserializer_options = make_deserializer_options(&field_type);
-        {
-            // serialize the field type.
-            let data: Vec<u8> = bincode::serialize(&deserializer_options, bincode::Bounded(256u64))
-               .expect("Failed to serialize field type within 256 bytes. This should never be a problem.");
-            write.write_all(&[data.len() as u8])?;
-            write.write_all(&data[..])?;
-        }
-        let has_positions = deserializer_options.has_positions();
+        let has_positions = has_positions(&field_type);
+        let has_positions_code = if has_positions { 255u8 } else { 0u8 };
+        write.write_all(&[has_positions_code])?;
         Ok(TermDictionaryBuilderImpl {
-            term_block_encoder: TermBlockEncoder::new(),
-            terminfo_block_encoder: TermInfoBlockEncoder::new(has_positions),
+            has_positions: has_positions,
             write: CountingWriter::wrap(write),
+            delta_encoder: DeltaEncoder::default(),
             block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
-            last_key: Vec::with_capacity(128),
             len: 0,
         })
     }
@@ -129,9 +124,7 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     /// Finalize writing the builder, and returns the underlying
     /// `Write` object.
     fn finish(mut self) -> io::Result<W> {
-        self.flush_block()?;
         self.add_index_entry();
-        self.write.write_all(&[0u8])?;
         let (mut w, split_len) = self.write.finish()?;
         let fst_write = self.block_index.into_inner().map_err(convert_fst_error)?;
         w.write_all(&fst_write)?;
@@ -159,7 +152,7 @@ pub struct TermDictionaryImpl
 {
     stream_data: ReadOnlySource,
     fst_index: fst::Map,
-    deserializer_option: TermDeserializerOption,
+    has_positions: bool,
 }
 
 impl TermDictionaryImpl
@@ -224,13 +217,8 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
 
     /// Opens a `TermDictionary` given a data source.
     fn from_source(mut source: ReadOnlySource) -> io::Result<Self> {
-        // it won't take more than 100 bytes
-        let deserialize_option_len = source.slice(0, 1).as_slice()[0] as usize;
-        let deserialize_option_source = source.slice(1, 1 + deserialize_option_len);
-        let deserialize_option_buffer: &[u8] = deserialize_option_source.as_slice();
-        let deserializer_option: TermDeserializerOption = bincode::deserialize(deserialize_option_buffer)
-            .expect("Field dictionary data is corrupted. Failed to deserialize field type.");
-        source = source.slice_from(1 + deserialize_option_len);
+        let has_positions = source.slice(0, 1).as_ref()[0] == 255u8;
+        source = source.slice_from(1);
 
         let total_len = source.len();
         let length_offset = total_len - 8;
@@ -243,31 +231,28 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
         let fst_index = open_fst_index(fst_data)?;
 
         Ok(TermDictionaryImpl {
+            has_positions: has_positions,
             stream_data: stream_data,
             fst_index: fst_index,
-            deserializer_option: deserializer_option,
         })
     }
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo> {
-        let mut streamer = stream_before(self, target_key.as_ref(), self.deserializer_option);
-        while streamer.advance() {
-            let position = streamer.key().cmp(target_key.as_ref());
-            match position {
-                Ordering::Less => {}
-                Ordering::Equal => return Some(streamer.value().clone()),
-                Ordering::Greater => {
-                    return None;
-                }
-            }
+        let mut streamer = self.range()
+            .ge(&target_key)
+            .into_stream();
+        if streamer.advance() && streamer.key() == target_key.as_ref() {
+            Some(streamer.value().clone())
         }
-        None
+        else {
+            None
+        }
     }
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
     fn range(&'a self) -> Self::StreamBuilder {
-        Self::StreamBuilder::new(self, self.deserializer_option)
+        Self::StreamBuilder::new(self, self.has_positions)
     }
 }

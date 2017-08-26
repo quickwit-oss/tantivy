@@ -98,6 +98,8 @@ mod core;
 mod compression;
 mod indexer;
 mod common;
+
+#[allow(unused_doc_comment)]
 mod error;
 mod analyzer;
 mod datastruct;

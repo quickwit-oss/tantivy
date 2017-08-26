@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn test_term_dictionary() {
+    fn test_term_dictionary_simple() {
         let mut directory = RAMDirectory::create();
         let path = PathBuf::from("TermDictionary");
         {
@@ -347,6 +347,7 @@ mod tests {
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
+                println!("doc {}", id);
                 term_dictionary_builder.insert(id.as_bytes(), &make_term_info(*i)).unwrap();
             }
             term_dictionary_builder.finish().unwrap()
