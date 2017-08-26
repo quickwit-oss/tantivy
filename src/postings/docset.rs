@@ -52,6 +52,22 @@ pub trait DocSet {
         }
     }
 
+
+    /// Fills a given mutable buffer with the next doc ids from the
+    /// `DocSet`
+    ///
+    /// If that many `DocId`s are available, the method should
+    /// fill the entire buffer and return the length of the buffer.
+    ///
+    /// If we reach the end of the `DocSet` before filling
+    /// it entirely, then the buffer is filled up to this point, and
+    /// return value is the number of elements that were filled.
+    ///
+    /// # Warning
+    ///
+    /// This method is only here for specific high-performance
+    /// use case where batching. The normal way to
+    /// go through the `DocId`'s is to call `.advance()`.
     fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
         for (i, buffer_val) in buffer.iter_mut().enumerate() {
             if self.advance() {

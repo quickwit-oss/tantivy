@@ -13,14 +13,15 @@ mod managed_directory;
 /// Errors specific to the directory module.
 pub mod error;
 
-use std::io::{Write, Seek};
+use std::io::{Write, Seek, BufWriter};
 
-use std::io::BufWriter;
-pub use self::read_only_source::{SourceRead, ReadOnlySource};
+pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
-pub use self::managed_directory::{ManagedDirectory, FileProtection};
+
+pub(crate) use self::read_only_source::SourceRead;
+pub(crate) use self::managed_directory::{ManagedDirectory, FileProtection};
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}

@@ -8,9 +8,8 @@ use common::BinarySerializable;
 use common::CountingWriter;
 use postings::TermInfo;
 use schema::FieldType;
-use super::DeltaEncoder;
+use super::{TermDeltaEncoder, TermInfoDeltaEncoder};
 use fst::raw::Node;
-use common::VInt;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
 use termdict::TermStreamerBuilder;
@@ -41,9 +40,9 @@ fn has_positions(field_type: &FieldType) -> bool {
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W>
 {
-    has_positions: bool,
     write: CountingWriter<W>,
-    delta_encoder: DeltaEncoder,
+    term_delta_encoder: TermDeltaEncoder,
+    term_info_encoder: TermInfoDeltaEncoder,
     block_index: fst::MapBuilder<Vec<u8>>,
     len: usize,
 }
@@ -61,7 +60,7 @@ impl<W> TermDictionaryBuilderImpl<W>
 {
     fn add_index_entry(&mut self) {
         self.block_index
-            .insert(&self.delta_encoder.term(), self.write.written_bytes() as u64)
+            .insert(&self.term_delta_encoder.term(), self.write.written_bytes() as u64)
             .unwrap();
     }
 
@@ -76,21 +75,13 @@ impl<W> TermDictionaryBuilderImpl<W>
         if self.len % INDEX_INTERVAL == 0 {
             self.add_index_entry();
         }
-        let (common_prefix_len, suffix) = self.delta_encoder.encode(key);
-        VInt(common_prefix_len as u64).serialize(&mut self.write)?;
-        VInt(suffix.len() as u64).serialize(&mut self.write)?;
-        self.write.write_all(suffix)?;
+        self.term_delta_encoder.encode(key, &mut self.write)?;
         self.len += 1;
         Ok(())
     }
 
-    pub(crate) fn insert_value(&mut self, value: &TermInfo) -> io::Result<()> {
-        VInt(value.doc_freq as u64).serialize(&mut self.write)?;
-        VInt(value.postings_offset as u64).serialize(&mut self.write)?;
-        if self.has_positions {
-            VInt(value.positions_offset as u64).serialize(&mut self.write)?;
-            self.write.write(&[value.positions_inner_offset])?;
-        }
+    pub(crate) fn insert_value(&mut self, term_info: &TermInfo) -> io::Result<()> {
+        self.term_info_encoder.encode(term_info.clone(), &mut self.write)?;
         Ok(())
     }
 }
@@ -104,9 +95,9 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
         let has_positions_code = if has_positions { 255u8 } else { 0u8 };
         write.write_all(&[has_positions_code])?;
         Ok(TermDictionaryBuilderImpl {
-            has_positions: has_positions,
             write: CountingWriter::wrap(write),
-            delta_encoder: DeltaEncoder::default(),
+            term_delta_encoder: TermDeltaEncoder::default(),
+            term_info_encoder: TermInfoDeltaEncoder::new(has_positions),
             block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
             len: 0,
         })
@@ -118,7 +109,8 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
         let key = key_ref.as_ref();
         self.insert_key(key)?;
-        self.insert_value(value)
+        self.insert_value(value)?;
+        Ok(())
     }
 
     /// Finalize writing the builder, and returns the underlying
@@ -136,15 +128,17 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
 
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
-    Ok(fst::Map::from(match source {
-                          ReadOnlySource::Anonymous(data) => {
-                              try!(Fst::from_shared_bytes(data.data, data.start, data.len)
-                                       .map_err(convert_fst_error))
-                          }
-                          ReadOnlySource::Mmap(mmap_readonly) => {
-                              try!(Fst::from_mmap(mmap_readonly).map_err(convert_fst_error))
-                          }
-                      }))
+    use self::ReadOnlySource::*;
+    let fst_result = match source {
+        Anonymous(data) => {
+            Fst::from_shared_bytes(data.data, data.start, data.len)
+        }
+        Mmap(mmap_readonly) => {
+            Fst::from_mmap(mmap_readonly)
+        }
+    };
+    let fst = fst_result.map_err(convert_fst_error)?;
+    Ok(fst::Map::from(fst))
 }
 
 /// See [`TermDictionary`](./trait.TermDictionary.html)

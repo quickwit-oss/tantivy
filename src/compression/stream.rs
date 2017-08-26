@@ -1,7 +1,7 @@
 use compression::BlockDecoder;
 use compression::NUM_DOCS_PER_BLOCK;
 use compression::compressed_block_size;
-use directory::SourceRead;
+use directory::{ReadOnlySource, SourceRead};
 
 pub struct CompressedIntStream {
     buffer: SourceRead,
@@ -10,9 +10,9 @@ pub struct CompressedIntStream {
 }
 
 impl CompressedIntStream {
-    pub fn wrap(buffer: SourceRead) -> CompressedIntStream {
+    pub(crate) fn wrap(source: ReadOnlySource) -> CompressedIntStream {
         CompressedIntStream {
-            buffer: buffer,
+            buffer: SourceRead::from(source),
             block_decoder: BlockDecoder::new(),
             inner_offset: NUM_DOCS_PER_BLOCK,
         }
@@ -72,7 +72,7 @@ pub mod tests {
     use compression::compressed_block_size;
     use compression::NUM_DOCS_PER_BLOCK;
     use compression::BlockEncoder;
-    use directory::{SourceRead, ReadOnlySource};
+    use directory::ReadOnlySource;
 
     fn create_stream_buffer() -> ReadOnlySource {
         let mut buffer: Vec<u8> = vec!();
@@ -90,8 +90,7 @@ pub mod tests {
     #[test]
     fn test_compressed_int_stream() {
         let buffer = create_stream_buffer();
-        let buffer_reader = SourceRead::from(buffer);
-        let mut stream = CompressedIntStream::wrap(buffer_reader);
+        let mut stream = CompressedIntStream::wrap(buffer);
         let mut block: [u32; NUM_DOCS_PER_BLOCK] = [0u32; NUM_DOCS_PER_BLOCK];
 
         stream.read(&mut block[0..2]);

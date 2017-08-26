@@ -108,6 +108,8 @@ impl InvertedIndexSerializer {
 }
 
 
+/// The field serializer is in charge of
+/// the serialization of a specific field.
 pub struct FieldSerializer<'a> {
     term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
     postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
@@ -173,9 +175,10 @@ impl<'a> FieldSerializer<'a> {
     ///   to the lexicographical order.
     /// * doc_freq - return the number of document containing the term.
     pub fn new_term(&mut self, term: &[u8]) -> io::Result<()> {
-        if self.term_open {
-            panic!("Called new_term, while the previous term was not closed.");
-        }
+        assert!(
+            !self.term_open,
+            "Called new_term, while the previous term was not closed."
+        );
         self.term_open = true;
         self.postings_serializer.clear();
         self.current_term_info = self.current_term_info();
@@ -217,6 +220,8 @@ impl<'a> FieldSerializer<'a> {
         Ok(())
     }
 
+
+    /// Closes the current current field.
     pub fn close(mut self) -> io::Result<()> {
         self.close_term()?;
         if let Some(positions_serializer) = self.positions_serializer_opt {

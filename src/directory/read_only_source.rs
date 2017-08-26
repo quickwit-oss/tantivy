@@ -65,6 +65,8 @@ impl ReadOnlySource {
         }
     }
 
+    /// Like `.slice(...)` but enforcing only the `from`
+    /// boundary.
     pub fn slice_from(&self, from_offset: usize) -> ReadOnlySource {
         let len = self.len();
         self.slice(from_offset, len)
@@ -90,12 +92,15 @@ impl From<Vec<u8>> for ReadOnlySource {
     }
 }
 
-pub struct SourceRead {
+
+/// Acts as a owning cursor over the data backed up by a ReadOnlySource
+pub(crate) struct SourceRead {
     _data_owner: ReadOnlySource,
     cursor: &'static [u8]
 }
 
 impl SourceRead {
+    // Advance the cursor by a given number of bytes.
     pub fn advance(&mut self, len: usize) {
         self.cursor = &self.cursor[len..];
     }
@@ -108,6 +113,8 @@ impl AsRef<[u8]> for SourceRead {
 }
 
 impl From<ReadOnlySource> for SourceRead {
+
+    // Creates a new `SourceRead` from a given `ReadOnlySource`
     fn from(source: ReadOnlySource) -> SourceRead {
         let len = source.len();
         let slice_ptr = source.as_slice().as_ptr();

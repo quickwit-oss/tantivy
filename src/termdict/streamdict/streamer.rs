@@ -4,7 +4,7 @@ use std::cmp::max;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
 use postings::TermInfo;
-use super::delta_encoder::DeltaDecoder;
+use super::delta_encoder::{TermInfoDeltaDecoder, TermDeltaDecoder};
 
 
 fn stream_before<'a>(term_dictionary: &'a TermDictionaryImpl,
@@ -16,9 +16,8 @@ fn stream_before<'a>(term_dictionary: &'a TermDictionaryImpl,
     let offset: usize = offset as usize;
     TermStreamerImpl {
         cursor: &term_dictionary.stream_data()[offset..],
-        delta_decoder: DeltaDecoder::with_previous_term(prev_key),
-        term_info: TermInfo::default(),
-        has_positions: has_positions,
+        term_delta_decoder: TermDeltaDecoder::with_previous_term(prev_key),
+        term_info_decoder: TermInfoDeltaDecoder::new(has_positions), // TODO checkpoint
     }
 }
 
@@ -87,9 +86,8 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let stop = max(self.offset_to, start);
         TermStreamerImpl {
             cursor: &data[start..stop],
-            delta_decoder: DeltaDecoder::with_previous_term(self.current_key),
-            term_info: TermInfo::default(),
-            has_positions: self.has_positions,
+            term_delta_decoder: TermDeltaDecoder::with_previous_term(self.current_key),
+            term_info_decoder: TermInfoDeltaDecoder::new(self.has_positions), // TODO checkpoint
         }
     }
 }
@@ -107,7 +105,7 @@ fn get_offset<'a, P: Fn(&[u8]) -> bool>(predicate: P,
 {
     let mut prev: &[u8] = streamer.cursor;
 
-    let mut prev_data: Vec<u8> = Vec::from(streamer.delta_decoder.term());
+    let mut prev_data: Vec<u8> = Vec::from(streamer.term_delta_decoder.term());
 
     while let Some((iter_key, _)) = streamer.next() {
         if !predicate(iter_key.as_ref()) {
@@ -144,26 +142,12 @@ impl<'a> TermStreamerBuilderImpl<'a>
 pub struct TermStreamerImpl<'a>
 {
     cursor: &'a [u8],
-    delta_decoder: DeltaDecoder,
-    term_info: TermInfo,
-    has_positions: bool
+    term_delta_decoder: TermDeltaDecoder,
+    term_info_decoder: TermInfoDeltaDecoder,
 }
 
 
-fn deserialize_vint(data: &mut &[u8]) -> u64 {
-    let mut res = 0;
-    let mut shift = 0;
-    for i in 0.. {
-        let b = data[i];
-        res |= ((b % 128u8) as u64) << shift;
-        if b & 128u8 != 0u8 {
-            *data = &data[(i + 1)..];
-            break;
-        }
-        shift += 7;
-    }
-    res
-}
+
 
 impl<'a> TermStreamer for TermStreamerImpl<'a>
 {
@@ -171,28 +155,17 @@ impl<'a> TermStreamer for TermStreamerImpl<'a>
         if self.cursor.is_empty() {
             return false;
         }
-        let common_length: usize = deserialize_vint(&mut self.cursor) as usize;
-        let suffix_length: usize = deserialize_vint(&mut self.cursor) as usize;
-        self.delta_decoder.decode(common_length, &self.cursor[..suffix_length]);
-        self.cursor = &self.cursor[suffix_length..];
-
-        self.term_info.doc_freq = deserialize_vint(&mut self.cursor) as u32;
-        self.term_info.postings_offset = deserialize_vint(&mut self.cursor) as u32;
-
-        if self.has_positions {
-            self.term_info.positions_offset = deserialize_vint(&mut self.cursor) as u32;
-            self.term_info.positions_inner_offset = self.cursor[0];
-            self.cursor = &self.cursor[1..];
-        }
+        self.term_delta_decoder.decode(&mut self.cursor);
+        self.term_info_decoder.decode(&mut self.cursor);
         true
     }
 
     fn key(&self) -> &[u8] {
-        self.delta_decoder.term()
+        self.term_delta_decoder.term()
     }
 
     fn value(&self) -> &TermInfo {
-        &self.term_info
+        &self.term_info_decoder.term_info()
     }
 }
 

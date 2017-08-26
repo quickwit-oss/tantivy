@@ -100,8 +100,8 @@ impl FieldReader {
         let position_stream = {
             if option.has_positions() {
                 let position_offset = term_info.positions_offset;
-                let positions_reader = SourceRead::from(self.positions_source.slice_from(position_offset as usize));
-                let mut stream = CompressedIntStream::wrap(positions_reader);
+                let positions_source = self.positions_source.slice_from(position_offset as usize);
+                let mut stream = CompressedIntStream::wrap(positions_source);
                 stream.skip(term_info.positions_inner_offset as usize);
                 Some(stream)
             }
