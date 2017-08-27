@@ -2,18 +2,21 @@
 
 use std::io::{self, Write};
 use fst;
+
 use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 use common::CountingWriter;
 use postings::TermInfo;
 use schema::FieldType;
-use super::{TermDeltaEncoder, TermInfoDeltaEncoder};
+use super::{TermDeltaEncoder, TermInfoDeltaEncoder, DeltaTermInfo};
 use fst::raw::Node;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
 use termdict::TermStreamerBuilder;
+use std::mem::transmute;
 
+const PADDING_SIZE: usize = 16;
 const INDEX_INTERVAL: usize = 1024;
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
@@ -75,15 +78,69 @@ impl<W> TermDictionaryBuilderImpl<W>
         if self.len % INDEX_INTERVAL == 0 {
             self.add_index_entry();
         }
-        self.term_delta_encoder.encode(key, &mut self.write)?;
-        self.len += 1;
+        self.term_delta_encoder.encode(key);
         Ok(())
     }
 
     pub(crate) fn insert_value(&mut self, term_info: &TermInfo) -> io::Result<()> {
-        self.term_info_encoder.encode(term_info.clone(), &mut self.write)?;
+        let delta_term_info = self.term_info_encoder.encode(term_info.clone());
+        let (prefix_len, suffix) = self.term_delta_encoder.prefix_suffix();
+        write_term_kv(prefix_len, suffix, &delta_term_info, self.term_info_encoder.has_positions, &mut self.write)?;
+        self.len += 1;
         Ok(())
     }
+}
+
+fn num_bytes_required(mut n: u32) -> u8 {
+    for i in 1u8..5u8 {
+        if n < 256u32 {
+            return i;
+        }
+        else {
+            n /= 256;
+        }
+    }
+    0u8
+}
+
+fn write_term_kv<W: Write>(prefix_len: usize,
+                           suffix: &[u8],
+                           delta_term_info: &DeltaTermInfo,
+                           has_positions: bool,
+                           write: &mut W) -> io::Result<()> {
+    let suffix_len = suffix.len();
+    let mut code = 0u8;
+    let num_bytes_docfreq = num_bytes_required(delta_term_info.doc_freq);
+    let num_bytes_postings_offset = num_bytes_required(delta_term_info.delta_postings_offset);
+    let num_bytes_positions_offset = num_bytes_required(delta_term_info.delta_positions_offset);
+    code |= (num_bytes_docfreq - 1) << 1u8;
+    code |= (num_bytes_postings_offset - 1) << 3u8;
+    code |= (num_bytes_positions_offset - 1) << 5u8;
+    if (prefix_len < 16) && (suffix_len < 16) {
+        code |= 1u8;
+        write.write_all(&[code, (prefix_len as u8) | ((suffix_len as u8) << 4u8)])?;
+    }
+    else {
+        write.write_all(&[code])?;
+        (prefix_len as u32).serialize(write)?;
+        (suffix_len as u32).serialize(write)?;
+    }
+    write.write_all(suffix)?;
+    {
+        let bytes: [u8; 4] = unsafe { transmute(delta_term_info.doc_freq) };
+        write.write_all(&bytes[0..num_bytes_docfreq as usize])?;
+    }
+    {
+        let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_postings_offset) };
+        write.write_all(&bytes[0..num_bytes_postings_offset as usize])?;
+    }
+    if has_positions {
+        let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_positions_offset) };
+        write.write_all(&bytes[0..num_bytes_positions_offset as usize])?;
+        write.write_all(&[delta_term_info.positions_inner_offset])?;
+    }
+    Ok(())
+
 }
 
 impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
@@ -116,7 +173,8 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     /// Finalize writing the builder, and returns the underlying
     /// `Write` object.
     fn finish(mut self) -> io::Result<W> {
-        self.add_index_entry();
+        self.write.write_all(&[0u8; PADDING_SIZE])?;
+        // self.add_index_entry();
         let (mut w, split_len) = self.write.finish()?;
         let fst_write = self.block_index.into_inner().map_err(convert_fst_error)?;
         w.write_all(&fst_write)?;
@@ -224,9 +282,10 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
         let fst_data = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_data)?;
 
+        let len_without_padding = stream_data.len() - PADDING_SIZE;
         Ok(TermDictionaryImpl {
             has_positions: has_positions,
-            stream_data: stream_data,
+            stream_data: stream_data.slice(0, len_without_padding),
             fst_index: fst_index,
         })
     }
@@ -248,5 +307,20 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
     /// within an interval.
     fn range(&'a self) -> Self::StreamBuilder {
         Self::StreamBuilder::new(self, self.has_positions)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::num_bytes_required;
+
+    #[test]
+    fn test_num_bytes_required() {
+        assert_eq!(num_bytes_required(0), 1);
+        assert_eq!(num_bytes_required(1), 1);
+        assert_eq!(num_bytes_required(255), 1);
+        assert_eq!(num_bytes_required(256), 2);
+        assert_eq!(num_bytes_required(u32::max_value()), 4);
     }
 }
