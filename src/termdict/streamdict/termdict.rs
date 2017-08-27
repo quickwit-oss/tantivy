@@ -1,6 +1,7 @@
 #![allow(should_implement_trait)]
 
 use std::io::{self, Write};
+use super::CheckPoint;
 use fst;
 
 use fst::raw::Fst;
@@ -30,9 +31,9 @@ fn has_positions(field_type: &FieldType) -> bool {
             if indexing_options.is_position_enabled() {
                 true
             }
-                else {
-                    false
-                }
+            else {
+                false
+            }
         }
         _ => {
             false
@@ -47,6 +48,7 @@ pub struct TermDictionaryBuilderImpl<W>
     term_delta_encoder: TermDeltaEncoder,
     term_info_encoder: TermInfoDeltaEncoder,
     block_index: fst::MapBuilder<Vec<u8>>,
+    checkpoints: Vec<u8>,
     len: usize,
 }
 
@@ -62,9 +64,20 @@ impl<W> TermDictionaryBuilderImpl<W>
     where W: Write
 {
     fn add_index_entry(&mut self) {
+        let stream_offset = self.write.written_bytes() as u32;
+        let term_info = self.term_info_encoder.term_info();
+        let postings_offset = term_info.postings_offset as u32;
+        let positions_offset = term_info.positions_offset as u32;
+        let checkpoint = CheckPoint {
+            stream_offset: stream_offset,
+            postings_offset: postings_offset,
+            positions_offset: positions_offset,
+        };
         self.block_index
-            .insert(&self.term_delta_encoder.term(), self.write.written_bytes() as u64)
-            .unwrap();
+            .insert(&self.term_delta_encoder.term(), self.checkpoints.len() as u64)
+            .expect("Serializing fst on a Vec<u8> should never fail. Where your terms not in order maybe?");
+        checkpoint.serialize(&mut self.checkpoints)
+            .expect("Serializing checkpoint on a Vec<u8> should never fail.");
     }
 
     /// # Warning
@@ -156,6 +169,7 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
             term_delta_encoder: TermDeltaEncoder::default(),
             term_info_encoder: TermInfoDeltaEncoder::new(has_positions),
             block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
+            checkpoints: vec!(),
             len: 0,
         })
     }
@@ -173,12 +187,16 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     /// Finalize writing the builder, and returns the underlying
     /// `Write` object.
     fn finish(mut self) -> io::Result<W> {
+        self.add_index_entry();
         self.write.write_all(&[0u8; PADDING_SIZE])?;
-        // self.add_index_entry();
-        let (mut w, split_len) = self.write.finish()?;
+        let fst_addr = self.write.written_bytes();
         let fst_write = self.block_index.into_inner().map_err(convert_fst_error)?;
-        w.write_all(&fst_write)?;
-        (split_len as u64).serialize(&mut w)?;
+        self.write.write_all(&fst_write)?;
+        let check_points_addr = self.write.written_bytes();
+        let (mut w, _) = self.write.finish()?;
+        w.write_all(&self.checkpoints)?;
+        (fst_addr as u64).serialize(&mut w)?;
+        (check_points_addr as u64).serialize(&mut w)?;
         w.flush()?;
         Ok(w)
     }
@@ -204,6 +222,7 @@ pub struct TermDictionaryImpl
 {
     stream_data: ReadOnlySource,
     fst_index: fst::Map,
+    checkpoints_data: ReadOnlySource,
     has_positions: bool,
 }
 
@@ -213,7 +232,15 @@ impl TermDictionaryImpl
         self.stream_data.as_slice()
     }
 
-    pub(crate) fn strictly_previous_key(&self, key: &[u8]) -> (Vec<u8>, u64) {
+    pub(crate) fn strictly_previous_key(&self, key: &[u8]) -> (Vec<u8>, CheckPoint) {
+        let (term, checkpoint_offset) = self.strictly_previous_key_checkpoint_offset(key);
+        let mut checkpoint_data = &self.checkpoints_data.as_slice()[checkpoint_offset..];
+        let checkpoint = CheckPoint::deserialize(&mut checkpoint_data)
+            .expect("Checkpoint data is corrupted");
+        (term, checkpoint)
+    }
+
+    fn strictly_previous_key_checkpoint_offset(&self, key: &[u8]) -> (Vec<u8>, usize) {
         let fst_map = &self.fst_index;
         let fst = fst_map.as_fst();
         let mut node = fst.root();
@@ -246,12 +273,12 @@ impl TermDictionaryImpl
                 result.push(last_transition.inp);
                 let fork_node = fst.node(last_transition.addr);
                 fill_last(fst, fork_node, &mut result);
-                let val = fst_map.get(&result).unwrap();
+                let val = fst_map.get(&result).expect("Fst data corrupted") as usize;
                 return (result, val);
             } else if cur_node.is_final() {
                 // the previous key is a prefix
                 let result_buffer = Vec::from(&key[..i]);
-                let val = fst_map.get(&result_buffer).unwrap();
+                let val = fst_map.get(&result_buffer).expect("Fst data corrupted") as usize;
                 return (result_buffer, val);
             }
         }
@@ -273,19 +300,22 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
         source = source.slice_from(1);
 
         let total_len = source.len();
-        let length_offset = total_len - 8;
-        let split_len: usize = {
-            let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
-            u64::deserialize(&mut split_len_buffer)? as usize
-        };
-        let stream_data = source.slice(0, split_len);
-        let fst_data = source.slice(split_len, length_offset);
+        let (body, footer) = source.split(total_len - 16);
+
+        let mut footer_buffer: &[u8] = footer.as_slice();
+        let fst_addr: usize = u64::deserialize(&mut footer_buffer)? as usize;
+        let checkpoints_addr: usize = u64::deserialize(&mut footer_buffer)? as usize;
+
+        let stream_data = body.slice(0, fst_addr - PADDING_SIZE);
+        let fst_data = body.slice(fst_addr, checkpoints_addr);
+        let checkpoints_data = body.slice_from(checkpoints_addr);
+
         let fst_index = open_fst_index(fst_data)?;
 
-        let len_without_padding = stream_data.len() - PADDING_SIZE;
         Ok(TermDictionaryImpl {
             has_positions: has_positions,
-            stream_data: stream_data.slice(0, len_without_padding),
+            stream_data: stream_data,
+            checkpoints_data: checkpoints_data,
             fst_index: fst_index,
         })
     }

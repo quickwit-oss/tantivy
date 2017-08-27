@@ -7,17 +7,19 @@ use postings::TermInfo;
 use common::BinarySerializable;
 use super::delta_encoder::{TermInfoDeltaDecoder, TermDeltaDecoder};
 
+
 fn stream_before<'a>(term_dictionary: &'a TermDictionaryImpl,
                                 target_key: &[u8],
                                 has_positions: bool)
                                    -> TermStreamerImpl<'a>
 {
-    let (prev_key, offset) = term_dictionary.strictly_previous_key(target_key.as_ref());
-    let offset: usize = offset as usize;
+
+    let (prev_key, checkpoint) = term_dictionary.strictly_previous_key(target_key.as_ref());
+    let stream_data: &'a [u8] = &term_dictionary.stream_data()[checkpoint.stream_offset as usize..];
     TermStreamerImpl {
-        cursor: &term_dictionary.stream_data()[offset..],
+        cursor: stream_data,
         term_delta_decoder: TermDeltaDecoder::with_previous_term(prev_key),
-        term_info_decoder: TermInfoDeltaDecoder::new(has_positions), // TODO checkpoint
+        term_info_decoder: TermInfoDeltaDecoder::from_checkpoint(&checkpoint, has_positions),
     }
 }
 
@@ -30,6 +32,7 @@ pub struct TermStreamerBuilderImpl<'a>
     offset_from: usize,
     offset_to: usize,
     current_key: Vec<u8>,
+    term_info: TermInfo,
     has_positions: bool,
 }
 
@@ -42,8 +45,9 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let target_key = bound.as_ref();
         let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
         let smaller_than = |k: &[u8]| k.lt(target_key);
-        let (offset_before, current_key) = get_offset(smaller_than, streamer);
+        let (offset_before, current_key, term_info) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
+        self.term_info = term_info;
         self.offset_from = offset_before - self.origin;
         self
     }
@@ -53,8 +57,9 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let target_key = bound.as_ref();
         let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
         let smaller_than = |k: &[u8]| k.le(target_key);
-        let (offset_before, current_key) = get_offset(smaller_than, streamer);
+        let (offset_before, current_key, term_info) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
+        self.term_info = term_info;
         self.offset_from = offset_before - self.origin;
         self
     }
@@ -64,7 +69,7 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let target_key = bound.as_ref();
         let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
         let smaller_than = |k: &[u8]| k.lt(target_key);
-        let (offset_before, _) = get_offset(smaller_than, streamer);
+        let (offset_before, _, _) = get_offset(smaller_than, streamer);
         self.offset_to = offset_before - self.origin;
         self
     }
@@ -74,7 +79,7 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let target_key = bound.as_ref();
         let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
         let smaller_than = |k: &[u8]| k.le(target_key);
-        let (offset_before, _) = get_offset(smaller_than, streamer);
+        let (offset_before, _, _) = get_offset(smaller_than, streamer);
         self.offset_to = offset_before - self.origin;
         self
     }
@@ -87,7 +92,7 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         TermStreamerImpl {
             cursor: &data[start..stop],
             term_delta_decoder: TermDeltaDecoder::with_previous_term(self.current_key),
-            term_info_decoder: TermInfoDeltaDecoder::new(self.has_positions), // TODO checkpoint
+            term_info_decoder: TermInfoDeltaDecoder::from_term_info(self.term_info, self.has_positions), // TODO checkpoint
         }
     }
 }
@@ -101,21 +106,23 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
 ///     - the term_buffer state to initialize the block)
 fn get_offset<'a, P: Fn(&[u8]) -> bool>(predicate: P,
                                         mut streamer: TermStreamerImpl<'a>)
-                                           -> (usize, Vec<u8>)
+                                           -> (usize, Vec<u8>, TermInfo)
 {
     let mut prev: &[u8] = streamer.cursor;
 
+    let mut term_info = streamer.value().clone();
     let mut prev_data: Vec<u8> = Vec::from(streamer.term_delta_decoder.term());
 
-    while let Some((iter_key, _)) = streamer.next() {
+    while let Some((iter_key, iter_term_info)) = streamer.next() {
         if !predicate(iter_key.as_ref()) {
-            return (prev.as_ptr() as usize, prev_data);
+            return (prev.as_ptr() as usize, prev_data, term_info);
         }
         prev = streamer.cursor;
         prev_data.clear();
         prev_data.extend_from_slice(iter_key.as_ref());
+        term_info = iter_term_info.clone();
     }
-    (prev.as_ptr() as usize, prev_data)
+    (prev.as_ptr() as usize, prev_data, term_info)
 }
 
 impl<'a> TermStreamerBuilderImpl<'a>
@@ -127,6 +134,7 @@ impl<'a> TermStreamerBuilderImpl<'a>
         let origin = data.as_ptr() as usize;
         TermStreamerBuilderImpl {
             term_dictionary: term_dictionary,
+            term_info: TermInfo::default(),
             origin: origin,
             offset_from: 0,
             offset_to: data.len(),

@@ -43,6 +43,12 @@ impl ReadOnlySource {
         }
     }
 
+    pub fn split(self, addr: usize) -> (ReadOnlySource, ReadOnlySource) {
+        let left = self.slice(0, addr);
+        let right = self.slice_from(addr);
+        (left, right)
+    }
+
     /// Creates a ReadOnlySource that is just a
     /// view over a slice of the data.
     ///

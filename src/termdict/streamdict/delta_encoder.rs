@@ -1,4 +1,5 @@
 use postings::TermInfo;
+use super::CheckPoint;
 use std::mem;
 
 /// Returns the len of the longest
@@ -80,6 +81,10 @@ impl TermInfoDeltaEncoder {
         }
     }
 
+    pub fn term_info(&self) -> &TermInfo {
+        &self.term_info
+    }
+
     pub fn encode(&mut self, term_info: TermInfo) -> DeltaTermInfo {
         let mut delta_term_info = DeltaTermInfo {
             doc_freq: term_info.doc_freq,
@@ -102,11 +107,25 @@ pub struct TermInfoDeltaDecoder {
     has_positions: bool,
 }
 
+
 impl TermInfoDeltaDecoder {
-    pub fn new(has_positions: bool) -> TermInfoDeltaDecoder {
+
+    pub fn from_term_info(term_info: TermInfo, has_positions: bool) -> TermInfoDeltaDecoder {
         TermInfoDeltaDecoder {
-            term_info: TermInfo::default(),
+            term_info: term_info,
             has_positions: has_positions,
+        }
+    }
+
+    pub fn from_checkpoint(checkpoint: &CheckPoint, has_positions: bool) -> TermInfoDeltaDecoder {
+        TermInfoDeltaDecoder {
+            term_info: TermInfo {
+                doc_freq: 0u32,
+                postings_offset: checkpoint.postings_offset,
+                positions_offset: checkpoint.positions_offset,
+                positions_inner_offset: 0u8,
+            },
+            has_positions: has_positions
         }
     }
 

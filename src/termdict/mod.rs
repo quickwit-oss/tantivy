@@ -340,7 +340,8 @@ mod tests {
 
     #[test]
     fn test_stream_range() {
-        let ids: Vec<_> = (0u32..50_000u32)
+//        let ids: Vec<_> = (0u32..10_000u32)
+        let ids: Vec<_> = (0u32..10_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
         let field_type = FieldType::Str(TEXT);
