@@ -123,13 +123,31 @@ where
         let addr_in_bits = idx * num_bits;
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
-        debug_assert!(
-            addr + 8 <= data.len(),
-            "The fast field field should have been padded with 7 bytes."
-        );
-        let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
-        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-        (val_shifted & mask)
+        if cfg!(feature = "simdcompression") {
+            // for simdcompression,
+            // the bitpacker is only used for fastfields,
+            // and we expect them to be always padded.
+            debug_assert!(
+                addr + 8 <= data.len(),
+                "The fast field field should have been padded with 7 bytes."
+            );
+            let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
+            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+            (val_shifted & mask)
+        } else {
+            let val_unshifted_unmasked: u64;
+            if addr + 8 <= data.len() {
+                val_unshifted_unmasked = unsafe { *(data[addr..].as_ptr() as *const u64) };
+            } else {
+                let mut buffer = [0u8; 8];
+                for i in addr..data.len() {
+                    buffer[i - addr] += data[i];
+                }
+                val_unshifted_unmasked = unsafe { *(buffer[..].as_ptr() as *const u64) };
+            }
+            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+            (val_shifted & mask)
+        }
     }
 
     pub fn get_range(&self, start: u32, output: &mut [u64]) {
