@@ -44,8 +44,10 @@ mod tests {
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let term_query = TermQuery::new(Term::from_field_text(text_field, "a"),
-                                        SegmentPostingsOption::NoFreq);
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            SegmentPostingsOption::NoFreq,
+        );
         let term_weight = term_query.weight(&searcher).unwrap();
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader).unwrap();

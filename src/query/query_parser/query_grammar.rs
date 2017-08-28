@@ -3,7 +3,8 @@ use combine::char::*;
 use super::user_input_ast::*;
 
 fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
-    where I: Stream<Item = char>
+where
+    I: Stream<Item = char>,
 {
     let term_val = || {
         let word = many1(satisfy(|c: char| c.is_alphanumeric()));
@@ -11,27 +12,29 @@ fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
         phrase.or(word)
     };
 
-    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric())))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
+    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric()))).map(
+        |(s1, s2): (char, String)| format!("{}{}", s1, s2),
+    );
 
-    let field = (letter(), many(satisfy(|c: char| c.is_alphanumeric() || c == '_')))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
+    let field = (
+        letter(),
+        many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
+    ).map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
 
     let term_val_with_field = negative_numbers.or(term_val());
 
     let term_query = (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| {
-                                                                     UserInputLiteral {
-                                                                         field_name:
-                                                                             Some(field_name),
-                                                                         phrase: phrase,
-                                                                     }
-                                                                 });
+        UserInputLiteral {
+            field_name: Some(field_name),
+            phrase: phrase,
+        }
+    });
     let term_default_field = term_val().map(|phrase| {
-                                                UserInputLiteral {
-                                                    field_name: None,
-                                                    phrase: phrase,
-                                                }
-                                            });
+        UserInputLiteral {
+            field_name: None,
+            phrase: phrase,
+        }
+    });
     try(term_query)
         .or(term_default_field)
         .map(UserInputAST::from)
@@ -40,25 +43,29 @@ fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
 
 
 fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
-    where I: Stream<Item = char>
+where
+    I: Stream<Item = char>,
 {
     (char('-'), parser(literal))
         .map(|(_, expr)| UserInputAST::Not(box expr))
-        .or((char('+'), parser(literal)).map(|(_, expr)| UserInputAST::Must(box expr)))
+        .or((char('+'), parser(literal)).map(|(_, expr)| {
+            UserInputAST::Must(box expr)
+        }))
         .or(parser(literal))
         .parse_stream(input)
 }
 
 
 pub fn parse_to_ast<I>(input: I) -> ParseResult<UserInputAST, I>
-    where I: Stream<Item = char>
+where
+    I: Stream<Item = char>,
 {
     sep_by(parser(leaf), spaces())
         .map(|subqueries: Vec<UserInputAST>| if subqueries.len() == 1 {
-                 subqueries.into_iter().next().unwrap()
-             } else {
-                 UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
-             })
+            subqueries.into_iter().next().unwrap()
+        } else {
+            UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
+        })
         .parse_stream(input)
 }
 

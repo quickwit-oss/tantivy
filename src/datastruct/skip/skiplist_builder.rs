@@ -39,11 +39,11 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         doc_id.serialize(&mut self.buffer)?;
         value.serialize(&mut self.buffer)?;
         Ok(if self.remaining == 0 {
-               self.remaining = self.period;
-               Some((doc_id, offset))
-           } else {
-               None
-           })
+            self.remaining = self.period;
+            Some((doc_id, offset))
+        } else {
+            None
+        })
     }
 }
 
@@ -78,8 +78,10 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         loop {
             skip_pointer = match skip_pointer {
                 Some((skip_doc_id, skip_offset)) => {
-                    try!(self.get_skip_layer(layer_id)
-                             .insert(skip_doc_id, &skip_offset))
+                    try!(self.get_skip_layer(layer_id).insert(
+                        skip_doc_id,
+                        &skip_offset,
+                    ))
                 }
                 None => {
                     return Ok(());

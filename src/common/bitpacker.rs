@@ -15,7 +15,7 @@ use std::ops::Deref;
 /// reasons, we want to ensure that a value spawns over at most 8 bytes
 /// of aligns bytes.
 ///
-/// Spawning over 9 bytes is possible for instance, if we do
+/// Spanning over 9 bytes is possible for instance, if we do
 /// bitpacking with an amplitude of 63 bits.
 /// In this case, the second int will start on bit
 /// 63 (which belongs to byte 7) and ends at byte 15;
@@ -88,7 +88,8 @@ impl BitPacker {
 
 
 pub struct BitUnpacker<Data>
-    where Data: Deref<Target = [u8]>
+where
+    Data: Deref<Target = [u8]>,
 {
     num_bits: usize,
     mask: u64,
@@ -96,7 +97,8 @@ pub struct BitUnpacker<Data>
 }
 
 impl<Data> BitUnpacker<Data>
-    where Data: Deref<Target = [u8]>
+where
+    Data: Deref<Target = [u8]>,
 {
     pub fn new(data: Data, num_bits: usize) -> BitUnpacker<Data> {
         let mask: u64 = if num_bits == 64 {
@@ -121,33 +123,13 @@ impl<Data> BitUnpacker<Data>
         let addr_in_bits = idx * num_bits;
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
-        if cfg!(feature = "simdcompression") {
-            // for simdcompression,
-            // the bitpacker is only used for fastfields,
-            // and we expect them to be always padded.
-            debug_assert!(
-                addr + 8 <= data.len(),
-                "The fast field field should have been padded with 7 bytes."
-            );
-            let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
-            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-            (val_shifted & mask)
-        }
-        else {
-            let val_unshifted_unmasked: u64;
-            if addr + 8 <= data.len() {
-                val_unshifted_unmasked = unsafe { *(data[addr..].as_ptr() as *const u64) };
-            }
-            else {
-                let mut buffer = [0u8; 8];
-                for i in addr..data.len() {
-                    buffer[i - addr] += data[i];
-                }
-                val_unshifted_unmasked = unsafe { *(buffer[..].as_ptr() as *const u64) };
-            }
-            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-            (val_shifted & mask)
-        }
+        debug_assert!(
+            addr + 8 <= data.len(),
+            "The fast field field should have been padded with 7 bytes."
+        );
+        let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
+        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+        (val_shifted & mask)
     }
 
     pub fn get_range(&self, start: u32, output: &mut [u64]) {

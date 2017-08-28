@@ -61,10 +61,8 @@ pub trait Query: fmt::Debug {
     /// - iterate throw the matched documents and push them to the collector.
     ///
     fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<TimerTree> {
-
         let mut timer_tree = TimerTree::default();
         let weight = try!(self.weight(searcher));
-
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {

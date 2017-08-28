@@ -6,10 +6,11 @@ use common::TimerTree;
 use query::Query;
 use DocId;
 use DocAddress;
-use schema::Term;
-use termdict::TermMerger;
+use schema::{Term, Field};
+use termdict::{TermMerger, TermDictionary};
+use std::sync::Arc;
 use std::fmt;
-use postings::TermInfo;
+use core::InvertedIndexReader;
 
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -20,7 +21,6 @@ use postings::TermInfo;
 pub struct Searcher {
     segment_readers: Vec<SegmentReader>,
 }
-
 
 impl Searcher {
     /// Fetches a document from tantivy's store given a `DocAddress`.
@@ -46,7 +46,9 @@ impl Searcher {
     pub fn doc_freq(&self, term: &Term) -> u32 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.doc_freq(term))
+            .map(|segment_reader| {
+                segment_reader.inverted_index(term.field()).doc_freq(term)
+            })
             .fold(0u32, |acc, val| acc + val)
     }
 
@@ -65,19 +67,40 @@ impl Searcher {
         query.search(self, collector)
     }
 
-    /// Returns a Stream over all of the sorted unique terms of
-    /// the searcher.
-    ///
-    /// This includes all of the fields from all of the segment_readers.
-    /// See [`TermIterator`](struct.TermIterator.html).
-    ///
-    /// # Warning
-    /// This API is very likely to change in the future.
-    pub fn terms(&self) -> TermMerger<TermInfo> {
-        TermMerger::from(self.segment_readers())
+    /// Return the field searcher associated to a `Field`.
+    pub fn field(&self, field: Field) -> FieldSearcher {
+        let inv_index_readers = self.segment_readers
+            .iter()
+            .map(|segment_reader| segment_reader.inverted_index(field))
+            .collect::<Vec<_>>();
+        FieldSearcher::new(inv_index_readers)
     }
 }
 
+
+
+
+pub struct FieldSearcher {
+    inv_index_readers: Vec<Arc<InvertedIndexReader>>,
+}
+
+
+impl FieldSearcher {
+    fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
+        FieldSearcher { inv_index_readers: inv_index_readers }
+    }
+
+
+    /// Returns a Stream over all of the sorted unique terms of
+    /// for the given field.
+    pub fn terms(&self) -> TermMerger {
+        let term_streamers: Vec<_> = self.inv_index_readers
+            .iter()
+            .map(|inverted_index| inverted_index.terms().stream())
+            .collect();
+        TermMerger::new(term_streamers)
+    }
+}
 
 impl From<Vec<SegmentReader>> for Searcher {
     fn from(segment_readers: Vec<SegmentReader>) -> Searcher {

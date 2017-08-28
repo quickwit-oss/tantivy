@@ -56,8 +56,10 @@ mod tests {
     #[test]
     fn test_doc_to_opstamp_mapping_none() {
         let doc_to_opstamp_mapping = DocToOpstampMapping::None;
-        assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(1),
-                   u32::max_value());
+        assert_eq!(
+            doc_to_opstamp_mapping.compute_doc_limit(1),
+            u32::max_value()
+        );
     }
 
     #[test]

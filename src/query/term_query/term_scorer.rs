@@ -7,7 +7,8 @@ use postings::Postings;
 use fastfield::FastFieldReader;
 
 pub struct TermScorer<TPostings>
-    where TPostings: Postings
+where
+    TPostings: Postings,
 {
     pub idf: Score,
     pub fieldnorm_reader_opt: Option<U64FastFieldReader>,
@@ -15,7 +16,8 @@ pub struct TermScorer<TPostings>
 }
 
 impl<TPostings> TermScorer<TPostings>
-    where TPostings: Postings
+where
+    TPostings: Postings,
 {
     pub fn postings(&self) -> &TPostings {
         &self.postings
@@ -23,7 +25,8 @@ impl<TPostings> TermScorer<TPostings>
 }
 
 impl<TPostings> DocSet for TermScorer<TPostings>
-    where TPostings: Postings
+where
+    TPostings: Postings,
 {
     fn advance(&mut self) -> bool {
         self.postings.advance()
@@ -40,7 +43,8 @@ impl<TPostings> DocSet for TermScorer<TPostings>
 }
 
 impl<TPostings> Scorer for TermScorer<TPostings>
-    where TPostings: Postings
+where
+    TPostings: Postings,
 {
     fn score(&self) -> Score {
         let doc = self.postings.doc();

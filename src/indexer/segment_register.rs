@@ -24,7 +24,12 @@ impl Debug for SegmentRegister {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         try!(write!(f, "SegmentRegister("));
         for (k, v) in &self.segment_states {
-            try!(write!(f, "{}:{}, ", k.short_uuid_string(), v.state().letter_code()));
+            try!(write!(
+                f,
+                "{}:{}, ",
+                k.short_uuid_string(),
+                v.state().letter_code()
+            ));
         }
         try!(write!(f, ")"));
         Ok(())
@@ -74,9 +79,9 @@ impl SegmentRegister {
     }
 
     pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
-        segment_ids
-            .iter()
-            .all(|segment_id| self.segment_states.contains_key(segment_id))
+        segment_ids.iter().all(|segment_id| {
+            self.segment_states.contains_key(segment_id)
+        })
     }
 
     pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
@@ -91,14 +96,18 @@ impl SegmentRegister {
     pub fn cancel_merge(&mut self, segment_id: &SegmentId) {
         self.segment_states
             .get_mut(segment_id)
-            .expect("Received a merge notification for a segment that is not registered")
+            .expect(
+                "Received a merge notification for a segment that is not registered",
+            )
             .cancel_merge();
     }
 
     pub fn start_merge(&mut self, segment_id: &SegmentId) {
         self.segment_states
             .get_mut(segment_id)
-            .expect("Received a merge notification for a segment that is not registered")
+            .expect(
+                "Received a merge notification for a segment that is not registered",
+            )
             .start_merge();
     }
 
@@ -144,34 +153,42 @@ mod tests {
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
-        assert_eq!(segment_register
-                       .segment_entry(&segment_id_a)
-                       .unwrap()
-                       .state(),
-                   SegmentState::Ready);
+        assert_eq!(
+            segment_register
+                .segment_entry(&segment_id_a)
+                .unwrap()
+                .state(),
+            SegmentState::Ready
+        );
         assert_eq!(segment_ids(&segment_register), vec![segment_id_a]);
         {
             let segment_meta = SegmentMeta::new(segment_id_b);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
-        assert_eq!(segment_register
-                       .segment_entry(&segment_id_b)
-                       .unwrap()
-                       .state(),
-                   SegmentState::Ready);
+        assert_eq!(
+            segment_register
+                .segment_entry(&segment_id_b)
+                .unwrap()
+                .state(),
+            SegmentState::Ready
+        );
         segment_register.start_merge(&segment_id_a);
         segment_register.start_merge(&segment_id_b);
-        assert_eq!(segment_register
-                       .segment_entry(&segment_id_a)
-                       .unwrap()
-                       .state(),
-                   SegmentState::InMerge);
-        assert_eq!(segment_register
-                       .segment_entry(&segment_id_b)
-                       .unwrap()
-                       .state(),
-                   SegmentState::InMerge);
+        assert_eq!(
+            segment_register
+                .segment_entry(&segment_id_a)
+                .unwrap()
+                .state(),
+            SegmentState::InMerge
+        );
+        assert_eq!(
+            segment_register
+                .segment_entry(&segment_id_b)
+                .unwrap()
+                .state(),
+            SegmentState::InMerge
+        );
         segment_register.remove_segment(&segment_id_a);
         segment_register.remove_segment(&segment_id_b);
         {

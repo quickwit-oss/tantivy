@@ -23,10 +23,11 @@ impl<'a> MultiCollector<'a> {
 
 
 impl<'a> Collector for MultiCollector<'a> {
-    fn set_segment(&mut self,
-                   segment_local_id: SegmentLocalId,
-                   segment: &SegmentReader)
-                   -> Result<()> {
+    fn set_segment(
+        &mut self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> Result<()> {
         for collector in &mut self.collectors {
             try!(collector.set_segment(segment_local_id, segment));
         }
@@ -53,8 +54,8 @@ mod tests {
         let mut top_collector = TopCollector::with_limit(2);
         let mut count_collector = CountCollector::default();
         {
-            let mut collectors = MultiCollector::from(vec![&mut top_collector,
-                                                           &mut count_collector]);
+            let mut collectors =
+                MultiCollector::from(vec![&mut top_collector, &mut count_collector]);
             collectors.collect(1, 0.2);
             collectors.collect(2, 0.1);
             collectors.collect(3, 0.5);

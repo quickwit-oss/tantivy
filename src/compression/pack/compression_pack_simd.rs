@@ -1,6 +1,6 @@
-use super::super::NUM_DOCS_PER_BLOCK;
+use super::super::COMPRESSION_BLOCK_SIZE;
 
-const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
 mod simdcomp {
     use libc::size_t;
@@ -8,10 +8,11 @@ mod simdcomp {
     extern "C" {
         pub fn compress_sorted(data: *const u32, output: *mut u8, offset: u32) -> size_t;
 
-        pub fn uncompress_sorted(compressed_data: *const u8,
-                                 output: *mut u32,
-                                 offset: u32)
-                                 -> size_t;
+        pub fn uncompress_sorted(
+            compressed_data: *const u8,
+            output: *mut u32,
+            offset: u32,
+        ) -> size_t;
 
         pub fn compress_unsorted(data: *const u32, output: *mut u8) -> size_t;
 
@@ -78,19 +79,16 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_sorted<'a>(&mut self,
-                                       compressed_data: &'a [u8],
-                                       offset: u32)
-                                       -> &'a [u8] {
+    pub fn uncompress_block_sorted(&mut self, compressed_data: &[u8], offset: u32) -> usize {
         let consumed_size = uncompress_sorted(compressed_data, &mut self.output, offset);
-        self.output_len = NUM_DOCS_PER_BLOCK;
-        &compressed_data[consumed_size..]
+        self.output_len = COMPRESSION_BLOCK_SIZE;
+        consumed_size
     }
 
-    pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> &'a [u8] {
+    pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
         let consumed_size = uncompress_unsorted(compressed_data, &mut self.output);
-        self.output_len = NUM_DOCS_PER_BLOCK;
-        &compressed_data[consumed_size..]
+        self.output_len = COMPRESSION_BLOCK_SIZE;
+        consumed_size
     }
 
     #[inline]
@@ -117,4 +115,5 @@ mod tests {
         let compressed = encoder.compress_block_sorted(&data, 0u32);
         assert_eq!(compressed.len(), 17);
     }
+
 }

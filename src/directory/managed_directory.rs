@@ -45,10 +45,9 @@ pub struct FileProtection {
 }
 
 fn unprotect_file_from_delete(directory: &ManagedDirectory, path: &Path) {
-    let mut meta_informations_wlock = directory
-        .meta_informations
-        .write()
-        .expect("Managed file lock poisoned");
+    let mut meta_informations_wlock = directory.meta_informations.write().expect(
+        "Managed file lock poisoned",
+    );
     if let Some(counter_ref_mut) = meta_informations_wlock.protected_files.get_mut(path) {
         (*counter_ref_mut) -= 1;
     }
@@ -68,9 +67,10 @@ impl Drop for FileProtection {
 
 /// Saves the file containing the list of existing files
 /// that were created by tantivy.
-fn save_managed_paths(directory: &mut Directory,
-                      wlock: &RwLockWriteGuard<MetaInformation>)
-                      -> io::Result<()> {
+fn save_managed_paths(
+    directory: &mut Directory,
+    wlock: &RwLockWriteGuard<MetaInformation>,
+) -> io::Result<()> {
     let mut w = serde_json::to_vec(&wlock.managed_paths)?;
     write!(&mut w, "\n")?;
     directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
@@ -84,22 +84,22 @@ impl ManagedDirectory {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
                 let managed_files: HashSet<PathBuf> =
-                    serde_json::from_str(&managed_files_json)
-                        .chain_err(|| ErrorKind::CorruptedFile(MANAGED_FILEPATH.clone()))?;
+                    serde_json::from_str(&managed_files_json).chain_err(|| {
+                        ErrorKind::CorruptedFile(MANAGED_FILEPATH.clone())
+                    })?;
                 Ok(ManagedDirectory {
-                       directory: box directory,
-                       meta_informations: Arc::new(RwLock::new(MetaInformation {
-                                                                   managed_paths: managed_files,
-                                                                   protected_files:
-                                                                       HashMap::default(),
-                                                               })),
-                   })
+                    directory: box directory,
+                    meta_informations: Arc::new(RwLock::new(MetaInformation {
+                        managed_paths: managed_files,
+                        protected_files: HashMap::default(),
+                    })),
+                })
             }
             Err(OpenReadError::FileDoesNotExist(_)) => {
                 Ok(ManagedDirectory {
-                       directory: box directory,
-                       meta_informations: Arc::default(),
-                   })
+                    directory: box directory,
+                    meta_informations: Arc::default(),
+                })
             }
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
         }
@@ -116,15 +116,14 @@ impl ManagedDirectory {
     /// If a file cannot be deleted (for permission reasons for instance)
     /// an error is simply logged, and the file remains in the list of managed
     /// files.
-    pub fn garbage_collect<L: FnOnce()-> HashSet<PathBuf> >(&mut self, get_living_files: L) {
+    pub fn garbage_collect<L: FnOnce() -> HashSet<PathBuf>>(&mut self, get_living_files: L) {
         info!("Garbage collect");
         let mut files_to_delete = vec![];
         {
             // releasing the lock as .delete() will use it too.
-            let meta_informations_rlock =
-                self.meta_informations
-                    .read()
-                    .expect("Managed directory rlock poisoned in garbage collect.");
+            let meta_informations_rlock = self.meta_informations.read().expect(
+                "Managed directory rlock poisoned in garbage collect.",
+            );
 
             // It is crucial to get the living files after acquiring the
             // read lock of meta informations. That way, we
@@ -177,9 +176,9 @@ impl ManagedDirectory {
         if !deleted_files.is_empty() {
             // update the list of managed files by removing
             // the file that were removed.
-            let mut meta_informations_wlock = self.meta_informations
-                .write()
-                .expect("Managed directory wlock poisoned (2).");
+            let mut meta_informations_wlock = self.meta_informations.write().expect(
+                "Managed directory wlock poisoned (2).",
+            );
             {
                 let managed_paths_write = &mut meta_informations_wlock.managed_paths;
                 for delete_file in &deleted_files {
@@ -202,13 +201,13 @@ impl ManagedDirectory {
     pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
         let pathbuf = path.to_owned();
         {
-            let mut meta_informations_wlock = self.meta_informations
-                .write()
-                .expect("Managed file lock poisoned on protect");
+            let mut meta_informations_wlock = self.meta_informations.write().expect(
+                "Managed file lock poisoned on protect",
+            );
             *meta_informations_wlock
-                 .protected_files
-                 .entry(pathbuf.clone())
-                 .or_insert(0) += 1;
+                .protected_files
+                .entry(pathbuf.clone())
+                .or_insert(0) += 1;
         }
         FileProtection {
             directory: self.clone(),
@@ -224,9 +223,9 @@ impl ManagedDirectory {
     /// will not lead to garbage files that will
     /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
-        let mut meta_wlock = self.meta_informations
-            .write()
-            .expect("Managed file lock poisoned");
+        let mut meta_wlock = self.meta_informations.write().expect(
+            "Managed file lock poisoned",
+        );
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
         if has_changed {
             save_managed_paths(self.directory.as_mut(), &meta_wlock)?;
@@ -241,8 +240,9 @@ impl Directory for ManagedDirectory {
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
-        self.register_file_as_managed(path)
-            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        self.register_file_as_managed(path).map_err(|e| {
+            IOError::with_path(path.to_owned(), e)
+        })?;
         self.directory.open_write(path)
     }
 
@@ -257,9 +257,9 @@ impl Directory for ManagedDirectory {
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         {
-            let metas_rlock = self.meta_informations
-                .read()
-                .expect("poisoned lock in managed directory meta");
+            let metas_rlock = self.meta_informations.read().expect(
+                "poisoned lock in managed directory meta",
+            );
             if let Some(counter) = metas_rlock.protected_files.get(path) {
                 if *counter > 0 {
                     return Err(DeleteError::FileProtected(path.to_owned()));
@@ -327,7 +327,7 @@ mod tests {
             {
                 let living_files: HashSet<PathBuf> =
                     [TEST_PATH1.to_owned()].into_iter().cloned().collect();
-                managed_directory.garbage_collect(|| { living_files });
+                managed_directory.garbage_collect(|| living_files);
             }
             {
                 assert!(managed_directory.exists(*TEST_PATH1));
@@ -343,7 +343,7 @@ mod tests {
             }
             {
                 let living_files: HashSet<PathBuf> = HashSet::new();
-                managed_directory.garbage_collect(|| { living_files });
+                managed_directory.garbage_collect(|| living_files);
             }
             {
                 assert!(!managed_directory.exists(*TEST_PATH1));
@@ -366,7 +366,7 @@ mod tests {
         assert!(managed_directory.exists(*TEST_PATH1));
 
         let _mmap_read = managed_directory.open_read(*TEST_PATH1).unwrap();
-        managed_directory.garbage_collect(|| { living_files.clone() });
+        managed_directory.garbage_collect(|| living_files.clone());
         if cfg!(target_os = "windows") {
             // On Windows, gc should try and fail the file as it is mmapped.
             assert!(managed_directory.exists(*TEST_PATH1));
@@ -374,7 +374,7 @@ mod tests {
             drop(_mmap_read);
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
-            managed_directory.garbage_collect(|| { living_files });
+            managed_directory.garbage_collect(|| living_files);
             assert!(!managed_directory.exists(*TEST_PATH1));
         } else {
             assert!(!managed_directory.exists(*TEST_PATH1));
@@ -398,11 +398,11 @@ mod tests {
 
         {
             let _file_protection = managed_directory.protect_file_from_delete(*TEST_PATH1);
-            managed_directory.garbage_collect(|| { living_files.clone() });
+            managed_directory.garbage_collect(|| living_files.clone());
             assert!(managed_directory.exists(*TEST_PATH1));
         }
 
-        managed_directory.garbage_collect(|| { living_files.clone() });
+        managed_directory.garbage_collect(|| living_files.clone());
         assert!(!managed_directory.exists(*TEST_PATH1));
 
 

@@ -45,11 +45,11 @@ mod tests {
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-                   let mut count_collector = CountCollector::default();
-                   for doc in 0..1_000_000 {
-                       count_collector.collect(doc, 1f32);
-                   }
-                   count_collector.count()
-               });
+            let mut count_collector = CountCollector::default();
+            for doc in 0..1_000_000 {
+                count_collector.collect(doc, 1f32);
+            }
+            count_collector.count()
+        });
     }
 }

@@ -44,10 +44,11 @@ pub struct SegmentEntry {
 
 impl SegmentEntry {
     /// Create a new `SegmentEntry`
-    pub fn new(segment_meta: SegmentMeta,
-               delete_cursor: DeleteCursor,
-               delete_bitset: Option<BitSet>)
-               -> SegmentEntry {
+    pub fn new(
+        segment_meta: SegmentMeta,
+        delete_cursor: DeleteCursor,
+        delete_bitset: Option<BitSet>,
+    ) -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             state: SegmentState::Ready,

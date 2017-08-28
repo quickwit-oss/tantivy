@@ -2,7 +2,7 @@ use std::ops::BitOr;
 
 
 /// Define how a text field should be handled by tantivy.
-#[derive(Clone,Debug,PartialEq,Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextOptions {
     indexing: TextIndexingOptions,
     stored: bool,
@@ -45,10 +45,10 @@ impl Default for TextOptions {
 
 
 /// Describe how a field should be indexed
-#[derive(Clone,Copy,Debug,PartialEq,PartialOrd,Eq,Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Hash, Serialize, Deserialize)]
 pub enum TextIndexingOptions {
     /// Unindexed fields will not generate any postings. They will not be searchable either.
-    #[serde(rename="unindexed")]
+    #[serde(rename = "unindexed")]
     Unindexed,
     /// Untokenized means that the field text will not be split into tokens before being indexed.
     /// A field with the value "Hello world", will have the document suscribe to one single
@@ -56,23 +56,23 @@ pub enum TextIndexingOptions {
     ///
     /// It will **not** be searchable if the user enter "hello" for instance.
     /// This can be useful for tags, or ids for instance.
-    #[serde(rename="untokenized")]
+    #[serde(rename = "untokenized")]
     Untokenized,
     /// TokenizedNoFreq will tokenize the field value, and append the document doc id
     /// to the posting lists associated to all of the tokens.
     /// The frequence of appearance of the term in the document however will be lost.
     /// The term frequency used in the TfIdf formula will always be 1.
-    #[serde(rename="tokenize")]
+    #[serde(rename = "tokenize")]
     TokenizedNoFreq,
     /// TokenizedWithFreq will tokenize the field value, and encode
     /// both the docid and the term frequency in the posting lists associated to all
-    #[serde(rename="freq")]
+    #[serde(rename = "freq")]
     TokenizedWithFreq,
     /// Like TokenizedWithFreq, but also encodes the positions of the
     /// terms in a separate file. This option is required for phrase queries.
     /// Don't use this if you are certain you won't need it, the term positions file
     /// can be very big.
-    #[serde(rename="position")]
+    #[serde(rename = "position")]
     TokenizedWithFreqAndPosition,
 }
 

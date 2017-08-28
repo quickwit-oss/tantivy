@@ -55,11 +55,11 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             .map(|posting| posting.doc())
             .enumerate()
             .map(|(ord, doc)| {
-                     HeapItem {
-                         doc: doc,
-                         ord: ord as u32,
-                     }
-                 })
+                HeapItem {
+                    doc: doc,
+                    ord: ord as u32,
+                }
+            })
             .collect();
         BooleanScorer {
             scorers: non_empty_scorers,

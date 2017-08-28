@@ -16,6 +16,26 @@ pub enum SegmentPostingsOption {
     FreqAndPositions,
 }
 
+impl SegmentPostingsOption {
+    /// Returns true iff this option includes encoding
+    /// term frequencies.
+    pub fn has_freq(&self) -> bool {
+        match *self {
+            SegmentPostingsOption::NoFreq => false,
+            _ => true,
+        }
+    }
+
+    /// Returns true iff this option include encoding
+    ///  term positions.
+    pub fn has_positions(&self) -> bool {
+        match *self {
+            SegmentPostingsOption::FreqAndPositions => true,
+            _ => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
