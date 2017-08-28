@@ -10,13 +10,12 @@ use common::BinarySerializable;
 
 
 /// A `CompositeWrite` is used to write a `CompositeFile`.
-pub struct CompositeWrite<W=WritePtr> {
+pub struct CompositeWrite<W = WritePtr> {
     write: CountingWriter<W>,
     offsets: HashMap<Field, usize>,
 }
 
 impl<W: Write> CompositeWrite<W> {
-
     /// Crate a new API writer that writes a composite file
     /// in a given write.
     pub fn wrap(w: W) -> CompositeWrite<W> {
@@ -43,7 +42,8 @@ impl<W: Write> CompositeWrite<W> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
 
-        let mut offset_fields: Vec<_> = self.offsets.iter()
+        let mut offset_fields: Vec<_> = self.offsets
+            .iter()
             .map(|(field, offset)| (offset, field))
             .collect();
 
@@ -51,7 +51,9 @@ impl<W: Write> CompositeWrite<W> {
 
         let mut prev_offset = 0;
         for (offset, field) in offset_fields {
-            VInt( (offset -  prev_offset) as u64).serialize(&mut self.write)?;
+            VInt((offset - prev_offset) as u64).serialize(
+                &mut self.write,
+            )?;
             field.serialize(&mut self.write)?;
             prev_offset = *offset;
         }
@@ -77,7 +79,6 @@ pub struct CompositeFile {
 }
 
 impl CompositeFile {
-
     /// Opens a composite file stored in a given
     /// `ReadOnlySource`.
     pub fn open(data: ReadOnlySource) -> io::Result<CompositeFile> {
@@ -90,8 +91,8 @@ impl CompositeFile {
         let mut footer_buffer = footer_data.as_slice();
         let num_fields = VInt::deserialize(&mut footer_buffer)?.0 as usize;
 
-        let mut fields = vec!();
-        let mut offsets = vec!();
+        let mut fields = vec![];
+        let mut offsets = vec![];
 
         let mut field_index = HashMap::new();
 
@@ -106,7 +107,7 @@ impl CompositeFile {
         for i in 0..num_fields {
             let field = fields[i];
             let start_offset = offsets[i];
-            let end_offset = offsets[i+1];
+            let end_offset = offsets[i + 1];
             field_index.insert(field, (start_offset, end_offset));
         }
 
@@ -128,11 +129,9 @@ impl CompositeFile {
     /// Returns the `ReadOnlySource` associated
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
-        self.offsets_index
-            .get(&field)
-            .map(|&(from, to)| {
-                self.data.slice(from, to)
-            })
+        self.offsets_index.get(&field).map(|&(from, to)| {
+            self.data.slice(from, to)
+        })
     }
 }
 

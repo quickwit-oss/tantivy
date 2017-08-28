@@ -32,31 +32,36 @@ pub struct SegmentManager {
 impl Debug for SegmentManager {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         let lock = self.read();
-        write!(f,
-               "{{ uncommitted: {:?}, committed: {:?} }}",
-               lock.uncommitted,
-               lock.committed)
+        write!(
+            f,
+            "{{ uncommitted: {:?}, committed: {:?} }}",
+            lock.uncommitted,
+            lock.committed
+        )
     }
 }
 
-pub fn get_mergeable_segments(segment_manager: &SegmentManager)
-                              -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+pub fn get_mergeable_segments(
+    segment_manager: &SegmentManager,
+) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
-    (registers_lock.committed.get_mergeable_segments(),
-     registers_lock.uncommitted.get_mergeable_segments())
+    (
+        registers_lock.committed.get_mergeable_segments(),
+        registers_lock.uncommitted.get_mergeable_segments(),
+    )
 }
 
 impl SegmentManager {
-    pub fn from_segments(segment_metas: Vec<SegmentMeta>,
-                         delete_cursor: DeleteCursor)
-                         -> SegmentManager {
+    pub fn from_segments(
+        segment_metas: Vec<SegmentMeta>,
+        delete_cursor: DeleteCursor,
+    ) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {
-                                       uncommitted: SegmentRegister::default(),
-                                       committed: SegmentRegister::new(segment_metas,
-                                                                       delete_cursor),
-                                       writing: HashSet::new(),
-                                   }),
+                uncommitted: SegmentRegister::default(),
+                committed: SegmentRegister::new(segment_metas, delete_cursor),
+                writing: HashSet::new(),
+            }),
         }
     }
 
@@ -94,25 +99,24 @@ impl SegmentManager {
 
     pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
         let registers = self.read();
-        registers
-            .committed
-            .segment_entry(segment_id)
-            .or_else(|| registers.uncommitted.segment_entry(segment_id))
+        registers.committed.segment_entry(segment_id).or_else(|| {
+            registers.uncommitted.segment_entry(segment_id)
+        })
     }
 
     // Lock poisoning should never happen :
     // The lock is acquired and released within this class,
     // and the operations cannot panic.
     fn read(&self) -> RwLockReadGuard<SegmentRegisters> {
-        self.registers
-            .read()
-            .expect("Failed to acquire read lock on SegmentManager.")
+        self.registers.read().expect(
+            "Failed to acquire read lock on SegmentManager.",
+        )
     }
 
     fn write(&self) -> RwLockWriteGuard<SegmentRegisters> {
-        self.registers
-            .write()
-            .expect("Failed to acquire write lock on SegmentManager.")
+        self.registers.write().expect(
+            "Failed to acquire write lock on SegmentManager.",
+        )
     }
 
     pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
@@ -140,9 +144,11 @@ impl SegmentManager {
     }
 
 
-    pub fn cancel_merge(&self,
-                        before_merge_segment_ids: &[SegmentId],
-                        after_merge_segment_id: SegmentId) {
+    pub fn cancel_merge(
+        &self,
+        before_merge_segment_ids: &[SegmentId],
+        after_merge_segment_id: SegmentId,
+    ) {
 
         let mut registers_lock = self.write();
 
@@ -150,13 +156,15 @@ impl SegmentManager {
         {
             let target_segment_register: &mut SegmentRegister;
             target_segment_register = {
-                if registers_lock
-                       .uncommitted
-                       .contains_all(before_merge_segment_ids) {
+                if registers_lock.uncommitted.contains_all(
+                    before_merge_segment_ids,
+                )
+                {
                     &mut registers_lock.uncommitted
-                } else if registers_lock
-                              .committed
-                              .contains_all(before_merge_segment_ids) {
+                } else if registers_lock.committed.contains_all(
+                    before_merge_segment_ids,
+                )
+                {
                     &mut registers_lock.committed
                 } else {
                     warn!("couldn't find segment in SegmentManager");
@@ -185,23 +193,26 @@ impl SegmentManager {
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
 
-    pub fn end_merge(&self,
-                     before_merge_segment_ids: &[SegmentId],
-                     after_merge_segment_entry: SegmentEntry) {
+    pub fn end_merge(
+        &self,
+        before_merge_segment_ids: &[SegmentId],
+        after_merge_segment_entry: SegmentEntry,
+    ) {
 
         let mut registers_lock = self.write();
-        registers_lock
-            .writing
-            .remove(&after_merge_segment_entry.segment_id());
+        registers_lock.writing.remove(&after_merge_segment_entry
+            .segment_id());
 
         let target_register: &mut SegmentRegister = {
-            if registers_lock
-                   .uncommitted
-                   .contains_all(before_merge_segment_ids) {
+            if registers_lock.uncommitted.contains_all(
+                before_merge_segment_ids,
+            )
+            {
                 &mut registers_lock.uncommitted
-            } else if registers_lock
-                          .committed
-                          .contains_all(before_merge_segment_ids) {
+            } else if registers_lock.committed.contains_all(
+                before_merge_segment_ids,
+            )
+            {
                 &mut registers_lock.committed
             } else {
                 warn!("couldn't find segment in SegmentManager");

@@ -114,7 +114,7 @@ impl From<Vec<u8>> for ReadOnlySource {
 /// Acts as a owning cursor over the data backed up by a ReadOnlySource
 pub(crate) struct SourceRead {
     _data_owner: ReadOnlySource,
-    cursor: &'static [u8]
+    cursor: &'static [u8],
 }
 
 impl SourceRead {
@@ -131,7 +131,6 @@ impl AsRef<[u8]> for SourceRead {
 }
 
 impl From<ReadOnlySource> for SourceRead {
-
     // Creates a new `SourceRead` from a given `ReadOnlySource`
     fn from(source: ReadOnlySource) -> SourceRead {
         let len = source.len();

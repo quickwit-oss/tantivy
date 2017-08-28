@@ -100,8 +100,7 @@ mod tests {
         {
             let composite_file = CompositeFile::open(source).unwrap();
             let field_source = composite_file.open_read(*FIELD).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(field_source);
+            let fast_field_reader: U64FastFieldReader = U64FastFieldReader::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
@@ -190,9 +189,11 @@ mod tests {
             // forcing the amplitude to be high
             add_single_field_doc(&mut fast_field_writers, *FIELD, 0u64);
             for i in 0u64..10_000u64 {
-                add_single_field_doc(&mut fast_field_writers,
-                                     *FIELD,
-                                     5_000_000_000_000_000_000u64 + i);
+                add_single_field_doc(
+                    &mut fast_field_writers,
+                    *FIELD,
+                    5_000_000_000_000_000_000u64 + i,
+                );
             }
             fast_field_writers.serialize(&mut serializer).unwrap();
             serializer.close().unwrap();
@@ -208,8 +209,10 @@ mod tests {
 
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
-                assert_eq!(fast_field_reader.get(doc),
-                           5_000_000_000_000_000_000u64 + doc as u64 - 1u64);
+                assert_eq!(
+                    fast_field_reader.get(doc),
+                    5_000_000_000_000_000_000u64 + doc as u64 - 1u64
+                );
             }
         }
     }
@@ -339,13 +342,13 @@ mod tests {
     fn bench_intfastfield_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
         b.iter(|| {
-                   let n = test::black_box(1000u32);
-                   let mut a = 0u64;
-                   for _ in 0u32..n {
-                       a = permutation[a as usize];
-                   }
-                   a
-               });
+            let n = test::black_box(1000u32);
+            let mut a = 0u64;
+            for _ in 0u32..n {
+                a = permutation[a as usize];
+            }
+            a
+        });
     }
 
     #[bench]
@@ -403,13 +406,13 @@ mod tests {
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
 
             b.iter(|| {
-                       let n = test::black_box(1000u32);
-                       let mut a = 0u32;
-                       for _ in 0u32..n {
-                           a = fast_field_reader.get(a) as u32;
-                       }
-                       a
-                   });
+                let n = test::black_box(1000u32);
+                let mut a = 0u32;
+                for _ in 0u32..n {
+                    a = fast_field_reader.get(a) as u32;
+                }
+                a
+            });
         }
     }
 }

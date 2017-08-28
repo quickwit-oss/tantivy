@@ -66,7 +66,10 @@ pub trait Query: fmt::Debug {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
                     let _ = segment_search_timer.open("set_segment");
-                    try!(collector.set_segment(segment_ord as SegmentLocalId, segment_reader));
+                    try!(collector.set_segment(
+                        segment_ord as SegmentLocalId,
+                        segment_reader,
+                    ));
                 }
                 let mut scorer = try!(weight.scorer(segment_reader));
                 {

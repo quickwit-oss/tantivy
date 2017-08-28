@@ -5,17 +5,13 @@ use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
-pub struct TermStreamerBuilderImpl<'a>
-{
+pub struct TermStreamerBuilderImpl<'a> {
     fst_map: &'a TermDictionaryImpl,
     stream_builder: StreamBuilder<'a>,
 }
 
-impl<'a> TermStreamerBuilderImpl<'a>
-{
-    pub(crate) fn new(fst_map: &'a TermDictionaryImpl,
-                      stream_builder: StreamBuilder<'a>)
-                      -> Self {
+impl<'a> TermStreamerBuilderImpl<'a> {
+    pub(crate) fn new(fst_map: &'a TermDictionaryImpl, stream_builder: StreamBuilder<'a>) -> Self {
         TermStreamerBuilderImpl {
             fst_map: fst_map,
             stream_builder: stream_builder,
@@ -23,8 +19,7 @@ impl<'a> TermStreamerBuilderImpl<'a>
     }
 }
 
-impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
-{
+impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a> {
     type Streamer = TermStreamerImpl<'a>;
 
     fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
@@ -60,8 +55,7 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
 
 
 /// See [`TermStreamer`](./trait.TermStreamer.html)
-pub struct TermStreamerImpl<'a>
-{
+pub struct TermStreamerImpl<'a> {
     fst_map: &'a TermDictionaryImpl,
     stream: Stream<'a>,
     offset: u64,
@@ -69,17 +63,15 @@ pub struct TermStreamerImpl<'a>
     current_value: TermInfo,
 }
 
-impl<'a> TermStreamer for TermStreamerImpl<'a>
-{
+impl<'a> TermStreamer for TermStreamerImpl<'a> {
     fn advance(&mut self) -> bool {
         if let Some((term, offset)) = self.stream.next() {
             self.current_key.clear();
             self.current_key.extend_from_slice(term);
             self.offset = offset;
-            self.current_value =
-                self.fst_map
-                    .read_value(self.offset)
-                    .expect("Fst data is corrupted. Failed to deserialize a value.");
+            self.current_value = self.fst_map.read_value(self.offset).expect(
+                "Fst data is corrupted. Failed to deserialize a value.",
+            );
             true
         } else {
             false

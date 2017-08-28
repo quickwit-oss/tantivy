@@ -16,7 +16,6 @@ pub struct CompressedIntStream {
 }
 
 impl CompressedIntStream {
-
     /// Opens a compressed int stream.
     pub(crate) fn wrap(source: ReadOnlySource) -> CompressedIntStream {
         CompressedIntStream {
@@ -35,17 +34,21 @@ impl CompressedIntStream {
             let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
             if num_els >= available {
                 if available > 0 {
-                    let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..];
+                    let uncompressed_block = &self.block_decoder.output_array()
+                        [self.inner_offset..];
                     &mut output[start..start + available].clone_from_slice(uncompressed_block);
                 }
                 num_els -= available;
                 start += available;
-                let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(self.buffer.as_ref());
+                let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(
+                    self.buffer.as_ref(),
+                );
                 self.buffer.advance(num_consumed_bytes);
                 self.inner_offset = 0;
-            }
-            else {
-                let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..self.inner_offset + num_els];
+            } else {
+                let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..
+                                                                                self.inner_offset +
+                                                                                    num_els];
                 &output[start..start + num_els].clone_from_slice(uncompressed_block);
                 self.inner_offset += num_els;
                 break;
@@ -62,8 +65,7 @@ impl CompressedIntStream {
         let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
         if available >= skip_len {
             self.inner_offset += skip_len;
-        }
-        else {
+        } else {
             skip_len -= available;
             // entirely skip decompressing some blocks.
             while skip_len >= COMPRESSION_BLOCK_SIZE {
@@ -72,7 +74,9 @@ impl CompressedIntStream {
                 let block_len = compressed_block_size(num_bits);
                 self.buffer.advance(block_len);
             }
-            let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(self.buffer.as_ref());
+            let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(
+                self.buffer.as_ref(),
+            );
             self.buffer.advance(num_consumed_bytes);
             self.inner_offset = skip_len;
         }
@@ -90,7 +94,7 @@ pub mod tests {
     use directory::ReadOnlySource;
 
     fn create_stream_buffer() -> ReadOnlySource {
-        let mut buffer: Vec<u8> = vec!();
+        let mut buffer: Vec<u8> = vec![];
         let mut encoder = BlockEncoder::new();
         let vals: Vec<u32> = (0u32..1_025u32).collect();
         for chunk in vals.chunks(COMPRESSION_BLOCK_SIZE) {

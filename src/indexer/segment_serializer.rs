@@ -28,11 +28,11 @@ impl SegmentSerializer {
 
         let postings_serializer = try!(InvertedIndexSerializer::open(segment));
         Ok(SegmentSerializer {
-               postings_serializer: postings_serializer,
-               store_writer: StoreWriter::new(store_write),
-               fast_field_serializer: fast_field_serializer,
-               fieldnorms_serializer: fieldnorms_serializer,
-           })
+            postings_serializer: postings_serializer,
+            store_writer: StoreWriter::new(store_write),
+            fast_field_serializer: fast_field_serializer,
+            fieldnorms_serializer: fieldnorms_serializer,
+        })
     }
 
     /// Accessor to the `PostingsSerializer`.

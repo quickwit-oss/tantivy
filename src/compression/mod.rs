@@ -5,13 +5,13 @@ mod stream;
 
 pub use self::stream::CompressedIntStream;
 
-#[cfg(not(feature="simdcompression"))]
+#[cfg(not(feature = "simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;
     pub use self::compression_pack_nosimd::{BlockEncoder, BlockDecoder};
 }
 
-#[cfg(feature="simdcompression")]
+#[cfg(feature = "simdcompression")]
 mod pack {
     mod compression_pack_simd;
     pub use self::compression_pack_simd::{BlockEncoder, BlockDecoder};
@@ -19,13 +19,13 @@ mod pack {
 
 pub use self::pack::{BlockEncoder, BlockDecoder};
 
-#[cfg( any(not(feature="simdcompression"), target_env="msvc") )]
+#[cfg(any(not(feature = "simdcompression"), target_env = "msvc"))]
 mod vint {
     mod compression_vint_nosimd;
     pub(crate) use self::compression_vint_nosimd::*;
 }
 
-#[cfg( all(feature="simdcompression", not(target_env="msvc")) )]
+#[cfg(all(feature = "simdcompression", not(target_env = "msvc")))]
 mod vint {
     mod compression_vint_simd;
     pub(crate) use self::compression_vint_simd::*;
@@ -70,21 +70,19 @@ pub trait VIntDecoder {
     /// For instance, if delta encoded are `1, 3, 9`, and the
     /// `offset` is 5, then the output will be:
     /// `5 + 1 = 6, 6 + 3= 9, 9 + 9 = 18`
-    fn uncompress_vint_sorted<'a>(&mut self,
-                                  compressed_data: &'a [u8],
-                                  offset: u32,
-                                  num_els: usize)
-                                  -> usize;
+    fn uncompress_vint_sorted<'a>(
+        &mut self,
+        compressed_data: &'a [u8],
+        offset: u32,
+        num_els: usize,
+    ) -> usize;
 
     /// Uncompress an array of `u32s`, compressed using variable
     /// byte encoding.
     ///
     /// The method takes a number of int to decompress, and returns
     /// the amount of bytes that were read to decompress them.
-    fn uncompress_vint_unsorted<'a>(&mut self,
-                                    compressed_data: &'a [u8],
-                                    num_els: usize)
-                                    -> usize;
+    fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize;
 }
 
 impl VIntEncoder for BlockEncoder {
@@ -98,19 +96,17 @@ impl VIntEncoder for BlockEncoder {
 }
 
 impl VIntDecoder for BlockDecoder {
-    fn uncompress_vint_sorted<'a>(&mut self,
-                                  compressed_data: &'a [u8],
-                                  offset: u32,
-                                  num_els: usize)
-                                  -> usize {
+    fn uncompress_vint_sorted<'a>(
+        &mut self,
+        compressed_data: &'a [u8],
+        offset: u32,
+        num_els: usize,
+    ) -> usize {
         self.output_len = num_els;
         vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
     }
 
-    fn uncompress_vint_unsorted<'a>(&mut self,
-                                    compressed_data: &'a [u8],
-                                    num_els: usize)
-                                    -> usize {
+    fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize {
         self.output_len = num_els;
         vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
     }
@@ -125,7 +121,6 @@ pub mod tests {
     use super::*;
     use tests;
     use test::Bencher;
-    use std::iter;
 
     #[test]
     fn test_encode_sorted_block() {
@@ -236,7 +231,7 @@ pub mod tests {
     #[test]
     fn test_all_docs_compression_numbits() {
         for num_bits in 0..33 {
-            let mut data: Vec<u32> = iter::repeat(0u32).take(128).collect();
+            let mut data = [0u32; 128];
             if num_bits > 0 {
                 data[0] = 1 << (num_bits - 1);
             }
@@ -262,7 +257,9 @@ pub mod tests {
         let data = tests::generate_array(NUM_INTS_BENCH_VINT, 0.001);
         let compressed = encoder.compress_vint_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::new();
-        b.iter(|| { decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT); });
+        b.iter(|| {
+            decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
+        });
     }
 
 }

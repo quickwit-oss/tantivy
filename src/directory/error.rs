@@ -103,9 +103,11 @@ impl fmt::Display for OpenWriteError {
                 write!(f, "the file '{:?}' already exists", path)
             }
             OpenWriteError::IOError(ref err) => {
-                write!(f,
-                       "an io error occurred while opening a file for writing: '{}'",
-                       err)
+                write!(
+                    f,
+                    "an io error occurred while opening a file for writing: '{}'",
+                    err
+                )
             }
         }
     }
@@ -147,9 +149,11 @@ impl fmt::Display for OpenReadError {
                 write!(f, "the file '{:?}' does not exist", path)
             }
             OpenReadError::IOError(ref err) => {
-                write!(f,
-                       "an io error occurred while opening a file for reading: '{}'",
-                       err)
+                write!(
+                    f,
+                    "an io error occurred while opening a file for reading: '{}'",
+                    err
+                )
             }
         }
     }

@@ -68,9 +68,14 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     };
     let table_num_bits: usize = (1..)
         .into_iter()
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
+        .take_while(|num_bits: &usize| {
+            compute_table_size(*num_bits) < table_size_limit
+        })
         .last()
-        .expect(&format!("Per thread memory is too small: {}", per_thread_memory_budget));
+        .expect(&format!(
+            "Per thread memory is too small: {}",
+            per_thread_memory_budget
+        ));
     let table_size = compute_table_size(table_num_bits);
     let heap_size = per_thread_memory_budget - table_size;
     (heap_size, table_num_bits)
@@ -174,13 +179,10 @@ impl<'a> HashMap<'a> {
     }
 
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
-        self.occupied
-            .iter()
-            .cloned()
-            .map(move |bucket: usize| {
-                     let kv = self.table[bucket];
-                     self.get_key_value(kv.key_value_addr)
-                 })
+        self.occupied.iter().cloned().map(move |bucket: usize| {
+            let kv = self.table[bucket];
+            self.get_key_value(kv.key_value_addr)
+        })
     }
 
 
@@ -282,8 +284,10 @@ mod tests {
         let s1 = "abcdef";
         let s2 = "abcdeg";
         for i in 0..5 {
-            assert_eq!(murmurhash2(&s1[i..5].as_bytes()),
-                       murmurhash2(&s2[i..5].as_bytes()));
+            assert_eq!(
+                murmurhash2(&s1[i..5].as_bytes()),
+                murmurhash2(&s2[i..5].as_bytes())
+            );
         }
     }
 
@@ -303,13 +307,13 @@ mod tests {
         let keys: Vec<&'static str> =
             vec!["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
         b.iter(|| {
-                   keys.iter()
-                       .map(|&s| s.as_bytes())
-                       .map(murmurhash2::murmurhash2)
-                       .map(|h| h as u64)
-                       .last()
-                       .unwrap()
-               });
+            keys.iter()
+                .map(|&s| s.as_bytes())
+                .map(murmurhash2::murmurhash2)
+                .map(|h| h as u64)
+                .last()
+                .unwrap()
+        });
     }
 
 

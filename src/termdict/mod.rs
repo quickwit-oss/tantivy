@@ -54,16 +54,16 @@ use postings::TermInfo;
 
 pub use self::merger::TermMerger;
 
-#[cfg(not(feature="streamdict"))]
+#[cfg(not(feature = "streamdict"))]
 mod fstdict;
-#[cfg(not(feature="streamdict"))]
+#[cfg(not(feature = "streamdict"))]
 pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
                         TermStreamerBuilderImpl};
 
 
-#[cfg(feature="streamdict")]
+#[cfg(feature = "streamdict")]
 mod streamdict;
-#[cfg(feature="streamdict")]
+#[cfg(feature = "streamdict")]
 pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
                            TermStreamerBuilderImpl};
 
@@ -72,7 +72,9 @@ use std::io;
 
 
 /// Dictionary associating sorted `&[u8]` to values
-pub trait TermDictionary<'a> where Self: Sized
+pub trait TermDictionary<'a>
+where
+    Self: Sized,
 {
     /// Streamer type associated to the term dictionary
     type Streamer: TermStreamer + 'a;
@@ -81,7 +83,7 @@ pub trait TermDictionary<'a> where Self: Sized
     type StreamBuilder: TermStreamerBuilder<Streamer = Self::Streamer> + 'a;
 
     /// Opens a `TermDictionary` given a data source.
-    fn from_source(source: ReadOnlySource) -> io::Result<Self>;
+    fn from_source(source: ReadOnlySource) -> Self;
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo>;
@@ -110,7 +112,8 @@ pub trait TermDictionary<'a> where Self: Sized
 ///
 /// Inserting must be done in the order of the `keys`.
 pub trait TermDictionaryBuilder<W>: Sized
-    where W: io::Write
+where
+    W: io::Write,
 {
     /// Creates a new `TermDictionaryBuilder`
     fn new(write: W, field_type: FieldType) -> io::Result<Self>;
@@ -170,8 +173,7 @@ pub trait TermStreamer: Sized {
 
 /// `TermStreamerBuilder` is an helper object used to define
 /// a range of terms that should be streamed.
-pub trait TermStreamerBuilder
-{
+pub trait TermStreamerBuilder {
     /// Associated `TermStreamer` type that this builder is building.
     type Streamer: TermStreamer;
 
@@ -226,7 +228,8 @@ mod tests {
         {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type)
+                .unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u32))
                 .unwrap();
@@ -236,7 +239,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let term_dict: TermDictionaryImpl = TermDictionaryImpl::from_source(source).unwrap();
+        let term_dict: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
         assert_eq!(term_dict.get("abc").unwrap().doc_freq, 34u32);
         assert_eq!(term_dict.get("abcd").unwrap().doc_freq, 346u32);
         let mut stream = term_dict.stream();
@@ -296,7 +299,7 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
 
-        let field_searcher = searcher.field(text_field).unwrap();
+        let field_searcher = searcher.field(text_field);
         let mut term_it = field_searcher.terms();
         let mut term_string = String::new();
         while term_it.advance() {
@@ -314,15 +317,17 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+                .unwrap();
             for &(ref id, ref i) in &ids {
-                term_dictionary_builder.insert(id.as_bytes(), &make_term_info(*i)).unwrap();
+                term_dictionary_builder
+                    .insert(id.as_bytes(), &make_term_info(*i))
+                    .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source)
-            .unwrap();
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
         {
             let mut streamer = term_dictionary.stream();
             let mut i = 0;
@@ -343,16 +348,22 @@ mod tests {
     fn test_stream_high_range_prefix_suffix() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+                .unwrap();
             // term requires more than 16bits
-            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1)).unwrap();
-            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2)).unwrap();
-            term_dictionary_builder.insert("abr", &make_term_info(2)).unwrap();
+            term_dictionary_builder
+                .insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))
+                .unwrap();
+            term_dictionary_builder
+                .insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2))
+                .unwrap();
+            term_dictionary_builder
+                .insert("abr", &make_term_info(2))
+                .unwrap();
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source)
-            .unwrap();
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
         let mut kv_stream = term_dictionary.stream();
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxy".as_bytes());
@@ -372,17 +383,19 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+                .unwrap();
             for &(ref id, ref i) in &ids {
-                term_dictionary_builder.insert(id.as_bytes(), &make_term_info(*i)).unwrap();
+                term_dictionary_builder
+                    .insert(id.as_bytes(), &make_term_info(*i))
+                    .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
         };
 
         let source = ReadOnlySource::from(buffer);
 
-        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source)
-            .unwrap();
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
         {
             for i in (0..20).chain(6000..8_000) {
                 let &(ref target_key, _) = &ids[i];
@@ -440,16 +453,18 @@ mod tests {
     fn test_stream_range_boundaries() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+                .unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
-                term_dictionary_builder.insert(&number_arr, &make_term_info(i as u32)).unwrap();
+                term_dictionary_builder
+                    .insert(&number_arr, &make_term_info(i as u32))
+                    .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source)
-            .unwrap();
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
 
         let value_list = |mut streamer: TermStreamerImpl| {
             let mut res: Vec<u32> = vec![];
@@ -460,12 +475,17 @@ mod tests {
         };
         {
             let range = term_dictionary.range().ge([2u8]).into_stream();
-            assert_eq!(value_list(range),
-                       vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]);
+            assert_eq!(
+                value_list(range),
+                vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
+            );
         }
         {
             let range = term_dictionary.range().gt([2u8]).into_stream();
-            assert_eq!(value_list(range), vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]);
+            assert_eq!(
+                value_list(range),
+                vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
+            );
         }
         {
             let range = term_dictionary.range().lt([6u8]).into_stream();
@@ -473,7 +493,10 @@ mod tests {
         }
         {
             let range = term_dictionary.range().le([6u8]).into_stream();
-            assert_eq!(value_list(range), vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]);
+            assert_eq!(
+                value_list(range),
+                vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]
+            );
         }
         {
             let range = term_dictionary.range().ge([0u8]).lt([5u8]).into_stream();

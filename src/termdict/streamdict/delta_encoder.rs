@@ -11,7 +11,7 @@ use common::BinarySerializable;
 fn common_prefix_len(s1: &[u8], s2: &[u8]) -> usize {
     s1.iter()
         .zip(s2.iter())
-        .take_while(|&(a, b)| a==b)
+        .take_while(|&(a, b)| a == b)
         .count()
 }
 
@@ -45,32 +45,28 @@ pub struct TermDeltaDecoder {
 
 impl TermDeltaDecoder {
     pub fn with_previous_term(term: Vec<u8>) -> TermDeltaDecoder {
-        TermDeltaDecoder {
-            term: Vec::from(term)
-        }
+        TermDeltaDecoder { term: Vec::from(term) }
     }
 
     #[inline(always)]
     pub fn decode<'a>(&mut self, code: u8, mut cursor: &'a [u8]) -> &'a [u8] {
-        let (prefix_len, suffix_len): (usize, usize) =
-            if (code & 1u8) == 1u8 {
-                let b = cursor[0];
-                cursor = &cursor[1..];
-                let prefix_len = (b & 15u8) as usize;
-                let suffix_len = (b >> 4u8) as usize;
-                (prefix_len, suffix_len)
-            }
-            else {
-                let prefix_len = u32::deserialize(&mut cursor).unwrap();
-                let suffix_len = u32::deserialize(&mut cursor).unwrap();
-                (prefix_len as usize, suffix_len as usize)
-            };
+        let (prefix_len, suffix_len): (usize, usize) = if (code & 1u8) == 1u8 {
+            let b = cursor[0];
+            cursor = &cursor[1..];
+            let prefix_len = (b & 15u8) as usize;
+            let suffix_len = (b >> 4u8) as usize;
+            (prefix_len, suffix_len)
+        } else {
+            let prefix_len = u32::deserialize(&mut cursor).unwrap();
+            let suffix_len = u32::deserialize(&mut cursor).unwrap();
+            (prefix_len as usize, suffix_len as usize)
+        };
         unsafe { self.term.set_len(prefix_len) };
         self.term.extend_from_slice(&(*cursor)[..suffix_len]);
         &cursor[suffix_len..]
     }
 
-    pub fn term(&self) -> &[u8]  {
+    pub fn term(&self) -> &[u8] {
         &self.term[..]
     }
 }
@@ -89,7 +85,6 @@ pub struct TermInfoDeltaEncoder {
 }
 
 impl TermInfoDeltaEncoder {
-
     pub fn new(has_positions: bool) -> Self {
         TermInfoDeltaEncoder {
             term_info: TermInfo::default(),
@@ -109,7 +104,8 @@ impl TermInfoDeltaEncoder {
             positions_inner_offset: 0,
         };
         if self.has_positions {
-            delta_term_info.delta_positions_offset = term_info.positions_offset - self.term_info.positions_offset;
+            delta_term_info.delta_positions_offset = term_info.positions_offset -
+                self.term_info.positions_offset;
             delta_term_info.positions_inner_offset = term_info.positions_inner_offset;
         }
         mem::replace(&mut self.term_info, term_info);
@@ -131,7 +127,6 @@ pub fn make_mask(num_bytes: usize) -> u32 {
 }
 
 impl TermInfoDeltaDecoder {
-
     pub fn from_term_info(term_info: TermInfo, has_positions: bool) -> TermInfoDeltaDecoder {
         TermInfoDeltaDecoder {
             term_info: term_info,
@@ -147,7 +142,7 @@ impl TermInfoDeltaDecoder {
                 positions_offset: checkpoint.positions_offset,
                 positions_inner_offset: 0u8,
             },
-            has_positions: has_positions
+            has_positions: has_positions,
         }
     }
 
@@ -164,12 +159,12 @@ impl TermInfoDeltaDecoder {
         self.term_info.postings_offset += delta_postings_offset;
         if self.has_positions {
             let num_bytes_positions_offset = ((code >> 5) & 3) as usize + 1;
-            let delta_positions_offset: u32 = unsafe { *(cursor.as_ptr() as *const u32) } & make_mask(num_bytes_positions_offset);
+            let delta_positions_offset: u32 = unsafe { *(cursor.as_ptr() as *const u32) } &
+                make_mask(num_bytes_positions_offset);
             self.term_info.positions_offset += delta_positions_offset;
             self.term_info.positions_inner_offset = cursor[num_bytes_positions_offset];
             &cursor[num_bytes_positions_offset + 1..]
-        }
-        else {
+        } else {
             cursor
         }
     }

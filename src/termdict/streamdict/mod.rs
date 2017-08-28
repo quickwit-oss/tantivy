@@ -22,7 +22,6 @@ pub struct CheckPoint {
 }
 
 impl BinarySerializable for CheckPoint {
-
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.stream_offset.serialize(writer)?;
         self.postings_offset.serialize(writer)?;

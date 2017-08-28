@@ -61,9 +61,9 @@ mod tests {
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::from(terms);
-            searcher
-                .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
+            searcher.search(&phrase_query, &mut test_collector).expect(
+                "search should succeed",
+            );
             test_collector.docs()
         };
 

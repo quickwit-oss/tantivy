@@ -17,7 +17,6 @@ pub enum SegmentPostingsOption {
 }
 
 impl SegmentPostingsOption {
-
     /// Returns true iff this option includes encoding
     /// term frequencies.
     pub fn has_freq(&self) -> bool {

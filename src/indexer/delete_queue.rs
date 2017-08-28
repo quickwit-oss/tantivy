@@ -40,9 +40,9 @@ impl DeleteQueue {
         {
             let mut delete_queue_wlock = delete_queue.inner.write().unwrap();
             delete_queue_wlock.last_block = Some(Arc::new(Block {
-                                                              operations: Arc::default(),
-                                                              next: next_block,
-                                                          }));
+                operations: Arc::default(),
+                next: next_block,
+            }));
         }
 
         delete_queue
@@ -59,9 +59,11 @@ impl DeleteQueue {
             .expect("Read lock poisoned when opening delete queue cursor")
             .last_block
             .clone()
-            .expect("Failed to unwrap last_block. This should never happen
+            .expect(
+                "Failed to unwrap last_block. This should never happen
                 as the Option<> is only here to make
-                initialization possible");
+                initialization possible",
+            );
         let operations_len = last_block.operations.len();
         DeleteCursor {
             block: last_block,
@@ -92,9 +94,9 @@ impl DeleteQueue {
     // be some unflushed operations.
     //
     fn flush(&self) -> Option<Arc<Block>> {
-        let mut self_wlock = self.inner
-            .write()
-            .expect("Failed to acquire write lock on delete queue writer");
+        let mut self_wlock = self.inner.write().expect(
+            "Failed to acquire write lock on delete queue writer",
+        );
 
         let delete_operations;
         {
@@ -108,9 +110,9 @@ impl DeleteQueue {
         let next_block = NextBlock::from(self.clone());
         {
             self_wlock.last_block = Some(Arc::new(Block {
-                                                      operations: Arc::new(delete_operations),
-                                                      next: next_block,
-                                                  }));
+                operations: Arc::new(delete_operations),
+                next: next_block,
+            }));
         }
         self_wlock.last_block.clone()
     }
@@ -132,18 +134,18 @@ impl From<DeleteQueue> for NextBlock {
 impl NextBlock {
     fn next_block(&self) -> Option<Arc<Block>> {
         {
-            let next_read_lock = self.0
-                .read()
-                .expect("Failed to acquire write lock in delete queue");
+            let next_read_lock = self.0.read().expect(
+                "Failed to acquire write lock in delete queue",
+            );
             if let InnerNextBlock::Closed(ref block) = *next_read_lock {
                 return Some(block.clone());
             }
         }
         let next_block;
         {
-            let mut next_write_lock = self.0
-                .write()
-                .expect("Failed to acquire write lock in delete queue");
+            let mut next_write_lock = self.0.write().expect(
+                "Failed to acquire write lock in delete queue",
+            );
             match *next_write_lock {
                 InnerNextBlock::Closed(ref block) => {
                     return Some(block.clone());

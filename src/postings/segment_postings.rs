@@ -25,11 +25,10 @@ struct PositionComputer {
 }
 
 impl PositionComputer {
-
     pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
         PositionComputer {
             position_to_skip: None,
-            positions: vec!(),
+            positions: vec![],
             positions_stream: positions_stream,
         }
     }
@@ -38,9 +37,9 @@ impl PositionComputer {
         self.position_to_skip = Some(
             self.position_to_skip
                 .map(|prev_skip| prev_skip + num_skip)
-                .unwrap_or(0)
-            );
-        }
+                .unwrap_or(0),
+        );
+    }
 
     pub fn positions(&mut self, term_freq: usize) -> &[u32] {
         if let Some(num_skip) = self.position_to_skip {
@@ -83,13 +82,13 @@ impl SegmentPostings {
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_block_postings(segment_block_postings: BlockSegmentPostings,
-                               delete_bitset: DeleteBitSet,
-                               positions_stream_opt: Option<CompressedIntStream>)
-                               -> SegmentPostings {
-        let position_computer = positions_stream_opt.map(|stream| {
-            UnsafeCell::new(PositionComputer::new(stream))
-        });
+    pub fn from_block_postings(
+        segment_block_postings: BlockSegmentPostings,
+        delete_bitset: DeleteBitSet,
+        positions_stream_opt: Option<CompressedIntStream>,
+    ) -> SegmentPostings {
+        let position_computer =
+            positions_stream_opt.map(|stream| UnsafeCell::new(PositionComputer::new(stream)));
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
@@ -110,7 +109,7 @@ impl SegmentPostings {
     }
 
 
-    fn position_add_skip<F: FnOnce()->usize>(&self, num_skips_fn: F) {
+    fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
         if let Some(ref position_computer) = self.position_computer.as_ref() {
             let num_skips = num_skips_fn();
             unsafe {
@@ -135,7 +134,7 @@ impl DocSet for SegmentPostings {
                     return false;
                 }
             }
-            self.position_add_skip(|| { self.term_freq() as usize });
+            self.position_add_skip(|| self.term_freq() as usize);
             if !self.delete_bitset.is_deleted(self.doc()) {
                 return true;
             }
@@ -257,8 +256,10 @@ impl DocSet for SegmentPostings {
     #[inline]
     fn doc(&self) -> DocId {
         let docs = self.block_cursor.docs();
-        debug_assert!(self.cur < docs.len(),
-                "Have you forgotten to call `.advance()` at least once before calling .doc().");
+        debug_assert!(
+            self.cur < docs.len(),
+            "Have you forgotten to call `.advance()` at least once before calling .doc()."
+        );
         docs[self.cur]
     }
 }
@@ -278,16 +279,11 @@ impl Postings for SegmentPostings {
         let term_freq = self.term_freq();
         self.position_computer
             .as_ref()
-            .map(|position_computer| {
-                unsafe {
-                    (&mut *position_computer.get()).positions(term_freq as usize)
-                }
+            .map(|position_computer| unsafe {
+                (&mut *position_computer.get()).positions(term_freq as usize)
             })
             .unwrap_or(&EMPTY_POSITIONS[..])
     }
-
-
-
 }
 
 
@@ -311,10 +307,11 @@ pub struct BlockSegmentPostings {
 }
 
 impl BlockSegmentPostings {
-    pub(crate) fn from_data(doc_freq: usize,
-                            data: SourceRead,
-                            has_freq: bool)
-                            -> BlockSegmentPostings {
+    pub(crate) fn from_data(
+        doc_freq: usize,
+        data: SourceRead,
+        has_freq: bool,
+    ) -> BlockSegmentPostings {
         let num_binpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_binpacked_blocks;
         BlockSegmentPostings {
@@ -402,15 +399,16 @@ impl BlockSegmentPostings {
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
         if self.num_binpacked_blocks > 0 {
-            // TODO could self.doc_offset be just a local variable?
-
-            let num_consumed_bytes = self
-                    .doc_decoder
-                    .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
+            let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
+                self.remaining_data.as_ref(),
+                self.doc_offset,
+            );
             self.remaining_data.advance(num_consumed_bytes);
 
             if self.has_freq {
-                let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(self.remaining_data.as_ref());
+                let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(
+                    self.remaining_data.as_ref(),
+                );
                 self.remaining_data.advance(num_consumed_bytes);
             }
             // it will be used as the next offset.
@@ -418,15 +416,17 @@ impl BlockSegmentPostings {
             self.num_binpacked_blocks -= 1;
             true
         } else if self.num_vint_docs > 0 {
-            let num_compressed_bytes =
-                self.doc_decoder
-                    .uncompress_vint_sorted(self.remaining_data.as_ref(),
-                                            self.doc_offset,
-                                            self.num_vint_docs);
+            let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
+                self.remaining_data.as_ref(),
+                self.doc_offset,
+                self.num_vint_docs,
+            );
             self.remaining_data.advance(num_compressed_bytes);
             if self.has_freq {
-                self.freq_decoder
-                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+                self.freq_decoder.uncompress_vint_unsorted(
+                    self.remaining_data.as_ref(),
+                    self.num_vint_docs,
+                );
             }
             self.num_vint_docs = 0;
             true
@@ -508,12 +508,13 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let inverted_index = segment_reader.inverted_index(int_field).unwrap();
+        let inverted_index = segment_reader.inverted_index(int_field);
         let term = Term::from_field_u64(int_field, 0u64);
         let term_info = inverted_index.get_term_info(&term).unwrap();
-        let mut block_segments =
-            inverted_index
-                .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
+        let mut block_segments = inverted_index.read_block_postings_from_terminfo(
+            &term_info,
+            SegmentPostingsOption::NoFreq,
+        );
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
         assert!(block_segments.docs().is_empty());
@@ -549,17 +550,18 @@ mod tests {
         let mut block_segments;
         {
             let term = Term::from_field_u64(int_field, 0u64);
-            let inverted_index = segment_reader.inverted_index(int_field).unwrap();
+            let inverted_index = segment_reader.inverted_index(int_field);
             let term_info = inverted_index.get_term_info(&term).unwrap();
-            block_segments =
-                inverted_index
-                    .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
+            block_segments = inverted_index.read_block_postings_from_terminfo(
+                &term_info,
+                SegmentPostingsOption::NoFreq,
+            );
         }
         assert!(block_segments.advance());
         assert!(block_segments.docs() == &[0, 2, 4]);
         {
             let term = Term::from_field_u64(int_field, 1u64);
-            let inverted_index = segment_reader.inverted_index(int_field).unwrap();
+            let inverted_index = segment_reader.inverted_index(int_field);
             let term_info = inverted_index.get_term_info(&term).unwrap();
             inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
         }

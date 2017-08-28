@@ -57,11 +57,12 @@ pub struct InvertedIndexSerializer {
 
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
-    fn new(terms_write: CompositeWrite<WritePtr>,
-           postings_write: CompositeWrite<WritePtr>,
-           positions_write: CompositeWrite<WritePtr>,
-           schema: Schema)
-               -> Result<InvertedIndexSerializer> {
+    fn new(
+        terms_write: CompositeWrite<WritePtr>,
+        postings_write: CompositeWrite<WritePtr>,
+        positions_write: CompositeWrite<WritePtr>,
+        schema: Schema,
+    ) -> Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
             terms_write: terms_write,
             postings_write: postings_write,
@@ -78,7 +79,8 @@ impl InvertedIndexSerializer {
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            segment.schema())
+            segment.schema(),
+        )
     }
 
     /// Must be called before starting pushing terms of
@@ -94,7 +96,7 @@ impl InvertedIndexSerializer {
             field_entry.field_type().clone(),
             term_dictionary_write,
             postings_write,
-            positions_write
+            positions_write,
         )
     }
 
@@ -120,7 +122,6 @@ pub struct FieldSerializer<'a> {
 
 
 impl<'a> FieldSerializer<'a> {
-
     fn new(
         field_type: FieldType,
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
@@ -128,25 +129,24 @@ impl<'a> FieldSerializer<'a> {
         positions_write: &'a mut CountingWriter<WritePtr>,
     ) -> io::Result<FieldSerializer<'a>> {
 
-        let (term_freq_enabled, position_enabled): (bool, bool) =
-            match field_type {
-                FieldType::Str(ref text_options) => {
-                    let text_indexing_options = text_options.get_indexing_options();
-                    (text_indexing_options.is_termfreq_enabled(), text_indexing_options.is_position_enabled())
-                },
-                _ => {
-                    (false, false)
-                }
-            };
-        let term_dictionary_builder = TermDictionaryBuilderImpl::new(term_dictionary_write, field_type)?;
-        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
-        let positions_serializer_opt =
-            if position_enabled {
-                Some(PositionSerializer::new(positions_write))
+        let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
+            FieldType::Str(ref text_options) => {
+                let text_indexing_options = text_options.get_indexing_options();
+                (
+                    text_indexing_options.is_termfreq_enabled(),
+                    text_indexing_options.is_position_enabled(),
+                )
             }
-            else {
-                None
-            };
+            _ => (false, false),
+        };
+        let term_dictionary_builder =
+            TermDictionaryBuilderImpl::new(term_dictionary_write, field_type)?;
+        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
+        let positions_serializer_opt = if position_enabled {
+            Some(PositionSerializer::new(positions_write))
+        } else {
+            None
+        };
 
         Ok(FieldSerializer {
             term_dictionary_builder: term_dictionary_builder,
@@ -159,9 +159,9 @@ impl<'a> FieldSerializer<'a> {
 
     fn current_term_info(&self) -> TermInfo {
         let (filepos, offset) = self.positions_serializer_opt
-                .as_ref()
-                .map(|positions_serializer| positions_serializer.addr())
-                .unwrap_or((0u32, 0u8));
+            .as_ref()
+            .map(|positions_serializer| positions_serializer.addr())
+            .unwrap_or((0u32, 0u8));
         TermInfo {
             doc_freq: 0,
             postings_offset: self.postings_serializer.addr(),
@@ -194,11 +194,12 @@ impl<'a> FieldSerializer<'a> {
     ///
     /// Term frequencies and positions may be ignored by the serializer depending
     /// on the configuration of the field in the `Schema`.
-    pub fn write_doc(&mut self,
-                     doc_id: DocId,
-                     term_freq: u32,
-                     position_deltas: &[u32])
-                     -> io::Result<()> {
+    pub fn write_doc(
+        &mut self,
+        doc_id: DocId,
+        term_freq: u32,
+        position_deltas: &[u32],
+    ) -> io::Result<()> {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq)?;
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
@@ -213,7 +214,9 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.term_dictionary_builder.insert_value(&self.current_term_info)?;
+            self.term_dictionary_builder.insert_value(
+                &self.current_term_info,
+            )?;
             self.postings_serializer.close_term()?;
             self.term_open = false;
         }
@@ -251,8 +254,8 @@ impl<W: Write> PostingsSerializer<W> {
             postings_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),
-            doc_ids: vec!(),
-            term_freqs: vec!(),
+            doc_ids: vec![],
+            term_freqs: vec![],
 
             last_doc_id_encoded: 0u32,
             termfreq_enabled: termfreq_enabled,
@@ -267,16 +270,17 @@ impl<W: Write> PostingsSerializer<W> {
         if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
             {
                 // encode the doc ids
-                let block_encoded: &[u8] =
-                    self.block_encoder
-                        .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(
+                    &self.doc_ids,
+                    self.last_doc_id_encoded,
+                );
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 self.postings_write.write_all(block_encoded)?;
             }
             if self.termfreq_enabled {
                 // encode the term_freqs
-                let block_encoded: &[u8] = self.block_encoder
-                    .compress_block_unsorted(&self.term_freqs);
+                let block_encoded: &[u8] =
+                    self.block_encoder.compress_block_unsorted(&self.term_freqs);
                 self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();
             }
@@ -294,16 +298,18 @@ impl<W: Write> PostingsSerializer<W> {
             // In that case, the remaining part is encoded
             // using variable int encoding.
             {
-                let block_encoded =
-                    self.block_encoder
-                        .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                let block_encoded = self.block_encoder.compress_vint_sorted(
+                    &self.doc_ids,
+                    self.last_doc_id_encoded,
+                );
                 self.postings_write.write_all(block_encoded)?;
                 self.doc_ids.clear();
             }
             // ... Idem for term frequencies
             if self.termfreq_enabled {
-                let block_encoded = self.block_encoder
-                    .compress_vint_unsorted(&self.term_freqs[..]);
+                let block_encoded = self.block_encoder.compress_vint_unsorted(
+                    &self.term_freqs[..],
+                );
                 self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();
             }
@@ -373,4 +379,3 @@ impl<W: Write> PositionSerializer<W> {
         self.write.flush()
     }
 }
-

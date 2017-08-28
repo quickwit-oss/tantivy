@@ -47,10 +47,7 @@ impl Searcher {
         self.segment_readers
             .iter()
             .map(|segment_reader| {
-                segment_reader
-                    .inverted_index(term.field())
-                    .unwrap() // TODO error handling
-                    .doc_freq(term)
+                segment_reader.inverted_index(term.field()).doc_freq(term)
             })
             .fold(0u32, |acc, val| acc + val)
     }
@@ -70,16 +67,13 @@ impl Searcher {
         query.search(self, collector)
     }
 
-
-    ///
-    pub fn field(&self, field: Field) -> Result<FieldSearcher> {
+    /// Return the field searcher associated to a `Field`.
+    pub fn field(&self, field: Field) -> FieldSearcher {
         let inv_index_readers = self.segment_readers
             .iter()
-            .map(|segment_reader| {
-                segment_reader.inverted_index(field)
-            })
-            .collect::<Result<Vec<_>>>()?;
-        Ok(FieldSearcher::new(inv_index_readers))
+            .map(|segment_reader| segment_reader.inverted_index(field))
+            .collect::<Vec<_>>();
+        FieldSearcher::new(inv_index_readers)
     }
 }
 
@@ -92,11 +86,8 @@ pub struct FieldSearcher {
 
 
 impl FieldSearcher {
-
     fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
-        FieldSearcher {
-            inv_index_readers: inv_index_readers,
-        }
+        FieldSearcher { inv_index_readers: inv_index_readers }
     }
 
 
@@ -105,9 +96,7 @@ impl FieldSearcher {
     pub fn terms(&self) -> TermMerger {
         let term_streamers: Vec<_> = self.inv_index_readers
             .iter()
-            .map(|inverted_index| {
-                inverted_index.terms().stream()
-            })
+            .map(|inverted_index| inverted_index.terms().stream())
             .collect();
         TermMerger::new(term_streamers)
     }

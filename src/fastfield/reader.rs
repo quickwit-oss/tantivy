@@ -2,7 +2,7 @@ use directory::ReadOnlySource;
 use common::{self, BinarySerializable};
 use common::bitpacker::{compute_num_bits, BitUnpacker};
 use DocId;
-use schema::{SchemaBuilder};
+use schema::SchemaBuilder;
 use std::path::Path;
 use schema::FAST;
 use directory::{WritePtr, RAMDirectory, Directory};
@@ -106,10 +106,10 @@ impl FastFieldReader for U64FastFieldReader {
         let amplitude: u64;
         {
             let mut cursor = data.as_slice();
-            min_value = u64::deserialize(&mut cursor)
-                .expect("Failed to read the min_value of fast field.");
-            amplitude = u64::deserialize(&mut cursor)
-                .expect("Failed to read the amplitude of fast field.");
+            min_value =
+                u64::deserialize(&mut cursor).expect("Failed to read the min_value of fast field.");
+            amplitude =
+                u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
 
         }
         let max_value = min_value + amplitude;
@@ -130,15 +130,14 @@ impl From<Vec<u64>> for U64FastFieldReader {
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
-        let path = Path::new("test");
+        let path = Path::new("__dummy__");
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
-            let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let write: WritePtr = directory.open_write(path).expect("With a RAMDirectory, this should never fail.");
+            let mut serializer = FastFieldSerializer::from_write(write).expect("With a RAMDirectory, this should never fail.");
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
-            // TODO Error not unwrap
             {
-                let fast_field_writer = fast_field_writers.get_field_writer(field).unwrap();
+                let fast_field_writer = fast_field_writers.get_field_writer(field).expect("With a RAMDirectory, this should never fail.");
                 for val in vals {
                     fast_field_writer.add_val(val);
                 }
@@ -147,13 +146,12 @@ impl From<Vec<u64>> for U64FastFieldReader {
             serializer.close().unwrap();
         }
 
-        let source = directory
-            .open_read(path)
-            .expect("Failed to open the file");
-        let composite_file = CompositeFile::open(source)
-            .expect("Failed to read the composite file");
+        let source = directory.open_read(path).expect("Failed to open the file");
+        let composite_file =
+            CompositeFile::open(source).expect("Failed to read the composite file");
 
-        let field_source = composite_file.open_read(field)
+        let field_source = composite_file
+            .open_read(field)
             .expect("File component not found");
         U64FastFieldReader::open(field_source)
     }

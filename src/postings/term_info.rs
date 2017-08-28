@@ -12,7 +12,7 @@ use std::io;
 /// * `postings_offset` : an offset in the `.idx` file
 /// addressing the start of the posting list associated
 /// to this term.
-#[derive(Debug,Default,Ord,PartialOrd,Eq,PartialEq,Clone)]
+#[derive(Debug, Default, Ord, PartialOrd, Eq, PartialEq, Clone)]
 pub struct TermInfo {
     /// Number of documents in the segment containing the term
     pub doc_freq: u32,

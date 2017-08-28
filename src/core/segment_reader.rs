@@ -4,7 +4,6 @@ use core::SegmentId;
 use core::SegmentComponent;
 use std::sync::RwLock;
 use common::HasLen;
-use error::ErrorKind;
 use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::DeleteBitSet;
@@ -87,17 +86,17 @@ impl SegmentReader {
     ///
     /// # Panics
     /// May panic if the index is corrupted.
-    pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>
-        (&self, field: Field) -> fastfield::Result<TFastFieldReader> {
+    pub fn get_fast_field_reader<TFastFieldReader: FastFieldReader>(
+        &self,
+        field: Field,
+    ) -> fastfield::Result<TFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         if !TFastFieldReader::is_enabled(field_entry.field_type()) {
             Err(FastFieldNotAvailableError::new(field_entry))
         } else {
             self.fast_fields_composite
                 .open_read(field)
-                .ok_or_else(|| {
-                    FastFieldNotAvailableError::new(field_entry)
-                })
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
                 .map(TFastFieldReader::open)
         }
     }
@@ -111,9 +110,9 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
-        self.fieldnorms_composite
-            .open_read(field)
-            .map(U64FastFieldReader::open)
+        self.fieldnorms_composite.open_read(field).map(
+            U64FastFieldReader::open,
+        )
     }
 
     /// Accessor to the segment's `StoreReader`.
@@ -131,13 +130,12 @@ impl SegmentReader {
         let store_reader = StoreReader::from_source(store_source);
 
         let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
-        let postings_composite =  CompositeFile::open(postings_source)?;
+        let postings_composite = CompositeFile::open(postings_source)?;
 
         let positions_composite = {
             if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
                 CompositeFile::open(source)?
-            }
-            else {
+            } else {
                 CompositeFile::empty()
             }
         };
@@ -159,17 +157,17 @@ impl SegmentReader {
 
         let schema = segment.schema();
         Ok(SegmentReader {
-           inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
-           segment_meta: segment.meta().clone(),
-           termdict_composite: termdict_composite,
-           postings_composite: postings_composite,
-           fast_fields_composite: fast_fields_composite,
-           fieldnorms_composite: fieldnorms_composite,
-           segment_id: segment.id(),
-           store_reader: store_reader,
-           delete_bitset: delete_bitset,
-           positions_composite: positions_composite,
-           schema: schema,
+            inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+            segment_meta: segment.meta().clone(),
+            termdict_composite: termdict_composite,
+            postings_composite: postings_composite,
+            fast_fields_composite: fast_fields_composite,
+            fieldnorms_composite: fieldnorms_composite,
+            segment_id: segment.id(),
+            store_reader: store_reader,
+            delete_bitset: delete_bitset,
+            positions_composite: positions_composite,
+            schema: schema,
         })
     }
 
@@ -179,32 +177,27 @@ impl SegmentReader {
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
-    pub fn inverted_index(&self, field: Field) -> Result<Arc<InvertedIndexReader>> {
-        if let Some(inv_idx_reader) = self.inv_idx_reader_cache.read()
-            .expect("Lock poisoned. This should never happen")
-            .get(&field) {
-            return Ok(inv_idx_reader.clone());
+    pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
+        if let Some(inv_idx_reader) =
+            self.inv_idx_reader_cache
+                .read()
+                .expect("Lock poisoned. This should never happen")
+                .get(&field)
+        {
+            inv_idx_reader.clone();
         }
 
-        let termdict_source: ReadOnlySource = self.termdict_composite
-            .open_read(field)
-            .ok_or_else(|| {
-                ErrorKind::SchemaError(
-                    format!("Could not find {:?} term dictionary", field)
-                )
-            })?;
+        let termdict_source: ReadOnlySource = self.termdict_composite.open_read(field).expect(
+            "Index corrupted. Failed to open field term dictionary in composite file.",
+        );
 
-        let postings_source = self.postings_composite
-            .open_read(field)
-            .ok_or_else(|| {
-                ErrorKind::SchemaError(format!("Could not find {:?} postings", field))
-            })?;
+        let postings_source = self.postings_composite.open_read(field).expect(
+            "Index corrupted. Failed to open field postings in composite file.",
+        );
 
-        let positions_source = self.positions_composite
-            .open_read(field)
-            .ok_or_else(|| {
-                ErrorKind::SchemaError(format!("Could not find {:?} positions", field))
-            })?;
+        let positions_source = self.positions_composite.open_read(field).expect(
+            "Index corrupted. Failed to open field positions in composite file.",
+        );
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             termdict_source,
@@ -212,15 +205,18 @@ impl SegmentReader {
             positions_source,
             self.delete_bitset.clone(),
             self.schema.clone(),
-        )?);
+        ));
 
         // by releasing the lock in between, we may end up opening the inverting index
         // twice, but this is fine.
         self.inv_idx_reader_cache
             .write()
-            .expect("Field reader cache lock poisoned. This should never happen.")
+            .expect(
+                "Field reader cache lock poisoned. This should never happen.",
+            )
             .insert(field, inv_idx_reader.clone());
-        Ok(inv_idx_reader)
+
+        inv_idx_reader
     }
 
     /// Returns the document (or to be accurate, its stored field)

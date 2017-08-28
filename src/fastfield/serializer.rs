@@ -31,30 +31,22 @@ pub struct FastFieldSerializer {
 }
 
 impl FastFieldSerializer {
-
-
     /// Constructor
     pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FastFieldSerializer {
-            composite_write: composite_write,
-        })
+        Ok(FastFieldSerializer { composite_write: composite_write })
     }
 
     /// Start serializing a new u64 fast field
-    pub fn new_u64_fast_field(&mut self,
-                              field: Field,
-                              min_value: u64,
-                              max_value: u64)
-                              -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
-        let field_write = self
-            .composite_write
-            .for_field(field);
-        FastSingleFieldSerializer::open(
-            field_write,
-            min_value,
-            max_value)
+    pub fn new_u64_fast_field(
+        &mut self,
+        field: Field,
+        min_value: u64,
+        max_value: u64,
+    ) -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
+        let field_write = self.composite_write.for_field(field);
+        FastSingleFieldSerializer::open(field_write, min_value, max_value)
     }
 
 
@@ -73,10 +65,11 @@ pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
 }
 
 impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
-
-    fn open(write: &'a mut W,
-           min_value: u64,
-           max_value: u64) -> io::Result<FastSingleFieldSerializer<'a, W>> {
+    fn open(
+        write: &'a mut W,
+        min_value: u64,
+        max_value: u64,
+    ) -> io::Result<FastSingleFieldSerializer<'a, W>> {
         min_value.serialize(write)?;
         let amplitude = max_value - min_value;
         amplitude.serialize(write)?;

@@ -47,7 +47,12 @@ impl BinarySerializable for VInt {
                     }
                     shift += 7;
                 }
-                _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Reach end of buffer")),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Reach end of buffer",
+                    ))
+                }
             }
         }
         Ok(VInt(result))

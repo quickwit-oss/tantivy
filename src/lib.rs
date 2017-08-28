@@ -68,7 +68,7 @@ extern crate stable_deref_trait;
 #[cfg(test)]
 extern crate env_logger;
 
-#[cfg(feature="simdcompression")]
+#[cfg(feature = "simdcompression")]
 extern crate libc;
 
 #[cfg(windows)]
@@ -391,16 +391,24 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            let inverted_index = reader.inverted_index(text_field).unwrap();
-            assert!(inverted_index.read_postings(&term_abcd, FreqAndPositions).is_none());
+            let inverted_index = reader.inverted_index(text_field);
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = inverted_index.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = inverted_index.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -426,17 +434,25 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            let inverted_index = reader.inverted_index(term_abcd.field()).unwrap();
+            let inverted_index = reader.inverted_index(term_abcd.field());
 
-            assert!(inverted_index.read_postings(&term_abcd, FreqAndPositions).is_none());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = inverted_index.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = inverted_index.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -462,14 +478,22 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            let inverted_index = reader.inverted_index(term_abcd.field()).unwrap();
-            assert!(inverted_index.read_postings(&term_abcd, FreqAndPositions).is_none());
+            let inverted_index = reader.inverted_index(term_abcd.field());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = inverted_index.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(!postings.advance());
             }
             {
-                let mut postings = inverted_index.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -477,7 +501,9 @@ mod tests {
                 assert!(!postings.advance());
             }
             {
-                let mut postings = inverted_index.read_postings(&term_c, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_c, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
                 assert!(!postings.advance());
@@ -501,7 +527,7 @@ mod tests {
         let term = Term::from_field_u64(field, 1u64);
         let mut postings = searcher
             .segment_reader(0)
-            .inverted_index(term.field()).unwrap()
+            .inverted_index(term.field())
             .read_postings(&term, SegmentPostingsOption::NoFreq)
             .unwrap();
         assert!(postings.advance());
@@ -525,7 +551,7 @@ mod tests {
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher
             .segment_reader(0)
-            .inverted_index(term.field()).unwrap()
+            .inverted_index(term.field())
             .read_postings(&term, SegmentPostingsOption::NoFreq)
             .unwrap();
         assert!(postings.advance());
@@ -588,11 +614,17 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            let inverted_index = reader.inverted_index(text_field).unwrap();
+            let inverted_index = reader.inverted_index(text_field);
             let term_abcd = Term::from_field_text(text_field, "abcd");
-            assert!(inverted_index.read_postings(&term_abcd, FreqAndPositions).is_none());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             let term_af = Term::from_field_text(text_field, "af");
-            let mut postings = inverted_index.read_postings(&term_af, FreqAndPositions).unwrap();
+            let mut postings = inverted_index
+                .read_postings(&term_af, FreqAndPositions)
+                .unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
@@ -634,29 +666,43 @@ mod tests {
                 collector.docs()
             };
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                           vec![1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                    vec![1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                           vec![0]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                    vec![0]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                           vec![0, 1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                    vec![0, 1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                           vec![1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
+                    vec![1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                           vec![2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
+                    vec![2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b"),
-                                            Term::from_field_text(text_field, "a")]),
-                           vec![0, 1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![
+                        Term::from_field_text(text_field, "b"),
+                        Term::from_field_text(text_field, "a"),
+                    ]),
+                    vec![0, 1, 2]
+                );
             }
         }
     }
@@ -693,7 +739,8 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document = doc!(text_field => "tantivy",
+        let document =
+            doc!(text_field => "tantivy",
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);

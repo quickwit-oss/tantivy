@@ -8,10 +8,11 @@ mod simdcomp {
     extern "C" {
         pub fn compress_sorted(data: *const u32, output: *mut u8, offset: u32) -> size_t;
 
-        pub fn uncompress_sorted(compressed_data: *const u8,
-                                 output: *mut u32,
-                                 offset: u32)
-                                 -> size_t;
+        pub fn uncompress_sorted(
+            compressed_data: *const u8,
+            output: *mut u32,
+            offset: u32,
+        ) -> size_t;
 
         pub fn compress_unsorted(data: *const u32, output: *mut u8) -> size_t;
 
@@ -78,10 +79,7 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_sorted(&mut self,
-                                   compressed_data: &[u8],
-                                   offset: u32)
-                                       -> usize {
+    pub fn uncompress_block_sorted(&mut self, compressed_data: &[u8], offset: u32) -> usize {
         let consumed_size = uncompress_sorted(compressed_data, &mut self.output, offset);
         self.output_len = COMPRESSION_BLOCK_SIZE;
         consumed_size

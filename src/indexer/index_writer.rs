@@ -102,14 +102,17 @@ impl !Sync for IndexWriter {}
 /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
 /// # Panics
 /// If the heap size per thread is too small, panics.
-pub fn open_index_writer(index: &Index,
-                         num_threads: usize,
-                         heap_size_in_bytes_per_thread: usize)
-                         -> Result<IndexWriter> {
+pub fn open_index_writer(
+    index: &Index,
+    num_threads: usize,
+    heap_size_in_bytes_per_thread: usize,
+) -> Result<IndexWriter> {
 
     if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
-        panic!(format!("The heap size per thread needs to be at least {}.",
-                       HEAP_SIZE_LIMIT));
+        panic!(format!(
+            "The heap size per thread needs to be at least {}.",
+            HEAP_SIZE_LIMIT
+        ));
     }
 
     let directory_lock = DirectoryLock::lock(index.directory().box_clone())?;
@@ -156,12 +159,13 @@ pub fn open_index_writer(index: &Index,
 
 
 
-pub fn compute_deleted_bitset(delete_bitset: &mut BitSet,
-                              segment_reader: &SegmentReader,
-                              delete_cursor: &mut DeleteCursor,
-                              doc_opstamps: &DocToOpstampMapping,
-                              target_opstamp: u64)
-                              -> Result<bool> {
+pub fn compute_deleted_bitset(
+    delete_bitset: &mut BitSet,
+    segment_reader: &SegmentReader,
+    delete_cursor: &mut DeleteCursor,
+    doc_opstamps: &DocToOpstampMapping,
+    target_opstamp: u64,
+) -> Result<bool> {
 
     let mut might_have_changed = false;
 
@@ -177,9 +181,12 @@ pub fn compute_deleted_bitset(delete_bitset: &mut BitSet,
                 // Limit doc helps identify the first document
                 // that may be affected by the delete operation.
                 let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-                let inverted_index = segment_reader.inverted_index(delete_op.term.field())?;
-                if let Some(mut docset) =
-                    inverted_index.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+                let inverted_index = segment_reader.inverted_index(delete_op.term.field());
+                if let Some(mut docset) = inverted_index.read_postings(
+                    &delete_op.term,
+                    SegmentPostingsOption::NoFreq,
+                )
+                {
                     while docset.advance() {
                         let deleted_doc = docset.doc();
                         if deleted_doc < limit_doc {
@@ -199,10 +206,11 @@ pub fn compute_deleted_bitset(delete_bitset: &mut BitSet,
 
 /// Advance delete for the given segment up
 /// to the target opstamp.
-pub fn advance_deletes(mut segment: Segment,
-                       segment_entry: &mut SegmentEntry,
-                       target_opstamp: u64)
-                       -> Result<Option<FileProtection>> {
+pub fn advance_deletes(
+    mut segment: Segment,
+    segment_entry: &mut SegmentEntry,
+    target_opstamp: u64,
+) -> Result<Option<FileProtection>> {
 
     let mut file_protect: Option<FileProtection> = None;
 
@@ -223,11 +231,13 @@ pub fn advance_deletes(mut segment: Segment,
 
         let delete_cursor = segment_entry.delete_cursor();
 
-        compute_deleted_bitset(&mut delete_bitset,
-                               &segment_reader,
-                               delete_cursor,
-                               &DocToOpstampMapping::None,
-                               target_opstamp)?;
+        compute_deleted_bitset(
+            &mut delete_bitset,
+            &segment_reader,
+            delete_cursor,
+            &DocToOpstampMapping::None,
+            target_opstamp,
+        )?;
 
         for doc in 0u32..max_doc {
             if segment_reader.is_deleted(doc) {
@@ -248,15 +258,16 @@ pub fn advance_deletes(mut segment: Segment,
     Ok(file_protect)
 }
 
-fn index_documents(heap: &mut Heap,
-                   table_size: usize,
-                   segment: Segment,
-                   schema: &Schema,
-                   generation: usize,
-                   document_iterator: &mut Iterator<Item = AddOperation>,
-                   segment_updater: &mut SegmentUpdater,
-                   mut delete_cursor: DeleteCursor)
-                   -> Result<bool> {
+fn index_documents(
+    heap: &mut Heap,
+    table_size: usize,
+    segment: Segment,
+    schema: &Schema,
+    generation: usize,
+    document_iterator: &mut Iterator<Item = AddOperation>,
+    segment_updater: &mut SegmentUpdater,
+    mut delete_cursor: DeleteCursor,
+) -> Result<bool> {
     heap.clear();
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
@@ -266,8 +277,10 @@ fn index_documents(heap: &mut Heap,
         // One is the memory arena dedicated to the segment is
         // getting full.
         if segment_writer.is_buffer_full() {
-            info!("Buffer limit reached, flushing segment with maxdoc={}.",
-                  segment_writer.max_doc());
+            info!(
+                "Buffer limit reached, flushing segment with maxdoc={}.",
+                segment_writer.max_doc()
+            );
             break;
         }
         // The second is the term dictionary hash table
@@ -276,8 +289,10 @@ fn index_documents(heap: &mut Heap,
         // Tantivy does not resize its hashtable. When it reaches
         // capacity, we just stop indexing new document.
         if segment_writer.is_term_saturated() {
-            info!("Term dic saturated, flushing segment with maxdoc={}.",
-                  segment_writer.max_doc());
+            info!(
+                "Term dic saturated, flushing segment with maxdoc={}.",
+                segment_writer.max_doc()
+            );
             break;
         }
     }
@@ -297,11 +312,13 @@ fn index_documents(heap: &mut Heap,
     let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
     let segment_reader = SegmentReader::open(segment)?;
     let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-    let may_have_deletes = compute_deleted_bitset(&mut deleted_bitset,
-                                                  &segment_reader,
-                                                  &mut delete_cursor,
-                                                  &doc_to_opstamps,
-                                                  last_docstamp)?;
+    let may_have_deletes = compute_deleted_bitset(
+        &mut deleted_bitset,
+        &segment_reader,
+        &mut delete_cursor,
+        &doc_to_opstamps,
+        last_docstamp,
+    )?;
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
         if may_have_deletes {
@@ -328,14 +345,15 @@ impl IndexWriter {
             join_handle
                 .join()
                 .expect("Indexing Worker thread panicked")
-                .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
+                .chain_err(|| {
+                    ErrorKind::ErrorInThread("Error in indexing worker thread.".into())
+                })?;
         }
         drop(self.workers_join_handle);
 
-        let result =
-            self.segment_updater
-                .wait_merging_thread()
-                .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
+        let result = self.segment_updater.wait_merging_thread().chain_err(|| {
+            ErrorKind::ErrorInThread("Failed to join merging thread.".into())
+        });
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -348,8 +366,10 @@ impl IndexWriter {
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater
-            .add_segment(self.generation, segment_entry);
+        self.segment_updater.add_segment(
+            self.generation,
+            segment_entry,
+        );
     }
 
     #[doc(hidden)]
@@ -373,7 +393,11 @@ impl IndexWriter {
         let mut delete_cursor = self.delete_queue.cursor();
 
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
-            .name(format!("indexing thread {} for gen {}", self.worker_id, generation))
+            .name(format!(
+                "indexing thread {} for gen {}",
+                self.worker_id,
+                generation
+            ))
             .spawn(move || {
 
                 loop {
@@ -397,14 +421,16 @@ impl IndexWriter {
                         return Ok(());
                     }
                     let segment = segment_updater.new_segment();
-                    index_documents(&mut heap,
-                                    table_size,
-                                    segment,
-                                    &schema,
-                                    generation,
-                                    &mut document_iterator,
-                                    &mut segment_updater,
-                                    delete_cursor.clone())?;
+                    index_documents(
+                        &mut heap,
+                        table_size,
+                        segment,
+                        &schema,
+                        generation,
+                        &mut document_iterator,
+                        &mut segment_updater,
+                        delete_cursor.clone(),
+                    )?;
 
                 }
             })?;
@@ -437,9 +463,10 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self,
-                 segment_ids: &[SegmentId])
-                 -> impl Future<Item = SegmentMeta, Error = Canceled> {
+    pub fn merge(
+        &mut self,
+        segment_ids: &[SegmentId],
+    ) -> impl Future<Item = SegmentMeta, Error = Canceled> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -523,14 +550,15 @@ impl IndexWriter {
         self.recreate_document_channel();
 
         let mut former_workers_join_handle = Vec::new();
-        swap(&mut former_workers_join_handle,
-             &mut self.workers_join_handle);
+        swap(
+            &mut former_workers_join_handle,
+            &mut self.workers_join_handle,
+        );
 
         for worker_handle in former_workers_join_handle {
-            let indexing_worker_result =
-                worker_handle
-                    .join()
-                    .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+            let indexing_worker_result = worker_handle.join().map_err(|e| {
+                Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e)))
+            })?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.
@@ -624,13 +652,17 @@ mod tests {
         let schema_builder = schema::SchemaBuilder::default();
         let index = Index::create_in_ram(schema_builder.build());
         let index_writer = index.writer(40_000_000).unwrap();
-        assert_eq!(format!("{:?}", index_writer.get_merge_policy()),
-                   "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
-                    level_log_size: 0.75 }");
+        assert_eq!(
+            format!("{:?}", index_writer.get_merge_policy()),
+            "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
+                    level_log_size: 0.75 }"
+        );
         let merge_policy = box NoMergePolicy::default();
         index_writer.set_merge_policy(merge_policy);
-        assert_eq!(format!("{:?}", index_writer.get_merge_policy()),
-                   "NoMergePolicy");
+        assert_eq!(
+            format!("{:?}", index_writer.get_merge_policy()),
+            "NoMergePolicy"
+        );
     }
 
     #[test]
@@ -720,9 +752,9 @@ mod tests {
             }
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
-            index_writer
-                .wait_merging_threads()
-                .expect("waiting merging thread failed");
+            index_writer.wait_merging_threads().expect(
+                "waiting merging thread failed",
+            );
             index.load_searchers().unwrap();
 
             assert_eq!(num_docs_containing("a"), 200);

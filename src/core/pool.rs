@@ -76,8 +76,11 @@ impl<T> Pool<T> {
             if former_generation >= generation {
                 break;
             }
-            self.freshest_generation
-                .compare_and_swap(former_generation, generation, Ordering::SeqCst);
+            self.freshest_generation.compare_and_swap(
+                former_generation,
+                generation,
+                Ordering::SeqCst,
+            );
         }
     }
 
@@ -91,9 +94,9 @@ impl<T> Pool<T> {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {
                 return LeasedItem {
-                           gen_item: Some(gen_item),
-                           recycle_queue: self.queue.clone(),
-                       };
+                    gen_item: Some(gen_item),
+                    recycle_queue: self.queue.clone(),
+                };
             } else {
                 // this searcher is obsolete,
                 // removing it from the pool.
@@ -113,25 +116,26 @@ impl<T> Deref for LeasedItem<T> {
 
     fn deref(&self) -> &T {
         &self.gen_item
-             .as_ref()
-             .expect("Unwrapping a leased item should never fail")
-             .item // unwrap is safe here
+            .as_ref()
+            .expect("Unwrapping a leased item should never fail")
+            .item // unwrap is safe here
     }
 }
 
 impl<T> DerefMut for LeasedItem<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.gen_item
-                 .as_mut()
-                 .expect("Unwrapping a mut leased item should never fail")
-                 .item // unwrap is safe here
+            .as_mut()
+            .expect("Unwrapping a mut leased item should never fail")
+            .item // unwrap is safe here
     }
 }
 
 impl<T> Drop for LeasedItem<T> {
     fn drop(&mut self) {
-        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None)
-            .expect("Unwrapping a leased item should never fail");
+        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None).expect(
+            "Unwrapping a leased item should never fail",
+        );
         self.recycle_queue.push(gen_item);
     }
 }

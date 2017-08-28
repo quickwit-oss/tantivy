@@ -30,20 +30,16 @@ fn has_positions(field_type: &FieldType) -> bool {
             let indexing_options = text_options.get_indexing_options();
             if indexing_options.is_position_enabled() {
                 true
-            }
-            else {
+            } else {
                 false
             }
         }
-        _ => {
-            false
-        }
+        _ => false,
     }
 }
 
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
-pub struct TermDictionaryBuilderImpl<W>
-{
+pub struct TermDictionaryBuilderImpl<W> {
     write: CountingWriter<W>,
     term_delta_encoder: TermDeltaEncoder,
     term_info_encoder: TermInfoDeltaEncoder,
@@ -61,7 +57,8 @@ fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
 }
 
 impl<W> TermDictionaryBuilderImpl<W>
-    where W: Write
+where
+    W: Write,
 {
     fn add_index_entry(&mut self) {
         let stream_offset = self.write.written_bytes() as u32;
@@ -74,10 +71,17 @@ impl<W> TermDictionaryBuilderImpl<W>
             positions_offset: positions_offset,
         };
         self.block_index
-            .insert(&self.term_delta_encoder.term(), self.checkpoints.len() as u64)
-            .expect("Serializing fst on a Vec<u8> should never fail. Where your terms not in order maybe?");
-        checkpoint.serialize(&mut self.checkpoints)
-            .expect("Serializing checkpoint on a Vec<u8> should never fail.");
+            .insert(
+                &self.term_delta_encoder.term(),
+                self.checkpoints.len() as u64,
+            )
+            .expect(
+                "Serializing fst on a Vec<u8> should never fail. \
+                     Where your terms not in order maybe?",
+            );
+        checkpoint.serialize(&mut self.checkpoints).expect(
+            "Serializing checkpoint on a Vec<u8> should never fail.",
+        );
     }
 
     /// # Warning
@@ -98,7 +102,13 @@ impl<W> TermDictionaryBuilderImpl<W>
     pub(crate) fn insert_value(&mut self, term_info: &TermInfo) -> io::Result<()> {
         let delta_term_info = self.term_info_encoder.encode(term_info.clone());
         let (prefix_len, suffix) = self.term_delta_encoder.prefix_suffix();
-        write_term_kv(prefix_len, suffix, &delta_term_info, self.term_info_encoder.has_positions, &mut self.write)?;
+        write_term_kv(
+            prefix_len,
+            suffix,
+            &delta_term_info,
+            self.term_info_encoder.has_positions,
+            &mut self.write,
+        )?;
         self.len += 1;
         Ok(())
     }
@@ -108,19 +118,20 @@ fn num_bytes_required(mut n: u32) -> u8 {
     for i in 1u8..5u8 {
         if n < 256u32 {
             return i;
-        }
-        else {
+        } else {
             n /= 256;
         }
     }
     0u8
 }
 
-fn write_term_kv<W: Write>(prefix_len: usize,
-                           suffix: &[u8],
-                           delta_term_info: &DeltaTermInfo,
-                           has_positions: bool,
-                           write: &mut W) -> io::Result<()> {
+fn write_term_kv<W: Write>(
+    prefix_len: usize,
+    suffix: &[u8],
+    delta_term_info: &DeltaTermInfo,
+    has_positions: bool,
+    write: &mut W,
+) -> io::Result<()> {
     let suffix_len = suffix.len();
     let mut code = 0u8;
     let num_bytes_docfreq = num_bytes_required(delta_term_info.doc_freq);
@@ -131,9 +142,13 @@ fn write_term_kv<W: Write>(prefix_len: usize,
     code |= (num_bytes_positions_offset - 1) << 5u8;
     if (prefix_len < 16) && (suffix_len < 16) {
         code |= 1u8;
-        write.write_all(&[code, (prefix_len as u8) | ((suffix_len as u8) << 4u8)])?;
-    }
-    else {
+        write.write_all(
+            &[
+                code,
+                (prefix_len as u8) | ((suffix_len as u8) << 4u8),
+            ],
+        )?;
+    } else {
         write.write_all(&[code])?;
         (prefix_len as u32).serialize(write)?;
         (suffix_len as u32).serialize(write)?;
@@ -145,11 +160,15 @@ fn write_term_kv<W: Write>(prefix_len: usize,
     }
     {
         let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_postings_offset) };
-        write.write_all(&bytes[0..num_bytes_postings_offset as usize])?;
+        write.write_all(
+            &bytes[0..num_bytes_postings_offset as usize],
+        )?;
     }
     if has_positions {
         let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_positions_offset) };
-        write.write_all(&bytes[0..num_bytes_positions_offset as usize])?;
+        write.write_all(
+            &bytes[0..num_bytes_positions_offset as usize],
+        )?;
         write.write_all(&[delta_term_info.positions_inner_offset])?;
     }
     Ok(())
@@ -157,7 +176,8 @@ fn write_term_kv<W: Write>(prefix_len: usize,
 }
 
 impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
-    where W: Write
+where
+    W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
     fn new(mut write: W, field_type: FieldType) -> io::Result<Self> {
@@ -169,7 +189,7 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
             term_delta_encoder: TermDeltaEncoder::default(),
             term_info_encoder: TermInfoDeltaEncoder::new(has_positions),
             block_index: fst::MapBuilder::new(vec![]).expect("This cannot fail"),
-            checkpoints: vec!(),
+            checkpoints: vec![],
             len: 0,
         })
     }
@@ -206,28 +226,22 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     use self::ReadOnlySource::*;
     let fst_result = match source {
-        Anonymous(data) => {
-            Fst::from_shared_bytes(data.data, data.start, data.len)
-        }
-        Mmap(mmap_readonly) => {
-            Fst::from_mmap(mmap_readonly)
-        }
+        Anonymous(data) => Fst::from_shared_bytes(data.data, data.start, data.len),
+        Mmap(mmap_readonly) => Fst::from_mmap(mmap_readonly),
     };
     let fst = fst_result.map_err(convert_fst_error)?;
     Ok(fst::Map::from(fst))
 }
 
 /// See [`TermDictionary`](./trait.TermDictionary.html)
-pub struct TermDictionaryImpl
-{
+pub struct TermDictionaryImpl {
     stream_data: ReadOnlySource,
     fst_index: fst::Map,
     checkpoints_data: ReadOnlySource,
     has_positions: bool,
 }
 
-impl TermDictionaryImpl
-{
+impl TermDictionaryImpl {
     pub(crate) fn stream_data(&self) -> &[u8] {
         self.stream_data.as_slice()
     }
@@ -235,8 +249,8 @@ impl TermDictionaryImpl
     pub(crate) fn strictly_previous_key(&self, key: &[u8]) -> (Vec<u8>, CheckPoint) {
         let (term, checkpoint_offset) = self.strictly_previous_key_checkpoint_offset(key);
         let mut checkpoint_data = &self.checkpoints_data.as_slice()[checkpoint_offset..];
-        let checkpoint = CheckPoint::deserialize(&mut checkpoint_data)
-            .expect("Checkpoint data is corrupted");
+        let checkpoint =
+            CheckPoint::deserialize(&mut checkpoint_data).expect("Checkpoint data is corrupted");
         (term, checkpoint)
     }
 
@@ -288,47 +302,47 @@ impl TermDictionaryImpl
 
 
 
-impl<'a> TermDictionary<'a> for TermDictionaryImpl
-{
+impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
 
     type StreamBuilder = TermStreamerBuilderImpl<'a>;
 
     /// Opens a `TermDictionary` given a data source.
-    fn from_source(mut source: ReadOnlySource) -> io::Result<Self> {
-        let has_positions = source.slice(0, 1).as_ref()[0] == 255u8;
+    fn from_source(mut source: ReadOnlySource) -> Self {
+        let has_positions = source.slice(0, 1)[0] == 255u8;
         source = source.slice_from(1);
 
         let total_len = source.len();
         let (body, footer) = source.split(total_len - 16);
 
         let mut footer_buffer: &[u8] = footer.as_slice();
-        let fst_addr: usize = u64::deserialize(&mut footer_buffer)? as usize;
-        let checkpoints_addr: usize = u64::deserialize(&mut footer_buffer)? as usize;
+        let fst_addr = u64::deserialize(&mut footer_buffer).expect(
+            "deserializing 8 byte should never fail",
+        ) as usize;
+        let checkpoints_addr = u64::deserialize(&mut footer_buffer).expect(
+            "deserializing 8 byte should never fail",
+        ) as usize;
 
         let stream_data = body.slice(0, fst_addr - PADDING_SIZE);
         let fst_data = body.slice(fst_addr, checkpoints_addr);
         let checkpoints_data = body.slice_from(checkpoints_addr);
 
-        let fst_index = open_fst_index(fst_data)?;
+        let fst_index = open_fst_index(fst_data).expect("Index FST data corrupted");
 
-        Ok(TermDictionaryImpl {
+        TermDictionaryImpl {
             has_positions: has_positions,
             stream_data: stream_data,
             checkpoints_data: checkpoints_data,
             fst_index: fst_index,
-        })
+        }
     }
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo> {
-        let mut streamer = self.range()
-            .ge(&target_key)
-            .into_stream();
+        let mut streamer = self.range().ge(&target_key).into_stream();
         if streamer.advance() && streamer.key() == target_key.as_ref() {
             Some(streamer.value().clone())
-        }
-        else {
+        } else {
             None
         }
     }

@@ -80,8 +80,9 @@ impl FieldType {
                     FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
                     FieldType::U64(_) |
                     FieldType::I64(_) => {
-                        Err(ValueParsingError::TypeError(format!("Expected an integer, got {:?}",
-                                                                 json)))
+                        Err(ValueParsingError::TypeError(
+                            format!("Expected an integer, got {:?}", json),
+                        ))
                     }
                 }
             }
@@ -110,9 +111,11 @@ impl FieldType {
                 }
             }
             _ => {
-                let msg = format!("Json value not supported error {:?}. Expected {:?}",
-                                  json,
-                                  self);
+                let msg = format!(
+                    "Json value not supported error {:?}. Expected {:?}",
+                    json,
+                    self
+                );
                 Err(ValueParsingError::TypeError(msg))
             }
         }

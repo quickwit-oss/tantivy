@@ -38,10 +38,11 @@ impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
 }
 
 impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Right> {
-    fn set_segment(&mut self,
-                   segment_local_id: SegmentLocalId,
-                   segment: &SegmentReader)
-                   -> Result<()> {
+    fn set_segment(
+        &mut self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> Result<()> {
         try!(self.left.set_segment(segment_local_id, segment));
         try!(self.right.set_segment(segment_local_id, segment));
         Ok(())

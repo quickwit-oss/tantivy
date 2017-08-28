@@ -112,12 +112,9 @@ impl From<schema::DocParsingError> for Error {
 impl From<OpenWriteError> for Error {
     fn from(error: OpenWriteError) -> Error {
         match error {
-                OpenWriteError::FileAlreadyExists(filepath) => {
-                    ErrorKind::FileAlreadyExists(filepath)
-                }
-                OpenWriteError::IOError(io_error) => ErrorKind::IOError(io_error),
-            }
-            .into()
+            OpenWriteError::FileAlreadyExists(filepath) => ErrorKind::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) => ErrorKind::IOError(io_error),
+        }.into()
     }
 }
 

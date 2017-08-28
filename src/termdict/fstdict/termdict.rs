@@ -13,14 +13,14 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 }
 
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
-pub struct TermDictionaryBuilderImpl<W>
-{
+pub struct TermDictionaryBuilderImpl<W> {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
 }
 
 impl<W> TermDictionaryBuilderImpl<W>
-    where W: Write
+where
+    W: Write,
 {
     /// # Warning
     /// Horribly dangerous internal API
@@ -46,14 +46,15 @@ impl<W> TermDictionaryBuilderImpl<W>
 }
 
 impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
-    where W: Write
+where
+    W: Write,
 {
     fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
-               fst_builder: fst_builder,
-               data: Vec::new(),
-           })
+            fst_builder: fst_builder,
+            data: Vec::new(),
+        })
     }
 
     fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
@@ -75,28 +76,25 @@ impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     }
 }
 
-fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
+fn open_fst_index(source: ReadOnlySource) -> fst::Map {
     let fst = match source {
         ReadOnlySource::Anonymous(data) => {
-            Fst::from_shared_bytes(data.data, data.start, data.len)
-                .map_err(convert_fst_error)?
+            Fst::from_shared_bytes(data.data, data.start, data.len).expect("FST data is corrupted")
         }
         ReadOnlySource::Mmap(mmap_readonly) => {
-            Fst::from_mmap(mmap_readonly).map_err(convert_fst_error)?
+            Fst::from_mmap(mmap_readonly).expect("FST data is corrupted")
         }
     };
-    Ok(fst::Map::from(fst))
+    fst::Map::from(fst)
 }
 
 /// See [`TermDictionary`](./trait.TermDictionary.html)
-pub struct TermDictionaryImpl
-{
+pub struct TermDictionaryImpl {
     fst_index: fst::Map,
     values_mmap: ReadOnlySource,
 }
 
-impl TermDictionaryImpl
-{
+impl TermDictionaryImpl {
     /// Deserialize and returns the value at address `offset`
     pub(crate) fn read_value(&self, offset: u64) -> io::Result<TermInfo> {
         let buffer = self.values_mmap.as_slice();
@@ -106,34 +104,34 @@ impl TermDictionaryImpl
 }
 
 
-impl<'a> TermDictionary<'a> for TermDictionaryImpl
-{
+impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
 
     type StreamBuilder = TermStreamerBuilderImpl<'a>;
 
-    fn from_source(source: ReadOnlySource) -> io::Result<Self> {
+    fn from_source(source: ReadOnlySource) -> Self {
         let total_len = source.len();
         let length_offset = total_len - 4;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
-        let footer_size = u32::deserialize(&mut split_len_buffer)? as usize;
+        let footer_size = u32::deserialize(&mut split_len_buffer).expect(
+            "Deserializing 4 bytes should always work",
+        ) as usize;
         let split_len = length_offset - footer_size;
         let fst_source = source.slice(0, split_len);
         let values_source = source.slice(split_len, length_offset);
-        let fst_index = open_fst_index(fst_source)?;
-        Ok(TermDictionaryImpl {
-               fst_index: fst_index,
-               values_mmap: values_source,
-           })
+        let fst_index = open_fst_index(fst_source);
+        TermDictionaryImpl {
+            fst_index: fst_index,
+            values_mmap: values_source,
+        }
     }
 
     fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
-        self.fst_index
-            .get(key)
-            .map(|offset| {
-                     self.read_value(offset)
-                         .expect("The fst is corrupted. Failed to deserialize a value.")
-                 })
+        self.fst_index.get(key).map(|offset| {
+            self.read_value(offset).expect(
+                "The fst is corrupted. Failed to deserialize a value.",
+            )
+        })
     }
 
     fn range(&self) -> TermStreamerBuilderImpl {

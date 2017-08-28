@@ -48,9 +48,10 @@ impl Index {
     pub fn create_in_ram(schema: Schema) -> Index {
         let ram_directory = RAMDirectory::create();
         // unwrap is ok here
-        let directory = ManagedDirectory::new(ram_directory)
-            .expect("Creating a managed directory from a brand new RAM directory \
-                     should never fail.");
+        let directory = ManagedDirectory::new(ram_directory).expect(
+            "Creating a managed directory from a brand new RAM directory \
+                     should never fail.",
+        );
         Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail")
     }
 
@@ -127,10 +128,11 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// # Panics
     /// If the heap size per thread is too small, panics.
-    pub fn writer_with_num_threads(&self,
-                                   num_threads: usize,
-                                   heap_size_in_bytes: usize)
-                                   -> Result<IndexWriter> {
+    pub fn writer_with_num_threads(
+        &self,
+        num_threads: usize,
+        heap_size_in_bytes: usize,
+    ) -> Result<IndexWriter> {
         open_index_writer(self, num_threads, heap_size_in_bytes)
     }
 
@@ -155,10 +157,12 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self.searchable_segment_metas()?
-               .into_iter()
-               .map(|segment_meta| self.segment(segment_meta))
-               .collect())
+        Ok(
+            self.searchable_segment_metas()?
+                .into_iter()
+                .map(|segment_meta| self.segment(segment_meta))
+                .collect(),
+        )
     }
 
     #[doc(hidden)]
@@ -190,10 +194,12 @@ impl Index {
 
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        Ok(self.searchable_segment_metas()?
-               .iter()
-               .map(|segment_meta| segment_meta.id())
-               .collect())
+        Ok(
+            self.searchable_segment_metas()?
+                .iter()
+                .map(|segment_meta| segment_meta.id())
+                .collect(),
+        )
     }
 
     /// Creates a new generation of searchers after
@@ -203,10 +209,12 @@ impl Index {
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
         let searchable_segments = self.searchable_segments()?;
-        let segment_readers: Vec<SegmentReader> = try!(searchable_segments
-                                                           .into_iter()
-                                                           .map(SegmentReader::open)
-                                                           .collect());
+        let segment_readers: Vec<SegmentReader> = try!(
+            searchable_segments
+                .into_iter()
+                .map(SegmentReader::open)
+                .collect()
+        );
         let searchers = (0..NUM_SEARCHERS)
             .map(|_| Searcher::from(segment_readers.clone()))
             .collect();

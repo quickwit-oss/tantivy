@@ -7,11 +7,11 @@ use postings::TermInfo;
 use super::delta_encoder::{TermInfoDeltaDecoder, TermDeltaDecoder};
 
 
-fn stream_before<'a>(term_dictionary: &'a TermDictionaryImpl,
-                                target_key: &[u8],
-                                has_positions: bool)
-                                   -> TermStreamerImpl<'a>
-{
+fn stream_before<'a>(
+    term_dictionary: &'a TermDictionaryImpl,
+    target_key: &[u8],
+    has_positions: bool,
+) -> TermStreamerImpl<'a> {
 
     let (prev_key, checkpoint) = term_dictionary.strictly_previous_key(target_key.as_ref());
     let stream_data: &'a [u8] = &term_dictionary.stream_data()[checkpoint.stream_offset as usize..];
@@ -24,8 +24,7 @@ fn stream_before<'a>(term_dictionary: &'a TermDictionaryImpl,
 
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
-pub struct TermStreamerBuilderImpl<'a>
-{
+pub struct TermStreamerBuilderImpl<'a> {
     term_dictionary: &'a TermDictionaryImpl,
     origin: usize,
     offset_from: usize,
@@ -35,14 +34,17 @@ pub struct TermStreamerBuilderImpl<'a>
     has_positions: bool,
 }
 
-impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
-{
+impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a> {
     type Streamer = TermStreamerImpl<'a>;
 
     /// Limit the range to terms greater or equal to the bound
     fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         let target_key = bound.as_ref();
-        let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
+        let streamer = stream_before(
+            self.term_dictionary,
+            target_key.as_ref(),
+            self.has_positions,
+        );
         let smaller_than = |k: &[u8]| k.lt(target_key);
         let (offset_before, current_key, term_info) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
@@ -54,7 +56,11 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
     /// Limit the range to terms strictly greater than the bound
     fn gt<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         let target_key = bound.as_ref();
-        let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
+        let streamer = stream_before(
+            self.term_dictionary,
+            target_key.as_ref(),
+            self.has_positions,
+        );
         let smaller_than = |k: &[u8]| k.le(target_key);
         let (offset_before, current_key, term_info) = get_offset(smaller_than, streamer);
         self.current_key = current_key;
@@ -66,7 +72,11 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
     /// Limit the range to terms lesser or equal to the bound
     fn lt<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         let target_key = bound.as_ref();
-        let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
+        let streamer = stream_before(
+            self.term_dictionary,
+            target_key.as_ref(),
+            self.has_positions,
+        );
         let smaller_than = |k: &[u8]| k.lt(target_key);
         let (offset_before, _, _) = get_offset(smaller_than, streamer);
         self.offset_to = offset_before - self.origin;
@@ -76,7 +86,11 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
     /// Limit the range to terms lesser or equal to the bound
     fn le<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
         let target_key = bound.as_ref();
-        let streamer = stream_before(self.term_dictionary, target_key.as_ref(), self.has_positions);
+        let streamer = stream_before(
+            self.term_dictionary,
+            target_key.as_ref(),
+            self.has_positions,
+        );
         let smaller_than = |k: &[u8]| k.le(target_key);
         let (offset_before, _, _) = get_offset(smaller_than, streamer);
         self.offset_to = offset_before - self.origin;
@@ -88,10 +102,13 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
         let data: &[u8] = self.term_dictionary.stream_data();
         let start = self.offset_from;
         let stop = max(self.offset_to, start);
+        let term_delta_decoder = TermDeltaDecoder::with_previous_term(self.current_key);
+        let term_info_decoder =
+            TermInfoDeltaDecoder::from_term_info(self.term_info, self.has_positions);
         TermStreamerImpl {
             cursor: &data[start..stop],
-            term_delta_decoder: TermDeltaDecoder::with_previous_term(self.current_key),
-            term_info_decoder: TermInfoDeltaDecoder::from_term_info(self.term_info, self.has_positions), // TODO checkpoint
+            term_delta_decoder: term_delta_decoder,
+            term_info_decoder: term_info_decoder,
         }
     }
 }
@@ -103,10 +120,10 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
 ///     - the block start
 ///     - the index within this block
 ///     - the term_buffer state to initialize the block)
-fn get_offset<'a, P: Fn(&[u8]) -> bool>(predicate: P,
-                                        mut streamer: TermStreamerImpl<'a>)
-                                           -> (usize, Vec<u8>, TermInfo)
-{
+fn get_offset<'a, P: Fn(&[u8]) -> bool>(
+    predicate: P,
+    mut streamer: TermStreamerImpl<'a>,
+) -> (usize, Vec<u8>, TermInfo) {
     let mut prev: &[u8] = streamer.cursor;
 
     let mut term_info = streamer.value().clone();
@@ -124,11 +141,8 @@ fn get_offset<'a, P: Fn(&[u8]) -> bool>(predicate: P,
     (prev.as_ptr() as usize, prev_data, term_info)
 }
 
-impl<'a> TermStreamerBuilderImpl<'a>
-{
-    pub(crate) fn new(
-        term_dictionary: &'a TermDictionaryImpl,
-        has_positions: bool) -> Self {
+impl<'a> TermStreamerBuilderImpl<'a> {
+    pub(crate) fn new(term_dictionary: &'a TermDictionaryImpl, has_positions: bool) -> Self {
         let data = term_dictionary.stream_data();
         let origin = data.as_ptr() as usize;
         TermStreamerBuilderImpl {
@@ -146,8 +160,7 @@ impl<'a> TermStreamerBuilderImpl<'a>
 
 
 /// See [`TermStreamer`](./trait.TermStreamer.html)
-pub struct TermStreamerImpl<'a>
-{
+pub struct TermStreamerImpl<'a> {
     cursor: &'a [u8],
     term_delta_decoder: TermDeltaDecoder,
     term_info_decoder: TermInfoDeltaDecoder,
@@ -156,8 +169,7 @@ pub struct TermStreamerImpl<'a>
 
 
 
-impl<'a> TermStreamer for TermStreamerImpl<'a>
-{
+impl<'a> TermStreamer for TermStreamerImpl<'a> {
     fn advance(&mut self) -> bool {
         if self.cursor.is_empty() {
             return false;
@@ -178,4 +190,3 @@ impl<'a> TermStreamer for TermStreamerImpl<'a>
         &self.term_info_decoder.term_info()
     }
 }
-

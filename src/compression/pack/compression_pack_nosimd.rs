@@ -25,9 +25,9 @@ pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> 
         bit_packer.write(*val, &mut output).unwrap();
     }
     1 +
-    bit_packer
-        .close(&mut output)
-        .expect("packing in memory should never fail")
+        bit_packer.close(&mut output).expect(
+            "packing in memory should never fail",
+        )
 }
 
 
@@ -56,10 +56,9 @@ impl BlockEncoder {
     pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
         let compressed_size: usize = {
             let mut output: &mut [u8] = &mut self.output;
-            let max = vals.iter()
-                .cloned()
-                .max()
-                .expect("compress unsorted called with an empty array");
+            let max = vals.iter().cloned().max().expect(
+                "compress unsorted called with an empty array",
+            );
             let num_bits = compute_num_bits(max);
             output.write_all(&[num_bits]).unwrap();
             let mut bit_packer = BitPacker::new(num_bits as usize);
@@ -67,9 +66,9 @@ impl BlockEncoder {
                 bit_packer.write(*val, &mut output).unwrap();
             }
             1 +
-            bit_packer
-                .close(&mut output)
-                .expect("packing in memory should never fail")
+                bit_packer.close(&mut output).expect(
+                    "packing in memory should never fail",
+                )
         };
         &self.output[..compressed_size]
     }
@@ -93,10 +92,11 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_sorted<'a>(&mut self,
-                                       compressed_data: &'a [u8],
-                                       mut offset: u32)
-                                       -> &'a [u8] {
+    pub fn uncompress_block_sorted<'a>(
+        &mut self,
+        compressed_data: &'a [u8],
+        mut offset: u32,
+    ) -> &'a [u8] {
         let consumed_size = {
             let num_bits = compressed_data[0];
             let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);

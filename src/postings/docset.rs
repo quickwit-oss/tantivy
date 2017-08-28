@@ -72,8 +72,7 @@ pub trait DocSet {
         for (i, buffer_val) in buffer.iter_mut().enumerate() {
             if self.advance() {
                 *buffer_val = self.doc();
-            }
-            else {
+            } else {
                 return i;
             }
         }

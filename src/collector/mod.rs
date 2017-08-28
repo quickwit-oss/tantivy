@@ -51,20 +51,22 @@ pub use self::chained_collector::chain;
 pub trait Collector {
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
-    fn set_segment(&mut self,
-                   segment_local_id: SegmentLocalId,
-                   segment: &SegmentReader)
-                   -> Result<()>;
+    fn set_segment(
+        &mut self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> Result<()>;
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 }
 
 
 impl<'a, C: Collector> Collector for &'a mut C {
-    fn set_segment(&mut self,
-                   segment_local_id: SegmentLocalId,
-                   segment: &SegmentReader)
-                   -> Result<()> {
+    fn set_segment(
+        &mut self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> Result<()> {
         (*self).set_segment(segment_local_id, segment)
     }
     /// The query pushes the scored document to the collector via this method.
@@ -169,12 +171,12 @@ pub mod tests {
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-                   let mut count_collector = CountCollector::default();
-                   let docs: Vec<u32> = (0..1_000_000).collect();
-                   for doc in docs {
-                       count_collector.collect(doc, 1f32);
-                   }
-                   count_collector.count()
-               });
+            let mut count_collector = CountCollector::default();
+            let docs: Vec<u32> = (0..1_000_000).collect();
+            for doc in docs {
+                count_collector.collect(doc, 1f32);
+            }
+            count_collector.count()
+        });
     }
 }

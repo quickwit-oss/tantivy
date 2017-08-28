@@ -91,9 +91,11 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     let mut old_man_doc = Document::default();
     old_man_doc.add_text(title, "The Old Man and the Sea");
-    old_man_doc.add_text(body,
-                         "He was an old man who fished alone in a skiff in the Gulf Stream and \
-                          he had gone eighty-four days now without taking a fish.");
+    old_man_doc.add_text(
+        body,
+        "He was an old man who fished alone in a skiff in the Gulf Stream and \
+                          he had gone eighty-four days now without taking a fish.",
+    );
 
     // ... and add it to the `IndexWriter`.
     index_writer.add_document(old_man_doc);
