@@ -83,7 +83,7 @@ impl VIntDecoder for BlockDecoder {
 }
 
 
-pub const NUM_DOCS_PER_BLOCK: usize = 128; //< should be a power of 2 to let the compiler optimize.
+pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 
 #[cfg(test)]
 pub mod tests {
@@ -186,14 +186,14 @@ pub mod tests {
     #[bench]
     fn bench_compress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = tests::generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        let data = tests::generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
         b.iter(|| { encoder.compress_block_sorted(&data, 0u32); });
     }
 
     #[bench]
     fn bench_uncompress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
-        let data = tests::generate_array(NUM_DOCS_PER_BLOCK, 0.1);
+        let data = tests::generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
         let compressed = encoder.compress_block_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::new();
         b.iter(|| { decoder.uncompress_block_sorted(compressed, 0u32); });

@@ -1,5 +1,5 @@
 use compression::BlockDecoder;
-use compression::NUM_DOCS_PER_BLOCK;
+use compression::COMPRESSION_BLOCK_SIZE;
 use compression::compressed_block_size;
 use directory::{ReadOnlySource, SourceRead};
 
@@ -14,7 +14,7 @@ impl CompressedIntStream {
         CompressedIntStream {
             buffer: SourceRead::from(source),
             block_decoder: BlockDecoder::new(),
-            inner_offset: NUM_DOCS_PER_BLOCK,
+            inner_offset: COMPRESSION_BLOCK_SIZE,
         }
     }
 
@@ -22,7 +22,7 @@ impl CompressedIntStream {
         let mut num_els: usize = output.len();
         let mut start: usize = 0;
         loop {
-            let available = NUM_DOCS_PER_BLOCK - self.inner_offset;
+            let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
             if num_els >= available {
                 if available > 0 {
                     let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..];
@@ -44,15 +44,15 @@ impl CompressedIntStream {
     }
 
     pub fn skip(&mut self, mut skip_len: usize) {
-        let available = NUM_DOCS_PER_BLOCK - self.inner_offset;
+        let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
         if available >= skip_len {
             self.inner_offset += skip_len;
         }
         else {
             skip_len -= available;
             // entirely skip decompressing some blocks.
-            while skip_len >= NUM_DOCS_PER_BLOCK {
-                skip_len -= NUM_DOCS_PER_BLOCK;
+            while skip_len >= COMPRESSION_BLOCK_SIZE {
+                skip_len -= COMPRESSION_BLOCK_SIZE;
                 let num_bits: u8 = self.buffer.as_ref()[0];
                 let block_len = compressed_block_size(num_bits);
                 self.buffer.advance(block_len);
@@ -70,7 +70,7 @@ pub mod tests {
 
     use super::CompressedIntStream;
     use compression::compressed_block_size;
-    use compression::NUM_DOCS_PER_BLOCK;
+    use compression::COMPRESSION_BLOCK_SIZE;
     use compression::BlockEncoder;
     use directory::ReadOnlySource;
 
@@ -78,7 +78,7 @@ pub mod tests {
         let mut buffer: Vec<u8> = vec!();
         let mut encoder = BlockEncoder::new();
         let vals: Vec<u32> = (0u32..1_025u32).collect();
-        for chunk in vals.chunks(NUM_DOCS_PER_BLOCK) {
+        for chunk in vals.chunks(COMPRESSION_BLOCK_SIZE) {
             let compressed_block = encoder.compress_block_unsorted(chunk);
             let num_bits = compressed_block[0];
             assert_eq!(compressed_block_size(num_bits), compressed_block.len());
@@ -91,7 +91,7 @@ pub mod tests {
     fn test_compressed_int_stream() {
         let buffer = create_stream_buffer();
         let mut stream = CompressedIntStream::wrap(buffer);
-        let mut block: [u32; NUM_DOCS_PER_BLOCK] = [0u32; NUM_DOCS_PER_BLOCK];
+        let mut block: [u32; COMPRESSION_BLOCK_SIZE] = [0u32; COMPRESSION_BLOCK_SIZE];
 
         stream.read(&mut block[0..2]);
         assert_eq!(block[0], 0);

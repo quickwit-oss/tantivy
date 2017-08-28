@@ -17,7 +17,7 @@ use super::{TermStreamerImpl, TermStreamerBuilderImpl};
 use termdict::TermStreamerBuilder;
 use std::mem::transmute;
 
-const PADDING_SIZE: usize = 16;
+const PADDING_SIZE: usize = 4;
 const INDEX_INTERVAL: usize = 1024;
 
 fn convert_fst_error(e: fst::Error) -> io::Error {

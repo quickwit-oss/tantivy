@@ -338,9 +338,35 @@ mod tests {
         term_dictionary.get(key.as_bytes());
     }
 
+
+    #[test]
+    fn test_stream_high_range_prefix_suffix() {
+        let field_type = FieldType::Str(TEXT);
+        let buffer: Vec<u8> = {
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            // term requires more than 16bits
+            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(1)).unwrap();
+            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2)).unwrap();
+            term_dictionary_builder.insert("abr", &make_term_info(2)).unwrap();
+            term_dictionary_builder.finish().unwrap()
+        };
+        let source = ReadOnlySource::from(buffer);
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source)
+            .unwrap();
+        let mut kv_stream = term_dictionary.stream();
+        assert!(kv_stream.advance());
+        assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxyz".as_bytes());
+        assert_eq!(kv_stream.value(), &make_term_info(1));
+        assert!(kv_stream.advance());
+        assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxyz".as_bytes());
+        assert_eq!(kv_stream.value(), &make_term_info(2));
+        assert!(kv_stream.advance());
+        assert_eq!(kv_stream.key(), "abr".as_bytes());
+        assert!(!kv_stream.advance());
+    }
+
     #[test]
     fn test_stream_range() {
-//        let ids: Vec<_> = (0u32..10_000u32)
         let ids: Vec<_> = (0u32..10_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();

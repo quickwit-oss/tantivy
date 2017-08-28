@@ -43,6 +43,8 @@ impl ReadOnlySource {
         }
     }
 
+    /// Splits into 2 `ReadOnlySource`, at the offset given
+    /// as an argument.
     pub fn split(self, addr: usize) -> (ReadOnlySource, ReadOnlySource) {
         let left = self.slice(0, addr);
         let right = self.slice_from(addr);
@@ -73,9 +75,19 @@ impl ReadOnlySource {
 
     /// Like `.slice(...)` but enforcing only the `from`
     /// boundary.
+    ///
+    /// Equivalent to `.slice(from_offset, self.len())`
     pub fn slice_from(&self, from_offset: usize) -> ReadOnlySource {
         let len = self.len();
         self.slice(from_offset, len)
+    }
+
+    /// Like `.slice(...)` but enforcing only the `to`
+    /// boundary.
+    ///
+    /// Equivalent to `.slice(0, to_offset)`
+    pub fn slice_to(&self, to_offset: usize) -> ReadOnlySource {
+        self.slice(0, to_offset)
     }
 }
 

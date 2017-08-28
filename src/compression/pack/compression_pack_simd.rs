@@ -1,6 +1,6 @@
-use super::super::NUM_DOCS_PER_BLOCK;
+use super::super::COMPRESSION_BLOCK_SIZE;
 
-const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
 mod simdcomp {
     use libc::size_t;
@@ -83,13 +83,13 @@ impl BlockDecoder {
                                    offset: u32)
                                        -> usize {
         let consumed_size = uncompress_sorted(compressed_data, &mut self.output, offset);
-        self.output_len = NUM_DOCS_PER_BLOCK;
+        self.output_len = COMPRESSION_BLOCK_SIZE;
         consumed_size
     }
 
     pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
         let consumed_size = uncompress_unsorted(compressed_data, &mut self.output);
-        self.output_len = NUM_DOCS_PER_BLOCK;
+        self.output_len = COMPRESSION_BLOCK_SIZE;
         consumed_size
     }
 

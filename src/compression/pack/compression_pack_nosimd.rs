@@ -2,15 +2,15 @@ use common::bitpacker::compute_num_bits;
 use common::bitpacker::{BitPacker, BitUnpacker};
 use std::cmp;
 use std::io::Write;
-use super::super::NUM_DOCS_PER_BLOCK;
+use super::super::COMPRESSION_BLOCK_SIZE;
 
-const COMPRESSED_BLOCK_MAX_SIZE: usize = NUM_DOCS_PER_BLOCK * 4 + 1;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
 pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> usize {
     let mut max_delta = 0;
     {
         let mut local_offset = offset;
-        for i in 0..NUM_DOCS_PER_BLOCK {
+        for i in 0..COMPRESSION_BLOCK_SIZE {
             let val = vals[i];
             let delta = val - local_offset;
             max_delta = cmp::max(max_delta, delta);
@@ -35,7 +35,7 @@ pub fn compress_sorted(vals: &mut [u32], mut output: &mut [u8], offset: u32) -> 
 pub struct BlockEncoder {
     pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
     pub output_len: usize,
-    input_buffer: [u32; NUM_DOCS_PER_BLOCK],
+    input_buffer: [u32; COMPRESSION_BLOCK_SIZE],
 }
 
 impl BlockEncoder {
@@ -43,7 +43,7 @@ impl BlockEncoder {
         BlockEncoder {
             output: [0u8; COMPRESSED_BLOCK_MAX_SIZE],
             output_len: 0,
-            input_buffer: [0u32; NUM_DOCS_PER_BLOCK],
+            input_buffer: [0u32; COMPRESSION_BLOCK_SIZE],
         }
     }
 
@@ -100,26 +100,26 @@ impl BlockDecoder {
         let consumed_size = {
             let num_bits = compressed_data[0];
             let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
-            for i in 0..NUM_DOCS_PER_BLOCK {
+            for i in 0..COMPRESSION_BLOCK_SIZE {
                 let delta = bit_unpacker.get(i);
                 let val = offset + delta;
                 self.output[i] = val;
                 offset = val;
             }
-            1 + (num_bits as usize * NUM_DOCS_PER_BLOCK + 7) / 8
+            1 + (num_bits as usize * COMPRESSION_BLOCK_SIZE + 7) / 8
         };
-        self.output_len = NUM_DOCS_PER_BLOCK;
+        self.output_len = COMPRESSION_BLOCK_SIZE;
         &compressed_data[consumed_size..]
     }
 
     pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> &'a [u8] {
         let num_bits = compressed_data[0];
         let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
-        for i in 0..NUM_DOCS_PER_BLOCK {
+        for i in 0..COMPRESSION_BLOCK_SIZE {
             self.output[i] = bit_unpacker.get(i);
         }
-        let consumed_size = 1 + (num_bits as usize * NUM_DOCS_PER_BLOCK + 7) / 8;
-        self.output_len = NUM_DOCS_PER_BLOCK;
+        let consumed_size = 1 + (num_bits as usize * COMPRESSION_BLOCK_SIZE + 7) / 8;
+        self.output_len = COMPRESSION_BLOCK_SIZE;
         &compressed_data[consumed_size..]
     }
 

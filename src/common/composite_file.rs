@@ -64,7 +64,7 @@ pub struct CompositeFile {
 impl CompositeFile {
     pub fn open(data: ReadOnlySource) -> io::Result<CompositeFile> {
         let end = data.len();
-        let footer_len_data = data.slice(end - 4, end);
+        let footer_len_data = data.slice_from(end - 4);
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
 
         let footer_start = end - 4 - footer_len;
@@ -93,7 +93,7 @@ impl CompositeFile {
         }
 
         Ok(CompositeFile {
-            data: data.slice(0, footer_start),
+            data: data.slice_to(footer_start),
             offsets_index: field_index,
         })
     }

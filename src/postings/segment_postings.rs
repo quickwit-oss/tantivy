@@ -1,4 +1,4 @@
-use compression::{NUM_DOCS_PER_BLOCK, BlockDecoder, VIntDecoder, CompressedIntStream};
+use compression::{COMPRESSION_BLOCK_SIZE, BlockDecoder, VIntDecoder, CompressedIntStream};
 use DocId;
 use postings::{Postings, DocSet, HasLen, SkipResult};
 use std::cmp;
@@ -92,7 +92,7 @@ impl SegmentPostings {
         });
         SegmentPostings {
             block_cursor: segment_block_postings,
-            cur: NUM_DOCS_PER_BLOCK, // cursor within the block
+            cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             delete_bitset: delete_bitset,
             position_computer: position_computer,
         }
@@ -104,7 +104,7 @@ impl SegmentPostings {
         SegmentPostings {
             block_cursor: empty_block_cursor,
             delete_bitset: DeleteBitSet::empty(),
-            cur: NUM_DOCS_PER_BLOCK,
+            cur: COMPRESSION_BLOCK_SIZE,
             position_computer: None,
         }
     }
@@ -131,7 +131,7 @@ impl DocSet for SegmentPostings {
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
                 if !self.block_cursor.advance() {
-                    self.cur = NUM_DOCS_PER_BLOCK;
+                    self.cur = COMPRESSION_BLOCK_SIZE;
                     return false;
                 }
             }
@@ -315,8 +315,8 @@ impl BlockSegmentPostings {
                             data: SourceRead,
                             has_freq: bool)
                             -> BlockSegmentPostings {
-        let num_binpacked_blocks: usize = (doc_freq as usize) / NUM_DOCS_PER_BLOCK;
-        let num_vint_docs = (doc_freq as usize) - NUM_DOCS_PER_BLOCK * num_binpacked_blocks;
+        let num_binpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
+        let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_binpacked_blocks;
         BlockSegmentPostings {
             num_binpacked_blocks: num_binpacked_blocks,
             num_vint_docs: num_vint_docs,
@@ -343,8 +343,8 @@ impl BlockSegmentPostings {
     //
     // This does not reset the positions list.
     pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: SourceRead) {
-        let num_binpacked_blocks: usize = doc_freq / NUM_DOCS_PER_BLOCK;
-        let num_vint_docs = doc_freq & (NUM_DOCS_PER_BLOCK - 1);
+        let num_binpacked_blocks: usize = doc_freq / COMPRESSION_BLOCK_SIZE;
+        let num_vint_docs = doc_freq & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_binpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
@@ -414,7 +414,7 @@ impl BlockSegmentPostings {
                 self.remaining_data.advance(num_consumed_bytes);
             }
             // it will be used as the next offset.
-            self.doc_offset = self.doc_decoder.output(NUM_DOCS_PER_BLOCK - 1);
+            self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
             self.num_binpacked_blocks -= 1;
             true
         } else if self.num_vint_docs > 0 {

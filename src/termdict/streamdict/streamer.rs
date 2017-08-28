@@ -4,7 +4,6 @@ use std::cmp::max;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
 use postings::TermInfo;
-use common::BinarySerializable;
 use super::delta_encoder::{TermInfoDeltaDecoder, TermDeltaDecoder};
 
 
@@ -163,28 +162,10 @@ impl<'a> TermStreamer for TermStreamerImpl<'a>
         if self.cursor.is_empty() {
             return false;
         }
-        let code: u8 = self.cursor[0];
-        let mut cursor: &[u8] = &self.cursor[1..];
-
-        let prefix_suffix_packed = (code & 1u8) == 1u8;
-        let (prefix_len, suffix_len): (usize, usize) =
-            if prefix_suffix_packed {
-                let b = cursor[0];
-                cursor = &cursor[1..];
-                let prefix_len = (b & 15u8) as usize;
-                let suffix_len = (b >> 4u8) as usize;
-                (prefix_len, suffix_len)
-            }
-            else {
-                let prefix_len = u32::deserialize(&mut cursor).unwrap();
-                let suffix_len = u32::deserialize(&mut cursor).unwrap();
-                (prefix_len as usize, suffix_len as usize)
-            };
-
-        let suffix = &cursor[..suffix_len];
-        self.term_delta_decoder.decode(prefix_len, suffix);
-        cursor = &cursor[suffix_len..];
-        self.term_info_decoder.decode(code, &mut cursor);
+        let mut cursor: &[u8] = &self.cursor;
+        let code: u8 = cursor[0];
+        cursor = self.term_delta_decoder.decode(code, &cursor[1..]);
+        cursor = self.term_info_decoder.decode(code, cursor);
         self.cursor = cursor;
         true
     }

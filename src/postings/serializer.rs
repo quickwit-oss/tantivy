@@ -6,7 +6,7 @@ use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
 use directory::WritePtr;
-use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder};
+use compression::{COMPRESSION_BLOCK_SIZE, BlockEncoder};
 use DocId;
 use core::Segment;
 use std::io::{self, Write};
@@ -264,7 +264,7 @@ impl<W: Write> PostingsSerializer<W> {
         if self.termfreq_enabled {
             self.term_freqs.push(term_freq as u32);
         }
-        if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
+        if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
             {
                 // encode the doc ids
                 let block_encoded: &[u8] =
@@ -336,7 +336,7 @@ struct PositionSerializer<W: Write> {
 impl<W: Write> PositionSerializer<W> {
     fn new(write: W) -> PositionSerializer<W> {
         PositionSerializer {
-            buffer: Vec::with_capacity(NUM_DOCS_PER_BLOCK),
+            buffer: Vec::with_capacity(COMPRESSION_BLOCK_SIZE),
             write: CountingWriter::wrap(write),
             block_encoder: BlockEncoder::new(),
         }
@@ -347,7 +347,7 @@ impl<W: Write> PositionSerializer<W> {
     }
 
     fn write_block(&mut self) -> io::Result<()> {
-        assert_eq!(self.buffer.len(), NUM_DOCS_PER_BLOCK);
+        assert_eq!(self.buffer.len(), COMPRESSION_BLOCK_SIZE);
         let block_compressed: &[u8] = self.block_encoder.compress_block_unsorted(&self.buffer);
         self.write.write_all(block_compressed)?;
         self.buffer.clear();
@@ -356,8 +356,8 @@ impl<W: Write> PositionSerializer<W> {
 
     fn write(&mut self, mut vals: &[u32]) -> io::Result<()> {
         let mut buffer_len = self.buffer.len();
-        while vals.len() + buffer_len >= NUM_DOCS_PER_BLOCK {
-            let len_to_completion = NUM_DOCS_PER_BLOCK - buffer_len;
+        while vals.len() + buffer_len >= COMPRESSION_BLOCK_SIZE {
+            let len_to_completion = COMPRESSION_BLOCK_SIZE - buffer_len;
             self.buffer.extend_from_slice(&vals[..len_to_completion]);
             self.write_block()?;
             vals = &vals[len_to_completion..];
@@ -368,7 +368,7 @@ impl<W: Write> PositionSerializer<W> {
     }
 
     fn close(mut self) -> io::Result<()> {
-        self.buffer.resize(NUM_DOCS_PER_BLOCK, 0u32);
+        self.buffer.resize(COMPRESSION_BLOCK_SIZE, 0u32);
         self.write_block()?;
         self.write.flush()
     }
