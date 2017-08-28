@@ -9,13 +9,16 @@ use directory::ReadOnlySource;
 use common::BinarySerializable;
 
 
-
+/// A `CompositeWrite` is used to write a `CompositeFile`.
 pub struct CompositeWrite<W=WritePtr> {
     write: CountingWriter<W>,
     offsets: HashMap<Field, usize>,
 }
 
 impl<W: Write> CompositeWrite<W> {
+
+    /// Crate a new API writer that writes a composite file
+    /// in a given write.
     pub fn wrap(w: W) -> CompositeWrite<W> {
         CompositeWrite {
             write: CountingWriter::wrap(w),
@@ -23,6 +26,7 @@ impl<W: Write> CompositeWrite<W> {
         }
     }
 
+    /// Start writing a new field.
     pub fn for_field(&mut self, field: Field) -> &mut CountingWriter<W> {
         let offset = self.write.written_bytes();
         assert!(!self.offsets.contains_key(&field));
@@ -30,6 +34,11 @@ impl<W: Write> CompositeWrite<W> {
         &mut self.write
     }
 
+
+    /// Close the composite file.
+    ///
+    /// An index of the different field offsets
+    /// will be written as a footer.
     pub fn close(mut self) -> io::Result<()> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
@@ -55,6 +64,12 @@ impl<W: Write> CompositeWrite<W> {
 }
 
 
+/// A composite file is an abstraction to store a
+/// file partitioned by field.
+///
+/// The file needs to be written field by field.
+/// A footer describes the start and stop offsets
+/// for each field.
 #[derive(Clone)]
 pub struct CompositeFile {
     data: ReadOnlySource,
@@ -62,6 +77,9 @@ pub struct CompositeFile {
 }
 
 impl CompositeFile {
+
+    /// Opens a composite file stored in a given
+    /// `ReadOnlySource`.
     pub fn open(data: ReadOnlySource) -> io::Result<CompositeFile> {
         let end = data.len();
         let footer_len_data = data.slice_from(end - 4);
@@ -98,6 +116,8 @@ impl CompositeFile {
         })
     }
 
+    /// Returns a composite file that stores
+    /// no fields.
     pub fn empty() -> CompositeFile {
         CompositeFile {
             offsets_index: HashMap::new(),
@@ -105,7 +125,8 @@ impl CompositeFile {
         }
     }
 
-
+    /// Returns the `ReadOnlySource` associated
+    /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
         self.offsets_index
             .get(&field)

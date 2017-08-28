@@ -27,7 +27,7 @@ mod streamvbyte {
 
 
 #[inline(always)]
-pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], offset: u32) -> &'a [u8] {
+pub(crate) fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], offset: u32) -> &'a [u8] {
     let compress_length = unsafe {
         streamvbyte::streamvbyte_delta_encode(input.as_ptr(),
                                               input.len() as u32,
@@ -37,8 +37,9 @@ pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], offset: u32) -> 
     &output[..compress_length]
 }
 
+
 #[inline(always)]
-pub fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
+pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
     let compress_length = unsafe {
         streamvbyte::streamvbyte_encode(input.as_ptr(), input.len() as u32, output.as_mut_ptr())
     };
@@ -46,7 +47,7 @@ pub fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
 }
 
 #[inline(always)]
-pub fn uncompress_sorted<'a>(compressed_data: &'a [u8],
+pub(crate) fn uncompress_sorted<'a>(compressed_data: &'a [u8],
                              output: &mut [u32],
                              offset: u32)
                              -> usize {
@@ -59,7 +60,7 @@ pub fn uncompress_sorted<'a>(compressed_data: &'a [u8],
 }
 
 #[inline(always)]
-pub fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> usize {
+pub(crate) fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> usize {
     unsafe {
         streamvbyte::streamvbyte_decode(compressed_data.as_ptr(), output.as_mut_ptr(), output.len())
     }

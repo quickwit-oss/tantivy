@@ -7,9 +7,9 @@ mod segment;
 mod index_meta;
 mod pool;
 mod segment_meta;
-mod field_reader;
+mod inverted_index_reader;
 
-pub use self::field_reader::FieldReader;
+pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::searcher::Searcher;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;

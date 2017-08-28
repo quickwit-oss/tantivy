@@ -10,7 +10,21 @@ use fastfield::DeleteBitSet;
 use schema::Schema;
 use compression::CompressedIntStream;
 
-pub struct FieldReader {
+
+/// The inverted index reader is in charge of accessing
+/// the inverted index associated to a specific field.
+///
+/// # Note
+///
+/// It is safe to delete the segment associated to
+/// an `InvertedIndexReader`. As long as it is open,
+/// the `ReadOnlySource` it is relying on should
+/// stay available.
+///
+///
+/// `InvertedIndexReader` are created by calling
+/// the `SegmentReader`'s [`.inverted_index(...)`] method
+pub struct InvertedIndexReader {
     termdict: TermDictionaryImpl,
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
@@ -18,7 +32,7 @@ pub struct FieldReader {
     schema: Schema,
 }
 
-impl FieldReader {
+impl InvertedIndexReader {
 
     pub(crate) fn new(
         termdict_source: ReadOnlySource,
@@ -26,9 +40,9 @@ impl FieldReader {
         positions_source: ReadOnlySource,
         delete_bitset: DeleteBitSet,
         schema: Schema,
-    ) -> io::Result<FieldReader> {
+    ) -> io::Result<InvertedIndexReader> {
 
-        Ok(FieldReader {
+        Ok(InvertedIndexReader {
             termdict: TermDictionaryImpl::from_source(termdict_source)?,
             postings_source: postings_source,
             positions_source: positions_source,

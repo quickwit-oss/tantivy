@@ -1,6 +1,5 @@
 use fst::{IntoStreamer, Streamer};
 use fst::map::{StreamBuilder, Stream};
-use common::BinarySerializable;
 use postings::TermInfo;
 use super::TermDictionaryImpl;
 use termdict::{TermStreamerBuilder, TermStreamer};
@@ -12,8 +11,7 @@ pub struct TermStreamerBuilderImpl<'a>
     stream_builder: StreamBuilder<'a>,
 }
 
-impl<'a, V> TermStreamerBuilderImpl<'a>
-    where V: 'a + BinarySerializable + Default
+impl<'a> TermStreamerBuilderImpl<'a>
 {
     pub(crate) fn new(fst_map: &'a TermDictionaryImpl,
                       stream_builder: StreamBuilder<'a>)
@@ -55,7 +53,7 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a>
             stream: self.stream_builder.into_stream(),
             offset: 0u64,
             current_key: Vec::with_capacity(100),
-            current_value: V::default(),
+            current_value: TermInfo::default(),
         }
     }
 }

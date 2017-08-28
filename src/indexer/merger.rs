@@ -212,7 +212,7 @@ impl IndexMerger {
             let field_readers = self.readers
                 .iter()
                 .map(|reader|
-                    reader.field_reader(indexed_field))
+                    reader.inverted_index(indexed_field))
                 .collect::<Result<Vec<_>>>()?;
 
             let field_term_streams = field_readers
@@ -273,8 +273,8 @@ impl IndexMerger {
                         let segment_ord = heap_item.segment_ord;
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
-                        let field_reader = segment_reader.field_reader(term.field()).unwrap(); // TODO fix unwrap
-                        let mut segment_postings = field_reader
+                        let inverted_index = segment_reader.inverted_index(term.field()).unwrap(); // TODO fix unwrap
+                        let mut segment_postings = inverted_index
                             .read_postings_from_terminfo(term_info, segment_postings_option);
                         if segment_postings.advance() {
                             Some((segment_ord, segment_postings))

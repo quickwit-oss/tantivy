@@ -48,6 +48,10 @@ pub struct TermMerger<'a>
 
 impl<'a> TermMerger<'a>
 {
+
+    /// Stream of merged term dictionary
+    ///
+    ///
     pub fn new(streams: Vec<TermStreamerImpl<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),

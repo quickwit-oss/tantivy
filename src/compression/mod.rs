@@ -8,13 +8,13 @@ pub use self::stream::CompressedIntStream;
 #[cfg(not(feature="simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;
-    pub use self::compression_pack_nosimd::*;
+    pub use self::compression_pack_nosimd::{BlockEncoder, BlockDecoder};
 }
 
 #[cfg(feature="simdcompression")]
 mod pack {
     mod compression_pack_simd;
-    pub use self::compression_pack_simd::*;
+    pub use self::compression_pack_simd::{BlockEncoder, BlockDecoder};
 }
 
 pub use self::pack::{BlockEncoder, BlockDecoder};
@@ -22,13 +22,13 @@ pub use self::pack::{BlockEncoder, BlockDecoder};
 #[cfg( any(not(feature="simdcompression"), target_env="msvc") )]
 mod vint {
     mod compression_vint_nosimd;
-    pub use self::compression_vint_nosimd::*;
+    pub(crate) use self::compression_vint_nosimd::*;
 }
 
 #[cfg( all(feature="simdcompression", not(target_env="msvc")) )]
 mod vint {
     mod compression_vint_simd;
-    pub use self::compression_vint_simd::*;
+    pub(crate) use self::compression_vint_simd::*;
 }
 
 /// Returns the size in bytes of a compressed block, given num_bits.
@@ -37,16 +37,50 @@ pub fn compressed_block_size(num_bits: u8) -> usize {
 }
 
 pub trait VIntEncoder {
+    /// Compresses an array of `u32` integers,
+    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_encoding)
+    /// and variable bytes encoding.
+    ///
+    /// The method takes an array of ints to compress, and returns
+    /// a `&[u8]` representing the compressed data.
+    ///
+    /// The method also takes an offset to give the value of the
+    /// hypothetical previous element in the delta-encoding.
     fn compress_vint_sorted(&mut self, input: &[u32], offset: u32) -> &[u8];
+
+    /// Compresses an array of `u32` integers,
+    /// using variable bytes encoding.
+    ///
+    /// The method takes an array of ints to compress, and returns
+    /// a `&[u8]` representing the compressed data.
     fn compress_vint_unsorted(&mut self, input: &[u32]) -> &[u8];
 }
 
 pub trait VIntDecoder {
+    /// Uncompress an array of `u32` integers,
+    /// that were compressed using [delta-encoding](https://en.wikipedia.org/wiki/Delta_encoding)
+    /// and variable bytes encoding.
+    ///
+    /// The method takes a number of int to decompress, and returns
+    /// the amount of bytes that were read to decompress them.
+    ///
+    /// The method also takes an offset to give the value of the
+    /// hypothetical previous element in the delta-encoding.
+    ///
+    /// For instance, if delta encoded are `1, 3, 9`, and the
+    /// `offset` is 5, then the output will be:
+    /// `5 + 1 = 6, 6 + 3= 9, 9 + 9 = 18`
     fn uncompress_vint_sorted<'a>(&mut self,
                                   compressed_data: &'a [u8],
                                   offset: u32,
                                   num_els: usize)
                                   -> usize;
+
+    /// Uncompress an array of `u32s`, compressed using variable
+    /// byte encoding.
+    ///
+    /// The method takes a number of int to decompress, and returns
+    /// the amount of bytes that were read to decompress them.
     fn uncompress_vint_unsorted<'a>(&mut self,
                                     compressed_data: &'a [u8],
                                     num_els: usize)

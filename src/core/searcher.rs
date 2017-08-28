@@ -10,7 +10,7 @@ use schema::{Term, Field};
 use termdict::{TermMerger, TermDictionary};
 use std::sync::Arc;
 use std::fmt;
-use core::FieldReader;
+use core::InvertedIndexReader;
 
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -48,7 +48,7 @@ impl Searcher {
             .iter()
             .map(|segment_reader| {
                 segment_reader
-                    .field_reader(term.field())
+                    .inverted_index(term.field())
                     .unwrap() // TODO error handling
                     .doc_freq(term)
             })
@@ -71,15 +71,15 @@ impl Searcher {
     }
 
 
-    // This API may change in the future.
+    ///
     pub fn field(&self, field: Field) -> Result<FieldSearcher> {
-        let field_readers = self.segment_readers
+        let inv_index_readers = self.segment_readers
             .iter()
             .map(|segment_reader| {
-                segment_reader.field_reader(field)
+                segment_reader.inverted_index(field)
             })
             .collect::<Result<Vec<_>>>()?;
-        Ok(FieldSearcher::new(field_readers))
+        Ok(FieldSearcher::new(inv_index_readers))
     }
 }
 
@@ -87,15 +87,15 @@ impl Searcher {
 
 
 pub struct FieldSearcher {
-    field_readers: Vec<Arc<FieldReader>>,
+    inv_index_readers: Vec<Arc<InvertedIndexReader>>,
 }
 
 
 impl FieldSearcher {
 
-    fn new(field_readers: Vec<Arc<FieldReader>>) -> FieldSearcher {
+    fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
         FieldSearcher {
-            field_readers: field_readers,
+            inv_index_readers: inv_index_readers,
         }
     }
 
@@ -103,10 +103,10 @@ impl FieldSearcher {
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
     pub fn terms(&self) -> TermMerger {
-        let term_streamers: Vec<_> = self.field_readers
+        let term_streamers: Vec<_> = self.inv_index_readers
             .iter()
-            .map(|field_reader| {
-                field_reader.terms().stream()
+            .map(|inverted_index| {
+                inverted_index.terms().stream()
             })
             .collect();
         TermMerger::new(term_streamers)

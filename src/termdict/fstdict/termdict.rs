@@ -3,7 +3,7 @@ use fst;
 use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
-use bincode;
+use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder};
 use super::{TermStreamerImpl, TermStreamerBuilderImpl};
@@ -39,7 +39,7 @@ impl<W> TermDictionaryBuilderImpl<W>
     /// # Warning
     ///
     /// Horribly dangerous internal API. See `.insert_key(...)`.
-    pub(crate) fn insert_value(&mut self, value: &V) -> io::Result<()> {
+    pub(crate) fn insert_value(&mut self, value: &TermInfo) -> io::Result<()> {
         value.serialize(&mut self.data)?;
         Ok(())
     }
@@ -48,7 +48,7 @@ impl<W> TermDictionaryBuilderImpl<W>
 impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
     where W: Write
 {
-    fn new(w: W, field_option: FieldOption) -> io::Result<Self> {
+    fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
                fst_builder: fst_builder,
@@ -98,10 +98,10 @@ pub struct TermDictionaryImpl
 impl TermDictionaryImpl
 {
     /// Deserialize and returns the value at address `offset`
-    pub(crate) fn read_value(&self, offset: u64) -> io::Result<V> {
+    pub(crate) fn read_value(&self, offset: u64) -> io::Result<TermInfo> {
         let buffer = self.values_mmap.as_slice();
         let mut cursor = &buffer[(offset as usize)..];
-        V::deserialize(&mut cursor)
+        TermInfo::deserialize(&mut cursor)
     }
 }
 
@@ -127,7 +127,7 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl
            })
     }
 
-    fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<V> {
+    fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
         self.fst_index
             .get(key)
             .map(|offset| {

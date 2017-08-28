@@ -3,6 +3,12 @@ use compression::COMPRESSION_BLOCK_SIZE;
 use compression::compressed_block_size;
 use directory::{ReadOnlySource, SourceRead};
 
+/// Reads a stream of compressed ints.
+///
+/// Tantivy uses `CompressedIntStream` to read
+/// the position file.
+/// The `.skip(...)` makes it possible to avoid
+/// decompressing blocks that are not required.
 pub struct CompressedIntStream {
     buffer: SourceRead,
     block_decoder: BlockDecoder,
@@ -10,6 +16,8 @@ pub struct CompressedIntStream {
 }
 
 impl CompressedIntStream {
+
+    /// Opens a compressed int stream.
     pub(crate) fn wrap(source: ReadOnlySource) -> CompressedIntStream {
         CompressedIntStream {
             buffer: SourceRead::from(source),
@@ -18,6 +26,8 @@ impl CompressedIntStream {
         }
     }
 
+    /// Fills a buffer with the next `output.len()` integers,
+    /// and advance the stream by that many els.
     pub fn read(&mut self, output: &mut [u32]) {
         let mut num_els: usize = output.len();
         let mut start: usize = 0;
@@ -43,6 +53,11 @@ impl CompressedIntStream {
         }
     }
 
+
+    /// Skip the next `skip_len` integer.
+    ///
+    /// If a full block is skipped, calling
+    /// `.skip(...)` will avoid decompressing it.
     pub fn skip(&mut self, mut skip_len: usize) {
         let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
         if available >= skip_len {

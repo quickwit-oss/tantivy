@@ -177,9 +177,9 @@ pub fn compute_deleted_bitset(delete_bitset: &mut BitSet,
                 // Limit doc helps identify the first document
                 // that may be affected by the delete operation.
                 let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-                let field_reader = segment_reader.field_reader(delete_op.term.field())?;
+                let inverted_index = segment_reader.inverted_index(delete_op.term.field())?;
                 if let Some(mut docset) =
-                    field_reader.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
+                    inverted_index.read_postings(&delete_op.term, SegmentPostingsOption::NoFreq) {
                     while docset.advance() {
                         let deleted_doc = docset.doc();
                         if deleted_doc < limit_doc {

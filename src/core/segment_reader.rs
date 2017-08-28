@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use common::CompositeFile;
 use std::fmt;
-use core::FieldReader;
+use core::InvertedIndexReader;
 use schema::Field;
 use fastfield::{FastFieldReader, U64FastFieldReader};
 use schema::Schema;
@@ -37,7 +37,7 @@ use schema::Schema;
 ///
 #[derive(Clone)]
 pub struct SegmentReader {
-    field_reader_cache: Arc<RwLock<HashMap<Field, Arc<FieldReader>>>>,
+    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
     segment_meta: SegmentMeta,
@@ -159,7 +159,7 @@ impl SegmentReader {
 
         let schema = segment.schema();
         Ok(SegmentReader {
-           field_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+           inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
            segment_meta: segment.meta().clone(),
            termdict_composite: termdict_composite,
            postings_composite: postings_composite,
@@ -179,14 +179,13 @@ impl SegmentReader {
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
-    pub fn field_reader(&self, field: Field) -> Result<Arc<FieldReader>> {
-        if let Some(field_reader) = self.field_reader_cache.read()
+    pub fn inverted_index(&self, field: Field) -> Result<Arc<InvertedIndexReader>> {
+        if let Some(inv_idx_reader) = self.inv_idx_reader_cache.read()
             .expect("Lock poisoned. This should never happen")
             .get(&field) {
-            return Ok(field_reader.clone());
+            return Ok(inv_idx_reader.clone());
         }
 
-        // TODO better error
         let termdict_source: ReadOnlySource = self.termdict_composite
             .open_read(field)
             .ok_or_else(|| {
@@ -207,7 +206,7 @@ impl SegmentReader {
                 ErrorKind::SchemaError(format!("Could not find {:?} positions", field))
             })?;
 
-        let field_reader = Arc::new(FieldReader::new(
+        let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             termdict_source,
             postings_source,
             positions_source,
@@ -215,11 +214,13 @@ impl SegmentReader {
             self.schema.clone(),
         )?);
 
-        self.field_reader_cache
+        // by releasing the lock in between, we may end up opening the inverting index
+        // twice, but this is fine.
+        self.inv_idx_reader_cache
             .write()
             .expect("Field reader cache lock poisoned. This should never happen.")
-            .insert(field, field_reader.clone());
-        Ok(field_reader)
+            .insert(field, inv_idx_reader.clone());
+        Ok(inv_idx_reader)
     }
 
     /// Returns the document (or to be accurate, its stored field)

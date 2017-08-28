@@ -508,11 +508,11 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let field_reader = segment_reader.field_reader(int_field).unwrap();
+        let inverted_index = segment_reader.inverted_index(int_field).unwrap();
         let term = Term::from_field_u64(int_field, 0u64);
-        let term_info = field_reader.get_term_info(&term).unwrap();
+        let term_info = inverted_index.get_term_info(&term).unwrap();
         let mut block_segments =
-            field_reader
+            inverted_index
                 .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
@@ -549,19 +549,19 @@ mod tests {
         let mut block_segments;
         {
             let term = Term::from_field_u64(int_field, 0u64);
-            let field_reader = segment_reader.field_reader(int_field).unwrap();
-            let term_info = field_reader.get_term_info(&term).unwrap();
+            let inverted_index = segment_reader.inverted_index(int_field).unwrap();
+            let term_info = inverted_index.get_term_info(&term).unwrap();
             block_segments =
-                field_reader
+                inverted_index
                     .read_block_postings_from_terminfo(&term_info, SegmentPostingsOption::NoFreq);
         }
         assert!(block_segments.advance());
         assert!(block_segments.docs() == &[0, 2, 4]);
         {
             let term = Term::from_field_u64(int_field, 1u64);
-            let field_reader = segment_reader.field_reader(int_field).unwrap();
-            let term_info = field_reader.get_term_info(&term).unwrap();
-            field_reader.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
+            let inverted_index = segment_reader.inverted_index(int_field).unwrap();
+            let term_info = inverted_index.get_term_info(&term).unwrap();
+            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
         }
         assert!(block_segments.advance());
         assert!(block_segments.docs() == &[1, 3, 5]);

@@ -132,14 +132,14 @@ mod tests {
             {
                 let term_a = Term::from_field_text(text_field, "abcdef");
                 assert!(segment_reader
-                        .field_reader(term_a.field()).unwrap()
+                        .inverted_index(term_a.field()).unwrap()
                         .read_postings(&term_a, FreqAndPositions)
                         .is_none());
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");
                 let mut postings_a = segment_reader
-                    .field_reader(term_a.field()).unwrap()
+                    .inverted_index(term_a.field()).unwrap()
                     .read_postings(&term_a, FreqAndPositions)
                     .unwrap();
                 assert_eq!(postings_a.len(), 1000);
@@ -162,7 +162,7 @@ mod tests {
             {
                 let term_e = Term::from_field_text(text_field, "e");
                 let mut postings_e = segment_reader
-                    .field_reader(term_e.field()).unwrap()
+                    .inverted_index(term_e.field()).unwrap()
                     .read_postings(&term_e, FreqAndPositions)
                     .unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
@@ -250,7 +250,7 @@ mod tests {
         for i in 0..num_docs - 1 {
             for j in i + 1..num_docs {
                 let mut segment_postings = segment_reader
-                    .field_reader(term_2.field()).unwrap()
+                    .inverted_index(term_2.field()).unwrap()
                     .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                     .unwrap();
 
@@ -264,7 +264,7 @@ mod tests {
 
         {
             let mut segment_postings = segment_reader
-                .field_reader(term_2.field()).unwrap()
+                .inverted_index(term_2.field()).unwrap()
                 .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -285,7 +285,7 @@ mod tests {
         // check that filtering works
         {
             let mut segment_postings = segment_reader
-                .field_reader(term_0.field()).unwrap()
+                .inverted_index(term_0.field()).unwrap()
                 .read_postings(&term_0, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -295,7 +295,7 @@ mod tests {
             }
 
             let mut segment_postings = segment_reader
-                .field_reader(term_0.field()).unwrap()
+                .inverted_index(term_0.field()).unwrap()
                 .read_postings(&term_0, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -320,7 +320,7 @@ mod tests {
         // make sure seeking still works
         for i in 0..num_docs {
             let mut segment_postings = segment_reader
-                .field_reader(term_2.field()).unwrap()
+                .inverted_index(term_2.field()).unwrap()
                 .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -336,7 +336,7 @@ mod tests {
         // now try with a longer sequence
         {
             let mut segment_postings = segment_reader
-                .field_reader(term_2.field()).unwrap()
+                .inverted_index(term_2.field()).unwrap()
                 .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -372,14 +372,14 @@ mod tests {
         // finally, check that it's empty
         {
             let mut segment_postings = segment_reader
-                .field_reader(term_2.field()).unwrap()
+                .inverted_index(term_2.field()).unwrap()
                 .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
             assert_eq!(segment_postings.skip_next(0), SkipResult::End);
 
             let mut segment_postings = segment_reader
-                .field_reader(term_2.field()).unwrap()
+                .inverted_index(term_2.field()).unwrap()
                 .read_postings(&term_2, SegmentPostingsOption::NoFreq)
                 .unwrap();
 
@@ -447,7 +447,7 @@ mod tests {
 
         b.iter(|| {
                    let mut segment_postings = segment_reader
-                       .field_reader(TERM_A.field()).unwrap()
+                       .inverted_index(TERM_A.field()).unwrap()
                        .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                        .unwrap();
                    while segment_postings.advance() {}
@@ -460,19 +460,19 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
             let segment_postings_a = segment_reader
-                .field_reader(TERM_A.field()).unwrap()
+                .inverted_index(TERM_A.field()).unwrap()
                 .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                 .unwrap();
             let segment_postings_b = segment_reader
-                .field_reader(TERM_B.field()).unwrap()
+                .inverted_index(TERM_B.field()).unwrap()
                 .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
                 .unwrap();
             let segment_postings_c = segment_reader
-                .field_reader(TERM_C.field()).unwrap()
+                .inverted_index(TERM_C.field()).unwrap()
                 .read_postings(&*TERM_C, SegmentPostingsOption::NoFreq)
                 .unwrap();
             let segment_postings_d = segment_reader
-                .field_reader(TERM_D.field()).unwrap()
+                .inverted_index(TERM_D.field()).unwrap()
                 .read_postings(&*TERM_D, SegmentPostingsOption::NoFreq)
                 .unwrap();
             let mut intersection = IntersectionDocSet::from(vec![segment_postings_a,
@@ -489,7 +489,7 @@ mod tests {
         let docs = tests::sample(segment_reader.num_docs(), p);
 
         let mut segment_postings = segment_reader
-            .field_reader(TERM_A.field()).unwrap()
+            .inverted_index(TERM_A.field()).unwrap()
             .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
             .unwrap();
 
@@ -506,7 +506,7 @@ mod tests {
 
         b.iter(|| {
             let mut segment_postings = segment_reader
-                .field_reader(TERM_A.field()).unwrap()
+                .inverted_index(TERM_A.field()).unwrap()
                 .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                 .unwrap();
             for doc in &existing_docs {
@@ -544,7 +544,7 @@ mod tests {
         b.iter(|| {
             let n: u32 = test::black_box(17);
             let mut segment_postings = segment_reader
-                .field_reader(TERM_A.field()).unwrap()
+                .inverted_index(TERM_A.field()).unwrap()
                 .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
                 .unwrap();
             let mut s = 0u32;

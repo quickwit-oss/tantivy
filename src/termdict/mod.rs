@@ -345,7 +345,7 @@ mod tests {
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             // term requires more than 16bits
-            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(1)).unwrap();
+            term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1)).unwrap();
             term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2)).unwrap();
             term_dictionary_builder.insert("abr", &make_term_info(2)).unwrap();
             term_dictionary_builder.finish().unwrap()
@@ -355,7 +355,7 @@ mod tests {
             .unwrap();
         let mut kv_stream = term_dictionary.stream();
         assert!(kv_stream.advance());
-        assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxyz".as_bytes());
+        assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxy".as_bytes());
         assert_eq!(kv_stream.value(), &make_term_info(1));
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxyz".as_bytes());
