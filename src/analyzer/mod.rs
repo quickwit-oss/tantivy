@@ -1,5 +1,3 @@
-extern crate regex;
-
 use std::str::Chars;
 use std::ascii::AsciiExt;
 
