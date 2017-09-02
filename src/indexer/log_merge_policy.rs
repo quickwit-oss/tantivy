@@ -1,4 +1,3 @@
-extern crate itertools;
 use super::merge_policy::{MergePolicy, MergeCandidate};
 use core::SegmentMeta;
 use std::cmp;
