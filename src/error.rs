@@ -10,6 +10,7 @@ use schema;
 use fastfield::FastFieldNotAvailableError;
 use serde_json;
 
+
 error_chain!(
     errors {
         /// Path does not exist.
@@ -111,12 +112,9 @@ impl From<schema::DocParsingError> for Error {
 impl From<OpenWriteError> for Error {
     fn from(error: OpenWriteError) -> Error {
         match error {
-                OpenWriteError::FileAlreadyExists(filepath) => {
-                    ErrorKind::FileAlreadyExists(filepath)
-                }
-                OpenWriteError::IOError(io_error) => ErrorKind::IOError(io_error),
-            }
-            .into()
+            OpenWriteError::FileAlreadyExists(filepath) => ErrorKind::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) => ErrorKind::IOError(io_error),
+        }.into()
     }
 }
 

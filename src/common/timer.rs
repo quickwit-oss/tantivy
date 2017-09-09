@@ -24,16 +24,14 @@ impl<'a> OpenTimer<'a> {
 
 impl<'a> Drop for OpenTimer<'a> {
     fn drop(&mut self) {
-        self.timer_tree
-            .timings
-            .push(Timing {
-                      name: self.name,
-                      duration: self.start
-                          .to(PreciseTime::now())
-                          .num_microseconds()
-                          .unwrap(),
-                      depth: self.depth,
-                  });
+        self.timer_tree.timings.push(Timing {
+            name: self.name,
+            duration: self.start
+                .to(PreciseTime::now())
+                .num_microseconds()
+                .unwrap(),
+            depth: self.depth,
+        });
     }
 }
 

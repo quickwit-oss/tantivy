@@ -2,6 +2,8 @@ use fst::raw::MmapReadOnly;
 use std::ops::Deref;
 use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
+use std::slice;
+use std::io::{self, Read};
 use stable_deref_trait::StableDeref;
 
 /// Read object that represents files in tantivy.
@@ -41,6 +43,14 @@ impl ReadOnlySource {
         }
     }
 
+    /// Splits into 2 `ReadOnlySource`, at the offset given
+    /// as an argument.
+    pub fn split(self, addr: usize) -> (ReadOnlySource, ReadOnlySource) {
+        let left = self.slice(0, addr);
+        let right = self.slice_from(addr);
+        (left, right)
+    }
+
     /// Creates a ReadOnlySource that is just a
     /// view over a slice of the data.
     ///
@@ -62,6 +72,23 @@ impl ReadOnlySource {
             }
         }
     }
+
+    /// Like `.slice(...)` but enforcing only the `from`
+    /// boundary.
+    ///
+    /// Equivalent to `.slice(from_offset, self.len())`
+    pub fn slice_from(&self, from_offset: usize) -> ReadOnlySource {
+        let len = self.len();
+        self.slice(from_offset, len)
+    }
+
+    /// Like `.slice(...)` but enforcing only the `to`
+    /// boundary.
+    ///
+    /// Equivalent to `.slice(0, to_offset)`
+    pub fn slice_to(&self, to_offset: usize) -> ReadOnlySource {
+        self.slice(0, to_offset)
+    }
 }
 
 impl HasLen for ReadOnlySource {
@@ -80,5 +107,44 @@ impl From<Vec<u8>> for ReadOnlySource {
     fn from(data: Vec<u8>) -> ReadOnlySource {
         let shared_data = SharedVecSlice::from(data);
         ReadOnlySource::Anonymous(shared_data)
+    }
+}
+
+
+/// Acts as a owning cursor over the data backed up by a ReadOnlySource
+pub(crate) struct SourceRead {
+    _data_owner: ReadOnlySource,
+    cursor: &'static [u8],
+}
+
+impl SourceRead {
+    // Advance the cursor by a given number of bytes.
+    pub fn advance(&mut self, len: usize) {
+        self.cursor = &self.cursor[len..];
+    }
+}
+
+impl AsRef<[u8]> for SourceRead {
+    fn as_ref(&self) -> &[u8] {
+        self.cursor
+    }
+}
+
+impl From<ReadOnlySource> for SourceRead {
+    // Creates a new `SourceRead` from a given `ReadOnlySource`
+    fn from(source: ReadOnlySource) -> SourceRead {
+        let len = source.len();
+        let slice_ptr = source.as_slice().as_ptr();
+        let static_slice = unsafe { slice::from_raw_parts(slice_ptr, len) };
+        SourceRead {
+            _data_owner: source,
+            cursor: static_slice,
+        }
+    }
+}
+
+impl Read for SourceRead {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.cursor.read(buf)
     }
 }

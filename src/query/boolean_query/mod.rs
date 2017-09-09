@@ -64,8 +64,10 @@ mod tests {
         }
 
         let make_term_query = |text: &str| {
-            let term_query = TermQuery::new(Term::from_field_text(text_field, text),
-                                            SegmentPostingsOption::NoFreq);
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, text),
+                SegmentPostingsOption::NoFreq,
+            );
             let query: Box<Query> = box term_query;
             query
         };
@@ -87,19 +89,25 @@ mod tests {
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Should, make_term_query("a")),
-                                                        (Occur::Should, make_term_query("b"))]);
+            let boolean_query = BooleanQuery::from(vec![
+                (Occur::Should, make_term_query("a")),
+                (Occur::Should, make_term_query("b")),
+            ]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 2, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a")),
-                                                        (Occur::Should, make_term_query("b"))]);
+            let boolean_query = BooleanQuery::from(vec![
+                (Occur::Must, make_term_query("a")),
+                (Occur::Should, make_term_query("b")),
+            ]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a")),
-                                                        (Occur::Should, make_term_query("b")),
-                                                        (Occur::MustNot, make_term_query("d"))]);
+            let boolean_query = BooleanQuery::from(vec![
+                (Occur::Must, make_term_query("a")),
+                (Occur::Should, make_term_query("b")),
+                (Occur::MustNot, make_term_query("d")),
+            ]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1]);
         }
         {

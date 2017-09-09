@@ -5,12 +5,12 @@ use postings::Postings;
 use postings::IntersectionDocSet;
 use DocId;
 
-pub struct PhraseScorer<'a> {
-    pub intersection_docset: IntersectionDocSet<SegmentPostings<'a>>,
+pub struct PhraseScorer {
+    pub intersection_docset: IntersectionDocSet<SegmentPostings>,
 }
 
 
-impl<'a> PhraseScorer<'a> {
+impl PhraseScorer {
     fn phrase_match(&self) -> bool {
         let mut positions_arr: Vec<&[u32]> = self.intersection_docset
             .docsets()
@@ -54,7 +54,7 @@ impl<'a> PhraseScorer<'a> {
     }
 }
 
-impl<'a> DocSet for PhraseScorer<'a> {
+impl DocSet for PhraseScorer {
     fn advance(&mut self) -> bool {
         while self.intersection_docset.advance() {
             if self.phrase_match() {
@@ -74,7 +74,7 @@ impl<'a> DocSet for PhraseScorer<'a> {
 }
 
 
-impl<'a> Scorer for PhraseScorer<'a> {
+impl Scorer for PhraseScorer {
     fn score(&self) -> f32 {
         1f32
     }

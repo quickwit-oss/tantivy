@@ -82,18 +82,20 @@ impl Segment {
     }
 
     /// Open one of the component file for a *regular* read.
-    pub fn open_read(&self,
-                     component: SegmentComponent)
-                     -> result::Result<ReadOnlySource, OpenReadError> {
+    pub fn open_read(
+        &self,
+        component: SegmentComponent,
+    ) -> result::Result<ReadOnlySource, OpenReadError> {
         let path = self.relative_path(component);
         let source = try!(self.index.directory().open_read(&path));
         Ok(source)
     }
 
     /// Open one of the component file for *regular* write.
-    pub fn open_write(&mut self,
-                      component: SegmentComponent)
-                      -> result::Result<WritePtr, OpenWriteError> {
+    pub fn open_write(
+        &mut self,
+        component: SegmentComponent,
+    ) -> result::Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
         let write = try!(self.index.directory_mut().open_write(&path));
         Ok(write)
@@ -131,11 +133,11 @@ mod tests {
         {
             let _file_protection = segment.protect_from_delete(SegmentComponent::POSTINGS);
             assert!(directory.exists(&*path));
-            directory.garbage_collect(living_files.clone());
+            directory.garbage_collect(|| living_files.clone());
             assert!(directory.exists(&*path));
         }
 
-        directory.garbage_collect(living_files);
+        directory.garbage_collect(|| living_files);
         assert!(!directory.exists(&*path));
     }
 

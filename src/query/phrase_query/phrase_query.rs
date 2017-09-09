@@ -7,7 +7,8 @@ use query::Weight;
 use Result;
 
 
-/// `PhraseQuery` matches a specific sequence of word.
+/// `PhraseQuery` matches a specific sequence of words.
+///
 /// For instance the phrase query for `"part time"` will match
 /// the sentence
 ///

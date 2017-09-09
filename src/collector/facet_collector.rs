@@ -15,8 +15,9 @@ use SegmentLocalId;
 
 /// Facet collector  for i64/u64 fast field
 pub struct FacetCollector<T>
-    where T: FastFieldReader,
-          T::ValueType: Eq + Hash
+where
+    T: FastFieldReader,
+    T::ValueType: Eq + Hash,
 {
     counters: HashMap<T::ValueType, u64>,
     field: Field,
@@ -25,8 +26,9 @@ pub struct FacetCollector<T>
 
 
 impl<T> FacetCollector<T>
-    where T: FastFieldReader,
-          T::ValueType: Eq + Hash
+where
+    T: FastFieldReader,
+    T::ValueType: Eq + Hash,
 {
     /// Creates a new facet collector for aggregating a given field.
     pub fn new(field: Field) -> FacetCollector<T> {
@@ -40,8 +42,9 @@ impl<T> FacetCollector<T>
 
 
 impl<T> Collector for FacetCollector<T>
-    where T: FastFieldReader,
-          T::ValueType: Eq + Hash
+where
+    T: FastFieldReader,
+    T::ValueType: Eq + Hash,
 {
     fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
         self.ff_reader = Some(reader.get_fast_field_reader(self.field)?);
@@ -51,7 +54,9 @@ impl<T> Collector for FacetCollector<T>
     fn collect(&mut self, doc: DocId, _: Score) {
         let val = self.ff_reader
             .as_ref()
-            .expect("collect() was called before set_segment. This should never happen.")
+            .expect(
+                "collect() was called before set_segment. This should never happen.",
+            )
             .get(doc);
         *(self.counters.entry(val).or_insert(0)) += 1;
     }

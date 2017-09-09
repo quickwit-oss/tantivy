@@ -105,9 +105,9 @@ impl SchemaBuilder {
     /// This will consume your `SchemaBuilder`
     pub fn build(self) -> Schema {
         Schema(Arc::new(InnerSchema {
-                            fields: self.fields,
-                            fields_map: self.fields_map,
-                        }))
+            fields: self.fields,
+            fields_map: self.fields_map,
+        }))
     }
 }
 
@@ -206,15 +206,14 @@ impl Schema {
 
     /// Build a document object from a json-object.
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json)
-            .map_err(|_| {
-                         let doc_json_sample: String = if doc_json.len() < 20 {
-                             String::from(doc_json)
-                         } else {
-                             format!("{:?}...", &doc_json[0..20])
-                         };
-                         DocParsingError::NotJSON(doc_json_sample)
-                     })?;
+        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|_| {
+            let doc_json_sample: String = if doc_json.len() < 20 {
+                String::from(doc_json)
+            } else {
+                format!("{:?}...", &doc_json[0..20])
+            };
+            DocParsingError::NotJSON(doc_json_sample)
+        })?;
 
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
@@ -225,18 +224,15 @@ impl Schema {
                     match *json_value {
                         JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
-                                let value = try!(field_type
-                                                     .value_from_json(json_item)
-                                                     .map_err(|e| {
-                                    DocParsingError::ValueError(field_name.clone(), e)
-                                }));
+                                let value =
+                                    try!(field_type.value_from_json(json_item).map_err(|e| {
+                                        DocParsingError::ValueError(field_name.clone(), e)
+                                    }));
                                 doc.add(FieldValue::new(field, value));
                             }
                         }
                         _ => {
-                            let value = try!(field_type
-                                                 .value_from_json(json_value)
-                                                 .map_err(|e| {
+                            let value = try!(field_type.value_from_json(json_value).map_err(|e| {
                                 DocParsingError::ValueError(field_name.clone(), e)
                             }));
                             doc.add(FieldValue::new(field, value));
@@ -259,7 +255,8 @@ impl fmt::Debug for Schema {
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for e in &self.0.fields {
@@ -271,7 +268,8 @@ impl Serialize for Schema {
 
 impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct SchemaVisitor;
 
@@ -283,7 +281,8 @@ impl<'de> Deserialize<'de> for Schema {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where A: SeqAccess<'de>
+            where
+                A: SeqAccess<'de>,
             {
                 let mut schema = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
@@ -430,12 +429,14 @@ mod tests {
         }
         {
             let doc = schema
-                .parse_document(r#"{
+                .parse_document(
+                    r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10
-            }"#)
+            }"#,
+                )
                 .unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), "my title");
             assert_eq!(doc.get_first(author_field).unwrap().text(), "fulmicoton");
@@ -443,13 +444,15 @@ mod tests {
             assert_eq!(doc.get_first(popularity_field).unwrap().i64_value(), 10);
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10,
                 "jambon": "bayonne"
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(DocParsingError::NoSuchFieldInSchema(field_name)) => {
                     assert_eq!(field_name, "jambon");
@@ -460,13 +463,15 @@ mod tests {
             }
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": "5",
                 "popularity": "10",
                 "jambon": "bayonne"
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
                     assert!(true);
@@ -477,12 +482,14 @@ mod tests {
             }
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": -5,
                 "popularity": 10
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
@@ -493,12 +500,14 @@ mod tests {
             }
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 9223372036854775808,
                 "popularity": 10
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     panic!("expected 9223372036854775808 to fit into u64, but it didn't");
@@ -509,12 +518,14 @@ mod tests {
             }
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 50,
                 "popularity": 9223372036854775808
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
                     assert!(true);
@@ -525,11 +536,13 @@ mod tests {
             }
         }
         {
-            let json_err = schema.parse_document(r#"{
+            let json_err = schema.parse_document(
+                r#"{
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 50,
-            }"#);
+            }"#,
+            );
             match json_err {
                 Err(NotJSON(_)) => {
                     assert!(true);

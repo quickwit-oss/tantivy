@@ -16,7 +16,8 @@ pub enum Value {
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
@@ -28,7 +29,8 @@ impl Serialize for Value {
 
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct ValueVisitor;
 
@@ -162,9 +164,13 @@ mod binary_serialize {
                     Ok(Value::I64(value))
                 }
                 _ => {
-                    Err(io::Error::new(io::ErrorKind::InvalidData,
-                                       format!("No field type is associated with code {:?}",
-                                               type_code)))
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "No field type is associated with code {:?}",
+                            type_code
+                        ),
+                    ))
                 }
             }
         }

@@ -5,16 +5,14 @@ use schema::Field;
 use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
-use schema::TextIndexingOptions;
 use directory::WritePtr;
-use compression::{NUM_DOCS_PER_BLOCK, BlockEncoder, CompositeEncoder};
+use compression::{COMPRESSION_BLOCK_SIZE, BlockEncoder};
 use DocId;
 use core::Segment;
 use std::io::{self, Write};
 use compression::VIntEncoder;
-use common::VInt;
-use common::BinarySerializable;
 use common::CountingWriter;
+use common::CompositeWrite;
 use termdict::TermDictionaryBuilder;
 
 
@@ -49,74 +47,127 @@ use termdict::TermDictionaryBuilder;
 ///
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
-pub struct PostingsSerializer {
-    terms_fst_builder: TermDictionaryBuilderImpl<WritePtr, TermInfo>,
-    postings_write: CountingWriter<WritePtr>,
-    positions_write: CountingWriter<WritePtr>,
-    last_doc_id_encoded: u32,
-    positions_encoder: CompositeEncoder,
-    block_encoder: BlockEncoder,
-    doc_ids: Vec<DocId>,
-    term_freqs: Vec<u32>,
-    position_deltas: Vec<u32>,
+pub struct InvertedIndexSerializer {
+    terms_write: CompositeWrite<WritePtr>,
+    postings_write: CompositeWrite<WritePtr>,
+    positions_write: CompositeWrite<WritePtr>,
     schema: Schema,
-    text_indexing_options: TextIndexingOptions,
-    term_open: bool,
-    current_term_info: TermInfo,
 }
 
-impl PostingsSerializer {
+
+impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
-    pub fn new(terms_write: WritePtr,
-               postings_write: WritePtr,
-               positions_write: WritePtr,
-               schema: Schema)
-               -> Result<PostingsSerializer> {
-        let terms_fst_builder = try!(TermDictionaryBuilderImpl::new(terms_write));
-        Ok(PostingsSerializer {
-               terms_fst_builder: terms_fst_builder,
-               postings_write: CountingWriter::wrap(postings_write),
-               positions_write: CountingWriter::wrap(positions_write),
-               last_doc_id_encoded: 0u32,
-               positions_encoder: CompositeEncoder::new(),
-               block_encoder: BlockEncoder::new(),
-               doc_ids: Vec::new(),
-               term_freqs: Vec::new(),
-               position_deltas: Vec::new(),
-               schema: schema,
-               text_indexing_options: TextIndexingOptions::Unindexed,
-               term_open: false,
-               current_term_info: TermInfo::default(),
-           })
+    fn new(
+        terms_write: CompositeWrite<WritePtr>,
+        postings_write: CompositeWrite<WritePtr>,
+        positions_write: CompositeWrite<WritePtr>,
+        schema: Schema,
+    ) -> Result<InvertedIndexSerializer> {
+        Ok(InvertedIndexSerializer {
+            terms_write: terms_write,
+            postings_write: postings_write,
+            positions_write: positions_write,
+            schema: schema,
+        })
     }
 
 
     /// Open a new `PostingsSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> Result<PostingsSerializer> {
+    pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
         use SegmentComponent::{TERMS, POSTINGS, POSITIONS};
-        PostingsSerializer::new(segment.open_write(TERMS)?,
-                                segment.open_write(POSTINGS)?,
-                                segment.open_write(POSITIONS)?,
-                                segment.schema())
+        InvertedIndexSerializer::new(
+            CompositeWrite::wrap(segment.open_write(TERMS)?),
+            CompositeWrite::wrap(segment.open_write(POSTINGS)?),
+            CompositeWrite::wrap(segment.open_write(POSITIONS)?),
+            segment.schema(),
+        )
     }
 
     /// Must be called before starting pushing terms of
     /// a given field.
     ///
     /// Loads the indexing options for the given field.
-    pub fn new_field(&mut self, field: Field) {
+    pub fn new_field(&mut self, field: Field) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
-        self.text_indexing_options = match *field_entry.field_type() {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options(),
-            FieldType::U64(ref int_options) |
-            FieldType::I64(ref int_options) => {
-                if int_options.is_indexed() {
-                    TextIndexingOptions::Unindexed
-                } else {
-                    TextIndexingOptions::Untokenized
-                }
+        let term_dictionary_write = self.terms_write.for_field(field);
+        let postings_write = self.postings_write.for_field(field);
+        let positions_write = self.positions_write.for_field(field);
+        FieldSerializer::new(
+            field_entry.field_type().clone(),
+            term_dictionary_write,
+            postings_write,
+            positions_write,
+        )
+    }
+
+    /// Closes the serializer.
+    pub fn close(self) -> io::Result<()> {
+        self.terms_write.close()?;
+        self.postings_write.close()?;
+        self.positions_write.close()?;
+        Ok(())
+    }
+}
+
+
+/// The field serializer is in charge of
+/// the serialization of a specific field.
+pub struct FieldSerializer<'a> {
+    term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
+    postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
+    positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
+    current_term_info: TermInfo,
+    term_open: bool,
+}
+
+
+impl<'a> FieldSerializer<'a> {
+    fn new(
+        field_type: FieldType,
+        term_dictionary_write: &'a mut CountingWriter<WritePtr>,
+        postings_write: &'a mut CountingWriter<WritePtr>,
+        positions_write: &'a mut CountingWriter<WritePtr>,
+    ) -> io::Result<FieldSerializer<'a>> {
+
+        let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
+            FieldType::Str(ref text_options) => {
+                let text_indexing_options = text_options.get_indexing_options();
+                (
+                    text_indexing_options.is_termfreq_enabled(),
+                    text_indexing_options.is_position_enabled(),
+                )
             }
+            _ => (false, false),
         };
+        let term_dictionary_builder =
+            TermDictionaryBuilderImpl::new(term_dictionary_write, field_type)?;
+        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
+        let positions_serializer_opt = if position_enabled {
+            Some(PositionSerializer::new(positions_write))
+        } else {
+            None
+        };
+
+        Ok(FieldSerializer {
+            term_dictionary_builder: term_dictionary_builder,
+            postings_serializer: postings_serializer,
+            positions_serializer_opt: positions_serializer_opt,
+            current_term_info: TermInfo::default(),
+            term_open: false,
+        })
+    }
+
+    fn current_term_info(&self) -> TermInfo {
+        let (filepos, offset) = self.positions_serializer_opt
+            .as_ref()
+            .map(|positions_serializer| positions_serializer.addr())
+            .unwrap_or((0u32, 0u8));
+        TermInfo {
+            doc_freq: 0,
+            postings_offset: self.postings_serializer.addr(),
+            positions_offset: filepos,
+            positions_inner_offset: offset,
+        }
     }
 
     /// Starts the postings for a new term.
@@ -124,71 +175,15 @@ impl PostingsSerializer {
     ///   to the lexicographical order.
     /// * doc_freq - return the number of document containing the term.
     pub fn new_term(&mut self, term: &[u8]) -> io::Result<()> {
-        if self.term_open {
-            panic!("Called new_term, while the previous term was not closed.");
-        }
+        assert!(
+            !self.term_open,
+            "Called new_term, while the previous term was not closed."
+        );
         self.term_open = true;
-        self.doc_ids.clear();
-        self.last_doc_id_encoded = 0;
-        self.term_freqs.clear();
-        self.position_deltas.clear();
-        self.current_term_info = TermInfo {
-            doc_freq: 0,
-            postings_offset: self.postings_write.written_bytes() as u32,
-            positions_offset: self.positions_write.written_bytes() as u32,
-        };
-        self.terms_fst_builder.insert_key(term)
+        self.postings_serializer.clear();
+        self.current_term_info = self.current_term_info();
+        self.term_dictionary_builder.insert_key(term)
     }
-
-    /// Finish the serialization for this term postings.
-    ///
-    /// If the current block is incomplete, it need to be encoded
-    /// using `VInt` encoding.
-    pub fn close_term(&mut self) -> io::Result<()> {
-        if self.term_open {
-
-            self.terms_fst_builder
-                .insert_value(&self.current_term_info)?;
-
-            if !self.doc_ids.is_empty() {
-                // we have doc ids waiting to be written
-                // this happens when the number of doc ids is
-                // not a perfect multiple of our block size.
-                //
-                // In that case, the remaining part is encoded
-                // using variable int encoding.
-                {
-                    let block_encoded =
-                        self.block_encoder
-                            .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
-                    self.postings_write.write_all(block_encoded)?;
-                    self.doc_ids.clear();
-                }
-                // ... Idem for term frequencies
-                if self.text_indexing_options.is_termfreq_enabled() {
-                    let block_encoded = self.block_encoder
-                        .compress_vint_unsorted(&self.term_freqs[..]);
-                    for num in block_encoded {
-                        num.serialize(&mut self.postings_write)?;
-                    }
-                    self.term_freqs.clear();
-                }
-            }
-            // On the other hand, positions are entirely buffered until the
-            // end of the term, at which point they are compressed and written.
-            if self.text_indexing_options.is_position_enabled() {
-                let posdelta_len = VInt(self.position_deltas.len() as u64);
-                posdelta_len.serialize(&mut self.positions_write)?;
-                let positions_encoded: &[u8] = self.positions_encoder
-                    .compress_unsorted(&self.position_deltas[..]);
-                self.positions_write.write_all(positions_encoded)?;
-                self.position_deltas.clear();
-            }
-            self.term_open = false;
-        }
-        Ok(())
-    }
-
 
     /// Serialize the information that a document contains the current term,
     /// its term frequency, and the position deltas.
@@ -199,32 +194,93 @@ impl PostingsSerializer {
     ///
     /// Term frequencies and positions may be ignored by the serializer depending
     /// on the configuration of the field in the `Schema`.
-    pub fn write_doc(&mut self,
-                     doc_id: DocId,
-                     term_freq: u32,
-                     position_deltas: &[u32])
-                     -> io::Result<()> {
+    pub fn write_doc(
+        &mut self,
+        doc_id: DocId,
+        term_freq: u32,
+        position_deltas: &[u32],
+    ) -> io::Result<()> {
         self.current_term_info.doc_freq += 1;
+        self.postings_serializer.write_doc(doc_id, term_freq)?;
+        if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
+            positions_serializer.write(position_deltas)?;
+        }
+        Ok(())
+    }
+
+    /// Finish the serialization for this term postings.
+    ///
+    /// If the current block is incomplete, it need to be encoded
+    /// using `VInt` encoding.
+    pub fn close_term(&mut self) -> io::Result<()> {
+        if self.term_open {
+            self.term_dictionary_builder.insert_value(
+                &self.current_term_info,
+            )?;
+            self.postings_serializer.close_term()?;
+            self.term_open = false;
+        }
+        Ok(())
+    }
+
+
+    /// Closes the current current field.
+    pub fn close(mut self) -> io::Result<()> {
+        self.close_term()?;
+        if let Some(positions_serializer) = self.positions_serializer_opt {
+            positions_serializer.close()?;
+        }
+        self.postings_serializer.close()?;
+        self.term_dictionary_builder.finish()?;
+        Ok(())
+    }
+}
+
+
+struct PostingsSerializer<W: Write> {
+    postings_write: CountingWriter<W>,
+    last_doc_id_encoded: u32,
+
+    block_encoder: BlockEncoder,
+    doc_ids: Vec<DocId>,
+    term_freqs: Vec<u32>,
+
+    termfreq_enabled: bool,
+}
+
+impl<W: Write> PostingsSerializer<W> {
+    fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
+        PostingsSerializer {
+            postings_write: CountingWriter::wrap(write),
+
+            block_encoder: BlockEncoder::new(),
+            doc_ids: vec![],
+            term_freqs: vec![],
+
+            last_doc_id_encoded: 0u32,
+            termfreq_enabled: termfreq_enabled,
+        }
+    }
+
+    fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
         self.doc_ids.push(doc_id);
-        if self.text_indexing_options.is_termfreq_enabled() {
+        if self.termfreq_enabled {
             self.term_freqs.push(term_freq as u32);
         }
-        if self.text_indexing_options.is_position_enabled() {
-            self.position_deltas.extend_from_slice(position_deltas);
-        }
-        if self.doc_ids.len() == NUM_DOCS_PER_BLOCK {
+        if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
             {
                 // encode the doc ids
-                let block_encoded: &[u8] =
-                    self.block_encoder
-                        .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(
+                    &self.doc_ids,
+                    self.last_doc_id_encoded,
+                );
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 self.postings_write.write_all(block_encoded)?;
             }
-            if self.text_indexing_options.is_termfreq_enabled() {
+            if self.termfreq_enabled {
                 // encode the term_freqs
-                let block_encoded: &[u8] = self.block_encoder
-                    .compress_block_unsorted(&self.term_freqs);
+                let block_encoded: &[u8] =
+                    self.block_encoder.compress_block_unsorted(&self.term_freqs);
                 self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();
             }
@@ -233,12 +289,93 @@ impl PostingsSerializer {
         Ok(())
     }
 
-    /// Closes the serializer.
-    pub fn close(mut self) -> io::Result<()> {
-        try!(self.close_term());
-        try!(self.terms_fst_builder.finish());
-        try!(self.postings_write.flush());
-        try!(self.positions_write.flush());
+    fn close_term(&mut self) -> io::Result<()> {
+        if !self.doc_ids.is_empty() {
+            // we have doc ids waiting to be written
+            // this happens when the number of doc ids is
+            // not a perfect multiple of our block size.
+            //
+            // In that case, the remaining part is encoded
+            // using variable int encoding.
+            {
+                let block_encoded = self.block_encoder.compress_vint_sorted(
+                    &self.doc_ids,
+                    self.last_doc_id_encoded,
+                );
+                self.postings_write.write_all(block_encoded)?;
+                self.doc_ids.clear();
+            }
+            // ... Idem for term frequencies
+            if self.termfreq_enabled {
+                let block_encoded = self.block_encoder.compress_vint_unsorted(
+                    &self.term_freqs[..],
+                );
+                self.postings_write.write_all(block_encoded)?;
+                self.term_freqs.clear();
+            }
+        }
         Ok(())
+    }
+
+    fn close(mut self) -> io::Result<()> {
+        self.postings_write.flush()
+    }
+
+
+    fn addr(&self) -> u32 {
+        self.postings_write.written_bytes() as u32
+    }
+
+    fn clear(&mut self) {
+        self.doc_ids.clear();
+        self.term_freqs.clear();
+        self.last_doc_id_encoded = 0;
+    }
+}
+
+struct PositionSerializer<W: Write> {
+    buffer: Vec<u32>,
+    write: CountingWriter<W>, // See if we can offset the original counting writer.
+    block_encoder: BlockEncoder,
+}
+
+impl<W: Write> PositionSerializer<W> {
+    fn new(write: W) -> PositionSerializer<W> {
+        PositionSerializer {
+            buffer: Vec::with_capacity(COMPRESSION_BLOCK_SIZE),
+            write: CountingWriter::wrap(write),
+            block_encoder: BlockEncoder::new(),
+        }
+    }
+
+    fn addr(&self) -> (u32, u8) {
+        (self.write.written_bytes() as u32, self.buffer.len() as u8)
+    }
+
+    fn write_block(&mut self) -> io::Result<()> {
+        assert_eq!(self.buffer.len(), COMPRESSION_BLOCK_SIZE);
+        let block_compressed: &[u8] = self.block_encoder.compress_block_unsorted(&self.buffer);
+        self.write.write_all(block_compressed)?;
+        self.buffer.clear();
+        Ok(())
+    }
+
+    fn write(&mut self, mut vals: &[u32]) -> io::Result<()> {
+        let mut buffer_len = self.buffer.len();
+        while vals.len() + buffer_len >= COMPRESSION_BLOCK_SIZE {
+            let len_to_completion = COMPRESSION_BLOCK_SIZE - buffer_len;
+            self.buffer.extend_from_slice(&vals[..len_to_completion]);
+            self.write_block()?;
+            vals = &vals[len_to_completion..];
+            buffer_len = self.buffer.len();
+        }
+        self.buffer.extend_from_slice(&vals);
+        Ok(())
+    }
+
+    fn close(mut self) -> io::Result<()> {
+        self.buffer.resize(COMPRESSION_BLOCK_SIZE, 0u32);
+        self.write_block()?;
+        self.write.flush()
     }
 }

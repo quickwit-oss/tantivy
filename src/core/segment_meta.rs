@@ -64,16 +64,14 @@ impl SegmentMeta {
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
-                           SegmentComponent::POSITIONS => ".pos".to_string(),
-                           SegmentComponent::POSTINGS => ".idx".to_string(),
-                           SegmentComponent::TERMS => ".term".to_string(),
-                           SegmentComponent::STORE => ".store".to_string(),
-                           SegmentComponent::FASTFIELDS => ".fast".to_string(),
-                           SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
-                           SegmentComponent::DELETE => {
-                               format!(".{}.del", self.delete_opstamp().unwrap_or(0))
-                           }
-                       });
+            SegmentComponent::POSITIONS => ".pos".to_string(),
+            SegmentComponent::POSTINGS => ".idx".to_string(),
+            SegmentComponent::TERMS => ".term".to_string(),
+            SegmentComponent::STORE => ".store".to_string(),
+            SegmentComponent::FASTFIELDS => ".fast".to_string(),
+            SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
+            SegmentComponent::DELETE => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+        });
         PathBuf::from(path)
     }
 
@@ -111,8 +109,8 @@ impl SegmentMeta {
     #[doc(hidden)]
     pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
         self.deletes = Some(DeleteMeta {
-                                num_deleted_docs: num_deleted_docs,
-                                opstamp: opstamp,
-                            });
+            num_deleted_docs: num_deleted_docs,
+            opstamp: opstamp,
+        });
     }
 }

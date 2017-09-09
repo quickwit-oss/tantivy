@@ -41,8 +41,10 @@ impl VecWriter {
 impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_flushed {
-            panic!("You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
-                   self.path)
+            panic!(
+                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
+                self.path
+            )
         }
     }
 }
@@ -62,8 +64,10 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        try!(self.shared_directory
-                 .write(self.path.clone(), self.data.get_ref()));
+        try!(self.shared_directory.write(
+            self.path.clone(),
+            self.data.get_ref(),
+        ));
         Ok(())
     }
 }
@@ -79,11 +83,11 @@ impl InnerDirectory {
     }
 
     fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let mut map = try!(self.0
-                               .write()
-                               .map_err(|_| {
-            make_io_err(format!("Failed to lock the directory, when trying to write {:?}",
-                                path))
+        let mut map = try!(self.0.write().map_err(|_| {
+            make_io_err(format!(
+                "Failed to lock the directory, when trying to write {:?}",
+                path
+            ))
         }));
         let prev_value = map.insert(path, Arc::new(Vec::from(data)));
         Ok(prev_value.is_some())
@@ -93,17 +97,21 @@ impl InnerDirectory {
         self.0
             .read()
             .map_err(|_| {
-                         let msg = format!("Failed to acquire read lock for the \
+                let msg = format!(
+                    "Failed to acquire read lock for the \
                                             directory when trying to read {:?}",
-                                           path);
-                         let io_err = make_io_err(msg);
-                         OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-                     })
+                    path
+                );
+                let io_err = make_io_err(msg);
+                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })
             .and_then(|readable_map| {
                 readable_map
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-                    .map(|data| ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
+                    .map(|data| {
+                        ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
+                    })
             })
     }
 
@@ -111,16 +119,18 @@ impl InnerDirectory {
         self.0
             .write()
             .map_err(|_| {
-                         let msg = format!("Failed to acquire write lock for the \
+                let msg = format!(
+                    "Failed to acquire write lock for the \
                                             directory when trying to delete {:?}",
-                                           path);
-                         let io_err = make_io_err(msg);
-                         DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-                     })
+                    path
+                );
+                let io_err = make_io_err(msg);
+                DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+            })
             .and_then(|mut writable_map| match writable_map.remove(path) {
-                          Some(_) => Ok(()),
-                          None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
-                      })
+                Some(_) => Ok(()),
+                None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+            })
     }
 
     fn exists(&self, path: &Path) -> bool {
@@ -164,9 +174,11 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
 
-        let exists = self.fs
-            .write(path_buf.clone(), &Vec::new())
-            .map_err(|err| IOError::with_path(path.to_owned(), err))?;
+        let exists = self.fs.write(path_buf.clone(), &Vec::new()).map_err(
+            |err| {
+                IOError::with_path(path.to_owned(), err)
+            },
+        )?;
 
         // force the creation of the file to mimic the MMap directory.
         if exists {

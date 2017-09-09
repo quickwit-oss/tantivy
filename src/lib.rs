@@ -8,7 +8,8 @@
 #![feature(integer_atomics)]
 
 #![cfg_attr(test, feature(test))]
-#![cfg_attr(test, feature(step_by))]
+#![cfg_attr(test, feature(iterator_step_by))]
+
 
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 
@@ -44,11 +45,9 @@ extern crate fst;
 extern crate byteorder;
 extern crate memmap;
 extern crate regex;
-extern crate tempfile;
 extern crate atomicwrites;
 extern crate tempdir;
 extern crate serde;
-extern crate bincode;
 extern crate serde_json;
 extern crate time;
 extern crate lz4;
@@ -68,7 +67,7 @@ extern crate rust_stemmers;
 #[cfg(test)]
 extern crate env_logger;
 
-#[cfg(feature="simdcompression")]
+#[cfg(feature = "simdcompression")]
 extern crate libc;
 
 #[cfg(windows)]
@@ -99,29 +98,19 @@ mod core;
 mod compression;
 mod indexer;
 mod common;
+
+#[allow(unused_doc_comment)]
 mod error;
 pub mod analyzer;
 mod datastruct;
 
 pub mod termdict;
-
-/// Row-oriented, slow, compressed storage of documents
 pub mod store;
-
-/// Query module
 pub mod query;
-
 pub mod directory;
-
-/// Collector module
 pub mod collector;
-
-/// Postings module (also called inverted index)
 pub mod postings;
-
-/// Schema
 pub mod schema;
-
 pub mod fastfield;
 
 
@@ -129,7 +118,7 @@ pub use directory::Directory;
 pub use core::{Index, Segment, SegmentId, SegmentMeta, Searcher};
 pub use indexer::IndexWriter;
 pub use schema::{Term, Document};
-pub use core::SegmentReader;
+pub use core::{SegmentReader, InvertedIndexReader};
 pub use self::common::TimerTree;
 
 pub use postings::DocSet;
@@ -157,15 +146,19 @@ pub mod merge_policy {
     pub use indexer::DefaultMergePolicy;
 }
 
-/// u32 identifying a document within a segment.
-/// Documents have their doc id assigned incrementally,
+/// A `u32` identifying a document within a segment.
+/// Documents have their `DocId` assigned incrementally,
 /// as they are added in the segment.
 pub type DocId = u32;
 
-/// f32 the score of a document.
+/// A f32 that represents the relevance of the document to the query
+///
+/// This is modelled internally as a `f32`. The
+/// larger the number, the more relevant the document
+/// to the search
 pub type Score = f32;
 
-/// A segment local id identifies a segment.
+/// A `SegmentLocalId` identifies a segment.
 /// It only makes sense for a given searcher.
 pub type SegmentLocalId = u32;
 
@@ -263,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn test_docfreq() {
+    fn test_docfreq1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -301,7 +294,6 @@ mod tests {
             assert_eq!(searcher.doc_freq(&term_d), 0);
         }
     }
-
 
     #[test]
     fn test_fieldnorm() {
@@ -391,15 +383,24 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
+            let inverted_index = reader.inverted_index(text_field);
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -425,16 +426,25 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
+            let inverted_index = reader.inverted_index(term_abcd.field());
 
-            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -460,13 +470,22 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
-            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
+            let inverted_index = reader.inverted_index(term_abcd.field());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             {
-                let mut postings = reader.read_postings(&term_a, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_a, FreqAndPositions)
+                    .unwrap();
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings(&term_b, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_b, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
                 assert!(postings.advance());
@@ -474,7 +493,9 @@ mod tests {
                 assert!(!postings.advance());
             }
             {
-                let mut postings = reader.read_postings(&term_c, FreqAndPositions).unwrap();
+                let mut postings = inverted_index
+                    .read_postings(&term_c, FreqAndPositions)
+                    .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
                 assert!(!postings.advance());
@@ -498,6 +519,7 @@ mod tests {
         let term = Term::from_field_u64(field, 1u64);
         let mut postings = searcher
             .segment_reader(0)
+            .inverted_index(term.field())
             .read_postings(&term, SegmentPostingsOption::NoFreq)
             .unwrap();
         assert!(postings.advance());
@@ -521,6 +543,7 @@ mod tests {
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher
             .segment_reader(0)
+            .inverted_index(term.field())
             .read_postings(&term, SegmentPostingsOption::NoFreq)
             .unwrap();
         assert!(postings.advance());
@@ -583,10 +606,17 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
+            let inverted_index = reader.inverted_index(text_field);
             let term_abcd = Term::from_field_text(text_field, "abcd");
-            assert!(reader.read_postings(&term_abcd, FreqAndPositions).is_none());
+            assert!(
+                inverted_index
+                    .read_postings(&term_abcd, FreqAndPositions)
+                    .is_none()
+            );
             let term_af = Term::from_field_text(text_field, "af");
-            let mut postings = reader.read_postings(&term_af, FreqAndPositions).unwrap();
+            let mut postings = inverted_index
+                .read_postings(&term_af, FreqAndPositions)
+                .unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
@@ -628,29 +658,43 @@ mod tests {
                 collector.docs()
             };
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                           vec![1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                    vec![1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                           vec![0]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                    vec![0]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                           vec![0, 1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                    vec![0, 1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                           vec![1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
+                    vec![1, 2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                           vec![2]);
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
+                    vec![2]
+                );
             }
             {
-                assert_eq!(get_doc_ids(vec![Term::from_field_text(text_field, "b"),
-                                            Term::from_field_text(text_field, "a")]),
-                           vec![0, 1, 2]);
+                assert_eq!(
+                    get_doc_ids(vec![
+                        Term::from_field_text(text_field, "b"),
+                        Term::from_field_text(text_field, "a"),
+                    ]),
+                    vec![0, 1, 2]
+                );
             }
         }
     }
@@ -687,7 +731,8 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document = doc!(text_field => "tantivy",
+        let document =
+            doc!(text_field => "tantivy",
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);

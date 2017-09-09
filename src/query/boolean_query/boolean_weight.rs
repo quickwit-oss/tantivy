@@ -22,11 +22,12 @@ impl BooleanWeight {
 
 impl Weight for BooleanWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
-        let sub_scorers: Vec<Box<Scorer + 'a>> =
-            try!(self.weights
-                                                          .iter()
-                                                          .map(|weight| weight.scorer(reader))
-                                                          .collect());
+        let sub_scorers: Vec<Box<Scorer + 'a>> = try!(
+            self.weights
+                .iter()
+                .map(|weight| weight.scorer(reader))
+                .collect()
+        );
         let boolean_scorer = BooleanScorer::new(sub_scorers, self.occur_filter);
         Ok(box boolean_scorer)
     }

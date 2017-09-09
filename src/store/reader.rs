@@ -49,7 +49,7 @@ impl StoreReader {
             let mut cursor = &total_buffer[block_offset..];
             let block_length = u32::deserialize(&mut cursor).unwrap();
             let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..
-                                      (block_offset + 4 + block_length as usize)];
+                                                       (block_offset + 4 + block_length as usize)];
             let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
             *self.current_block_offset.borrow_mut() = usize::max_value();
             try!(lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ()));
@@ -94,5 +94,9 @@ fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId)
     let offset = u64::deserialize(&mut serialized_offset_buf).unwrap();
     let offset = offset as usize;
     let max_doc = u32::deserialize(&mut serialized_offset_buf).unwrap();
-    (data.slice(0, offset), data.slice(offset, footer_offset), max_doc)
+    (
+        data.slice(0, offset),
+        data.slice(offset, footer_offset),
+        max_doc,
+    )
 }

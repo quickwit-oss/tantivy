@@ -89,7 +89,8 @@ impl FieldEntry {
 
 impl Serialize for FieldEntry {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         let mut s = serializer.serialize_struct("field_entry", 3)?;
         s.serialize_field("name", &self.name)?;
@@ -115,7 +116,8 @@ impl Serialize for FieldEntry {
 
 impl<'de> Deserialize<'de> for FieldEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
@@ -137,7 +139,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
             }
 
             fn visit_map<V>(self, mut map: V) -> Result<FieldEntry, V::Error>
-                where V: MapAccess<'de>
+            where
+                V: MapAccess<'de>,
             {
                 let mut name = None;
                 let mut ty = None;
@@ -187,13 +190,14 @@ impl<'de> Deserialize<'de> for FieldEntry {
 
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
                 ty.ok_or_else(|| de::Error::missing_field("ty"))?;
-                let field_type = field_type
-                    .ok_or_else(|| de::Error::missing_field("options"))?;
+                let field_type = field_type.ok_or_else(
+                    || de::Error::missing_field("options"),
+                )?;
 
                 Ok(FieldEntry {
-                       name: name,
-                       field_type: field_type,
-                   })
+                    name: name,
+                    field_type: field_type,
+                })
             }
         }
 

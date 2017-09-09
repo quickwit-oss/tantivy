@@ -58,9 +58,9 @@ impl FastFieldsWriter {
     /// Get the `FastFieldWriter` associated to a field.
     pub fn get_field_writer(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
-        self.field_writers
-            .iter_mut()
-            .find(|field_writer| field_writer.field == field)
+        self.field_writers.iter_mut().find(|field_writer| {
+            field_writer.field == field
+        })
     }
 
 
@@ -155,9 +155,9 @@ impl IntFastFieldWriter {
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
-        VInt(val)
-            .serialize(&mut self.vals)
-            .expect("unable to serialize VInt to Vec");
+        VInt(val).serialize(&mut self.vals).expect(
+            "unable to serialize VInt to Vec",
+        );
 
         if val > self.val_max {
             self.val_max = val;
@@ -208,13 +208,14 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
 
-        serializer.new_u64_fast_field(self.field, min, max)?;
+
+        let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
 
         let mut cursor = self.vals.as_slice();
         while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-            serializer.add_val(val)?;
+            single_field_serializer.add_val(val)?;
         }
 
-        serializer.close_field()
+        single_field_serializer.close_field()
     }
 }

@@ -11,43 +11,19 @@ pub struct GenerationItem<T> {
 }
 
 
-// See https://github.com/crossbeam-rs/crossbeam/issues/91
-struct NonLeakingMsQueue<T> {
-    underlying_queue: MsQueue<T>,
-}
 
-impl<T> Default for NonLeakingMsQueue<T> {
-    fn default() -> NonLeakingMsQueue<T> {
-        NonLeakingMsQueue { underlying_queue: MsQueue::new() }
-    }
-}
-
-impl<T> NonLeakingMsQueue<T> {
-    fn pop(&self) -> T {
-        self.underlying_queue.pop()
-    }
-
-    fn push(&self, el: T) {
-        self.underlying_queue.push(el);
-    }
-}
-
-impl<T> Drop for NonLeakingMsQueue<T> {
-    fn drop(&mut self) {
-        while let Some(_popped_item_to_be_dropped) = self.underlying_queue.try_pop() {}
-    }
-}
 
 pub struct Pool<T> {
-    queue: Arc<NonLeakingMsQueue<GenerationItem<T>>>,
+    queue: Arc<MsQueue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
     next_generation: AtomicUsize,
 }
 
 impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
+        let queue = Arc::new(MsQueue::new());
         Pool {
-            queue: Arc::default(),
+            queue: queue,
             freshest_generation: AtomicUsize::default(),
             next_generation: AtomicUsize::default(),
         }
@@ -76,8 +52,11 @@ impl<T> Pool<T> {
             if former_generation >= generation {
                 break;
             }
-            self.freshest_generation
-                .compare_and_swap(former_generation, generation, Ordering::SeqCst);
+            self.freshest_generation.compare_and_swap(
+                former_generation,
+                generation,
+                Ordering::SeqCst,
+            );
         }
     }
 
@@ -91,9 +70,9 @@ impl<T> Pool<T> {
             let gen_item = self.queue.pop();
             if gen_item.generation >= generation {
                 return LeasedItem {
-                           gen_item: Some(gen_item),
-                           recycle_queue: self.queue.clone(),
-                       };
+                    gen_item: Some(gen_item),
+                    recycle_queue: self.queue.clone(),
+                };
             } else {
                 // this searcher is obsolete,
                 // removing it from the pool.
@@ -105,7 +84,7 @@ impl<T> Pool<T> {
 
 pub struct LeasedItem<T> {
     gen_item: Option<GenerationItem<T>>,
-    recycle_queue: Arc<NonLeakingMsQueue<GenerationItem<T>>>,
+    recycle_queue: Arc<MsQueue<GenerationItem<T>>>,
 }
 
 impl<T> Deref for LeasedItem<T> {
@@ -113,25 +92,26 @@ impl<T> Deref for LeasedItem<T> {
 
     fn deref(&self) -> &T {
         &self.gen_item
-             .as_ref()
-             .expect("Unwrapping a leased item should never fail")
-             .item // unwrap is safe here
+            .as_ref()
+            .expect("Unwrapping a leased item should never fail")
+            .item // unwrap is safe here
     }
 }
 
 impl<T> DerefMut for LeasedItem<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.gen_item
-                 .as_mut()
-                 .expect("Unwrapping a mut leased item should never fail")
-                 .item // unwrap is safe here
+            .as_mut()
+            .expect("Unwrapping a mut leased item should never fail")
+            .item // unwrap is safe here
     }
 }
 
 impl<T> Drop for LeasedItem<T> {
     fn drop(&mut self) {
-        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None)
-            .expect("Unwrapping a leased item should never fail");
+        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None).expect(
+            "Unwrapping a leased item should never fail",
+        );
         self.recycle_queue.push(gen_item);
     }
 }

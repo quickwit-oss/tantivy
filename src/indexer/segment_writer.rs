@@ -58,11 +58,12 @@ impl<'a> SegmentWriter<'a> {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(heap: &'a Heap,
+                       table_bits: usize,
                        mut segment: Segment,
                        schema: &Schema)
                        -> Result<SegmentWriter<'a>> {
         let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, heap);
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
         let analyzers = schema.fields()
             .iter()
             .map(|field_entry| field_entry.field_type())
@@ -92,10 +93,12 @@ impl<'a> SegmentWriter<'a> {
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
     pub fn finalize(self) -> Result<Vec<u64>> {
-        write(&self.multifield_postings,
-              &self.fast_field_writers,
-              &self.fieldnorms_writer,
-              self.segment_serializer)?;
+        write(
+            &self.multifield_postings,
+            &self.fast_field_writers,
+            &self.fieldnorms_writer,
+            self.segment_serializer,
+        )?;
         Ok(self.doc_opstamps)
     }
 
@@ -122,15 +125,19 @@ impl<'a> SegmentWriter<'a> {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(&mut self,
-                        add_operation: &AddOperation,
-                        schema: &Schema)
-                        -> io::Result<()> {
+    pub fn add_document(
+        &mut self,
+        add_operation: &AddOperation,
+        schema: &Schema,
+    ) -> io::Result<()> {
         let doc_id = self.max_doc;
         let doc = &add_operation.document;
         self.doc_opstamps.push(add_operation.opstamp);
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_options = schema.get_field_entry(field);
+            if !field_options.is_indexed() {
+                continue;
+            }
             match *field_options.field_type() {
                 FieldType::Str(ref text_options) => {
                     let num_tokens: u32 =
@@ -166,8 +173,10 @@ impl<'a> SegmentWriter<'a> {
                 FieldType::U64(ref int_option) => {
                     if int_option.is_indexed() {
                         for field_value in field_values {
-                            let term = Term::from_field_u64(field_value.field(),
-                                                            field_value.value().u64_value());
+                            let term = Term::from_field_u64(
+                                field_value.field(),
+                                field_value.value().u64_value(),
+                            );
                             self.multifield_postings.suscribe(doc_id, &term);
                         }
                     }
@@ -175,8 +184,10 @@ impl<'a> SegmentWriter<'a> {
                 FieldType::I64(ref int_option) => {
                     if int_option.is_indexed() {
                         for field_value in field_values {
-                            let term = Term::from_field_i64(field_value.field(),
-                                                            field_value.value().i64_value());
+                            let term = Term::from_field_i64(
+                                field_value.field(),
+                                field_value.value().i64_value(),
+                            );
                             self.multifield_postings.suscribe(doc_id, &term);
                         }
                     }
@@ -187,7 +198,9 @@ impl<'a> SegmentWriter<'a> {
         self.fast_field_writers.add_document(doc);
         let stored_fieldvalues: Vec<&FieldValue> = doc.field_values()
             .iter()
-            .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
+            .filter(|field_value| {
+                schema.get_field_entry(field_value.field()).is_stored()
+            })
             .collect();
         let doc_writer = self.segment_serializer.get_store_writer();
         try!(doc_writer.store(&stored_fieldvalues));
@@ -218,15 +231,22 @@ impl<'a> SegmentWriter<'a> {
 }
 
 // This method is used as a trick to workaround the borrow checker
-fn write(multifield_postings: &MultiFieldPostingsWriter,
-         fast_field_writers: &FastFieldsWriter,
-         fieldnorms_writer: &FastFieldsWriter,
-         mut serializer: SegmentSerializer)
-         -> Result<()> {
+fn write(
+    multifield_postings: &MultiFieldPostingsWriter,
+    fast_field_writers: &FastFieldsWriter,
+    fieldnorms_writer: &FastFieldsWriter,
+    mut serializer: SegmentSerializer,
+) -> Result<()> {
 
-    try!(multifield_postings.serialize(serializer.get_postings_serializer()));
-    try!(fast_field_writers.serialize(serializer.get_fast_field_serializer()));
-    try!(fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer()));
+    try!(multifield_postings.serialize(
+        serializer.get_postings_serializer(),
+    ));
+    try!(fast_field_writers.serialize(
+        serializer.get_fast_field_serializer(),
+    ));
+    try!(fieldnorms_writer.serialize(
+        serializer.get_fieldnorms_serializer(),
+    ));
     try!(serializer.close());
 
     Ok(())
@@ -235,10 +255,12 @@ fn write(multifield_postings: &MultiFieldPostingsWriter,
 impl<'a> SerializableSegment for SegmentWriter<'a> {
     fn write(&self, serializer: SegmentSerializer) -> Result<u32> {
         let max_doc = self.max_doc;
-        write(&self.multifield_postings,
-              &self.fast_field_writers,
-              &self.fieldnorms_writer,
-              serializer)?;
+        write(
+            &self.multifield_postings,
+            &self.fast_field_writers,
+            &self.fieldnorms_writer,
+            serializer,
+        )?;
         Ok(max_doc)
     }
 }

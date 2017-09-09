@@ -101,9 +101,9 @@ impl BinarySerializable for String {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<String> {
         let string_length = VInt::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
-        reader
-            .take(string_length as u64)
-            .read_to_string(&mut result)?;
+        reader.take(string_length as u64).read_to_string(
+            &mut result,
+        )?;
         Ok(result)
     }
 }

@@ -1,5 +1,3 @@
-extern crate regex;
-
 mod analyzer;
 mod simple_tokenizer;
 mod lower_caser;
@@ -8,6 +6,7 @@ mod stemmer;
 mod analyzer_manager;
 mod japanese_tokenizer;
 mod token_stream_chain;
+
 
 pub use self::analyzer::{box_analyzer, Analyzer, Token, TokenFilterFactory, TokenStream};
 pub use self::analyzer::BoxedAnalyzer;
