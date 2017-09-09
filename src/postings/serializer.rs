@@ -131,11 +131,13 @@ impl<'a> FieldSerializer<'a> {
 
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
-                let text_indexing_options = text_options.get_indexing_options();
-                (
-                    text_indexing_options.is_termfreq_enabled(),
-                    text_indexing_options.is_position_enabled(),
-                )
+                if let Some(ref text_indexing_options) = text_options.get_indexing_options() {
+                    let index_option = text_indexing_options.index_option();
+                    (index_option.is_termfreq_enabled(), index_option.is_position_enabled())
+                }
+                else {
+                    (false, false)
+                }
             }
             _ => (false, false),
         };

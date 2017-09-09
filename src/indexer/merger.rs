@@ -388,6 +388,7 @@ mod tests {
     use schema;
     use schema::Document;
     use schema::Term;
+    use schema::TextFieldIndexing;
     use query::TermQuery;
     use schema::Field;
     use core::Index;
@@ -405,7 +406,9 @@ mod tests {
     fn test_index_merger_no_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
-            .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+            .set_indexing_options(TextFieldIndexing::default()
+                .set_analyzer("default")
+                .set_index_option(TextIndexingOptions::WithFreqs))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();
@@ -537,7 +540,9 @@ mod tests {
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
-            .set_indexing_options(TextIndexingOptions::TokenizedWithFreq)
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(TextIndexingOptions::WithFreqs))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();

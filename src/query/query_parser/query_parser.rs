@@ -156,6 +156,7 @@ impl QueryParser {
 
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
+        // TODO get the right analyzer
         let mut analyzer = self.analyzer_manager
             .get("simple")
             .ok_or_else(|| {
@@ -178,15 +179,11 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 let mut terms: Vec<Term> = Vec::new();
-                if str_options.get_indexing_options().is_tokenized() {
-                    let mut token_stream = analyzer.token_stream(phrase);
-                    token_stream.process(&mut |token| {
-                                          let term = Term::from_field_text(field, &token.term);
-                                          terms.push(term);
-                    });
-                } else {
-                    terms.push(Term::from_field_text(field, phrase));
-                }
+                let mut token_stream = analyzer.token_stream(phrase);
+                token_stream.process(&mut |token| {
+                                      let term = Term::from_field_text(field, &token.term);
+                                      terms.push(term);
+                });
                 if terms.is_empty() {
                     Ok(None)
                 } else if terms.len() == 1 {

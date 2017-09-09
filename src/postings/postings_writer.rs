@@ -1,6 +1,5 @@
 use DocId;
 use schema::Term;
-use schema::FieldValue;
 use postings::{InvertedIndexSerializer, FieldSerializer};
 use std::io;
 use postings::Recorder;
@@ -22,15 +21,24 @@ fn posting_from_field_entry<'a>(
 ) -> Box<PostingsWriter + 'a> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => {
-            match text_options.get_indexing_options() {
-                TextIndexingOptions::TokenizedWithFreq => {
-                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
+            text_options
+            .get_indexing_options()
+            .map(|indexing_options| {
+                match indexing_options.index_option() {
+                    TextIndexingOptions::Basic => {
+                        SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+                    }
+                    TextIndexingOptions::WithFreqs => {
+                        SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
+                    }
+                    TextIndexingOptions::WithFreqsAndPositions => {
+                        SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
+                    }
                 }
-                TextIndexingOptions::TokenizedWithFreqAndPosition => {
-                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
-                }
-                _ => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap),
-            }
+            })
+            .unwrap_or_else(|| {
+                SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+            })
         }
         FieldType::U64(_) |
         FieldType::I64(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap),

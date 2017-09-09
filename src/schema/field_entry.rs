@@ -62,7 +62,7 @@ impl FieldEntry {
     /// Returns true iff the field is indexed
     pub fn is_indexed(&self) -> bool {
         match self.field_type {
-            FieldType::Str(ref options) => options.get_indexing_options().is_indexed(),
+            FieldType::Str(ref options) => options.get_indexing_options().is_some(),
             FieldType::U64(ref options) |
             FieldType::I64(ref options) => options.is_indexed(),
         }

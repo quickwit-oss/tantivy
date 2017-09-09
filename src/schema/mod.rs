@@ -128,6 +128,7 @@ pub use self::field_value::FieldValue;
 
 pub use self::text_options::TextOptions;
 pub use self::text_options::TextIndexingOptions;
+pub use self::text_options::TextFieldIndexing;
 pub use self::text_options::TEXT;
 pub use self::text_options::STRING;
 pub use self::text_options::STORED;

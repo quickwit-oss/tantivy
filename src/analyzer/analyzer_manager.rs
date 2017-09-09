@@ -46,7 +46,7 @@ impl Default for AnalyzerManager {
         let manager = AnalyzerManager {
             analyzers: Arc::new(RwLock::new(HashMap::new()))
         };
-        manager.register("simple", 
+        manager.register("default",
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)

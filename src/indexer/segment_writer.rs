@@ -70,7 +70,12 @@ impl<'a> SegmentWriter<'a> {
             .map(|field_type| {
                 match field_type {
                     &FieldType::Str(ref text_options) => {
-                        segment.index().analyzers().get("simple")
+                        text_options
+                            .get_indexing_options()
+                            .and_then(|text_index_option| {
+                                let analyzer_name = &text_index_option.analyzer();
+                                segment.index().analyzers().get(analyzer_name)
+                            })
                     }
                     _ => None,
                 }
@@ -139,32 +144,22 @@ impl<'a> SegmentWriter<'a> {
                 continue;
             }
             match *field_options.field_type() {
-                FieldType::Str(ref text_options) => {
-                    let num_tokens: u32 =
-                        if text_options.get_indexing_options().is_tokenized() {
-                            if let Some(ref mut analyzer) = self.analyzers[field.0 as usize] {
-                                let texts: Vec<&str> = field_values.iter()
-                                    .flat_map(|field_value| {
-                                        match field_value.value() {
-                                            &Value::Str(ref text) => Some(text.as_str()),
-                                            _ => None
-                                        }
-                                    })
-                                    .collect();
-                                let mut token_stream = analyzer.token_stream_texts(&texts[..]);
-                                self.multifield_postings.index_text(doc_id, field, &mut token_stream)
-                            }
-                            else {
-                                0u32
-                            }
-                            
-                        } else {
-                            let num_field_values = field_values.len() as u32;
-                            for field_value in field_values {
-                                let term = Term::from_field_text(field, field_value.value().text());
-                                self.multifield_postings.suscribe(doc_id, &term);
-                            }
-                            num_field_values
+                FieldType::Str(_) => {
+                    let num_tokens =
+                        if let Some(ref mut analyzer) = self.analyzers[field.0 as usize] {
+                            let texts: Vec<&str> = field_values.iter()
+                                .flat_map(|field_value| {
+                                    match field_value.value() {
+                                        &Value::Str(ref text) => Some(text.as_str()),
+                                        _ => None
+                                    }
+                                })
+                                .collect();
+                            let mut token_stream = analyzer.token_stream_texts(&texts[..]);
+                            self.multifield_postings.index_text(doc_id, field, &mut token_stream)
+                        }
+                        else {
+                            0
                         };
                     self.fieldnorms_writer
                         .get_field_writer(field)

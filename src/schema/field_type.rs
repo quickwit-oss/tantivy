@@ -34,7 +34,7 @@ impl FieldType {
     /// returns true iff the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options().is_indexed(),
+            FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => int_options.is_indexed(),
         }
@@ -47,15 +47,17 @@ impl FieldType {
     pub fn get_segment_postings_option(&self) -> Option<SegmentPostingsOption> {
         match *self {
             FieldType::Str(ref text_options) => {
-                match text_options.get_indexing_options() {
-                    TextIndexingOptions::Untokenized |
-                    TextIndexingOptions::TokenizedNoFreq => Some(SegmentPostingsOption::NoFreq),
-                    TextIndexingOptions::TokenizedWithFreq => Some(SegmentPostingsOption::Freq),
-                    TextIndexingOptions::TokenizedWithFreqAndPosition => {
-                        Some(SegmentPostingsOption::FreqAndPositions)
-                    }
-                    TextIndexingOptions::Unindexed => None,
-                }
+                // TODO remove SegmentPostingsOption + TextIndexingOptions
+                // they are now basically the same object
+                text_options
+                    .get_indexing_options()
+                    .map(|text_indexing_options| {
+                        match text_indexing_options.index_option() {
+                            TextIndexingOptions::Basic => SegmentPostingsOption::NoFreq,
+                            TextIndexingOptions::WithFreqs => SegmentPostingsOption::Freq,
+                            TextIndexingOptions::WithFreqsAndPositions => SegmentPostingsOption::FreqAndPositions
+                        }
+                    })
             }
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => {
