@@ -1,5 +1,6 @@
 use std::ops::BitOr;
 use std::borrow::Cow;
+use schema::IndexRecordOption;
 
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,8 +46,8 @@ impl Default for TextOptions {
 
 #[derive(Clone,  PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
+    record: IndexRecordOption,
     analyzer: Cow<'static, str>,
-    index_option: TextIndexingOptions,
 }
 
 
@@ -54,7 +55,7 @@ impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
         TextFieldIndexing {
             analyzer: Cow::Borrowed("default"),
-            index_option: TextIndexingOptions::Basic,
+            record: IndexRecordOption::Basic,
         }
     }
 }
@@ -69,56 +70,22 @@ impl TextFieldIndexing {
         &self.analyzer
     }
 
-    pub fn set_index_option(mut self, index_option: TextIndexingOptions) -> TextFieldIndexing {
-        self.index_option = index_option;
+    pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
+        self.record = index_option;
         self
     }
 
-    pub fn index_option(&self) -> TextIndexingOptions {
-        self.index_option
+    pub fn index_option(&self) -> IndexRecordOption {
+        self.record
     }
 }
-
-/// Describe how a field should be indexed
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Hash, Serialize, Deserialize)]
-pub enum TextIndexingOptions {
-    ///
-    #[serde(rename = "basic")]
-    Basic,
-    ///
-    #[serde(rename = "freq")]
-    WithFreqs,
-    /// #[serde(rename = "position")]
-    WithFreqsAndPositions,
-}
-
-impl TextIndexingOptions {
-    /// Returns true iff the term frequency will be encoded.
-    pub fn is_termfreq_enabled(&self) -> bool {
-        match *self {
-            TextIndexingOptions::WithFreqsAndPositions |
-            TextIndexingOptions::WithFreqs => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true iff the term positions within the document are stored as well.
-    pub fn is_position_enabled(&self) -> bool {
-        match *self {
-            TextIndexingOptions::WithFreqsAndPositions => true,
-            _ => false,
-        }
-    }
-}
-
-
 
 /// The field will be untokenized and indexed
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(
         TextFieldIndexing {
             analyzer: Cow::Borrowed("raw"),
-            index_option: TextIndexingOptions::Basic,
+            record: IndexRecordOption::Basic,
         }),
     stored: false,
 };
@@ -129,7 +96,7 @@ pub const TEXT: TextOptions = TextOptions {
     indexing: Some(
         TextFieldIndexing {
             analyzer: Cow::Borrowed("default"),
-            index_option: TextIndexingOptions::WithFreqsAndPositions,
+            record: IndexRecordOption::WithFreqsAndPositions,
         }),
     stored: false,
 };
@@ -184,4 +151,12 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_cmp_index_record_option() {
+        assert!(IndexRecordOption::WithFreqsAndPositions > IndexRecordOption::WithFreqs);
+        assert!(IndexRecordOption::WithFreqs > IndexRecordOption::Basic);
+    }
 }
+
+

@@ -271,7 +271,7 @@ impl IndexMerger {
             // ... set segment postings option the new field.
             let segment_postings_option = field_entry
                 .field_type()
-                .get_segment_postings_option()
+                .get_index_record_option()
                 .expect(
                     "Encountered a field that is not supposed to be
                          indexed. Have you modified the schema?",
@@ -398,8 +398,7 @@ mod tests {
     use collector::tests::FastFieldTestCollector;
     use collector::tests::TestCollector;
     use query::BooleanQuery;
-    use postings::SegmentPostingsOption;
-    use schema::TextIndexingOptions;
+    use schema::IndexRecordOption;
     use futures::Future;
 
     #[test]
@@ -408,7 +407,7 @@ mod tests {
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(TextFieldIndexing::default()
                 .set_analyzer("default")
-                .set_index_option(TextIndexingOptions::WithFreqs))
+                .set_index_option(IndexRecordOption::WithFreqs))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();
@@ -531,7 +530,7 @@ mod tests {
 
     fn search_term(searcher: &Searcher, term: Term) -> Vec<u64> {
         let mut collector = FastFieldTestCollector::for_field(Field(1));
-        let term_query = TermQuery::new(term, SegmentPostingsOption::NoFreq);
+        let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         searcher.search(&term_query, &mut collector).unwrap();
         collector.vals()
     }
@@ -542,7 +541,7 @@ mod tests {
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default()
-                    .set_index_option(TextIndexingOptions::WithFreqs))
+                    .set_index_option(IndexRecordOption::WithFreqs))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();

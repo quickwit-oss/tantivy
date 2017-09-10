@@ -2,7 +2,7 @@ use directory::{SourceRead, ReadOnlySource};
 use termdict::{TermDictionary, TermDictionaryImpl};
 use postings::{SegmentPostings, BlockSegmentPostings};
 use postings::TermInfo;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use schema::Term;
 use std::cmp;
 use fastfield::DeleteBitSet;
@@ -91,7 +91,7 @@ impl InvertedIndexReader {
     pub fn read_block_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
-        option: SegmentPostingsOption,
+        option: IndexRecordOption,
     ) -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = self.postings_source.slice_from(offset);
@@ -110,7 +110,7 @@ impl InvertedIndexReader {
     pub fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
-        option: SegmentPostingsOption,
+        option: IndexRecordOption,
     ) -> SegmentPostings {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
         let delete_bitset = self.delete_bitset.clone();
@@ -135,18 +135,18 @@ impl InvertedIndexReader {
     /// the requested options, the returned `SegmentPostings` the method does not fail
     /// and returns a `SegmentPostings` with as much information as possible.
     ///
-    /// For instance, requesting `SegmentPostingsOption::FreqAndPositions` for a
+    /// For instance, requesting `IndexRecordOption::Freq` for a
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
     pub fn read_postings(
         &self,
         term: &Term,
-        option: SegmentPostingsOption,
+        option: IndexRecordOption,
     ) -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));
-        let maximum_option = get!(field_entry.field_type().get_segment_postings_option());
+        let maximum_option = get!(field_entry.field_type().get_index_record_option());
         let best_effort_option = cmp::min(maximum_option, option);
         Some(self.read_postings_from_terminfo(
             &term_info,

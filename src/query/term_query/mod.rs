@@ -18,7 +18,7 @@ mod tests {
     use query::TermQuery;
     use Index;
     use schema::*;
-    use postings::SegmentPostingsOption;
+    use schema::IndexRecordOption;
     use fastfield::FastFieldReader;
 
     fn abs_diff(left: f32, right: f32) -> f32 {
@@ -46,7 +46,7 @@ mod tests {
         let searcher = index.searcher();
         let term_query = TermQuery::new(
             Term::from_field_text(text_field, "a"),
-            SegmentPostingsOption::NoFreq,
+            IndexRecordOption::Basic,
         );
         let term_weight = term_query.weight(&searcher).unwrap();
         let segment_reader = searcher.segment_reader(0);

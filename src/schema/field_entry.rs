@@ -23,10 +23,10 @@ pub struct FieldEntry {
 impl FieldEntry {
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
-    pub fn new_text(field_name: String, field_type: TextOptions) -> FieldEntry {
+    pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
-            field_type: FieldType::Str(field_type),
+            field_type: FieldType::Str(text_options),
         }
     }
 
@@ -221,7 +221,10 @@ mod tests {
   "name": "title",
   "type": "text",
   "options": {
-    "indexing": "position",
+    "indexing": {
+      "record": "position",
+      "analyzer": "default"
+    },
     "stored": false
   }
 }"#;

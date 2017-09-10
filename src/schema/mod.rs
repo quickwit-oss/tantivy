@@ -30,7 +30,9 @@ use tantivy::schema::*;
 let mut schema_builder = SchemaBuilder::default();
 let title_options = TextOptions::default()
     .set_stored()
-    .set_indexing_options(TextIndexingOptions::TokenizedWithFreqAndPosition);
+    .set_indexing_options(TextFieldIndexing::default()
+        .set_analyzer("default")
+        .set_index_option(IndexRecordOption::WithFreqsAndPositions));
 schema_builder.add_text_field("title_options", title_options);
 let schema = schema_builder.build();
 ```
@@ -112,6 +114,8 @@ mod int_options;
 mod field;
 mod value;
 mod named_field_document;
+mod index_record_option;
+
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::{Schema, SchemaBuilder};
@@ -127,7 +131,7 @@ pub use self::field_entry::FieldEntry;
 pub use self::field_value::FieldValue;
 
 pub use self::text_options::TextOptions;
-pub use self::text_options::TextIndexingOptions;
+pub use self::index_record_option::IndexRecordOption;
 pub use self::text_options::TextFieldIndexing;
 pub use self::text_options::TEXT;
 pub use self::text_options::STRING;

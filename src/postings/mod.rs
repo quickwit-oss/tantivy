@@ -17,7 +17,6 @@ mod vec_postings;
 mod segment_postings;
 mod intersection;
 mod docset;
-mod segment_postings_option;
 
 pub use self::docset::{SkipResult, DocSet};
 use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
@@ -32,7 +31,6 @@ pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
 pub use self::intersection::IntersectionDocSet;
-pub use self::segment_postings_option::SegmentPostingsOption;
 pub use common::HasLen;
 
 
@@ -45,7 +43,7 @@ mod tests {
     use indexer::SegmentWriter;
     use core::SegmentReader;
     use core::Index;
-    use postings::SegmentPostingsOption::FreqAndPositions;
+    use schema::IndexRecordOption;
     use std::iter;
     use datastruct::stacker::Heap;
     use fastfield::FastFieldReader;
@@ -140,7 +138,7 @@ mod tests {
                 assert!(
                     segment_reader
                         .inverted_index(term_a.field())
-                        .read_postings(&term_a, FreqAndPositions)
+                        .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                         .is_none()
                 );
             }
@@ -148,7 +146,7 @@ mod tests {
                 let term_a = Term::from_field_text(text_field, "a");
                 let mut postings_a = segment_reader
                     .inverted_index(term_a.field())
-                    .read_postings(&term_a, FreqAndPositions)
+                    .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert_eq!(postings_a.len(), 1000);
                 assert!(postings_a.advance());
@@ -171,7 +169,7 @@ mod tests {
                 let term_e = Term::from_field_text(text_field, "e");
                 let mut postings_e = segment_reader
                     .inverted_index(term_e.field())
-                    .read_postings(&term_e, FreqAndPositions)
+                    .read_postings(&term_e, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
                 for i in 2u32..1000u32 {
@@ -212,11 +210,11 @@ mod tests {
         index.load_searchers().unwrap();
         let term_query = TermQuery::new(
             Term::from_field_text(text_field, "a"),
-            SegmentPostingsOption::NoFreq,
+            IndexRecordOption::Basic,
         );
         let searcher = index.searcher();
         let mut term_weight = term_query.specialized_weight(&*searcher);
-        term_weight.segment_postings_options = SegmentPostingsOption::FreqAndPositions;
+        term_weight.index_record_option = IndexRecordOption::WithFreqsAndPositions;
         let segment_reader = &searcher.segment_readers()[0];
         let mut term_scorer = term_weight.specialized_scorer(segment_reader).unwrap();
         assert!(term_scorer.advance());
@@ -261,7 +259,7 @@ mod tests {
             for j in i + 1..num_docs {
                 let mut segment_postings = segment_reader
                     .inverted_index(term_2.field())
-                    .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                    .read_postings(&term_2, IndexRecordOption::Basic)
                     .unwrap();
 
                 assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
@@ -275,7 +273,7 @@ mod tests {
         {
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())
-                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
             // check that `skip_next` advances the iterator
@@ -296,7 +294,7 @@ mod tests {
         {
             let mut segment_postings = segment_reader
                 .inverted_index(term_0.field())
-                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_0, IndexRecordOption::Basic)
                 .unwrap();
 
             for i in 0..num_docs / 2 {
@@ -306,7 +304,7 @@ mod tests {
 
             let mut segment_postings = segment_reader
                 .inverted_index(term_0.field())
-                .read_postings(&term_0, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_0, IndexRecordOption::Basic)
                 .unwrap();
 
             for i in 0..num_docs / 2 - 1 {
@@ -331,7 +329,7 @@ mod tests {
         for i in 0..num_docs {
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())
-                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
             if i % 2 == 0 {
@@ -347,7 +345,7 @@ mod tests {
         {
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())
-                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
             let mut last = 2; // start from 5 to avoid seeking to 3 twice
@@ -383,14 +381,14 @@ mod tests {
         {
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())
-                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
             assert_eq!(segment_postings.skip_next(0), SkipResult::End);
 
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())
-                .read_postings(&term_2, SegmentPostingsOption::NoFreq)
+                .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
             assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
@@ -458,7 +456,7 @@ mod tests {
         b.iter(|| {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
-                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             while segment_postings.advance() {}
         });
@@ -471,19 +469,19 @@ mod tests {
         b.iter(|| {
             let segment_postings_a = segment_reader
                 .inverted_index(TERM_A.field())
-                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             let segment_postings_b = segment_reader
                 .inverted_index(TERM_B.field())
-                .read_postings(&*TERM_B, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_B, IndexRecordOption::Basic)
                 .unwrap();
             let segment_postings_c = segment_reader
                 .inverted_index(TERM_C.field())
-                .read_postings(&*TERM_C, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_C, IndexRecordOption::Basic)
                 .unwrap();
             let segment_postings_d = segment_reader
                 .inverted_index(TERM_D.field())
-                .read_postings(&*TERM_D, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_D, IndexRecordOption::Basic)
                 .unwrap();
             let mut intersection = IntersectionDocSet::from(vec![
                 segment_postings_a,
@@ -502,7 +500,7 @@ mod tests {
 
         let mut segment_postings = segment_reader
             .inverted_index(TERM_A.field())
-            .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+            .read_postings(&*TERM_A, IndexRecordOption::Basic)
             .unwrap();
 
         let mut existing_docs = Vec::new();
@@ -519,7 +517,7 @@ mod tests {
         b.iter(|| {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
-                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             for doc in &existing_docs {
                 if segment_postings.skip_next(*doc) == SkipResult::End {
@@ -557,7 +555,7 @@ mod tests {
             let n: u32 = test::black_box(17);
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
-                .read_postings(&*TERM_A, SegmentPostingsOption::NoFreq)
+                .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             let mut s = 0u32;
             while segment_postings.advance() {

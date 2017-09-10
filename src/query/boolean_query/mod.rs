@@ -24,7 +24,7 @@ mod tests {
     use Index;
     use schema::*;
     use fastfield::U64FastFieldReader;
-    use postings::SegmentPostingsOption;
+    use schema::IndexRecordOption;
 
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
@@ -66,7 +66,7 @@ mod tests {
         let make_term_query = |text: &str| {
             let term_query = TermQuery::new(
                 Term::from_field_text(text_field, text),
-                SegmentPostingsOption::NoFreq,
+                IndexRecordOption::Basic,
             );
             let query: Box<Query> = box term_query;
             query

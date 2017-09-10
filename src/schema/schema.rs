@@ -358,7 +358,10 @@ mod tests {
     "name": "title",
     "type": "text",
     "options": {
-      "indexing": "position",
+      "indexing": {
+        "record": "position",
+        "analyzer": "default"
+      },
       "stored": false
     }
   },
@@ -366,7 +369,10 @@ mod tests {
     "name": "author",
     "type": "text",
     "options": {
-      "indexing": "untokenized",
+      "indexing": {
+        "record": "basic",
+        "analyzer": "raw"
+      },
       "stored": false
     }
   },

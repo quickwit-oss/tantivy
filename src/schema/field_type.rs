@@ -2,8 +2,7 @@ use schema::{TextOptions, IntOptions};
 
 use serde_json::Value as JsonValue;
 use schema::Value;
-use postings::SegmentPostingsOption;
-use schema::TextIndexingOptions;
+use schema::IndexRecordOption;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -41,28 +40,20 @@ impl FieldType {
     }
 
     /// Given a field configuration, return the maximal possible
-    /// `SegmentPostingsOption` available.
+    /// `IndexRecordOption` available.
     ///
     /// If the field is not indexed, then returns `None`.
-    pub fn get_segment_postings_option(&self) -> Option<SegmentPostingsOption> {
+    pub fn get_index_record_option(&self) -> Option<IndexRecordOption> {
         match *self {
             FieldType::Str(ref text_options) => {
-                // TODO remove SegmentPostingsOption + TextIndexingOptions
-                // they are now basically the same object
                 text_options
                     .get_indexing_options()
-                    .map(|text_indexing_options| {
-                        match text_indexing_options.index_option() {
-                            TextIndexingOptions::Basic => SegmentPostingsOption::NoFreq,
-                            TextIndexingOptions::WithFreqs => SegmentPostingsOption::Freq,
-                            TextIndexingOptions::WithFreqsAndPositions => SegmentPostingsOption::FreqAndPositions
-                        }
-                    })
+                    .map(|indexing_options| indexing_options.index_option())
             }
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => {
                 if int_options.is_indexed() {
-                    Some(SegmentPostingsOption::NoFreq)
+                    Some(IndexRecordOption::Basic)
                 } else {
                     None
                 }

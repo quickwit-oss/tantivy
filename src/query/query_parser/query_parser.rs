@@ -6,7 +6,7 @@ use super::user_input_ast::*;
 use super::query_grammar::parse_to_ast;
 use query::Occur;
 use query::TermQuery;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use query::PhraseQuery;
 use schema::{Term, FieldType};
 use std::str::FromStr;
@@ -306,7 +306,7 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
 
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
-        LogicalLiteral::Term(term) => box TermQuery::new(term, SegmentPostingsOption::Freq),
+        LogicalLiteral::Term(term) => box TermQuery::new(term, IndexRecordOption::WithFreqs),
         LogicalLiteral::Phrase(terms) => box PhraseQuery::from(terms),
     }
 }

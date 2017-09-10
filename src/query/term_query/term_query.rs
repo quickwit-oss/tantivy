@@ -3,7 +3,7 @@ use Result;
 use super::term_weight::TermWeight;
 use query::Query;
 use query::Weight;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use Searcher;
 use std::any::Any;
 
@@ -19,15 +19,15 @@ use std::any::Any;
 #[derive(Debug)]
 pub struct TermQuery {
     term: Term,
-    segment_postings_options: SegmentPostingsOption,
+    index_record_option: IndexRecordOption,
 }
 
 impl TermQuery {
     /// Creates a new term query.
-    pub fn new(term: Term, segment_postings_options: SegmentPostingsOption) -> TermQuery {
+    pub fn new(term: Term, segment_postings_options: IndexRecordOption) -> TermQuery {
         TermQuery {
             term: term,
-            segment_postings_options: segment_postings_options,
+            index_record_option: segment_postings_options,
         }
     }
 
@@ -42,7 +42,7 @@ impl TermQuery {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
-            segment_postings_options: self.segment_postings_options,
+            index_record_option: self.index_record_option,
         }
     }
 }

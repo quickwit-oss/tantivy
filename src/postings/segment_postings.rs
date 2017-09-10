@@ -11,8 +11,6 @@ use directory::{SourceRead, ReadOnlySource};
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
 
-
-
 struct PositionComputer {
     // store the amount of position int
     // before reading positions.
@@ -474,7 +472,7 @@ mod tests {
     use schema::INT_INDEXED;
     use schema::Term;
     use fst::Streamer;
-    use postings::SegmentPostingsOption;
+    use schema::IndexRecordOption;
     use common::HasLen;
     use super::BlockSegmentPostings;
 
@@ -513,7 +511,7 @@ mod tests {
         let term_info = inverted_index.get_term_info(&term).unwrap();
         let mut block_segments = inverted_index.read_block_postings_from_terminfo(
             &term_info,
-            SegmentPostingsOption::NoFreq,
+            IndexRecordOption::Basic,
         );
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
@@ -554,7 +552,7 @@ mod tests {
             let term_info = inverted_index.get_term_info(&term).unwrap();
             block_segments = inverted_index.read_block_postings_from_terminfo(
                 &term_info,
-                SegmentPostingsOption::NoFreq,
+                IndexRecordOption::Basic,
             );
         }
         assert!(block_segments.advance());

@@ -6,7 +6,7 @@ use Searcher;
 use query::Query;
 use schema::Term;
 use query::TermQuery;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use query::Occur;
 use query::OccurFilter;
 
@@ -59,7 +59,7 @@ impl BooleanQuery {
         let occur_term_queries: Vec<(Occur, Box<Query>)> = terms
             .into_iter()
             .map(|term| {
-                let term_query: Box<Query> = box TermQuery::new(term, SegmentPostingsOption::Freq);
+                let term_query: Box<Query> = box TermQuery::new(term, IndexRecordOption::WithFreqs);
                 (Occur::Should, term_query)
             })
             .collect();

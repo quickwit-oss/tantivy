@@ -124,7 +124,6 @@ pub use self::common::TimerTree;
 pub use postings::DocSet;
 pub use postings::Postings;
 pub use core::SegmentComponent;
-pub use postings::SegmentPostingsOption;
 
 pub use common::{i64_to_u64, u64_to_i64};
 
@@ -197,11 +196,10 @@ mod tests {
     use Index;
     use core::SegmentReader;
     use query::BooleanQuery;
-    use postings::SegmentPostingsOption;
+    use schema::IndexRecordOption;
     use schema::*;
     use DocSet;
     use IndexWriter;
-    use postings::SegmentPostingsOption::FreqAndPositions;
     use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
     use Postings;
     use rand::{XorShiftRng, Rng, SeedableRng};
@@ -386,12 +384,12 @@ mod tests {
             let inverted_index = reader.inverted_index(text_field);
             assert!(
                 inverted_index
-                    .read_postings(&term_abcd, FreqAndPositions)
+                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
                     .is_none()
             );
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_a, FreqAndPositions)
+                    .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
@@ -399,7 +397,7 @@ mod tests {
             }
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_b, FreqAndPositions)
+                    .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
@@ -430,12 +428,12 @@ mod tests {
 
             assert!(
                 inverted_index
-                    .read_postings(&term_abcd, FreqAndPositions)
+                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
                     .is_none()
             );
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_a, FreqAndPositions)
+                    .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 5);
@@ -443,7 +441,7 @@ mod tests {
             }
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_b, FreqAndPositions)
+                    .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
@@ -473,18 +471,18 @@ mod tests {
             let inverted_index = reader.inverted_index(term_abcd.field());
             assert!(
                 inverted_index
-                    .read_postings(&term_abcd, FreqAndPositions)
+                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
                     .is_none()
             );
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_a, FreqAndPositions)
+                    .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(!postings.advance());
             }
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_b, FreqAndPositions)
+                    .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 3);
@@ -494,7 +492,7 @@ mod tests {
             }
             {
                 let mut postings = inverted_index
-                    .read_postings(&term_c, FreqAndPositions)
+                    .read_postings(&term_c, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert!(postings.advance());
                 assert_eq!(postings.doc(), 4);
@@ -520,7 +518,7 @@ mod tests {
         let mut postings = searcher
             .segment_reader(0)
             .inverted_index(term.field())
-            .read_postings(&term, SegmentPostingsOption::NoFreq)
+            .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
@@ -544,7 +542,7 @@ mod tests {
         let mut postings = searcher
             .segment_reader(0)
             .inverted_index(term.field())
-            .read_postings(&term, SegmentPostingsOption::NoFreq)
+            .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
         assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
@@ -610,12 +608,12 @@ mod tests {
             let term_abcd = Term::from_field_text(text_field, "abcd");
             assert!(
                 inverted_index
-                    .read_postings(&term_abcd, FreqAndPositions)
+                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
                     .is_none()
             );
             let term_af = Term::from_field_text(text_field, "af");
             let mut postings = inverted_index
-                .read_postings(&term_af, FreqAndPositions)
+                .read_postings(&term_af, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
             assert!(postings.advance());
             assert_eq!(postings.doc(), 0);

@@ -13,7 +13,7 @@ use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use schema::FieldEntry;
 use schema::FieldType;
 use analyzer::TokenStream;
-use schema::TextIndexingOptions;
+use schema::IndexRecordOption;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -25,13 +25,13 @@ fn posting_from_field_entry<'a>(
             .get_indexing_options()
             .map(|indexing_options| {
                 match indexing_options.index_option() {
-                    TextIndexingOptions::Basic => {
+                    IndexRecordOption::Basic => {
                         SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
                     }
-                    TextIndexingOptions::WithFreqs => {
+                    IndexRecordOption::WithFreqs => {
                         SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
                     }
-                    TextIndexingOptions::WithFreqsAndPositions => {
+                    IndexRecordOption::WithFreqsAndPositions => {
                         SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
                     }
                 }

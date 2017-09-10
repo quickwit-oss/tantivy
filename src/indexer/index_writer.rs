@@ -22,7 +22,7 @@ use indexer::operation::DeleteOperation;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
 use postings::DocSet;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use schema::Document;
 use schema::Schema;
 use schema::Term;
@@ -184,7 +184,7 @@ pub fn compute_deleted_bitset(
                 let inverted_index = segment_reader.inverted_index(delete_op.term.field());
                 if let Some(mut docset) = inverted_index.read_postings(
                     &delete_op.term,
-                    SegmentPostingsOption::NoFreq,
+                    IndexRecordOption::Basic,
                 )
                 {
                     while docset.advance() {

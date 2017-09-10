@@ -1,7 +1,7 @@
 use query::Weight;
 use query::Scorer;
 use schema::Term;
-use postings::SegmentPostingsOption;
+use schema::IndexRecordOption;
 use core::SegmentReader;
 use super::PhraseScorer;
 use postings::IntersectionDocSet;
@@ -24,7 +24,7 @@ impl Weight for PhraseWeight {
         for term in &self.phrase_terms {
             let inverted_index = reader.inverted_index(term.field());
             let term_postings_option =
-                inverted_index.read_postings(term, SegmentPostingsOption::FreqAndPositions);
+                inverted_index.read_postings(term, IndexRecordOption::WithFreqsAndPositions);
             if let Some(term_postings) = term_postings_option {
                 term_postings_list.push(term_postings);
             } else {
