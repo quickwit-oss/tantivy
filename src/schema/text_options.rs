@@ -117,7 +117,7 @@ impl TextIndexingOptions {
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(
         TextFieldIndexing {
-            analyzer: Cow::Borrowed("untokenized"),
+            analyzer: Cow::Borrowed("raw"),
             index_option: TextIndexingOptions::Basic,
         }),
     stored: false,

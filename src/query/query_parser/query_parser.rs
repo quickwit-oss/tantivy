@@ -33,6 +33,9 @@ pub enum QueryParserError {
     /// The field searched for is not declared
     /// as indexed in the schema.
     FieldNotIndexed(String),
+    /// The analyzer for the given field is unknown
+    /// The two argument strings are the name of the field, the name of the analyzer:
+    UnknownAnalyzer(String, String),
 }
 
 
@@ -156,12 +159,6 @@ impl QueryParser {
 
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
-        // TODO get the right analyzer
-        let mut analyzer = self.analyzer_manager
-            .get("simple")
-            .ok_or_else(|| {
-                QueryParserError::FieldNotIndexed(field_entry.name().to_string())
-            })?;
         if !field_type.is_indexed() {
             let field_name = field_entry.name().to_string();
             return Err(QueryParserError::FieldNotIndexed(field_name));
@@ -178,20 +175,31 @@ impl QueryParser {
                 Ok(Some(LogicalLiteral::Term(term)))
             }
             FieldType::Str(ref str_options) => {
-                let mut terms: Vec<Term> = Vec::new();
-                let mut token_stream = analyzer.token_stream(phrase);
-                token_stream.process(&mut |token| {
-                                      let term = Term::from_field_text(field, &token.term);
-                                      terms.push(term);
-                });
-                if terms.is_empty() {
-                    Ok(None)
-                } else if terms.len() == 1 {
-                    Ok(Some(
-                        LogicalLiteral::Term(terms.into_iter().next().unwrap()),
-                    ))
-                } else {
-                    Ok(Some(LogicalLiteral::Phrase(terms)))
+                if let Some(option) =  str_options.get_indexing_options() {
+                    let mut analyzer = self.analyzer_manager
+                        .get(option.analyzer())
+                        .ok_or_else(|| {
+                            QueryParserError::UnknownAnalyzer(field_entry.name().to_string(), option.analyzer().to_string())
+                        })?;
+                    let mut terms: Vec<Term> = Vec::new();
+                    let mut token_stream = analyzer.token_stream(phrase);
+                    token_stream.process(&mut |token| {
+                                          let term = Term::from_field_text(field, &token.term);
+                                          terms.push(term);
+                    });
+                    if terms.is_empty() {
+                        Ok(None)
+                    } else if terms.len() == 1 {
+                        Ok(Some(
+                            LogicalLiteral::Term(terms.into_iter().next().unwrap()),
+                        ))
+                    } else {
+                        Ok(Some(LogicalLiteral::Phrase(terms)))
+                    }
+                }
+                else {
+                    // This should have been seen earlier really.
+                    Err(QueryParserError::FieldNotIndexed(field_entry.name().to_string()))
                 }
             }
         }

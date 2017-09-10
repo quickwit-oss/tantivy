@@ -24,7 +24,8 @@ impl<'a> Analyzer<'a> for SimpleTokenizer {
 }
 
 impl<'a> SimpleTokenStream<'a> {
-    fn token_limit(&mut self) -> usize {
+    // search for the end of the current token.
+    fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
             .filter(|&(_, ref c)| !c.is_alphanumeric())
             .map(|(offset, _)| offset)
@@ -42,7 +43,7 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
             match self.chars.next() {
                 Some((offset_from, c)) => {
                     if c.is_alphanumeric() {
-                        let offset_to = self.token_limit();
+                        let offset_to = self.search_token_end();
                         self.token.offset_from = offset_from;
                         self.token.offset_to = offset_to;
                         self.token.term.push_str(&self.text[offset_from..offset_to]);

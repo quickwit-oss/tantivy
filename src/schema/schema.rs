@@ -334,6 +334,15 @@ mod tests {
     use schema::schema::DocParsingError::NotJSON;
 
     #[test]
+    pub fn is_indexed_test() {
+        let mut schema_builder = SchemaBuilder::default();
+        let field_str = schema_builder.add_text_field("field_str", STRING);
+        let schema = schema_builder.build();
+        assert!(schema.get_field_entry(field_str).is_indexed());
+    }
+
+
+    #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = SchemaBuilder::default();
         let count_options = IntOptions::default().set_stored().set_fast();

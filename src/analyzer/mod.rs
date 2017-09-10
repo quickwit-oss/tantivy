@@ -6,12 +6,14 @@ mod stemmer;
 mod analyzer_manager;
 mod japanese_tokenizer;
 mod token_stream_chain;
+mod raw_tokenizer;
 
 
 pub use self::analyzer::{box_analyzer, Analyzer, Token, TokenFilterFactory, TokenStream};
 pub use self::analyzer::BoxedAnalyzer;
 pub use self::analyzer_manager::AnalyzerManager;
 pub use self::simple_tokenizer::SimpleTokenizer;
+pub use self::raw_tokenizer::RawTokenizer;
 pub use self::token_stream_chain::TokenStreamChain;
 pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::remove_long::RemoveLongFilter;
@@ -23,6 +25,21 @@ mod test {
     use super::Token;
     use super::AnalyzerManager;
 
+
+    #[test]
+    fn test_raw_tokenizer() {
+        let analyzer_manager = AnalyzerManager::default();
+        let mut en_analyzer = analyzer_manager.get("raw").unwrap();
+        let mut tokens: Vec<String> = vec![];
+        {
+            let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
+            en_analyzer.token_stream("Hello, happy tax payer!").process(&mut add_token);
+        }
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(&tokens[0], "Hello, happy tax payer!");
+    }
+
+
     #[test]
     fn test_en_analyzer() {
         let analyzer_manager = AnalyzerManager::default();
@@ -31,7 +48,7 @@ mod test {
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
-            en_analyzer.token_stream("hello, happy tax payer!").process(&mut add_token);
+            en_analyzer.token_stream("Hello, happy tax payer!").process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
         assert_eq!(&tokens[0], "hello");

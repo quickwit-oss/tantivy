@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use analyzer::BoxedAnalyzer;
 use analyzer::Analyzer;
 use analyzer::box_analyzer;
+use analyzer::RawTokenizer;
 use analyzer::SimpleTokenizer;
 use analyzer::JapaneseTokenizer;
 use analyzer::RemoveLongFilter;
@@ -46,6 +47,9 @@ impl Default for AnalyzerManager {
         let manager = AnalyzerManager {
             analyzers: Arc::new(RwLock::new(HashMap::new()))
         };
+        manager.register("raw",
+            RawTokenizer
+        );
         manager.register("default",
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
