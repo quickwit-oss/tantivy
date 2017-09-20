@@ -67,8 +67,10 @@ impl Index {
         Index::from_directory(directory, schema)
     }
 
-    pub fn analyzers(&self) -> AnalyzerManager {
-        self.analyzers.clone()
+
+    /// Accessor for the analyzer manager.
+    pub fn analyzers(&self) -> &AnalyzerManager {
+        &self.analyzers
     }
 
     /// Creates a new index in a temp directory.

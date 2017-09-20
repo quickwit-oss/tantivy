@@ -90,8 +90,8 @@ impl SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
-            delete_bitset: delete_bitset,
-            position_computer: position_computer,
+            delete_bitset,
+            position_computer,
         }
     }
 

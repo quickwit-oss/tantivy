@@ -30,6 +30,11 @@ impl Default for Token {
     }
 }
 
+
+// Warning! TODO may change once associated type constructor
+// land in nightly.
+
+
 pub trait Analyzer<'a>: Sized + Clone {
     type TokenStreamImpl: TokenStream;
 

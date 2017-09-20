@@ -11,7 +11,6 @@ use store::StoreReader;
 use directory::ReadOnlySource;
 use schema::Document;
 use DocId;
-use std::str;
 use std::sync::Arc;
 use std::collections::HashMap;
 use common::CompositeFile;

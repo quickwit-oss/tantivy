@@ -11,6 +11,14 @@ use analyzer::LowerCaser;
 use analyzer::Stemmer;
 
 
+
+/// The analyzer manager serves as a store for
+/// all of the configured analyzers.
+///
+/// By default, it is populated with the following managers.
+///
+///  * raw : does not process nor tokenize the text.
+///  * default : Tokenizes according to whitespace and punctuation, removes tokens that are too long, lowercases the
 #[derive(Clone)]
 pub struct AnalyzerManager {
     analyzers: Arc< RwLock<HashMap<String, Box<BoxedAnalyzer> >> >

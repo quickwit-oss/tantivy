@@ -89,10 +89,10 @@ impl QueryParser {
                default_fields: Vec<Field>,
                analyzer_manager: AnalyzerManager) -> QueryParser {
         QueryParser {
-            schema: schema,
-            default_fields: default_fields,
+            schema,
+            default_fields,
+            analyzer_manager,
             conjunction_by_default: false,
-            analyzer_manager: analyzer_manager,
         }
     }
 
@@ -101,7 +101,7 @@ impl QueryParser {
         QueryParser::new(
             index.schema(),
             default_fields,
-            index.analyzers())
+            index.analyzers().clone())
     }
 
     /// Set the default way to compose queries to a conjunction.
@@ -223,8 +223,8 @@ impl QueryParser {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
-                let logical_sub_queries: Vec<(Occur, LogicalAST)> = try!(
-                    sub_queries
+                let logical_sub_queries: Vec<(Occur, LogicalAST)> =
+                    try!(sub_queries
                         .into_iter()
                         .map(|sub_query| self.compute_logical_ast_with_occur(*sub_query))
                         .map(|res| {
@@ -232,24 +232,23 @@ impl QueryParser {
                                 (compose_occur(default_occur, occur), sub_ast)
                             })
                         })
-                        .collect()
-                );
+                        .collect());
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
             UserInputAST::Not(subquery) => {
                 let (occur, logical_sub_queries) =
-                    try!(self.compute_logical_ast_with_occur(*subquery));
+                    self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
             }
             UserInputAST::Must(subquery) => {
                 let (occur, logical_sub_queries) =
-                    try!(self.compute_logical_ast_with_occur(*subquery));
+                    self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
-                        let field = try!(self.resolve_field_name(field_name));
+                        let field = self.resolve_field_name(field_name)?;
                         vec![(field, literal.phrase.clone())]
                     }
                     None => {
