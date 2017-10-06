@@ -1,9 +1,9 @@
 #[cfg(feature = "simdcompression")]
 mod build {
-    extern crate gcc;
+    extern crate cc;
 
     pub fn build() {
-        let mut config = gcc::Config::new();
+        let mut config = cc::Build::new();
         config
             .include("./cpp/simdcomp/include")
             .file("cpp/simdcomp/src/avxbitpacking.c")
