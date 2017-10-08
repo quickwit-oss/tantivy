@@ -43,7 +43,6 @@ extern crate error_chain;
 extern crate version;
 extern crate fst;
 extern crate byteorder;
-extern crate memmap;
 extern crate regex;
 extern crate tempfile;
 extern crate atomicwrites;
