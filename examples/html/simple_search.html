@@ -30,9 +30,11 @@
               
             </div>
             
-            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> rustc_serialize;
-<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> tantivy;
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> tantivy;
 <span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> tempdir;
+
+<span class="hljs-meta">#[macro_use]</span>
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> serde_json;
 
 <span class="hljs-keyword">use</span> std::path::Path;
 <span class="hljs-keyword">use</span> tempdir::TempDir;
@@ -108,8 +110,8 @@ be indexed”.</p>
                 <a class="pilcrow" href="#section-5">&#182;</a>
               </div>
               <p>Our first field is title.
-We want full-text search for it, and we want to be able
-to retrieve the document after the search.</p>
+We want full-text search for it, and we also want 
+to be able to retrieve the document after the search.</p>
 <p>TEXT | STORED is some syntactic sugar to describe
 that.</p>
 <p><code>TEXT</code> means the field should be tokenized and indexed,
@@ -132,9 +134,12 @@ documents that were selected during the search phase.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-6">&#182;</a>
               </div>
-              <p>Our first field is body.
-We want full-text search for it, and we want to be able
-to retrieve the body after the search.</p>
+              <p>Our second field is body.
+We want full-text search for it, but we do not 
+need to be able to be able to retrieve it
+for our application. </p>
+<p>We can make our index lighter and 
+by omitting <code>STORED</code> flag.</p>
 
             </div>
             
@@ -158,7 +163,7 @@ with our schema in the directory.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> index = <span class="hljs-built_in">try!</span>(Index::create(index_path, schema.clone()));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> index = Index::create(index_path, schema.clone())?;</pre></div></div>
             
         </li>
         
@@ -178,7 +183,7 @@ heap for the indexer can increase its throughput.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> index_writer = <span class="hljs-built_in">try!</span>(index.writer(<span class="hljs-number">50_000_000</span>));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> index_writer = index.writer(<span class="hljs-number">50_000_000</span>)?;</pre></div></div>
             
         </li>
         
@@ -214,9 +219,11 @@ one by one in a Document object.</p>
 
     <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> old_man_doc = Document::<span class="hljs-keyword">default</span>();
     old_man_doc.add_text(title, <span class="hljs-string">"The Old Man and the Sea"</span>);
-    old_man_doc.add_text(body,
-                         <span class="hljs-string">"He was an old man who fished alone in a skiff in the Gulf Stream and \
-                          he had gone eighty-four days now without taking a fish."</span>);</pre></div></div>
+    old_man_doc.add_text(
+        body,
+        <span class="hljs-string">"He was an old man who fished alone in a skiff in the Gulf Stream and \
+                          he had gone eighty-four days now without taking a fish."</span>,
+    );</pre></div></div>
             
         </li>
         
@@ -243,16 +250,25 @@ one by one in a Document object.</p>
                 <a class="pilcrow" href="#section-12">&#182;</a>
               </div>
               <h3 id="create-a-document-directly-from-json-">Create a document directly from json.</h3>
-<p>Alternatively, we can use our schema to parse
-a document object directly from json.</p>
+<p>Alternatively, we can use our schema to parse a
+document object directly from json.
+The document is a string, but we use the <code>json</code> macro
+from <code>serde_json</code> for the convenience of multi-line support.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>
-    <span class="hljs-keyword">let</span> mice_and_men_doc = <span class="hljs-built_in">try!</span>(schema.parse_document(r#<span class="hljs-string">"{
-       "</span>title<span class="hljs-string">": "</span>Of Mice and Men<span class="hljs-string">",
-       "</span>body<span class="hljs-string">": "</span>few miles south of Soledad, the Salinas River drops <span class="hljs-keyword">in</span> close to the hillside bank and runs deep and green. The water is warm too, <span class="hljs-keyword">for</span> it has slipped twinkling over the yellow sands <span class="hljs-keyword">in</span> the sunlight before reaching the narrow pool. On one side of the river the golden foothill slopes curve up to the strong and rocky Gabilan Mountains, but on the valley side the water is lined with trees—willows fresh and green with every spring, carrying <span class="hljs-keyword">in</span> their lower leaf junctures the debris of the winter’s flooding; and sycamores with mottled, white,recumbent limbs and branches that arch over the pool<span class="hljs-string">"  
-    }"</span>#));
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> json = json!({
+       <span class="hljs-string">"title"</span>: <span class="hljs-string">"Of Mice and Men"</span>,
+       <span class="hljs-string">"body"</span>: <span class="hljs-string">"A few miles south of Soledad, the Salinas River drops in close to the hillside \
+                bank and runs deep and green. The water is warm too, for it has slipped twinkling \
+                over the yellow sands in the sunlight before reaching the narrow pool. On one \
+                side of the river the golden foothill slopes curve up to the strong and rocky \
+                Gabilan Mountains, but on the valley side the water is lined with trees—willows \
+                fresh and green with every spring, carrying in their lower leaf junctures the \
+                debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
+                limbs and branches that arch over the pool"</span>
+    });
+    <span class="hljs-keyword">let</span> mice_and_men_doc = schema.parse_document(&amp;json.to_string())?;
 
     index_writer.add_document(mice_and_men_doc);</pre></div></div>
             
@@ -271,10 +287,15 @@ The following document has two titles.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> frankenstein_doc = <span class="hljs-built_in">try!</span>(schema.parse_document(r#<span class="hljs-string">"{
-       "</span>title<span class="hljs-string">": ["</span>Frankenstein<span class="hljs-string">", "</span>The Modern Promotheus<span class="hljs-string">"],
-       "</span>body<span class="hljs-string">": "</span>You will rejoice to hear that no disaster has accompanied the commencement of an enterprise which you have regarded with such evil forebodings.  I arrived here yesterday, and my first task is to assure my dear sister of my welfare and increasing confidence <span class="hljs-keyword">in</span> the success of my undertaking.<span class="hljs-string">"  
-    }"</span>#));
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> json = json!({
+       <span class="hljs-string">"title"</span>: [<span class="hljs-string">"Frankenstein"</span>, <span class="hljs-string">"The Modern Prometheus"</span>],
+       <span class="hljs-string">"body"</span>: <span class="hljs-string">"You will rejoice to hear that no disaster has accompanied the commencement of an \
+                enterprise which you have regarded with such evil forebodings.  I arrived here \
+                yesterday, and my first task is to assure my dear sister of my welfare and \
+                increasing confidence in the success of my undertaking."</span>
+    });
+    <span class="hljs-keyword">let</span> frankenstein_doc = schema.parse_document(&amp;json.to_string())?;
+
     index_writer.add_document(frankenstein_doc);</pre></div></div>
             
         </li>
@@ -313,7 +334,7 @@ the existence of new documents.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(index_writer.commit());</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    index_writer.commit()?;</pre></div></div>
             
         </li>
         
@@ -349,7 +370,7 @@ after every commit().</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(index.load_searchers());</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    index.load_searchers()?;</pre></div></div>
             
         </li>
         
@@ -384,7 +405,7 @@ in both title and body.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> query_parser = QueryParser::new(index.schema(), <span class="hljs-built_in">vec!</span>[title, body]);</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> query_parser = QueryParser::for_index(index, <span class="hljs-built_in">vec!</span>[title, body]);</pre></div></div>
             
         </li>
         
@@ -401,7 +422,7 @@ A ticket has been opened regarding this problem.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> query = <span class="hljs-built_in">try!</span>(query_parser.parse_query(<span class="hljs-string">"sea whale"</span>));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> query = query_parser.parse_query(<span class="hljs-string">"sea whale"</span>)?;</pre></div></div>
             
         </li>
         
@@ -451,7 +472,7 @@ is the role of the TopCollector.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-built_in">try!</span>(searcher.search(&amp;*query, &amp;<span class="hljs-keyword">mut</span> top_collector));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    searcher.search(&amp;*query, &amp;<span class="hljs-keyword">mut</span> top_collector)?;</pre></div></div>
             
         </li>
         
@@ -488,9 +509,27 @@ a title.</p>
             
             <div class="content"><div class='highlight'><pre>
     <span class="hljs-keyword">for</span> doc_address <span class="hljs-keyword">in</span> doc_addresses {
-        <span class="hljs-keyword">let</span> retrieved_doc = <span class="hljs-built_in">try!</span>(searcher.doc(&amp;doc_address));
+        <span class="hljs-keyword">let</span> retrieved_doc = searcher.doc(&amp;doc_address)?;
         <span class="hljs-built_in">println!</span>(<span class="hljs-string">"{}"</span>, schema.to_json(&amp;retrieved_doc));
-    }
+    }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-26">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-26">&#182;</a>
+              </div>
+              <p>Wait for indexing and merging threads to shut down.
+Usually this isn’t needed, but in <code>main</code> we try to
+delete the temporary directory and that fails on
+Windows if the files are still open.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    index_writer.wait_merging_threads()?;
 
     <span class="hljs-literal">Ok</span>(())
 }</pre></div></div>
