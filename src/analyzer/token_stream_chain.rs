@@ -48,16 +48,18 @@ impl<'a, TTokenStream> TokenStream for TokenStreamChain<TTokenStream>
     }
 
     fn token(&self) -> &Token {
-        if self.stream_idx > self.token_streams.len() {
-            panic!("You called .token(), after the end of the token stream has been reached");
-        }
+        assert!(
+            self.stream_idx <= self.token_streams.len(),
+            "You called .token(), after the end of the token stream has been reached"
+        );
         &self.token
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        if self.stream_idx > self.token_streams.len() {
-            panic!("You called .token(), after the end of the token stream has been reached");
-        }
+        assert!(
+            self.stream_idx <= self.token_streams.len(),
+            "You called .token(), after the end of the token stream has been reached"
+        );
         &mut self.token
     }
 }

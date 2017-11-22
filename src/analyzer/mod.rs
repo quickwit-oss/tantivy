@@ -29,7 +29,7 @@ mod test {
     #[test]
     fn test_raw_tokenizer() {
         let analyzer_manager = AnalyzerManager::default();
-        let mut en_analyzer = analyzer_manager.get("raw").unwrap();
+        let en_analyzer = analyzer_manager.get("raw").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
@@ -44,7 +44,7 @@ mod test {
     fn test_en_analyzer() {
         let analyzer_manager = AnalyzerManager::default();
         assert!(analyzer_manager.get("en_doesnotexist").is_none());
-        let mut en_analyzer = analyzer_manager.get("en_stem").unwrap();
+        let en_analyzer = analyzer_manager.get("en_stem").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.term.clone()); };
@@ -60,7 +60,7 @@ mod test {
     #[test]
     fn test_jp_analyzer() {
         let analyzer_manager = AnalyzerManager::default();
-        let mut en_analyzer = analyzer_manager.get("ja").unwrap();
+        let en_analyzer = analyzer_manager.get("ja").unwrap();
         
         let mut tokens: Vec<String> = vec![];
         {
@@ -78,7 +78,7 @@ mod test {
     #[test]
     fn test_tokenizer_empty() {
         let analyzer_manager = AnalyzerManager::default();
-        let mut en_analyzer = analyzer_manager.get("en_stem").unwrap();
+        let en_analyzer = analyzer_manager.get("en_stem").unwrap();
         {
             let mut tokens: Vec<String> = vec![];
             {

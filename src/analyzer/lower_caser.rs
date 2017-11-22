@@ -1,5 +1,4 @@
 use super::{TokenFilterFactory, TokenStream, Token};
-use std::ascii::AsciiExt;
 
 
 /// Token filter that lowercase terms.
