@@ -5,14 +5,14 @@ use std::io;
 use postings::Recorder;
 use Result;
 use schema::{Schema, Field};
-use analyzer::Token;
+use tokenizer::Token;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
 use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
 use schema::FieldEntry;
 use schema::FieldType;
-use analyzer::TokenStream;
+use tokenizer::TokenStream;
 use schema::IndexRecordOption;
 
 fn posting_from_field_entry<'a>(
@@ -166,7 +166,7 @@ pub trait PostingsWriter {
         let mut term = unsafe { Term::with_capacity(100) };
         term.set_field(field);
         let mut sink = |token: &Token| {
-            term.set_text(token.term.as_str());
+            term.set_text(token.text.as_str());
             self.suscribe(term_index, doc_id, token.position as u32, &term, heap);
         };
         

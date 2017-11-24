@@ -406,7 +406,7 @@ mod tests {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(TextFieldIndexing::default()
-                .set_analyzer("default")
+                .set_tokenizer("default")
                 .set_index_option(IndexRecordOption::WithFreqs))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);

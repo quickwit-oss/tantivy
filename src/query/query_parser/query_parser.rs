@@ -10,7 +10,7 @@ use schema::IndexRecordOption;
 use query::PhraseQuery;
 use schema::{Term, FieldType};
 use std::str::FromStr;
-use analyzer::AnalyzerManager;
+use tokenizer::TokenizerManager;
 use std::num::ParseIntError;
 use core::Index;
 
@@ -33,9 +33,9 @@ pub enum QueryParserError {
     /// The field searched for is not declared
     /// as indexed in the schema.
     FieldNotIndexed(String),
-    /// The analyzer for the given field is unknown
-    /// The two argument strings are the name of the field, the name of the analyzer:
-    UnknownAnalyzer(String, String),
+    /// The tokenizer for the given field is unknown
+    /// The two argument strings are the name of the field, the name of the tokenizer
+    UnknownTokenizer(String, String),
 }
 
 
@@ -49,7 +49,7 @@ impl From<ParseIntError> for QueryParserError {
 ///
 /// The language covered by the current parser is extremely simple.
 ///
-/// * simple terms: "e.g.: `Barack Obama` are simply analyzed using
+/// * simple terms: "e.g.: `Barack Obama` are simply tokenized using
 ///   tantivy's `StandardTokenizer`, hence becoming `["barack", "obama"]`.
 ///   The terms are then searched within the default terms of the query parser.
 ///
@@ -77,7 +77,7 @@ pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
-    analyzer_manager: AnalyzerManager,
+    tokenizer_manager: TokenizerManager,
 }
 
 impl QueryParser {
@@ -87,11 +87,11 @@ impl QueryParser {
     ///   in the query.
     pub fn new(schema: Schema,
                default_fields: Vec<Field>,
-               analyzer_manager: AnalyzerManager) -> QueryParser {
+               tokenizer_manager: TokenizerManager) -> QueryParser {
         QueryParser {
             schema,
             default_fields,
-            analyzer_manager,
+            tokenizer_manager: tokenizer_manager,
             conjunction_by_default: false,
         }
     }
@@ -101,7 +101,7 @@ impl QueryParser {
         QueryParser::new(
             index.schema(),
             default_fields,
-            index.analyzers().clone())
+            index.tokenizers().clone())
     }
 
     /// Set the default way to compose queries to a conjunction.
@@ -176,15 +176,15 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) =  str_options.get_indexing_options() {
-                    let mut analyzer = self.analyzer_manager
-                        .get(option.analyzer())
+                    let mut tokenizer = self.tokenizer_manager
+                        .get(option.tokenizer())
                         .ok_or_else(|| {
-                            QueryParserError::UnknownAnalyzer(field_entry.name().to_string(), option.analyzer().to_string())
+                            QueryParserError::UnknownTokenizer(field_entry.name().to_string(), option.tokenizer().to_string())
                         })?;
                     let mut terms: Vec<Term> = Vec::new();
-                    let mut token_stream = analyzer.token_stream(phrase);
+                    let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
-                                          let term = Term::from_field_text(field, &token.term);
+                                          let term = Term::from_field_text(field, &token.text);
                                           terms.push(term);
                     });
                     if terms.is_empty() {
@@ -223,16 +223,12 @@ impl QueryParser {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
-                let logical_sub_queries: Vec<(Occur, LogicalAST)> =
-                    try!(sub_queries
-                        .into_iter()
-                        .map(|sub_query| self.compute_logical_ast_with_occur(*sub_query))
-                        .map(|res| {
-                            res.map(|(occur, sub_ast)| {
-                                (compose_occur(default_occur, occur), sub_ast)
-                            })
-                        })
-                        .collect());
+                let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
+                for sub_query in sub_queries {
+                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(*sub_query)?;
+                    let new_occur = compose_occur(default_occur, occur);
+                    logical_sub_queries.push((new_occur, sub_ast));
+                }
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
             UserInputAST::Not(subquery) => {
@@ -328,7 +324,7 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
 #[cfg(test)]
 mod test {
     use schema::{SchemaBuilder, Term, TEXT, STRING, STORED, INT_INDEXED};
-    use analyzer::AnalyzerManager;
+    use tokenizer::TokenizerManager;
     use query::Query;
     use schema::Field;
     use super::QueryParser;
@@ -347,8 +343,8 @@ mod test {
         schema_builder.add_text_field("nottokenized", STRING);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
-        let analyzer_manager = AnalyzerManager::default();
-        QueryParser::new(schema, default_fields, analyzer_manager)
+        let tokenizer_manager = TokenizerManager::default();
+        QueryParser::new(schema, default_fields, tokenizer_manager)
     }
 
 

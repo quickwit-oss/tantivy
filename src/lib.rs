@@ -101,7 +101,7 @@ mod common;
 
 #[allow(unused_doc_comment)]
 mod error;
-pub mod analyzer;
+pub mod tokenizer;
 mod datastruct;
 
 pub mod termdict;

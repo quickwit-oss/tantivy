@@ -1,10 +1,41 @@
-/// The analyzer module contains all of the tools used to process
+/// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 
 use std::borrow::{Borrow, BorrowMut};
-use analyzer::TokenStreamChain;
+use tokenizer::TokenStreamChain;
 
 /// Token 
+///
+///
+///
+/// # Example
+///
+/// ```
+/// extern crate tantivy;
+/// use tantivy::tokenizer::*;
+///
+/// # fn main() {
+/// let mut tokenizer = SimpleTokenizer
+///        .filter(RemoveLongFilter::limit(40))
+///        .filter(LowerCaser);
+/// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
+/// {
+///     let token = token_stream.next().unwrap();
+///     assert_eq!(&token.text, "hello");
+///     assert_eq!(token.offset_from, 0);
+///     assert_eq!(token.offset_to, 5);
+///     assert_eq!(token.position, 0);
+/// }
+/// {
+///     let token = token_stream.next().unwrap();
+///     assert_eq!(&token.text, "happy");
+///     assert_eq!(token.offset_from, 7);
+///     assert_eq!(token.offset_to, 12);
+///     assert_eq!(token.position, 1);
+/// }
+/// # }
+/// ```
+/// #
 pub struct Token {
     /// Offset (byte index) of the first character of the token.
     /// Offsets shall not be modified by token filters.
@@ -16,7 +47,7 @@ pub struct Token {
     /// Position, expressed in number of tokens.
     pub position: usize,
     /// Actual text content of the token.
-    pub term: String,
+    pub text: String,
 }
 
 impl Default for Token {
@@ -25,7 +56,7 @@ impl Default for Token {
             offset_from: 0,
             offset_to: 0,
             position: usize::max_value(),
-            term: String::new(),
+            text: String::new(),
         }
     }
 }
@@ -35,31 +66,31 @@ impl Default for Token {
 // land in nightly.
 
 
-pub trait Analyzer<'a>: Sized + Clone {
+pub trait Tokenizer<'a>: Sized + Clone {
     type TokenStreamImpl: TokenStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl;
 
-    fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainAnalyzer<NewFilter, Self>
-        where NewFilter: TokenFilterFactory<<Self as Analyzer<'a>>::TokenStreamImpl>
+    fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainTokenizer<NewFilter, Self>
+        where NewFilter: TokenFilterFactory<<Self as Tokenizer<'a>>::TokenStreamImpl>
     {
-        ChainAnalyzer {
+        ChainTokenizer {
             head: new_filter,
             tail: self,
         }
     }
 }
 
-pub trait BoxedAnalyzer: Send + Sync {
+pub trait BoxedTokenizer: Send + Sync {
     fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;
     fn token_stream_texts<'b>(&mut self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
-    fn boxed_clone(&self) -> Box<BoxedAnalyzer>;
+    fn boxed_clone(&self) -> Box<BoxedTokenizer>;
 }
 
 #[derive(Clone)]
-struct BoxableAnalyzer<A>(A) where A: for <'a> Analyzer<'a> + Send + Sync;
+struct BoxableTokenizer<A>(A) where A: for <'a> Tokenizer<'a> + Send + Sync;
 
-impl<A> BoxedAnalyzer for BoxableAnalyzer<A> where A: 'static + Send + Sync + for <'a> Analyzer<'a> {
+impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
     fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a> {
         box self.0.token_stream(text)
     }
@@ -86,14 +117,14 @@ impl<A> BoxedAnalyzer for BoxableAnalyzer<A> where A: 'static + Send + Sync + fo
         }
     }
 
-    fn boxed_clone(&self) -> Box<BoxedAnalyzer> {
+    fn boxed_clone(&self) -> Box<BoxedTokenizer> {
         box self.clone()
     }
 }
 
-pub fn box_analyzer<A>(a: A) -> Box<BoxedAnalyzer>
-    where A: 'static + Send + Sync + for <'a> Analyzer<'a> {
-    box BoxableAnalyzer(a)
+pub fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
+    where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
+    box BoxableTokenizer(a)
 }
 
 
@@ -141,16 +172,16 @@ pub trait TokenStream {
 }
 
 #[derive(Clone)]
-pub struct ChainAnalyzer<HeadTokenFilterFactory, TailAnalyzer> {
+pub struct ChainTokenizer<HeadTokenFilterFactory, TailTokenizer> {
     head: HeadTokenFilterFactory,
-    tail: TailAnalyzer,
+    tail: TailTokenizer,
 }
 
 
-impl<'a, HeadTokenFilterFactory, TailAnalyzer> Analyzer<'a>
-    for ChainAnalyzer<HeadTokenFilterFactory, TailAnalyzer>
-    where HeadTokenFilterFactory: TokenFilterFactory<TailAnalyzer::TokenStreamImpl>,
-          TailAnalyzer: Analyzer<'a>
+impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
+    for ChainTokenizer<HeadTokenFilterFactory, TailTokenizer>
+    where HeadTokenFilterFactory: TokenFilterFactory<TailTokenizer::TokenStreamImpl>,
+          TailTokenizer: Tokenizer<'a>
 {
     type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
 

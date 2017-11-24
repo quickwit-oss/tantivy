@@ -46,9 +46,9 @@ impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
     fn advance(&mut self) -> bool {
         if self.tail.advance() {
             // TODO remove allocation
-            let stemmed_str: String = self.stemmer.stem(&self.token().term).into_owned();
-            self.token_mut().term.clear();
-            self.token_mut().term.push_str(&stemmed_str);
+            let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
+            self.token_mut().text.clear();
+            self.token_mut().text.push_str(&stemmed_str);
             true
         } else {
             false

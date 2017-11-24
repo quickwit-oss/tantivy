@@ -1,4 +1,4 @@
-use analyzer::{TokenStream, Token};
+use tokenizer::{TokenStream, Token};
 
 pub struct TokenStreamChain<TTokenStream: TokenStream> {
     offsets: Vec<usize>,
@@ -35,8 +35,8 @@ impl<'a, TTokenStream> TokenStream for TokenStreamChain<TTokenStream>
                 self.token.offset_from = token.offset_from + offset_offset;
                 self.token.offset_from = token.offset_from + offset_offset;
                 self.token.position = token.position + self.position_shift;
-                self.token.term.clear();
-                self.token.term.push_str(token.term.as_str());
+                self.token.text.clear();
+                self.token.text.push_str(token.text.as_str());
                 return true;
             }
             else {

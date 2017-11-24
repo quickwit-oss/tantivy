@@ -1,6 +1,4 @@
 use super::{TokenFilterFactory, TokenStream, Token};
-use std::ascii::AsciiExt;
-
 
 /// Token filter that lowercase terms.
 #[derive(Clone)]
@@ -35,7 +33,7 @@ impl<TailTokenStream> TokenStream for LowerCaserTokenStream<TailTokenStream>
 
     fn advance(&mut self) -> bool {
         if self.tail.advance() {
-            self.tail.token_mut().term.make_ascii_lowercase();
+            self.tail.token_mut().text.make_ascii_lowercase();
             true
         } else {
             false

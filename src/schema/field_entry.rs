@@ -223,7 +223,7 @@ mod tests {
   "options": {
     "indexing": {
       "record": "position",
-      "analyzer": "default"
+      "tokenizer": "default"
     },
     "stored": false
   }

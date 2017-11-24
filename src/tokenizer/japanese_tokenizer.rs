@@ -1,4 +1,4 @@
-use super::{Token, Analyzer, TokenStream};
+use super::{Token, Tokenizer, TokenStream};
 use tinysegmenter;
 
 
@@ -18,7 +18,7 @@ pub struct JapaneseTokenizerStream {
     cursor: Cursor,
 }
 
-impl<'a> Analyzer<'a> for JapaneseTokenizer {
+impl<'a> Tokenizer<'a> for JapaneseTokenizer {
     type TokenStreamImpl = JapaneseTokenizerStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
@@ -33,7 +33,7 @@ impl<'a> Analyzer<'a> for JapaneseTokenizer {
                     offset_from: offset_from,
                     offset_to: offset_to,
                     position: pos,
-                    term: term,
+                    text: term,
                 });
             }
         }

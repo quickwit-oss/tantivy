@@ -13,12 +13,16 @@
 ///
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize)]
 pub enum IndexRecordOption {
+    /// records only the `DocId`s
     #[serde(rename = "basic")]
-    Basic,  //< records only the `DocId`s
+    Basic,
+    /// records the document ids as well as the term frequency.
     #[serde(rename = "freq")]
-    WithFreqs, //< records the document ids as well as the term frequency.
+    WithFreqs,
+    /// records the document id, the term frequency and the positions of
+    /// the occurences in the document.
     #[serde(rename = "position")]
-    WithFreqsAndPositions, //< records the document id, the term frequency and the positions of the occurences in the document.
+    WithFreqsAndPositions,
 }
 
 impl IndexRecordOption {

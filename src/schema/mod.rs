@@ -31,7 +31,7 @@ let mut schema_builder = SchemaBuilder::default();
 let title_options = TextOptions::default()
     .set_stored()
     .set_indexing_options(TextFieldIndexing::default()
-        .set_analyzer("default")
+        .set_tokenizer("default")
         .set_index_option(IndexRecordOption::WithFreqsAndPositions));
 schema_builder.add_text_field("title_options", title_options);
 let schema = schema_builder.build();

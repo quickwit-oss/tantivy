@@ -47,27 +47,27 @@ impl Default for TextOptions {
 #[derive(Clone,  PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
-    analyzer: Cow<'static, str>,
+    tokenizer: Cow<'static, str>,
 }
 
 
 impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
         TextFieldIndexing {
-            analyzer: Cow::Borrowed("default"),
+            tokenizer: Cow::Borrowed("default"),
             record: IndexRecordOption::Basic,
         }
     }
 }
 
 impl TextFieldIndexing {
-    pub fn set_analyzer(mut self, analyzer_name: &str) -> TextFieldIndexing {
-        self.analyzer = Cow::Owned(analyzer_name.to_string());
+    pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
+        self.tokenizer = Cow::Owned(tokenizer_name.to_string());
         self
     }
 
-    pub fn analyzer(&self) -> &str {
-        &self.analyzer
+    pub fn tokenizer(&self) -> &str {
+        &self.tokenizer
     }
 
     pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
@@ -84,7 +84,7 @@ impl TextFieldIndexing {
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(
         TextFieldIndexing {
-            analyzer: Cow::Borrowed("raw"),
+            tokenizer: Cow::Borrowed("raw"),
             record: IndexRecordOption::Basic,
         }),
     stored: false,
@@ -95,7 +95,7 @@ pub const STRING: TextOptions = TextOptions {
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(
         TextFieldIndexing {
-            analyzer: Cow::Borrowed("default"),
+            tokenizer: Cow::Borrowed("default"),
             record: IndexRecordOption::WithFreqsAndPositions,
         }),
     stored: false,
@@ -143,7 +143,7 @@ mod tests {
             match field_entry.field_type() {
                 &FieldType::Str(ref text_options) => {
                     assert!(text_options.get_indexing_options().is_some());
-                    assert_eq!(text_options.get_indexing_options().unwrap().analyzer(), "default");
+                    assert_eq!(text_options.get_indexing_options().unwrap().tokenizer(), "default");
                 }
                 _ => {
                     panic!("");

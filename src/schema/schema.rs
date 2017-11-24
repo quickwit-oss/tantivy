@@ -225,16 +225,21 @@ impl Schema {
                         JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
                                 let value =
-                                    try!(field_type.value_from_json(json_item).map_err(|e| {
-                                        DocParsingError::ValueError(field_name.clone(), e)
-                                    }));
+                                    field_type
+                                        .value_from_json(json_item)
+                                        .map_err(|e| {
+                                            DocParsingError::ValueError(field_name.clone(), e)
+                                        })?;
                                 doc.add(FieldValue::new(field, value));
                             }
                         }
                         _ => {
-                            let value = try!(field_type.value_from_json(json_value).map_err(|e| {
-                                DocParsingError::ValueError(field_name.clone(), e)
-                            }));
+                            let value =
+                                field_type
+                                    .value_from_json(json_value)
+                                    .map_err(|e| {
+                                        DocParsingError::ValueError(field_name.clone(), e)
+                                    })?;
                             doc.add(FieldValue::new(field, value));
                         }
 
@@ -360,7 +365,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "analyzer": "default"
+        "tokenizer": "default"
       },
       "stored": false
     }
@@ -371,7 +376,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
-        "analyzer": "raw"
+        "tokenizer": "raw"
       },
       "stored": false
     }

@@ -23,7 +23,7 @@ use directory::ManagedDirectory;
 use core::META_FILEPATH;
 use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
-use analyzer::AnalyzerManager;
+use tokenizer::TokenizerManager;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -38,7 +38,7 @@ pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
-    analyzers: AnalyzerManager
+    tokenizers: TokenizerManager
 }
 
 
@@ -68,9 +68,9 @@ impl Index {
     }
 
 
-    /// Accessor for the analyzer manager.
-    pub fn analyzers(&self) -> &AnalyzerManager {
-        &self.analyzers
+    /// Accessor for the tokenizer manager.
+    pub fn tokenizers(&self) -> &TokenizerManager {
+        &self.tokenizers
     }
 
     /// Creates a new index in a temp directory.
@@ -94,9 +94,9 @@ impl Index {
             directory: directory,
             schema: schema,
             searcher_pool: Arc::new(Pool::new()),
-            analyzers: AnalyzerManager::default(),
+            tokenizers: TokenizerManager::default(),
         };
-        try!(index.load_searchers());
+        index.load_searchers()?;
         Ok(index)
     }
 
@@ -110,7 +110,7 @@ impl Index {
     pub fn open(directory_path: &Path) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
-        let metas = try!(load_metas(&directory));
+        let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, metas)
     }
 
@@ -259,7 +259,7 @@ impl Clone for Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
-            analyzers: self.analyzers.clone()
+            tokenizers: self.tokenizers.clone()
         }
     }
 }

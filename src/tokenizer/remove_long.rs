@@ -22,7 +22,7 @@ impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
     where TailTokenStream: TokenStream
 {
     fn predicate(&self, token: &Token) -> bool {
-        token.term.len() < self.token_length_limit
+        token.text.len() < self.token_length_limit
     }
 
     fn wrap(token_length_limit: usize,

@@ -1,4 +1,4 @@
-use super::{Token, Analyzer, TokenStream};
+use super::{Token, Tokenizer, TokenStream};
 
 #[derive(Clone)]
 pub struct RawTokenizer;
@@ -8,7 +8,7 @@ pub struct RawTokenStream {
     has_token: bool,
 }
 
-impl<'a> Analyzer<'a> for RawTokenizer {
+impl<'a> Tokenizer<'a> for RawTokenizer {
     type TokenStreamImpl = RawTokenStream;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
@@ -16,7 +16,7 @@ impl<'a> Analyzer<'a> for RawTokenizer {
             offset_from: 0,
             offset_to: text.len(),
             position: 0,
-            term: text.to_string()
+            text: text.to_string()
         };
         RawTokenStream {
             token: token,

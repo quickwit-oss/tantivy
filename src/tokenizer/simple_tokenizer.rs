@@ -1,6 +1,6 @@
 
 use std::str::CharIndices;
-use super::{Token, Analyzer, TokenStream};
+use super::{Token, Tokenizer, TokenStream};
 
 #[derive(Clone)]
 pub struct SimpleTokenizer;
@@ -11,7 +11,7 @@ pub struct SimpleTokenStream<'a> {
     token: Token,
 }
 
-impl<'a> Analyzer<'a> for SimpleTokenizer {
+impl<'a> Tokenizer<'a> for SimpleTokenizer {
     type TokenStreamImpl = SimpleTokenStream<'a>;
 
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
@@ -36,7 +36,7 @@ impl<'a> SimpleTokenStream<'a> {
 
 impl<'a> TokenStream for SimpleTokenStream<'a> {
     fn advance(&mut self) -> bool {
-        self.token.term.clear();
+        self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);
 
         loop {
@@ -46,7 +46,7 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
                         let offset_to = self.search_token_end();
                         self.token.offset_from = offset_from;
                         self.token.offset_to = offset_to;
-                        self.token.term.push_str(&self.text[offset_from..offset_to]);
+                        self.token.text.push_str(&self.text[offset_from..offset_to]);
                         return true;
                     }
                 }

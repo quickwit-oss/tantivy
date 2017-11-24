@@ -14,7 +14,7 @@ use datastruct::stacker::Heap;
 use indexer::index_writer::MARGIN_IN_BYTES;
 use super::operation::AddOperation;
 use postings::MultiFieldPostingsWriter;
-use analyzer::BoxedAnalyzer;
+use tokenizer::BoxedTokenizer;
 use schema::Value;
 
 
@@ -31,7 +31,7 @@ pub struct SegmentWriter<'a> {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FastFieldsWriter,
     doc_opstamps: Vec<u64>,
-    analyzers: Vec<Option<Box<BoxedAnalyzer>>>
+    tokenizers: Vec<Option<Box<BoxedTokenizer>>>
 }
 
 
@@ -62,9 +62,9 @@ impl<'a> SegmentWriter<'a> {
                        mut segment: Segment,
                        schema: &Schema)
                        -> Result<SegmentWriter<'a>> {
-        let segment_serializer = try!(SegmentSerializer::for_segment(&mut segment));
+        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
-        let analyzers = schema.fields()
+        let tokenizers = schema.fields()
             .iter()
             .map(|field_entry| field_entry.field_type())
             .map(|field_type| {
@@ -73,8 +73,8 @@ impl<'a> SegmentWriter<'a> {
                         text_options
                             .get_indexing_options()
                             .and_then(|text_index_option| {
-                                let analyzer_name = &text_index_option.analyzer();
-                                segment.index().analyzers().get(analyzer_name)
+                                let tokenizer_name = &text_index_option.tokenizer();
+                                segment.index().tokenizers().get(tokenizer_name)
                             })
                     }
                     _ => None,
@@ -89,7 +89,7 @@ impl<'a> SegmentWriter<'a> {
                segment_serializer: segment_serializer,
                fast_field_writers: FastFieldsWriter::from_schema(schema),
                doc_opstamps: Vec::with_capacity(1_000),
-               analyzers: analyzers,
+               tokenizers: tokenizers,
            })
     }
 
@@ -146,7 +146,7 @@ impl<'a> SegmentWriter<'a> {
             match *field_options.field_type() {
                 FieldType::Str(_) => {
                     let num_tokens =
-                        if let Some(ref mut analyzer) = self.analyzers[field.0 as usize] {
+                        if let Some(ref mut tokenizer) = self.tokenizers[field.0 as usize] {
                             let texts: Vec<&str> = field_values.iter()
                                 .flat_map(|field_value| {
                                     match field_value.value() {
@@ -155,7 +155,7 @@ impl<'a> SegmentWriter<'a> {
                                     }
                                 })
                                 .collect();
-                            let mut token_stream = analyzer.token_stream_texts(&texts[..]);
+                            let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
                             self.multifield_postings.index_text(doc_id, field, &mut token_stream)
                         }
                         else {
@@ -198,7 +198,7 @@ impl<'a> SegmentWriter<'a> {
             })
             .collect();
         let doc_writer = self.segment_serializer.get_store_writer();
-        try!(doc_writer.store(&stored_fieldvalues));
+        doc_writer.store(&stored_fieldvalues)?;
         self.max_doc += 1;
         Ok(())
     }
@@ -233,16 +233,16 @@ fn write(
     mut serializer: SegmentSerializer,
 ) -> Result<()> {
 
-    try!(multifield_postings.serialize(
+    multifield_postings.serialize(
         serializer.get_postings_serializer(),
-    ));
-    try!(fast_field_writers.serialize(
+    )?;
+    fast_field_writers.serialize(
         serializer.get_fast_field_serializer(),
-    ));
-    try!(fieldnorms_writer.serialize(
+    )?;
+    fieldnorms_writer.serialize(
         serializer.get_fieldnorms_serializer(),
-    ));
-    try!(serializer.close());
+    )?;
+    serializer.close()?;
 
     Ok(())
 }

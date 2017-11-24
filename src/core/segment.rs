@@ -37,10 +37,10 @@ pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
 
 impl Segment {
 
+    /// Returns the index the segment belongs to.
     pub fn index(&self) -> &Index {
         &self.index
     }
-
 
     /// Returns our index's schema.
     pub fn schema(&self) -> Schema {
