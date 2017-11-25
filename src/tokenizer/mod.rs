@@ -1,35 +1,133 @@
-//! Tokenizer are in charge of processing text for indexing.
+//! Tokenizer are in charge of chopping text into a stream of tokens
+//! ready for indexing.
 //!
-//! An tokenizer is a configurable pipeline that starts by a `Tokenizer`,
-//! followed by a sequence of [`TokenFilter`s](./trait.TokenFilter.html) to it.
+//! You must define in your schema which tokenizer should be used for
+//! each of your fields :
 //!
-//! The `Tokenizer` is in charge of chopping the text into tokens. There is no
-//! trait called `Tokenizer`. Instead `Tokenizer` like [`SimpleTokenizer`](./struct.SimpleTokenizer.html)
-//! are just directly implementing the tokenizer trait.
+//! ```
+//! extern crate tantivy;
+//! use tantivy::schema::*;
 //!
-//! - choosing a tokenizer. A tokenizer is in charge of chopping your text into token.
-//! - adding so called filter to modify your tokens (e.g. filter out stop words, apply stemming etc.)
+//! # fn main() {
+//! let mut schema_builder = SchemaBuilder::new();
+//!
+//! let text_options = TextOptions::default()
+//!     .set_indexing_options(
+//!         TextFieldIndexing::default()
+//!             .set_tokenizer("en_stem")
+//!             .set_index_option(IndexRecordOption::Basic)
+//!     )
+//!     .set_stored();
+//!
+//! let id_options = TextOptions::default()
+//!     .set_indexing_options(
+//!         TextFieldIndexing::default()
+//!             .set_tokenizer("raw_ids")
+//!             .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+//!     )
+//!     .set_stored();
+//!
+//! schema_builder.add_text_field("title", text_options.clone());
+//! schema_builder.add_text_field("text", text_options);
+//! schema_builder.add_text_field("uuid", id_options);
+//!
+//! let schema = schema_builder.build();
+//! # }
+//! ```
+//!
+//! By default, `tantivy` offers the following tokenizers:
+//!
+//! ## `default`
+//!
+//! `default` is the tokenizer that will be used if you do not
+//! assign a specific tokenizer to your text field.
+//! It will chop your text on punctuation and whitespaces,
+//! removes tokens that are longer than 40 chars, and lowercase your text.
+//!
+//! ## `raw`
+//! Does not actual tokenizer your text. It keeps it entirely unprocessed.
+//! It can be useful to index uuids, or urls for instance.
+//!
+//! ## `en_stem`
+//!
+//! In addition to what `default` does, the `en_stem` tokenizer also
+//! apply stemming to your tokens. Stemming consists in trimming words to
+//! remove their inflection. This tokenizer is slower than the default one,
+//! but is recommended to improve recall.
+//!
+//!
+//! # Custom tokenizers
+//!
+//! You can write your own tokenizer by implementing the [`Tokenizer`](./trait.Tokenizer.html)
+//! or you can extend an existing [`Tokenizer`](./trait.Tokenizer.html) by chaining it several
+//! [`TokenFilter`s](./trait.TokenFilter.html).
+//!
+//! For instance, the `en_stem` is defined as follows.
+//!
+//! ```rust
+//! # extern crate tantivy;
+//!
+//! use tantivy::tokenizer::*;
+//!
+//! # fn main() {
+//! let en_stem = SimpleTokenizer
+//!     .filter(RemoveLongFilter::limit(40))
+//!     .filter(LowerCaser)
+//!     .filter(Stemmer::new());
+//! # }
+//! ```
+//!
+//! Once your tokenizer is defined, you need to
+//! register it with a name in your index's [TokenizerManager](./struct.TokenizerManager.html).
+//!
+//! ```
+//! # extern crate tantivy;
+//! # use tantivy::schema::SchemaBuilder;
+//! # use tantivy::tokenizer::*;
+//! # use tantivy::Index;
+//! # fn main() {
+//! # let custom_en_tokenizer = SimpleTokenizer;
+//! # let schema = SchemaBuilder::new().build();
+//! let index = Index::create_in_ram(schema);
+//! index.tokenizers()
+//!      .register("custom_en", custom_en_tokenizer);
+//! # }
+//! ```
+//!
+//! If you built your schema programmatically, a complete example
+//! could like this for instance.
 //!
 //! # Example
 //!
 //! ```
 //! extern crate tantivy;
+//! use tantivy::schema::{SchemaBuilder, IndexRecordOption, TextOptions, TextFieldIndexing};
 //! use tantivy::tokenizer::*;
-//!
-//! // ...
+//! use tantivy::Index;
 //!
 //! # fn main() {
-//! let mut tokenizer = SimpleTokenizer
-//!        .filter(RemoveLongFilter::limit(40))
-//!        .filter(LowerCaser);
-//! tokenizer
-//!     .token_stream("Hello, happy tax payer")
-//!     .process(&mut |token| {
-//!         println!("token {:?}", token.text);
-//!     });
+//! let mut schema_builder = SchemaBuilder::new();
+//! let text_field_indexing = TextFieldIndexing::default()
+//!     .set_tokenizer("custom_en")
+//!     .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+//! let text_options = TextOptions::default()
+//!     .set_indexing_options(text_field_indexing)
+//!     .set_stored();
+//! schema_builder.add_text_field("title", text_options);
+//! let schema = schema_builder.build();
+//! let index = Index::create_in_ram(schema);
+//!
+//! // We need to register our tokenizer :
+//! let custom_en_tokenizer = SimpleTokenizer
+//!     .filter(RemoveLongFilter::limit(40))
+//!     .filter(LowerCaser);
+//! index
+//!     .tokenizers()
+//!     .register("custom_en", custom_en_tokenizer);
+//! // ...
 //! # }
 //! ```
-
+//!
 mod tokenizer;
 mod simple_tokenizer;
 mod lower_caser;

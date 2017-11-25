@@ -23,11 +23,11 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use tempdir::TempDir;
 
-fn open_mmap(full_path: &PathBuf) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
+fn open_mmap(full_path: &Path) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
     let file = File::open(&full_path).map_err(|e| if e.kind() ==
         io::ErrorKind::NotFound
     {
-        OpenReadError::FileDoesNotExist(full_path.clone())
+        OpenReadError::FileDoesNotExist(full_path.to_owned())
     } else {
         OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
     })?;
@@ -180,7 +180,8 @@ impl MmapDirectory {
     ///
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
-    pub fn open(directory_path: &Path) -> Result<MmapDirectory, OpenDirectoryError> {
+    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
+        let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
             Err(OpenDirectoryError::DoesNotExist(
                 PathBuf::from(directory_path),

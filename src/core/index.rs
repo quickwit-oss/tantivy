@@ -61,7 +61,7 @@ impl Index {
     /// The index will use the `MMapDirectory`.
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
-    pub fn create(directory_path: &Path, schema: Schema) -> Result<Index> {
+    pub fn create<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
         Index::from_directory(directory, schema)
@@ -107,7 +107,7 @@ impl Index {
     }
 
     /// Opens a new directory from an index path.
-    pub fn open(directory_path: &Path) -> Result<Index> {
+    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
         let metas = load_metas(&directory)?;

@@ -50,7 +50,7 @@ impl Default for TokenizerManager {
     /// the default pre-configured tokenizers of `tantivy`.
     /// - simple
     /// - en_stem
-    /// - jp
+    /// - ja
     fn default() -> TokenizerManager {
         let manager = TokenizerManager {
             tokenizers: Arc::new(RwLock::new(HashMap::new()))

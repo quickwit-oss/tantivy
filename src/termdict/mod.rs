@@ -5,14 +5,12 @@ that serves as an address in their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
-```
-
 
 # Implementations
 
 There is currently two implementations of the term dictionary.
 
-## Default implementation : `fstdict`
+## Default implementation : *fstdict*
 
 The default one relies heavily on the `fst` crate.
 It associate each terms `&[u8]` representation to a `u64`
@@ -20,7 +18,7 @@ that is in fact an address in a buffer. The value is then accessible
 via deserializing the value at this address.
 
 
-## Stream implementation : `streamdict`
+## Stream implementation : *streamdict*
 
 The `fstdict` is a tiny bit slow when streaming all of
 the terms.
