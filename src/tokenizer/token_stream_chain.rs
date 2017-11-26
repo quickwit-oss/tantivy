@@ -1,6 +1,6 @@
 use tokenizer::{TokenStream, Token};
 
-pub struct TokenStreamChain<TTokenStream: TokenStream> {
+pub(crate) struct TokenStreamChain<TTokenStream: TokenStream> {
     offsets: Vec<usize>,
     token_streams: Vec<TTokenStream>,
     position_shift: usize,

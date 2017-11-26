@@ -144,7 +144,7 @@ pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
-pub use self::token_stream_chain::TokenStreamChain;
+pub(crate) use self::token_stream_chain::TokenStreamChain;
 pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::lower_caser::LowerCaser;

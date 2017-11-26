@@ -205,6 +205,7 @@ pub trait TokenStream {
     /// ```
     /// # extern crate tantivy;
     /// # use tantivy::tokenizer::*;
+    /// #
     /// # fn main() {
     /// # let tokenizer = SimpleTokenizer
     /// #       .filter(RemoveLongFilter::limit(40))
