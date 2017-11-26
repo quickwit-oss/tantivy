@@ -158,7 +158,7 @@ impl<'b> TokenStream for Box<TokenStream + 'b> {
 /// use tantivy::tokenizer::*;
 ///
 /// # fn main() {
-/// let mut tokenizer = SimpleTokenizer
+/// let tokenizer = SimpleTokenizer
 ///        .filter(RemoveLongFilter::limit(40))
 ///        .filter(LowerCaser);
 /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
