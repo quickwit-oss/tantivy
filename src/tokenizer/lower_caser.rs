@@ -1,10 +1,10 @@
-use super::{TokenFilterFactory, TokenStream, Token};
+use super::{TokenFilter, TokenStream, Token};
 
 /// Token filter that lowercase terms.
 #[derive(Clone)]
 pub struct LowerCaser;
 
-impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for LowerCaser
+impl<TailTokenStream> TokenFilter<TailTokenStream> for LowerCaser
     where TailTokenStream: TokenStream
 {
     type ResultTokenStream = LowerCaserTokenStream<TailTokenStream>;

@@ -1,4 +1,4 @@
-use super::{TokenFilterFactory, TokenStream, Token};
+use super::{TokenFilter, TokenStream, Token};
 
 
 /// `RemoveLongFilter` removes tokens that are longer 
@@ -36,7 +36,7 @@ impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
 }
 
 
-impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for RemoveLongFilter
+impl<TailTokenStream> TokenFilter<TailTokenStream> for RemoveLongFilter
     where TailTokenStream: TokenStream
 {
     type ResultTokenStream = RemoveLongFilterStream<TailTokenStream>;

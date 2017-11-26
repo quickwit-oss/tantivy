@@ -9,6 +9,7 @@ mod pool;
 mod segment_meta;
 mod inverted_index_reader;
 
+
 pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::searcher::Searcher;
 pub use self::segment_component::SegmentComponent;

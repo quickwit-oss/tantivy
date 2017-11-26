@@ -81,7 +81,7 @@ pub struct QueryParser {
 }
 
 impl QueryParser {
-    /// Creates a `QueryParser`
+    /// Creates a `QueryParser`, given
     /// * schema - index Schema
     /// * default_fields - fields used to search if no field is specifically defined
     ///   in the query.
@@ -96,6 +96,10 @@ impl QueryParser {
         }
     }
 
+    /// Creates a `QueryParser`, given
+    ///  * an index
+    ///  * a set of default - fields used to search if no field is specifically defined
+    ///   in the query.
     pub fn for_index(index: Index,
                      default_fields: Vec<Field>) -> QueryParser {
         QueryParser::new(
@@ -106,7 +110,9 @@ impl QueryParser {
 
     /// Set the default way to compose queries to a conjunction.
     ///
-    /// By default a ,
+    /// By default, the query `happy tax payer` is equivalent to the query
+    /// `happy OR tax OR payer`. After calling `.set_conjunction_by_default()`
+    /// `happy tax payer` will be interpreted by the parser as `happy AND tax AND payer`.
     pub fn set_conjunction_by_default(&mut self) {
         self.conjunction_by_default = true;
     }

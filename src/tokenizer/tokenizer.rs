@@ -4,38 +4,8 @@
 use std::borrow::{Borrow, BorrowMut};
 use tokenizer::TokenStreamChain;
 
-/// Token 
-///
-///
-///
-/// # Example
-///
-/// ```
-/// extern crate tantivy;
-/// use tantivy::tokenizer::*;
-///
-/// # fn main() {
-/// let mut tokenizer = SimpleTokenizer
-///        .filter(RemoveLongFilter::limit(40))
-///        .filter(LowerCaser);
-/// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
-/// {
-///     let token = token_stream.next().unwrap();
-///     assert_eq!(&token.text, "hello");
-///     assert_eq!(token.offset_from, 0);
-///     assert_eq!(token.offset_to, 5);
-///     assert_eq!(token.position, 0);
-/// }
-/// {
-///     let token = token_stream.next().unwrap();
-///     assert_eq!(&token.text, "happy");
-///     assert_eq!(token.offset_from, 7);
-///     assert_eq!(token.offset_to, 12);
-///     assert_eq!(token.position, 1);
-/// }
-/// # }
-/// ```
-/// #
+
+/// Token
 pub struct Token {
     /// Offset (byte index) of the first character of the token.
     /// Offsets shall not be modified by token filters.
@@ -62,17 +32,46 @@ impl Default for Token {
 }
 
 
-// Warning! TODO may change once associated type constructor
-// land in nightly.
 
 
+/// `Tokenizer` are in charge of splitting text into a stream of token
+/// before indexing.
+///
+/// See the [module documentation](./index.html) for more detail.
+///
+/// # Warning
+///
+/// This API may change to use associated types.
 pub trait Tokenizer<'a>: Sized + Clone {
+
+    /// Type associated to the resulting tokenstream tokenstream.
     type TokenStreamImpl: TokenStream;
 
+    /// Creates a token stream for a given `str`.
     fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl;
 
+    /// Appends a token filter to the current tokenizer.
+    ///
+    /// The method consumes the current `TokenStream` and returns a
+    /// new one.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate tantivy;
+    ///
+    /// use tantivy::tokenizer::*;
+    ///
+    /// # fn main() {
+    /// let en_stem = SimpleTokenizer
+    ///     .filter(RemoveLongFilter::limit(40))
+    ///     .filter(LowerCaser)
+    ///     .filter(Stemmer::new());
+    /// # }
+    /// ```
+    ///
     fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainTokenizer<NewFilter, Self>
-        where NewFilter: TokenFilterFactory<<Self as Tokenizer<'a>>::TokenStreamImpl>
+        where NewFilter: TokenFilter<<Self as Tokenizer<'a>>::TokenStreamImpl>
     {
         ChainTokenizer {
             head: new_filter,
@@ -80,6 +79,7 @@ pub trait Tokenizer<'a>: Sized + Clone {
         }
     }
 }
+
 
 pub trait BoxedTokenizer: Send + Sync {
     fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;
@@ -146,6 +146,38 @@ impl<'b> TokenStream for Box<TokenStream + 'b> {
 }
 
 
+/// `TokenStream` is the result of the tokenization.
+///
+/// It consists consumable stream of `Token`s.
+///
+/// # Example
+///
+/// ```
+/// extern crate tantivy;
+/// use tantivy::tokenizer::*;
+///
+/// # fn main() {
+/// let mut tokenizer = SimpleTokenizer
+///        .filter(RemoveLongFilter::limit(40))
+///        .filter(LowerCaser);
+/// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
+/// {
+///     let token = token_stream.next().unwrap();
+///     assert_eq!(&token.text, "hello");
+///     assert_eq!(token.offset_from, 0);
+///     assert_eq!(token.offset_to, 5);
+///     assert_eq!(token.position, 0);
+/// }
+/// {
+///     let token = token_stream.next().unwrap();
+///     assert_eq!(&token.text, "happy");
+///     assert_eq!(token.offset_from, 7);
+///     assert_eq!(token.offset_to, 12);
+///     assert_eq!(token.position, 1);
+/// }
+/// # }
+/// ```
+///
 pub trait TokenStream {
     fn advance(&mut self) -> bool;
 
@@ -180,7 +212,7 @@ pub struct ChainTokenizer<HeadTokenFilterFactory, TailTokenizer> {
 
 impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
     for ChainTokenizer<HeadTokenFilterFactory, TailTokenizer>
-    where HeadTokenFilterFactory: TokenFilterFactory<TailTokenizer::TokenStreamImpl>,
+    where HeadTokenFilterFactory: TokenFilter<TailTokenizer::TokenStreamImpl>,
           TailTokenizer: Tokenizer<'a>
 {
     type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
@@ -192,8 +224,9 @@ impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
 }
 
 
-pub trait TokenFilterFactory<TailTokenStream: TokenStream>: Clone {
+pub trait TokenFilter<TailTokenStream: TokenStream>: Clone {
     type ResultTokenStream: TokenStream;
 
+    /// Wraps a token stream and returns the modified one.
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream;
 }

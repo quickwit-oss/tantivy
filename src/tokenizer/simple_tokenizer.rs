@@ -2,6 +2,8 @@
 use std::str::CharIndices;
 use super::{Token, Tokenizer, TokenStream};
 
+
+/// Tokenize the text by splitting on whitespaces and punctuation.
 #[derive(Clone)]
 pub struct SimpleTokenizer;
 

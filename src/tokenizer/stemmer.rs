@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use super::{TokenFilterFactory, TokenStream, Token};
+use super::{TokenFilter, TokenStream, Token};
 use rust_stemmers::{self, Algorithm};
 
 #[derive(Clone)]
@@ -13,7 +13,7 @@ impl Stemmer {
     }
 }
 
-impl<TailTokenStream> TokenFilterFactory<TailTokenStream> for Stemmer
+impl<TailTokenStream> TokenFilter<TailTokenStream> for Stemmer
     where TailTokenStream: TokenStream
 {
     type ResultTokenStream = StemmerTokenStream<TailTokenStream>;

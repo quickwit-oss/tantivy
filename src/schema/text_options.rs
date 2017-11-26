@@ -61,15 +61,21 @@ impl Default for TextFieldIndexing {
 }
 
 impl TextFieldIndexing {
+    /// Sets the tokenizer to be used for a given field.
     pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
         self.tokenizer = Cow::Owned(tokenizer_name.to_string());
         self
     }
 
+    /// Returns the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
         &self.tokenizer
     }
 
+
+    /// Sets which information should be indexed with the tokens.
+    ///
+    /// See [IndexRecordOption](./enum.IndexRecordOption.html) for more detail.
     pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
         self.record = index_option;
         self

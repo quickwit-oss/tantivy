@@ -1,5 +1,7 @@
 use super::{Token, Tokenizer, TokenStream};
 
+
+/// For each value of the field, emit a single unprocessed token.
 #[derive(Clone)]
 pub struct RawTokenizer;
 

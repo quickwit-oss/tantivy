@@ -139,7 +139,7 @@ mod token_stream_chain;
 mod raw_tokenizer;
 
 
-pub use self::tokenizer::{box_tokenizer, Tokenizer, Token, TokenFilterFactory, TokenStream};
+pub use self::tokenizer::{box_tokenizer, Tokenizer, Token, TokenFilter, TokenStream};
 pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::simple_tokenizer::SimpleTokenizer;

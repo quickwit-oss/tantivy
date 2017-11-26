@@ -1,15 +1,14 @@
 
-/// `IndexRecordOption` describes an amount of information associated
-/// for a given field.
+/// `IndexRecordOption` describes an amount information associated
+/// to a given indexed field.
 ///
-/// It is used in the schema to configure how much data should be
-/// indexed for a given field.
+/// It is both used to:
 ///
-/// It is also used to describe the amount of information that
-/// you want to be decoded as you go through a posting list.
-///
-/// For instance, positions are useful when running phrase queries
-/// but useless for most queries.
+///  * describe in the schema the amount of information
+/// that should be retained during indexing (See [TextFieldIndexing.html.set_index_option](../schema/struct.TextFieldIndexing.html#method.set_index_option))
+///  * to request for a given
+/// amount of information to be decoded as one goes through a posting list.
+/// (See [InvertedIndexReader.read_postings](../struct.InvertedIndexReader.html#method.read_postings))
 ///
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize)]
 pub enum IndexRecordOption {
@@ -17,10 +16,12 @@ pub enum IndexRecordOption {
     #[serde(rename = "basic")]
     Basic,
     /// records the document ids as well as the term frequency.
+    /// The term frequency can help giving better scoring of the documents.
     #[serde(rename = "freq")]
     WithFreqs,
     /// records the document id, the term frequency and the positions of
     /// the occurences in the document.
+    /// Positions are required to run [PhraseQueries](../query/struct.PhraseQuery.html).
     #[serde(rename = "position")]
     WithFreqsAndPositions,
 }
