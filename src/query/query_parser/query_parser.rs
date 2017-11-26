@@ -85,9 +85,11 @@ impl QueryParser {
     /// * schema - index Schema
     /// * default_fields - fields used to search if no field is specifically defined
     ///   in the query.
-    pub fn new(schema: Schema,
-               default_fields: Vec<Field>,
-               tokenizer_manager: TokenizerManager) -> QueryParser {
+    pub fn new(
+        schema: Schema,
+        default_fields: Vec<Field>,
+        tokenizer_manager: TokenizerManager,
+    ) -> QueryParser {
         QueryParser {
             schema,
             default_fields,
@@ -100,12 +102,8 @@ impl QueryParser {
     ///  * an index
     ///  * a set of default - fields used to search if no field is specifically defined
     ///   in the query.
-    pub fn for_index(index: Index,
-                     default_fields: Vec<Field>) -> QueryParser {
-        QueryParser::new(
-            index.schema(),
-            default_fields,
-            index.tokenizers().clone())
+    pub fn for_index(index: Index, default_fields: Vec<Field>) -> QueryParser {
+        QueryParser::new(index.schema(), default_fields, index.tokenizers().clone())
     }
 
     /// Set the default way to compose queries to a conjunction.
@@ -181,17 +179,20 @@ impl QueryParser {
                 Ok(Some(LogicalLiteral::Term(term)))
             }
             FieldType::Str(ref str_options) => {
-                if let Some(option) =  str_options.get_indexing_options() {
-                    let mut tokenizer = self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| {
-                            QueryParserError::UnknownTokenizer(field_entry.name().to_string(), option.tokenizer().to_string())
-                        })?;
+                if let Some(option) = str_options.get_indexing_options() {
+                    let mut tokenizer = self.tokenizer_manager.get(option.tokenizer()).ok_or_else(
+                        || {
+                            QueryParserError::UnknownTokenizer(
+                                field_entry.name().to_string(),
+                                option.tokenizer().to_string(),
+                            )
+                        },
+                    )?;
                     let mut terms: Vec<Term> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
-                                          let term = Term::from_field_text(field, &token.text);
-                                          terms.push(term);
+                        let term = Term::from_field_text(field, &token.text);
+                        terms.push(term);
                     });
                     if terms.is_empty() {
                         Ok(None)
@@ -202,10 +203,11 @@ impl QueryParser {
                     } else {
                         Ok(Some(LogicalLiteral::Phrase(terms)))
                     }
-                }
-                else {
+                } else {
                     // This should have been seen earlier really.
-                    Err(QueryParserError::FieldNotIndexed(field_entry.name().to_string()))
+                    Err(QueryParserError::FieldNotIndexed(
+                        field_entry.name().to_string(),
+                    ))
                 }
             }
         }
@@ -238,13 +240,11 @@ impl QueryParser {
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
             UserInputAST::Not(subquery) => {
-                let (occur, logical_sub_queries) =
-                    self.compute_logical_ast_with_occur(*subquery)?;
+                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
             }
             UserInputAST::Must(subquery) => {
-                let (occur, logical_sub_queries) =
-                    self.compute_logical_ast_with_occur(*subquery)?;
+                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
             UserInputAST::Leaf(literal) => {

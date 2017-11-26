@@ -14,7 +14,8 @@ impl Stemmer {
 }
 
 impl<TailTokenStream> TokenFilter<TailTokenStream> for Stemmer
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     type ResultTokenStream = StemmerTokenStream<TailTokenStream>;
 
@@ -26,7 +27,8 @@ impl<TailTokenStream> TokenFilter<TailTokenStream> for Stemmer
 
 
 pub struct StemmerTokenStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     tail: TailTokenStream,
     stemmer: rust_stemmers::Stemmer,
@@ -45,7 +47,7 @@ impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
 
     fn advance(&mut self) -> bool {
         if self.tail.advance() {
-            // TODO remove allocation
+// TODO remove allocation
             let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
             self.token_mut().text.clear();
             self.token_mut().text.push_str(&stemmed_str);
@@ -57,11 +59,13 @@ impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
 }
 
 impl<TailTokenStream> StemmerTokenStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
-    fn wrap(stemmer: rust_stemmers::Stemmer,
-            tail: TailTokenStream)
-            -> StemmerTokenStream<TailTokenStream> {
+    fn wrap(
+        stemmer: rust_stemmers::Stemmer,
+        tail: TailTokenStream,
+    ) -> StemmerTokenStream<TailTokenStream> {
         StemmerTokenStream {
             tail: tail,
             stemmer: stemmer,

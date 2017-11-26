@@ -18,7 +18,7 @@ impl<'a> Tokenizer<'a> for RawTokenizer {
             offset_from: 0,
             offset_to: text.len(),
             position: 0,
-            text: text.to_string()
+            text: text.to_string(),
         };
         RawTokenStream {
             token: token,
@@ -32,8 +32,7 @@ impl TokenStream for RawTokenStream {
         if self.has_token {
             self.has_token = false;
             true
-        }
-        else {
+        } else {
             false
         }
     }

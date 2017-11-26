@@ -31,7 +31,7 @@ pub struct SegmentWriter<'a> {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FastFieldsWriter,
     doc_opstamps: Vec<u64>,
-    tokenizers: Vec<Option<Box<BoxedTokenizer>>>
+    tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 
 
@@ -57,40 +57,40 @@ impl<'a> SegmentWriter<'a> {
     /// the flushing behavior as a buffer limit
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(heap: &'a Heap,
-                       table_bits: usize,
-                       mut segment: Segment,
-                       schema: &Schema)
-                       -> Result<SegmentWriter<'a>> {
+    pub fn for_segment(
+        heap: &'a Heap,
+        table_bits: usize,
+        mut segment: Segment,
+        schema: &Schema,
+    ) -> Result<SegmentWriter<'a>> {
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
-        let tokenizers = schema.fields()
+        let tokenizers = schema
+            .fields()
             .iter()
             .map(|field_entry| field_entry.field_type())
-            .map(|field_type| {
-                match field_type {
-                    &FieldType::Str(ref text_options) => {
-                        text_options
-                            .get_indexing_options()
-                            .and_then(|text_index_option| {
-                                let tokenizer_name = &text_index_option.tokenizer();
-                                segment.index().tokenizers().get(tokenizer_name)
-                            })
-                    }
-                    _ => None,
+            .map(|field_type| match field_type {
+                &FieldType::Str(ref text_options) => {
+                    text_options.get_indexing_options().and_then(
+                        |text_index_option| {
+                            let tokenizer_name = &text_index_option.tokenizer();
+                            segment.index().tokenizers().get(tokenizer_name)
+                        },
+                    )
                 }
+                _ => None,
             })
             .collect();
         Ok(SegmentWriter {
-               heap: heap,
-               max_doc: 0,
-               multifield_postings: multifield_postings,
-               fieldnorms_writer: create_fieldnorms_writer(schema),
-               segment_serializer: segment_serializer,
-               fast_field_writers: FastFieldsWriter::from_schema(schema),
-               doc_opstamps: Vec::with_capacity(1_000),
-               tokenizers: tokenizers,
-           })
+            heap: heap,
+            max_doc: 0,
+            multifield_postings: multifield_postings,
+            fieldnorms_writer: create_fieldnorms_writer(schema),
+            segment_serializer: segment_serializer,
+            fast_field_writers: FastFieldsWriter::from_schema(schema),
+            doc_opstamps: Vec::with_capacity(1_000),
+            tokenizers: tokenizers,
+        })
     }
 
     /// Lay on disk the current content of the `SegmentWriter`
@@ -147,23 +147,25 @@ impl<'a> SegmentWriter<'a> {
                 FieldType::Str(_) => {
                     let num_tokens =
                         if let Some(ref mut tokenizer) = self.tokenizers[field.0 as usize] {
-                            let texts: Vec<&str> = field_values.iter()
-                                .flat_map(|field_value| {
-                                    match field_value.value() {
-                                        &Value::Str(ref text) => Some(text.as_str()),
-                                        _ => None
-                                    }
+                            let texts: Vec<&str> = field_values
+                                .iter()
+                                .flat_map(|field_value| match field_value.value() {
+                                    &Value::Str(ref text) => Some(text.as_str()),
+                                    _ => None,
                                 })
                                 .collect();
                             let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
-                            self.multifield_postings.index_text(doc_id, field, &mut token_stream)
-                        }
-                        else {
+                            self.multifield_postings.index_text(
+                                doc_id,
+                                field,
+                                &mut token_stream,
+                            )
+                        } else {
                             0
                         };
-                    self.fieldnorms_writer
-                        .get_field_writer(field)
-                        .map(|field_norms_writer| field_norms_writer.add_val(num_tokens as u64));
+                    self.fieldnorms_writer.get_field_writer(field).map(
+                        |field_norms_writer| field_norms_writer.add_val(num_tokens as u64),
+                    );
                 }
                 FieldType::U64(ref int_option) => {
                     if int_option.is_indexed() {

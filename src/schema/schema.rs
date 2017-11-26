@@ -224,22 +224,16 @@ impl Schema {
                     match *json_value {
                         JsonValue::Array(ref json_items) => {
                             for json_item in json_items {
-                                let value =
-                                    field_type
-                                        .value_from_json(json_item)
-                                        .map_err(|e| {
-                                            DocParsingError::ValueError(field_name.clone(), e)
-                                        })?;
+                                let value = field_type.value_from_json(json_item).map_err(|e| {
+                                    DocParsingError::ValueError(field_name.clone(), e)
+                                })?;
                                 doc.add(FieldValue::new(field, value));
                             }
                         }
                         _ => {
-                            let value =
-                                field_type
-                                    .value_from_json(json_value)
-                                    .map_err(|e| {
-                                        DocParsingError::ValueError(field_name.clone(), e)
-                                    })?;
+                            let value = field_type.value_from_json(json_value).map_err(|e| {
+                                DocParsingError::ValueError(field_name.clone(), e)
+                            })?;
                             doc.add(FieldValue::new(field, value));
                         }
 

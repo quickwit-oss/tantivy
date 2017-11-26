@@ -269,10 +269,8 @@ impl IndexMerger {
             let field_entry = self.schema.get_field_entry(indexed_field);
 
             // ... set segment postings option the new field.
-            let segment_postings_option = field_entry
-                .field_type()
-                .get_index_record_option()
-                .expect(
+            let segment_postings_option =
+                field_entry.field_type().get_index_record_option().expect(
                     "Encountered a field that is not supposed to be
                          indexed. Have you modified the schema?",
                 );
@@ -405,9 +403,11 @@ mod tests {
     fn test_index_merger_no_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
-            .set_indexing_options(TextFieldIndexing::default()
-                .set_tokenizer("default")
-                .set_index_option(IndexRecordOption::WithFreqs))
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::WithFreqs),
+            )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();
@@ -539,9 +539,9 @@ mod tests {
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
-            .set_indexing_options(
-                TextFieldIndexing::default()
-                    .set_index_option(IndexRecordOption::WithFreqs))
+            .set_indexing_options(TextFieldIndexing::default().set_index_option(
+                IndexRecordOption::WithFreqs,
+            ))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();

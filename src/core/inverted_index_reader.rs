@@ -138,11 +138,7 @@ impl InvertedIndexReader {
     /// For instance, requesting `IndexRecordOption::Freq` for a
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
-    pub fn read_postings(
-        &self,
-        term: &Term,
-        option: IndexRecordOption,
-    ) -> Option<SegmentPostings> {
+    pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
         let field = term.field();
         let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));

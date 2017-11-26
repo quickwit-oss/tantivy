@@ -9,11 +9,14 @@ pub struct TokenStreamChain<TTokenStream: TokenStream> {
 }
 
 
-impl<'a, TTokenStream> TokenStreamChain<TTokenStream> 
-    where TTokenStream: TokenStream {
-    
-    pub fn new(offsets: Vec<usize>,
-               token_streams: Vec<TTokenStream>) -> TokenStreamChain<TTokenStream> {
+impl<'a, TTokenStream> TokenStreamChain<TTokenStream>
+where
+    TTokenStream: TokenStream,
+{
+    pub fn new(
+        offsets: Vec<usize>,
+        token_streams: Vec<TTokenStream>,
+    ) -> TokenStreamChain<TTokenStream> {
         TokenStreamChain {
             offsets: offsets,
             stream_idx: 0,
@@ -25,7 +28,9 @@ impl<'a, TTokenStream> TokenStreamChain<TTokenStream>
 }
 
 impl<'a, TTokenStream> TokenStream for TokenStreamChain<TTokenStream>
-    where TTokenStream: TokenStream {
+where
+    TTokenStream: TokenStream,
+{
     fn advance(&mut self) -> bool {
         while self.stream_idx < self.token_streams.len() {
             let token_stream = &mut self.token_streams[self.stream_idx];
@@ -38,8 +43,7 @@ impl<'a, TTokenStream> TokenStream for TokenStreamChain<TTokenStream>
                 self.token.text.clear();
                 self.token.text.push_str(token.text.as_str());
                 return true;
-            }
-            else {
+            } else {
                 self.stream_idx += 1;
                 self.position_shift = self.token.position + 2;
             }

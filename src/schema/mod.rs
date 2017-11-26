@@ -40,8 +40,8 @@ let schema = schema_builder.build();
 We can split the problem of generating a search result page into two phases :
 
 * identifying the list of 10 or so documents to be displayed (Conceptually `query -> doc_ids[]`)
-* for each of these documents, retrieving the information required to generate the search results page.
-  (`doc_ids[] -> Document[]`)
+* for each of these documents, retrieving the information required to generate
+  the search results page. (`doc_ids[] -> Document[]`)
 
 In the first phase, the ability to search for documents by the given field is determined by the
 [`TextIndexingOptions`](enum.TextIndexingOptions.html) of our [`TextOptions`]

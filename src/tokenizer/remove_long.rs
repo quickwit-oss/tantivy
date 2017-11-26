@@ -1,7 +1,7 @@
 use super::{TokenFilter, TokenStream, Token};
 
 
-/// `RemoveLongFilter` removes tokens that are longer 
+/// `RemoveLongFilter` removes tokens that are longer
 /// than a given number of bytes (in UTF-8 representation).
 ///
 /// It is especially useful when indexing unconstrained content.
@@ -19,15 +19,17 @@ impl RemoveLongFilter {
 }
 
 impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn predicate(&self, token: &Token) -> bool {
         token.text.len() < self.token_length_limit
     }
 
-    fn wrap(token_length_limit: usize,
-            tail: TailTokenStream)
-            -> RemoveLongFilterStream<TailTokenStream> {
+    fn wrap(
+        token_length_limit: usize,
+        tail: TailTokenStream,
+    ) -> RemoveLongFilterStream<TailTokenStream> {
         RemoveLongFilterStream {
             token_length_limit: token_length_limit,
             tail: tail,
@@ -37,7 +39,8 @@ impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
 
 
 impl<TailTokenStream> TokenFilter<TailTokenStream> for RemoveLongFilter
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     type ResultTokenStream = RemoveLongFilterStream<TailTokenStream>;
 
@@ -47,7 +50,8 @@ impl<TailTokenStream> TokenFilter<TailTokenStream> for RemoveLongFilter
 }
 
 pub struct RemoveLongFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     token_length_limit: usize,
     tail: TailTokenStream,

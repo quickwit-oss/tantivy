@@ -46,9 +46,11 @@ impl FieldType {
     pub fn get_index_record_option(&self) -> Option<IndexRecordOption> {
         match *self {
             FieldType::Str(ref text_options) => {
-                text_options
-                    .get_indexing_options()
-                    .map(|indexing_options| indexing_options.index_option())
+                text_options.get_indexing_options().map(
+                    |indexing_options| {
+                        indexing_options.index_option()
+                    },
+                )
             }
             FieldType::U64(ref int_options) |
             FieldType::I64(ref int_options) => {

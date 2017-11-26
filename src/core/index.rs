@@ -38,7 +38,7 @@ pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
     searcher_pool: Arc<Pool<Searcher>>,
-    tokenizers: TokenizerManager
+    tokenizers: TokenizerManager,
 }
 
 
@@ -259,7 +259,7 @@ impl Clone for Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
             searcher_pool: self.searcher_pool.clone(),
-            tokenizers: self.tokenizers.clone()
+            tokenizers: self.tokenizers.clone(),
         }
     }
 }

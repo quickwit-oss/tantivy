@@ -44,7 +44,7 @@ impl Default for TextOptions {
 }
 
 
-#[derive(Clone,  PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
@@ -88,22 +88,20 @@ impl TextFieldIndexing {
 
 /// The field will be untokenized and indexed
 pub const STRING: TextOptions = TextOptions {
-    indexing: Some(
-        TextFieldIndexing {
-            tokenizer: Cow::Borrowed("raw"),
-            record: IndexRecordOption::Basic,
-        }),
+    indexing: Some(TextFieldIndexing {
+        tokenizer: Cow::Borrowed("raw"),
+        record: IndexRecordOption::Basic,
+    }),
     stored: false,
 };
 
 
 /// The field will be tokenized and indexed
 pub const TEXT: TextOptions = TextOptions {
-    indexing: Some(
-        TextFieldIndexing {
-            tokenizer: Cow::Borrowed("default"),
-            record: IndexRecordOption::WithFreqsAndPositions,
-        }),
+    indexing: Some(TextFieldIndexing {
+        tokenizer: Cow::Borrowed("default"),
+        record: IndexRecordOption::WithFreqsAndPositions,
+    }),
     stored: false,
 };
 
@@ -149,7 +147,10 @@ mod tests {
             match field_entry.field_type() {
                 &FieldType::Str(ref text_options) => {
                     assert!(text_options.get_indexing_options().is_some());
-                    assert_eq!(text_options.get_indexing_options().unwrap().tokenizer(), "default");
+                    assert_eq!(
+                        text_options.get_indexing_options().unwrap().tokenizer(),
+                        "default"
+                    );
                 }
                 _ => {
                     panic!("");
@@ -164,5 +165,3 @@ mod tests {
         assert!(IndexRecordOption::WithFreqs > IndexRecordOption::Basic);
     }
 }
-
-

@@ -18,15 +18,18 @@ use tokenizer::Stemmer;
 /// By default, it is populated with the following managers.
 ///
 ///  * raw : does not process nor tokenize the text.
-///  * default : Chops the text on according to whitespace and punctuation, removes tokens that are too long, lowercases
+///  * default : Chops the text on according to whitespace and
+///  punctuation, removes tokens that are too long, lowercases
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc< RwLock<HashMap<String, Box<BoxedTokenizer> >> >
+    tokenizers: Arc<RwLock<HashMap<String, Box<BoxedTokenizer>>>>,
 }
 
 impl TokenizerManager {
     pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
-        where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
+    where
+        A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
+    {
         let boxed_tokenizer = box_tokenizer(tokenizer);
         self.tokenizers
             .write()
@@ -39,9 +42,7 @@ impl TokenizerManager {
             .read()
             .expect("Acquiring the lock should never fail")
             .get(tokenizer_name)
-            .map(|boxed_tokenizer| {
-              boxed_tokenizer.boxed_clone()
-            })
+            .map(|boxed_tokenizer| boxed_tokenizer.boxed_clone())
     }
 }
 
@@ -52,27 +53,22 @@ impl Default for TokenizerManager {
     /// - en_stem
     /// - ja
     fn default() -> TokenizerManager {
-        let manager = TokenizerManager {
-            tokenizers: Arc::new(RwLock::new(HashMap::new()))
-        };
-        manager.register("raw",
-            RawTokenizer
+        let manager = TokenizerManager { tokenizers: Arc::new(RwLock::new(HashMap::new())) };
+        manager.register("raw", RawTokenizer);
+        manager.register(
+            "default",
+            SimpleTokenizer.filter(RemoveLongFilter::limit(40)).filter(
+                LowerCaser,
+            ),
         );
-        manager.register("default",
+        manager.register(
+            "en_stem",
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
+                .filter(Stemmer::new()),
         );
-        manager.register("en_stem",
-            SimpleTokenizer
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
-                .filter(Stemmer::new())
-        );
-        manager.register("ja",
-            JapaneseTokenizer
-                .filter(RemoveLongFilter::limit(40))
-        );
+        manager.register("ja", JapaneseTokenizer.filter(RemoveLongFilter::limit(40)));
         manager
     }
 }

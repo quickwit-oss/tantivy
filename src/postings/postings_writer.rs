@@ -22,9 +22,8 @@ fn posting_from_field_entry<'a>(
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => {
             text_options
-            .get_indexing_options()
-            .map(|indexing_options| {
-                match indexing_options.index_option() {
+                .get_indexing_options()
+                .map(|indexing_options| match indexing_options.index_option() {
                     IndexRecordOption::Basic => {
                         SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
                     }
@@ -34,11 +33,10 @@ fn posting_from_field_entry<'a>(
                     IndexRecordOption::WithFreqsAndPositions => {
                         SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
                     }
-                }
-            })
-            .unwrap_or_else(|| {
-                SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
-            })
+                })
+                .unwrap_or_else(|| {
+                    SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+                })
         }
         FieldType::U64(_) |
         FieldType::I64(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap),
@@ -149,27 +147,29 @@ pub trait PostingsWriter {
 
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
-    fn serialize(&self,
-                 term_addrs: &[(&[u8], u32)],
-                 serializer: &mut FieldSerializer,
-                 heap: &Heap)
-                 -> io::Result<()>;
+    fn serialize(
+        &self,
+        term_addrs: &[(&[u8], u32)],
+        serializer: &mut FieldSerializer,
+        heap: &Heap,
+    ) -> io::Result<()>;
 
     /// Tokenize a text and suscribe all of its token.
-    fn index_text<'a>(&mut self,
-                      term_index: &mut HashMap,
-                      doc_id: DocId,
-                      field: Field,
-                      token_stream: &mut TokenStream,
-                      heap: &Heap)
-                      -> u32 {
+    fn index_text<'a>(
+        &mut self,
+        term_index: &mut HashMap,
+        doc_id: DocId,
+        field: Field,
+        token_stream: &mut TokenStream,
+        heap: &Heap,
+    ) -> u32 {
         let mut term = unsafe { Term::with_capacity(100) };
         term.set_field(field);
         let mut sink = |token: &Token| {
             term.set_text(token.text.as_str());
             self.suscribe(term_index, doc_id, token.position as u32, &term, heap);
         };
-        
+
         token_stream.process(&mut sink)
     }
 }
@@ -197,7 +197,6 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
 }
 
 impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
-
     fn suscribe(
         &mut self,
         term_index: &mut HashMap,

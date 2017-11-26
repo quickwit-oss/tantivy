@@ -36,12 +36,12 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     let mut schema_builder = SchemaBuilder::default();
 
     // Our first field is title.
-    // We want full-text search for it, and we also want 
+    // We want full-text search for it, and we also want
     // to be able to retrieve the document after the search.
-    // 
+    //
     // TEXT | STORED is some syntactic sugar to describe
     // that.
-    // 
+    //
     // `TEXT` means the field should be tokenized and indexed,
     // along with its term frequency and term positions.
     //
@@ -52,11 +52,11 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     schema_builder.add_text_field("title", TEXT | STORED);
 
     // Our second field is body.
-    // We want full-text search for it, but we do not 
+    // We want full-text search for it, but we do not
     // need to be able to be able to retrieve it
-    // for our application. 
+    // for our application.
     //
-    // We can make our index lighter and 
+    // We can make our index lighter and
     // by omitting `STORED` flag.
     schema_builder.add_text_field("body", TEXT);
 

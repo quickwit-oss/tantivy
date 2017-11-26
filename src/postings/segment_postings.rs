@@ -509,10 +509,8 @@ mod tests {
         let inverted_index = segment_reader.inverted_index(int_field);
         let term = Term::from_field_u64(int_field, 0u64);
         let term_info = inverted_index.get_term_info(&term).unwrap();
-        let mut block_segments = inverted_index.read_block_postings_from_terminfo(
-            &term_info,
-            IndexRecordOption::Basic,
-        );
+        let mut block_segments =
+            inverted_index.read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic);
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
         assert!(block_segments.docs().is_empty());

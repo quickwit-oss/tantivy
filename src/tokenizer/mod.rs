@@ -163,7 +163,9 @@ mod test {
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
-            en_tokenizer.token_stream("Hello, happy tax payer!").process(&mut add_token);
+            en_tokenizer
+                .token_stream("Hello, happy tax payer!")
+                .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);
         assert_eq!(&tokens[0], "Hello, happy tax payer!");
@@ -178,7 +180,9 @@ mod test {
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
-            en_tokenizer.token_stream("Hello, happy tax payer!").process(&mut add_token);
+            en_tokenizer
+                .token_stream("Hello, happy tax payer!")
+                .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
         assert_eq!(&tokens[0], "hello");
@@ -191,11 +195,13 @@ mod test {
     fn test_jp_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("ja").unwrap();
-        
+
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
-            en_tokenizer.token_stream("野菜食べないとやばい!").process(&mut add_token);
+            en_tokenizer
+                .token_stream("野菜食べないとやばい!")
+                .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 5);
         assert_eq!(&tokens[0], "野菜");

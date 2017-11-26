@@ -11,7 +11,7 @@ pub struct Token {
     /// Offsets shall not be modified by token filters.
     pub offset_from: usize,
     /// Offset (byte index) of the last character of the token + 1.
-    /// The text that generated the token should be obtained by 
+    /// The text that generated the token should be obtained by
     /// &text[token.offset_from..token.offset_to]
     pub offset_to: usize,
     /// Position, expressed in number of tokens.
@@ -43,7 +43,6 @@ impl Default for Token {
 ///
 /// This API may change to use associated types.
 pub trait Tokenizer<'a>: Sized + Clone {
-
     /// Type associated to the resulting tokenstream tokenstream.
     type TokenStreamImpl: TokenStream;
 
@@ -71,7 +70,8 @@ pub trait Tokenizer<'a>: Sized + Clone {
     /// ```
     ///
     fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainTokenizer<NewFilter, Self>
-        where NewFilter: TokenFilter<<Self as Tokenizer<'a>>::TokenStreamImpl>
+    where
+        NewFilter: TokenFilter<<Self as Tokenizer<'a>>::TokenStreamImpl>,
     {
         ChainTokenizer {
             head: new_filter,
@@ -87,9 +87,14 @@ pub trait BoxedTokenizer: Send + Sync {
 }
 
 #[derive(Clone)]
-struct BoxableTokenizer<A>(A) where A: for <'a> Tokenizer<'a> + Send + Sync;
+struct BoxableTokenizer<A>(A)
+where
+    A: for<'a> Tokenizer<'a> + Send + Sync;
 
-impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
+impl<A> BoxedTokenizer for BoxableTokenizer<A>
+where
+    A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
+{
     fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a> {
         box self.0.token_stream(text)
     }
@@ -98,20 +103,15 @@ impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + 
         assert!(texts.len() > 0);
         if texts.len() == 1 {
             box self.0.token_stream(texts[0])
-        }
-        else {
-            let mut offsets = vec!();
+        } else {
+            let mut offsets = vec![];
             let mut total_offset = 0;
             for &text in texts {
                 offsets.push(total_offset);
                 total_offset += text.len();
             }
-            let token_streams: Vec<_> = texts
-                .iter()
-                .map(|text| {
-                    self.0.token_stream(text)
-                })
-                .collect();
+            let token_streams: Vec<_> =
+                texts.iter().map(|text| self.0.token_stream(text)).collect();
             box TokenStreamChain::new(offsets, token_streams)
         }
     }
@@ -122,7 +122,9 @@ impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + 
 }
 
 pub fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
-    where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
+where
+    A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
+{
     box BoxableTokenizer(a)
 }
 
@@ -211,13 +213,14 @@ pub struct ChainTokenizer<HeadTokenFilterFactory, TailTokenizer> {
 
 impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
     for ChainTokenizer<HeadTokenFilterFactory, TailTokenizer>
-    where HeadTokenFilterFactory: TokenFilter<TailTokenizer::TokenStreamImpl>,
-          TailTokenizer: Tokenizer<'a>
+where
+    HeadTokenFilterFactory: TokenFilter<TailTokenizer::TokenStreamImpl>,
+    TailTokenizer: Tokenizer<'a>,
 {
     type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
 
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        let tail_token_stream = self.tail.token_stream(text );
+        let tail_token_stream = self.tail.token_stream(text);
         self.head.transform(tail_token_stream)
     }
 }
