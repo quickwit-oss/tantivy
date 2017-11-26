@@ -16,7 +16,7 @@ pub struct SimpleTokenStream<'a> {
 impl<'a> Tokenizer<'a> for SimpleTokenizer {
     type TokenStreamImpl = SimpleTokenStream<'a>;
 
-    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         SimpleTokenStream {
             text: text,
             chars: text.char_indices(),

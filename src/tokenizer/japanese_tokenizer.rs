@@ -21,7 +21,7 @@ pub struct JapaneseTokenizerStream {
 impl<'a> Tokenizer<'a> for JapaneseTokenizer {
     type TokenStreamImpl = JapaneseTokenizerStream;
 
-    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         let mut tokens = vec![];
         let mut offset_from;
         let mut offset_to = 0;

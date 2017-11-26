@@ -13,7 +13,7 @@ pub struct RawTokenStream {
 impl<'a> Tokenizer<'a> for RawTokenizer {
     type TokenStreamImpl = RawTokenStream;
 
-    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         let token = Token {
             offset_from: 0,
             offset_to: text.len(),

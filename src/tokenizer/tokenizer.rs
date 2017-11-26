@@ -48,7 +48,7 @@ pub trait Tokenizer<'a>: Sized + Clone {
     type TokenStreamImpl: TokenStream;
 
     /// Creates a token stream for a given `str`.
-    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl;
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl;
 
     /// Appends a token filter to the current tokenizer.
     ///
@@ -80,10 +80,9 @@ pub trait Tokenizer<'a>: Sized + Clone {
     }
 }
 
-
 pub trait BoxedTokenizer: Send + Sync {
-    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a>;
-    fn token_stream_texts<'b>(&mut self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
+    fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a>;
+    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
     fn boxed_clone(&self) -> Box<BoxedTokenizer>;
 }
 
@@ -91,11 +90,11 @@ pub trait BoxedTokenizer: Send + Sync {
 struct BoxableTokenizer<A>(A) where A: for <'a> Tokenizer<'a> + Send + Sync;
 
 impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + for <'a> Tokenizer<'a> {
-    fn token_stream<'a>(&mut self, text: &'a str) -> Box<TokenStream + 'a> {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a> {
         box self.0.token_stream(text)
     }
 
-    fn token_stream_texts<'b>(&mut self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
+    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
         assert!(texts.len() > 0);
         if texts.len() == 1 {
             box self.0.token_stream(texts[0])
@@ -103,7 +102,7 @@ impl<A> BoxedTokenizer for BoxableTokenizer<A> where A: 'static + Send + Sync + 
         else {
             let mut offsets = vec!();
             let mut total_offset = 0;
-            for text in texts {
+            for &text in texts {
                 offsets.push(total_offset);
                 total_offset += text.len();
             }
@@ -217,7 +216,7 @@ impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
 {
     type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
 
-    fn token_stream(&mut self, text: &'a str) -> Self::TokenStreamImpl {
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         let tail_token_stream = self.tail.token_stream(text );
         self.head.transform(tail_token_stream)
     }

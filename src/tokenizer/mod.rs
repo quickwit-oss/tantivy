@@ -159,7 +159,7 @@ mod test {
     #[test]
     fn test_raw_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
-        let mut en_tokenizer = tokenizer_manager.get("raw").unwrap();
+        let en_tokenizer = tokenizer_manager.get("raw").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
@@ -174,7 +174,7 @@ mod test {
     fn test_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
-        let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
+        let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
@@ -190,7 +190,7 @@ mod test {
     #[test]
     fn test_jp_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
-        let mut en_tokenizer = tokenizer_manager.get("ja").unwrap();
+        let en_tokenizer = tokenizer_manager.get("ja").unwrap();
         
         let mut tokens: Vec<String> = vec![];
         {
@@ -208,7 +208,7 @@ mod test {
     #[test]
     fn test_tokenizer_empty() {
         let tokenizer_manager = TokenizerManager::default();
-        let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
+        let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         {
             let mut tokens: Vec<String> = vec![];
             {
