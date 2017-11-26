@@ -81,6 +81,9 @@ impl TextFieldIndexing {
         self
     }
 
+    /// Returns the indexing options associated to this field.
+    ///
+    /// See [IndexRecordOption](./enum.IndexRecordOption.html) for more detail.
     pub fn index_option(&self) -> IndexRecordOption {
         self.record
     }

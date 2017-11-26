@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokenizer::BoxedTokenizer;
 use tokenizer::Tokenizer;
-use tokenizer::box_tokenizer;
+use tokenizer::tokenizer::box_tokenizer;
 use tokenizer::RawTokenizer;
 use tokenizer::SimpleTokenizer;
 use tokenizer::JapaneseTokenizer;

@@ -33,7 +33,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     serde_json::from_str(&meta_string).chain_err(|| ErrorKind::CorruptedFile(META_FILEPATH.clone()))
 }
 
-/// Tantivy's Search Index
+/// Search Index
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,

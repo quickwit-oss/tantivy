@@ -5,7 +5,7 @@ use std::cmp::{Ordering, Ord};
 #[cfg(test)]
 use std::sync::atomic;
 
-/// Tantivy `SegmentId`.
+/// Uuid identifying a segment.
 ///
 /// Tantivy's segment are identified
 /// by a UUID which is used to prefix the filenames

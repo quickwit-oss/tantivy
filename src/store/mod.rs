@@ -1,5 +1,5 @@
 /*!
-Tantivy's store is a compressed, row-oriented storage.
+Compressed/slow/row-oriented storage for documents.
 
 A field needs to be marked as stored in the schema in
 order to be handled in the `Store`.

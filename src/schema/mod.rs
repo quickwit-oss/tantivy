@@ -1,5 +1,5 @@
 /*!
-
+Schema definition for tantivy's indices.
 
 # Setting your schema in Tantivy
 

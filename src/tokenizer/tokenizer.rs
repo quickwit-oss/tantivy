@@ -80,9 +80,19 @@ pub trait Tokenizer<'a>: Sized + Clone {
     }
 }
 
+/// A boxed tokenizer
 pub trait BoxedTokenizer: Send + Sync {
+    /// Tokenize a `&str`
     fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a>;
+
+    /// Tokenize an array`&str`
+    ///
+    /// The resulting `TokenStream` is equivalent to what would be obtained if the &str were
+    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
+    /// to prevent accidental `PhraseQuery` to match accross two terms.
     fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
+
+    /// Return a boxed clone of the tokenizer
     fn boxed_clone(&self) -> Box<BoxedTokenizer>;
 }
 
@@ -121,7 +131,7 @@ where
     }
 }
 
-pub fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
+pub(crate) fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
@@ -180,12 +190,31 @@ impl<'b> TokenStream for Box<TokenStream + 'b> {
 /// ```
 ///
 pub trait TokenStream {
+
+    /// Advance to the next token
+    ///
+    /// Returns false if there are no other tokens.
     fn advance(&mut self) -> bool;
 
+    /// Returns a reference to the current token.
     fn token(&self) -> &Token;
 
+    /// Returns a mutable reference to the current token.
     fn token_mut(&mut self) -> &mut Token;
 
+    /// ```
+    /// # extern crate tantivy;
+    /// # use tantivy::tokenizer::*;
+    /// # fn main() {
+    /// # let tokenizer = SimpleTokenizer
+    /// #       .filter(RemoveLongFilter::limit(40))
+    /// #       .filter(LowerCaser);
+    /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
+    /// while let Some(token) = token_stream.next() {
+    ///     println!("Token {:?}", token.text);
+    /// }
+    /// # }
+    /// ```
     fn next(&mut self) -> Option<&Token> {
         if self.advance() {
             Some(self.token())

@@ -155,11 +155,11 @@ impl<'a> SegmentWriter<'a> {
                                 })
                                 .collect();
                             let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
-                            self.multifield_postings.index_text(
-                                doc_id,
-                                field,
-                                &mut token_stream,
-                            )
+                            self.multifield_postings
+                                .index_text(
+                                    doc_id,
+                                    field,
+                                    &mut token_stream)
                         } else {
                             0
                         };

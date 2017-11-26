@@ -1,6 +1,7 @@
 /*!
-Collector module
+Defines how the documents matching a search query should be processed.
 */
+
 use SegmentReader;
 use SegmentLocalId;
 use DocId;

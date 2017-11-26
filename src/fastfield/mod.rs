@@ -1,5 +1,5 @@
 /*!
-Fast fields is a column oriented storage.
+Column oriented field storage for tantivy.
 
 It is the equivalent of `Lucene`'s `DocValues`.
 
