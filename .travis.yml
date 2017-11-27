@@ -26,8 +26,7 @@ script:
   - |
     travis-cargo build &&
     travis-cargo test &&
-    travis-cargo bench &&
-    travis-cargo doc
+    travis-cargo bench
   - cargo run --example simple_search
 after_success:
   - bash ./script/build-doc.sh
