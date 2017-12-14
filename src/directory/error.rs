@@ -40,10 +40,7 @@ impl IOError {
 
 impl From<io::Error> for IOError {
     fn from(err: io::Error) -> IOError {
-        IOError {
-            path: None,
-            err,
-        }
+        IOError { path: None, err }
     }
 }
 
@@ -102,13 +99,11 @@ impl fmt::Display for OpenWriteError {
             OpenWriteError::FileAlreadyExists(ref path) => {
                 write!(f, "the file '{:?}' already exists", path)
             }
-            OpenWriteError::IOError(ref err) => {
-                write!(
-                    f,
-                    "an io error occurred while opening a file for writing: '{}'",
-                    err
-                )
-            }
+            OpenWriteError::IOError(ref err) => write!(
+                f,
+                "an io error occurred while opening a file for writing: '{}'",
+                err
+            ),
         }
     }
 }
@@ -148,13 +143,11 @@ impl fmt::Display for OpenReadError {
             OpenReadError::FileDoesNotExist(ref path) => {
                 write!(f, "the file '{:?}' does not exist", path)
             }
-            OpenReadError::IOError(ref err) => {
-                write!(
-                    f,
-                    "an io error occurred while opening a file for reading: '{}'",
-                    err
-                )
-            }
+            OpenReadError::IOError(ref err) => write!(
+                f,
+                "an io error occurred while opening a file for reading: '{}'",
+                err
+            ),
         }
     }
 }
@@ -214,8 +207,7 @@ impl StdError for DeleteError {
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
-            DeleteError::FileDoesNotExist(_) |
-            DeleteError::FileProtected(_) => None,
+            DeleteError::FileDoesNotExist(_) | DeleteError::FileProtected(_) => None,
             DeleteError::IOError(ref err) => Some(err),
         }
     }

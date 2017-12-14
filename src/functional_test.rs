@@ -14,7 +14,6 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 #[test]
 #[ignore]
 fn test_indexing() {
-
     let mut schema_builder = SchemaBuilder::default();
 
     let id_field = schema_builder.add_u64_field("id", INT_INDEXED);

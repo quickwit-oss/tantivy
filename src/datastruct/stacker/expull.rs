@@ -1,7 +1,6 @@
 use std::mem;
 use super::heap::{Heap, HeapAllocable};
 
-
 #[inline]
 pub fn is_power_of_2(val: u32) -> bool {
     val & (val - 1) == 0
@@ -11,7 +10,6 @@ pub fn is_power_of_2(val: u32) -> bool {
 pub fn jump_needed(val: u32) -> bool {
     val > 3 && is_power_of_2(val)
 }
-
 
 #[derive(Debug, Clone)]
 pub struct ExpUnrolledLinkedList {
@@ -50,7 +48,6 @@ impl ExpUnrolledLinkedList {
         self.end += mem::size_of::<u32>() as u32;
     }
 }
-
 
 impl HeapAllocable for u32 {
     fn with_addr(_addr: u32) -> u32 {
@@ -96,13 +93,8 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
             self.addr = addr + mem::size_of::<u32>() as u32;
             Some(*self.heap.get_mut_ref(addr))
         }
-
     }
 }
-
-
-
-
 
 #[cfg(test)]
 mod tests {

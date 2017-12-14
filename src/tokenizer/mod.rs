@@ -138,8 +138,7 @@ mod japanese_tokenizer;
 mod token_stream_chain;
 mod raw_tokenizer;
 
-
-pub use self::tokenizer::{Tokenizer, Token, TokenFilter, TokenStream};
+pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer_manager::TokenizerManager;
 pub use self::simple_tokenizer::SimpleTokenizer;
@@ -155,14 +154,15 @@ mod test {
     use super::Token;
     use super::TokenizerManager;
 
-
     #[test]
     fn test_raw_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("raw").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
-            let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
             en_tokenizer
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
@@ -171,7 +171,6 @@ mod test {
         assert_eq!(&tokens[0], "Hello, happy tax payer!");
     }
 
-
     #[test]
     fn test_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
@@ -179,7 +178,9 @@ mod test {
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
-            let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
             en_tokenizer
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
@@ -198,7 +199,9 @@ mod test {
 
         let mut tokens: Vec<String> = vec![];
         {
-            let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
             en_tokenizer
                 .token_stream("野菜食べないとやばい!")
                 .process(&mut add_token);
@@ -218,7 +221,9 @@ mod test {
         {
             let mut tokens: Vec<String> = vec![];
             {
-                let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
+                let mut add_token = |token: &Token| {
+                    tokens.push(token.text.clone());
+                };
                 en_tokenizer.token_stream(" ").process(&mut add_token);
             }
             assert!(tokens.is_empty());
@@ -226,7 +231,9 @@ mod test {
         {
             let mut tokens: Vec<String> = vec![];
             {
-                let mut add_token = |token: &Token| { tokens.push(token.text.clone()); };
+                let mut add_token = |token: &Token| {
+                    tokens.push(token.text.clone());
+                };
                 en_tokenizer.token_stream(" ").process(&mut add_token);
             }
             assert!(tokens.is_empty());

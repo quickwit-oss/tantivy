@@ -10,9 +10,6 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
-
-
-
 pub struct Pool<T> {
     queue: Arc<MsQueue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
@@ -78,7 +75,6 @@ impl<T> Pool<T> {
                 // removing it from the pool.
             }
         }
-
     }
 }
 
@@ -109,14 +105,11 @@ impl<T> DerefMut for LeasedItem<T> {
 
 impl<T> Drop for LeasedItem<T> {
     fn drop(&mut self) {
-        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None).expect(
-            "Unwrapping a leased item should never fail",
-        );
+        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None)
+            .expect("Unwrapping a leased item should never fail");
         self.recycle_queue.push(gen_item);
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

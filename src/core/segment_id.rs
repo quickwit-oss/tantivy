@@ -1,6 +1,6 @@
 use uuid::Uuid;
 use std::fmt;
-use std::cmp::{Ordering, Ord};
+use std::cmp::{Ord, Ordering};
 
 #[cfg(test)]
 use std::sync::atomic;
@@ -16,13 +16,11 @@ use std::sync::atomic;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);
 
-
 #[cfg(test)]
 lazy_static! {
     static ref AUTO_INC_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::default();
     static ref EMPTY_ARR: [u8; 8] = [0u8; 8];
 }
-
 
 // During tests, we generate the segment id in a autoincrement manner
 // for consistency of segment id between run.
@@ -46,7 +44,6 @@ impl SegmentId {
         SegmentId(create_uuid())
     }
 
-
     /// Returns a shorter identifier of the segment.
     ///
     /// We are using UUID4, so only 6 bits are fixed,
@@ -69,7 +66,6 @@ impl fmt::Debug for SegmentId {
         write!(f, "Seg({:?})", self.short_uuid_string())
     }
 }
-
 
 impl PartialOrd for SegmentId {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

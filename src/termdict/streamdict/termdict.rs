@@ -10,10 +10,10 @@ use common::BinarySerializable;
 use common::CountingWriter;
 use postings::TermInfo;
 use schema::FieldType;
-use super::{TermDeltaEncoder, TermInfoDeltaEncoder, DeltaTermInfo};
+use super::{DeltaTermInfo, TermDeltaEncoder, TermInfoDeltaEncoder};
 use fst::raw::Node;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermStreamer};
-use super::{TermStreamerImpl, TermStreamerBuilderImpl};
+use super::{TermStreamerBuilderImpl, TermStreamerImpl};
 use termdict::TermStreamerBuilder;
 use std::mem::transmute;
 
@@ -48,7 +48,6 @@ pub struct TermDictionaryBuilderImpl<W> {
     len: usize,
 }
 
-
 fn fill_last<'a>(fst: &'a Fst, mut node: Node<'a>, buffer: &mut Vec<u8>) {
     while let Some(transition) = node.transitions().last() {
         buffer.push(transition.inp);
@@ -77,11 +76,11 @@ where
             )
             .expect(
                 "Serializing fst on a Vec<u8> should never fail. \
-                     Where your terms not in order maybe?",
+                 Where your terms not in order maybe?",
             );
-        checkpoint.serialize(&mut self.checkpoints).expect(
-            "Serializing checkpoint on a Vec<u8> should never fail.",
-        );
+        checkpoint
+            .serialize(&mut self.checkpoints)
+            .expect("Serializing checkpoint on a Vec<u8> should never fail.");
     }
 
     /// # Warning
@@ -142,12 +141,7 @@ fn write_term_kv<W: Write>(
     code |= (num_bytes_positions_offset - 1) << 5u8;
     if (prefix_len < 16) && (suffix_len < 16) {
         code |= 1u8;
-        write.write_all(
-            &[
-                code,
-                (prefix_len as u8) | ((suffix_len as u8) << 4u8),
-            ],
-        )?;
+        write.write_all(&[code, (prefix_len as u8) | ((suffix_len as u8) << 4u8)])?;
     } else {
         write.write_all(&[code])?;
         (prefix_len as u32).serialize(write)?;
@@ -160,19 +154,14 @@ fn write_term_kv<W: Write>(
     }
     {
         let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_postings_offset) };
-        write.write_all(
-            &bytes[0..num_bytes_postings_offset as usize],
-        )?;
+        write.write_all(&bytes[0..num_bytes_postings_offset as usize])?;
     }
     if has_positions {
         let bytes: [u8; 4] = unsafe { transmute(delta_term_info.delta_positions_offset) };
-        write.write_all(
-            &bytes[0..num_bytes_positions_offset as usize],
-        )?;
+        write.write_all(&bytes[0..num_bytes_positions_offset as usize])?;
         write.write_all(&[delta_term_info.positions_inner_offset])?;
     }
     Ok(())
-
 }
 
 impl<W> TermDictionaryBuilder<W> for TermDictionaryBuilderImpl<W>
@@ -221,7 +210,6 @@ where
         Ok(w)
     }
 }
-
 
 fn open_fst_index(source: ReadOnlySource) -> io::Result<fst::Map> {
     use self::ReadOnlySource::*;
@@ -300,8 +288,6 @@ impl TermDictionaryImpl {
     }
 }
 
-
-
 impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
 
@@ -316,12 +302,11 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let (body, footer) = source.split(total_len - 16);
 
         let mut footer_buffer: &[u8] = footer.as_slice();
-        let fst_addr = u64::deserialize(&mut footer_buffer).expect(
-            "deserializing 8 byte should never fail",
-        ) as usize;
-        let checkpoints_addr = u64::deserialize(&mut footer_buffer).expect(
-            "deserializing 8 byte should never fail",
-        ) as usize;
+        let fst_addr = u64::deserialize(&mut footer_buffer)
+            .expect("deserializing 8 byte should never fail") as usize;
+        let checkpoints_addr = u64::deserialize(&mut footer_buffer)
+            .expect("deserializing 8 byte should never fail")
+            as usize;
 
         let stream_data = body.slice(0, fst_addr - PADDING_SIZE);
         let fst_data = body.slice(fst_addr, checkpoints_addr);
@@ -353,7 +338,6 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         Self::StreamBuilder::new(self, self.has_positions)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

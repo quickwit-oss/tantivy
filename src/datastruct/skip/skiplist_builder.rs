@@ -47,13 +47,11 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     }
 }
 
-
 pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
     data_layer: LayerBuilder<T>,
     skip_layers: Vec<LayerBuilder<u32>>,
 }
-
 
 impl<T: BinarySerializable> SkipListBuilder<T> {
     pub fn new(period: usize) -> SkipListBuilder<T> {
@@ -77,12 +75,8 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         let mut skip_pointer = self.data_layer.insert(doc_id, dest)?;
         loop {
             skip_pointer = match skip_pointer {
-                Some((skip_doc_id, skip_offset)) => {
-                    self.get_skip_layer(layer_id).insert(
-                        skip_doc_id,
-                        &skip_offset,
-                    )?
-                }
+                Some((skip_doc_id, skip_offset)) => self.get_skip_layer(layer_id)
+                    .insert(skip_doc_id, &skip_offset)?,
                 None => {
                     return Ok(());
                 }

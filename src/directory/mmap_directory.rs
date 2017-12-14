@@ -1,7 +1,7 @@
 use atomicwrites;
 use common::make_io_err;
 use directory::Directory;
-use directory::error::{IOError, OpenWriteError, OpenReadError, DeleteError, OpenDirectoryError};
+use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
@@ -24,17 +24,16 @@ use std::sync::Weak;
 use tempdir::TempDir;
 
 fn open_mmap(full_path: &Path) -> result::Result<Option<Arc<Mmap>>, OpenReadError> {
-    let file = File::open(&full_path).map_err(|e| if e.kind() ==
-        io::ErrorKind::NotFound
-    {
-        OpenReadError::FileDoesNotExist(full_path.to_owned())
-    } else {
-        OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
+    let file = File::open(&full_path).map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
+            OpenReadError::FileDoesNotExist(full_path.to_owned())
+        } else {
+            OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
+        }
     })?;
 
-    let meta_data = file.metadata().map_err(|e| {
-        IOError::with_path(full_path.to_owned(), e)
-    })?;
+    let meta_data = file.metadata()
+        .map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
         // to mmap the file, so we return an anonymous mmap_cache
@@ -45,7 +44,6 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Arc<Mmap>>, OpenReadErro
         Ok(mmap) => Ok(Some(Arc::new(mmap))),
         Err(e) => Err(IOError::with_path(full_path.to_owned(), e))?,
     }
-
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -83,7 +81,6 @@ impl Default for MmapCache {
         }
     }
 }
-
 
 impl MmapCache {
     fn cleanup(&mut self) {
@@ -183,13 +180,13 @@ impl MmapDirectory {
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
-            Err(OpenDirectoryError::DoesNotExist(
-                PathBuf::from(directory_path),
-            ))
+            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
+                directory_path,
+            )))
         } else if !directory_path.is_dir() {
-            Err(OpenDirectoryError::NotADirectory(
-                PathBuf::from(directory_path),
-            ))
+            Err(OpenDirectoryError::NotADirectory(PathBuf::from(
+                directory_path,
+            )))
         } else {
             Ok(MmapDirectory {
                 root_path: PathBuf::from(directory_path),
@@ -222,9 +219,9 @@ impl MmapDirectory {
             use std::os::windows::fs::OpenOptionsExt;
             use winapi::winbase;
 
-            open_opts.write(true).custom_flags(
-                winbase::FILE_FLAG_BACKUP_SEMANTICS,
-            );
+            open_opts
+                .write(true)
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
         }
 
         let fd = open_opts.open(&self.root_path)?;
@@ -271,7 +268,6 @@ impl Seek for SafeFileWriter {
     }
 }
 
-
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
@@ -280,47 +276,44 @@ impl Directory for MmapDirectory {
         let mut mmap_cache = self.mmap_cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquired write lock \
-                                            on mmap cache while reading {:?}",
+                 on mmap cache while reading {:?}",
                 path
             );
             IOError::with_path(path.to_owned(), make_io_err(msg))
         })?;
 
-        Ok(
-            mmap_cache
-                .get_mmap(&full_path)?
-                .map(MmapReadOnly::from)
-                .map(ReadOnlySource::Mmap)
-                .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())),
-        )
+        Ok(mmap_cache
+            .get_mmap(&full_path)?
+            .map(MmapReadOnly::from)
+            .map(ReadOnlySource::Mmap)
+            .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())))
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
 
-        let open_res = OpenOptions::new().write(true).create_new(true).open(
-            full_path,
-        );
+        let open_res = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(full_path);
 
-        let mut file = open_res.map_err(|err| if err.kind() ==
-            io::ErrorKind::AlreadyExists
-        {
-            OpenWriteError::FileAlreadyExists(path.to_owned())
-        } else {
-            IOError::with_path(path.to_owned(), err).into()
+        let mut file = open_res.map_err(|err| {
+            if err.kind() == io::ErrorKind::AlreadyExists {
+                OpenWriteError::FileAlreadyExists(path.to_owned())
+            } else {
+                IOError::with_path(path.to_owned(), err).into()
+            }
         })?;
 
         // making sure the file is created.
-        file.flush().map_err(
-            |e| IOError::with_path(path.to_owned(), e),
-        )?;
+        file.flush()
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
 
         // Apparetntly, on some filesystem syncing the parent
         // directory is required.
-        self.sync_directory().map_err(|e| {
-            IOError::with_path(path.to_owned(), e)
-        })?;
+        self.sync_directory()
+            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -332,7 +325,7 @@ impl Directory for MmapDirectory {
         let mut mmap_cache = self.mmap_cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquired write lock \
-                                            on mmap cache while deleting {:?}",
+                 on mmap cache while deleting {:?}",
                 path
             );
             IOError::with_path(path.to_owned(), make_io_err(msg))
@@ -342,11 +335,8 @@ impl Directory for MmapDirectory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => {
-                self.sync_directory().map_err(|e| {
-                    IOError::with_path(path.to_owned(), e).into()
-                })
-            }
+            Ok(_) => self.sync_directory()
+                .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
                     Err(DeleteError::FileDoesNotExist(path.to_owned()))
@@ -367,9 +357,8 @@ impl Directory for MmapDirectory {
         let mut buffer = Vec::new();
         match File::open(&full_path) {
             Ok(mut file) => {
-                file.read_to_end(&mut buffer).map_err(|e| {
-                    IOError::with_path(path.to_owned(), e)
-                })?;
+                file.read_to_end(&mut buffer)
+                    .map_err(|e| IOError::with_path(path.to_owned(), e))?;
                 Ok(buffer)
             }
             Err(e) => {
@@ -380,7 +369,6 @@ impl Directory for MmapDirectory {
                 }
             }
         }
-
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -395,9 +383,6 @@ impl Directory for MmapDirectory {
         Box::new(self.clone())
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -451,7 +436,6 @@ mod tests {
         }
         assert_eq!(mmap_directory.get_cache_info().counters.miss_empty, 10);
 
-
         {
             // test weak miss
             // the first pass create the weak refs.
@@ -486,7 +470,6 @@ mod tests {
         }
 
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
-
     }
 
 }

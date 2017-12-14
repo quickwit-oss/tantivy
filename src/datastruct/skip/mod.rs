@@ -6,8 +6,6 @@ mod skiplist;
 pub use self::skiplist_builder::SkipListBuilder;
 pub use self::skiplist::SkipList;
 
-
-
 #[cfg(test)]
 mod tests {
 

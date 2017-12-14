@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use schema::Schema;
 use std::fmt;
 use core::SegmentId;
-use directory::{ReadOnlySource, WritePtr, FileProtection};
+use directory::{FileProtection, ReadOnlySource, WritePtr};
 use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
@@ -29,10 +29,7 @@ impl fmt::Debug for Segment {
 ///
 /// The function is here to make it private outside `tantivy`.
 pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
-    Segment {
-        index,
-        meta,
-    }
+    Segment { index, meta }
 }
 
 impl Segment {
@@ -68,7 +65,6 @@ impl Segment {
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.meta.relative_path(component)
     }
-
 
     /// Protects a specific component file from being deleted.
     ///

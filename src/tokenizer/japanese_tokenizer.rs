@@ -1,6 +1,5 @@
-use super::{Token, Tokenizer, TokenStream};
+use super::{Token, TokenStream, Tokenizer};
 use tinysegmenter;
-
 
 /// Simple japanese tokenizer based on the `tinysegmenter` crate.
 #[derive(Clone)]
@@ -68,7 +67,6 @@ impl<'a> TokenStream for JapaneseTokenizerStream {
         self.cursor != Cursor::Terminated
     }
 
-
     fn token(&self) -> &Token {
         match self.cursor {
             Cursor::Terminated => {
@@ -79,7 +77,6 @@ impl<'a> TokenStream for JapaneseTokenizerStream {
                 panic!("You called .token(), before having called `.advance()`.");
             }
         }
-
     }
 
     fn token_mut(&mut self) -> &mut Token {

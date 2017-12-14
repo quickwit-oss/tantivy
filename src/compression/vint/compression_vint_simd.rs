@@ -1,4 +1,3 @@
-
 mod streamvbyte {
 
     use libc::size_t;
@@ -28,7 +27,6 @@ mod streamvbyte {
     }
 }
 
-
 #[inline(always)]
 pub(crate) fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], offset: u32) -> &'a [u8] {
     let compress_length = unsafe {
@@ -41,7 +39,6 @@ pub(crate) fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], offset: u
     };
     &output[..compress_length]
 }
-
 
 #[inline(always)]
 pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {

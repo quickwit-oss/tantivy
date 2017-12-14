@@ -6,12 +6,11 @@ use common::TimerTree;
 use query::Query;
 use DocId;
 use DocAddress;
-use schema::{Term, Field};
-use termdict::{TermMerger, TermDictionary};
+use schema::{Field, Term};
+use termdict::{TermDictionary, TermMerger};
 use std::sync::Arc;
 use std::fmt;
 use core::InvertedIndexReader;
-
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -46,9 +45,7 @@ impl Searcher {
     pub fn doc_freq(&self, term: &Term) -> u32 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| {
-                segment_reader.inverted_index(term.field()).doc_freq(term)
-            })
+            .map(|segment_reader| segment_reader.inverted_index(term.field()).doc_freq(term))
             .fold(0u32, |acc, val| acc + val)
     }
 
@@ -77,19 +74,14 @@ impl Searcher {
     }
 }
 
-
-
-
 pub struct FieldSearcher {
     inv_index_readers: Vec<Arc<InvertedIndexReader>>,
 }
-
 
 impl FieldSearcher {
     fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
         FieldSearcher { inv_index_readers }
     }
-
 
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.

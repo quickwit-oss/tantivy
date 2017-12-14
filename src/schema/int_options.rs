@@ -14,7 +14,6 @@ impl IntOptions {
         self.stored
     }
 
-
     /// Returns true iff the value is indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexed
@@ -65,7 +64,6 @@ impl Default for IntOptions {
     }
 }
 
-
 /// Shortcut for a u64 fast field.
 ///
 /// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
@@ -92,7 +90,6 @@ pub const INT_STORED: IntOptions = IntOptions {
     stored: true,
     fast: false,
 };
-
 
 impl BitOr for IntOptions {
     type Output = IntOptions;

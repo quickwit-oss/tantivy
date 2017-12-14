@@ -38,7 +38,6 @@ pub struct DeleteBitSet {
     len: usize,
 }
 
-
 impl DeleteBitSet {
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
@@ -78,7 +77,6 @@ impl DeleteBitSet {
         }
     }
 }
-
 
 impl HasLen for DeleteBitSet {
     fn len(&self) -> usize {

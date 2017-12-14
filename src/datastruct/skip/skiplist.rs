@@ -76,7 +76,6 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     }
 }
 
-
 pub struct SkipList<'a, T: BinarySerializable> {
     data_layer: Layer<'a, T>,
     skip_layers: Vec<Layer<'a, u32>>,
@@ -105,7 +104,6 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
         self.data_layer.seek(doc_id)
     }
 }
-
 
 impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
     fn from(mut data: &'a [u8]) -> SkipList<'a, T> {

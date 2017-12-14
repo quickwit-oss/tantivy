@@ -4,12 +4,11 @@ use std::io;
 
 use std::path::PathBuf;
 use std::sync::PoisonError;
-use directory::error::{IOError, OpenReadError, OpenWriteError, OpenDirectoryError};
+use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use query;
 use schema;
 use fastfield::FastFieldNotAvailableError;
 use serde_json;
-
 
 error_chain!(
     errors {
@@ -124,10 +123,9 @@ impl From<OpenDirectoryError> for Error {
             OpenDirectoryError::DoesNotExist(directory_path) => {
                 ErrorKind::PathDoesNotExist(directory_path).into()
             }
-            OpenDirectoryError::NotADirectory(directory_path) => {
-                ErrorKind::InvalidArgument(format!("{:?} is not a directory", directory_path))
-                    .into()
-            }
+            OpenDirectoryError::NotADirectory(directory_path) => ErrorKind::InvalidArgument(
+                format!("{:?} is not a directory", directory_path),
+            ).into(),
         }
     }
 }

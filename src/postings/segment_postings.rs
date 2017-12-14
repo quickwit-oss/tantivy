@@ -1,15 +1,13 @@
-use compression::{COMPRESSION_BLOCK_SIZE, BlockDecoder, VIntDecoder, CompressedIntStream};
+use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
-use postings::{Postings, DocSet, HasLen, SkipResult};
+use postings::{DocSet, HasLen, Postings, SkipResult};
 use std::cmp;
 use fst::Streamer;
 use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
-use directory::{SourceRead, ReadOnlySource};
-
+use directory::{ReadOnlySource, SourceRead};
 
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
-
 
 struct PositionComputer {
     // store the amount of position int
@@ -41,7 +39,6 @@ impl PositionComputer {
 
     pub fn positions(&mut self, term_freq: usize) -> &[u32] {
         if let Some(num_skip) = self.position_to_skip {
-
             self.positions.resize(term_freq, 0u32);
 
             self.positions_stream.skip(num_skip);
@@ -58,8 +55,6 @@ impl PositionComputer {
     }
 }
 
-
-
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
 ///
@@ -71,7 +66,6 @@ pub struct SegmentPostings {
     delete_bitset: DeleteBitSet,
     position_computer: Option<UnsafeCell<PositionComputer>>,
 }
-
 
 impl SegmentPostings {
     /// Reads a Segment postings from an &[u8]
@@ -106,7 +100,6 @@ impl SegmentPostings {
         }
     }
 
-
     fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
         if let Some(position_computer) = self.position_computer.as_ref() {
             let num_skips = num_skips_fn();
@@ -116,7 +109,6 @@ impl SegmentPostings {
         }
     }
 }
-
 
 impl DocSet for SegmentPostings {
     // goes to the next element.
@@ -139,7 +131,6 @@ impl DocSet for SegmentPostings {
         }
     }
 
-
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -157,7 +148,6 @@ impl DocSet for SegmentPostings {
                 (block_docs[self.cur], block_docs[block_docs.len() - 1])
             };
             if target > last_doc_in_block {
-
                 // we add skip for the current term independantly,
                 // so that position_add_skip will decide if it should
                 // just set itself to Some(0) or effectively
@@ -284,7 +274,6 @@ impl Postings for SegmentPostings {
     }
 }
 
-
 /// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
 ///
@@ -394,16 +383,13 @@ impl BlockSegmentPostings {
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
         if self.num_bitpacked_blocks > 0 {
-            let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
-                self.remaining_data.as_ref(),
-                self.doc_offset,
-            );
+            let num_consumed_bytes = self.doc_decoder
+                .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
             self.remaining_data.advance(num_consumed_bytes);
 
             if self.has_freq {
-                let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(
-                    self.remaining_data.as_ref(),
-                );
+                let num_consumed_bytes = self.freq_decoder
+                    .uncompress_block_unsorted(self.remaining_data.as_ref());
                 self.remaining_data.advance(num_consumed_bytes);
             }
             // it will be used as the next offset.
@@ -418,10 +404,8 @@ impl BlockSegmentPostings {
             );
             self.remaining_data.advance(num_compressed_bytes);
             if self.has_freq {
-                self.freq_decoder.uncompress_vint_unsorted(
-                    self.remaining_data.as_ref(),
-                    self.num_vint_docs,
-                );
+                self.freq_decoder
+                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
             }
             self.num_vint_docs = 0;
             true
@@ -521,7 +505,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_reset_block_segment_postings() {
         let mut schema_builder = SchemaBuilder::default();
@@ -545,10 +528,8 @@ mod tests {
             let term = Term::from_field_u64(int_field, 0u64);
             let inverted_index = segment_reader.inverted_index(int_field);
             let term_info = inverted_index.get_term_info(&term).unwrap();
-            block_segments = inverted_index.read_block_postings_from_terminfo(
-                &term_info,
-                IndexRecordOption::Basic,
-            );
+            block_segments = inverted_index
+                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic);
         }
         assert!(block_segments.advance());
         assert_eq!(block_segments.docs(), &[0, 2, 4]);

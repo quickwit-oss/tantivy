@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 use std::mem;
 use std::ops::DerefMut;
 
-
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.
 //
@@ -29,12 +28,12 @@ pub struct DeleteQueue {
     inner: Arc<RwLock<InnerDeleteQueue>>,
 }
 
-
 impl DeleteQueue {
     // Creates a new delete queue.
     pub fn new() -> DeleteQueue {
-
-        let delete_queue = DeleteQueue { inner: Arc::default() };
+        let delete_queue = DeleteQueue {
+            inner: Arc::default(),
+        };
 
         let next_block = NextBlock::from(delete_queue.clone());
         {
@@ -47,7 +46,6 @@ impl DeleteQueue {
 
         delete_queue
     }
-
 
     // Creates a new cursor that makes it possible to
     // consume future delete operations.
@@ -94,9 +92,9 @@ impl DeleteQueue {
     // be some unflushed operations.
     //
     fn flush(&self) -> Option<Arc<Block>> {
-        let mut self_wlock = self.inner.write().expect(
-            "Failed to acquire write lock on delete queue writer",
-        );
+        let mut self_wlock = self.inner
+            .write()
+            .expect("Failed to acquire write lock on delete queue writer");
 
         let delete_operations;
         {
@@ -134,32 +132,30 @@ impl From<DeleteQueue> for NextBlock {
 impl NextBlock {
     fn next_block(&self) -> Option<Arc<Block>> {
         {
-            let next_read_lock = self.0.read().expect(
-                "Failed to acquire write lock in delete queue",
-            );
+            let next_read_lock = self.0
+                .read()
+                .expect("Failed to acquire write lock in delete queue");
             if let InnerNextBlock::Closed(ref block) = *next_read_lock {
                 return Some(Arc::clone(block));
             }
         }
         let next_block;
         {
-            let mut next_write_lock = self.0.write().expect(
-                "Failed to acquire write lock in delete queue",
-            );
+            let mut next_write_lock = self.0
+                .write()
+                .expect("Failed to acquire write lock in delete queue");
             match *next_write_lock {
                 InnerNextBlock::Closed(ref block) => {
                     return Some(Arc::clone(block));
                 }
-                InnerNextBlock::Writer(ref writer) => {
-                    match writer.flush() {
-                        Some(flushed_next_block) => {
-                            next_block = flushed_next_block;
-                        }
-                        None => {
-                            return None;
-                        }
+                InnerNextBlock::Writer(ref writer) => match writer.flush() {
+                    Some(flushed_next_block) => {
+                        next_block = flushed_next_block;
                     }
-                }
+                    None => {
+                        return None;
+                    }
+                },
             }
             *next_write_lock.deref_mut() = InnerNextBlock::Closed(Arc::clone(&next_block));
             Some(next_block)
@@ -172,13 +168,11 @@ struct Block {
     next: NextBlock,
 }
 
-
 #[derive(Clone)]
 pub struct DeleteCursor {
     block: Arc<Block>,
     pos: usize,
 }
-
 
 impl DeleteCursor {
     /// Skips operations and position it so that
@@ -248,16 +242,11 @@ impl DeleteCursor {
     }
 }
 
-
-
-
-
-
 #[cfg(test)]
 mod tests {
 
-    use super::{DeleteQueue, DeleteOperation};
-    use schema::{Term, Field};
+    use super::{DeleteOperation, DeleteQueue};
+    use schema::{Field, Term};
 
     #[test]
     fn test_deletequeue() {
@@ -304,6 +293,5 @@ mod tests {
             operations_it.advance();
             assert!(operations_it.get().is_none());
         }
-
     }
 }

@@ -1,4 +1,4 @@
-use super::merge_policy::{MergePolicy, MergeCandidate};
+use super::merge_policy::{MergeCandidate, MergePolicy};
 use core::SegmentMeta;
 use std::cmp;
 use std::f64;
@@ -6,7 +6,6 @@ use std::f64;
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_MERGE_SIZE: usize = 8;
-
 
 /// `LogMergePolicy` tries tries to merge segments that have a similar number of
 /// documents.
@@ -61,9 +60,7 @@ impl MergePolicy for LogMergePolicy {
 
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples
             .into_iter()
-            .map(|(ind, num_docs)| {
-                (ind, (self.clip_min_size(num_docs) as f64).log2())
-            })
+            .map(|(ind, num_docs)| (ind, (self.clip_min_size(num_docs) as f64).log2()))
             .collect();
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];
@@ -80,9 +77,7 @@ impl MergePolicy for LogMergePolicy {
         levels
             .iter()
             .filter(|level| level.len() >= self.min_merge_size)
-            .map(|ind_vec| {
-                MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect())
-            })
+            .map(|ind_vec| MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect()))
             .collect()
     }
 
@@ -105,7 +100,7 @@ impl Default for LogMergePolicy {
 mod tests {
     use super::*;
     use indexer::merge_policy::MergePolicy;
-    use core::{SegmentMeta, SegmentId};
+    use core::{SegmentId, SegmentMeta};
 
     fn test_merge_policy() -> LogMergePolicy {
         let mut log_merge_policy = LogMergePolicy::default();
@@ -162,10 +157,10 @@ mod tests {
     fn test_log_merge_policy_within_levels() {
         // multiple levels all get merged correctly
         let test_input = vec![
-            seg_meta(10), // log2(10) = ~3.32 (> 3.58 - 0.75)
-            seg_meta(11), // log2(11) = ~3.46
-            seg_meta(12), // log2(12) = ~3.58
-            seg_meta(800), // log2(800) = ~9.64 (> 9.97 - 0.75)
+            seg_meta(10),   // log2(10) = ~3.32 (> 3.58 - 0.75)
+            seg_meta(11),   // log2(11) = ~3.46
+            seg_meta(12),   // log2(12) = ~3.58
+            seg_meta(800),  // log2(800) = ~9.64 (> 9.97 - 0.75)
             seg_meta(1000), // log2(1000) = ~9.97
             seg_meta(1000),
         ]; // log2(1000) = ~9.97

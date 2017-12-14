@@ -1,4 +1,3 @@
-
 /// `IndexRecordOption` describes an amount information associated
 /// to a given indexed field.
 ///
@@ -33,8 +32,7 @@ impl IndexRecordOption {
     /// Returns true iff the term frequency will be encoded.
     pub fn is_termfreq_enabled(&self) -> bool {
         match *self {
-            IndexRecordOption::WithFreqsAndPositions |
-            IndexRecordOption::WithFreqs => true,
+            IndexRecordOption::WithFreqsAndPositions | IndexRecordOption::WithFreqs => true,
             _ => false,
         }
     }
@@ -52,8 +50,7 @@ impl IndexRecordOption {
     pub fn has_freq(&self) -> bool {
         match *self {
             IndexRecordOption::Basic => false,
-            IndexRecordOption::WithFreqs |
-            IndexRecordOption::WithFreqsAndPositions => true,
+            IndexRecordOption::WithFreqs | IndexRecordOption::WithFreqsAndPositions => true,
         }
     }
 
@@ -61,8 +58,7 @@ impl IndexRecordOption {
     ///  term positions.
     pub fn has_positions(&self) -> bool {
         match *self {
-            IndexRecordOption::Basic |
-            IndexRecordOption::WithFreqs => false,
+            IndexRecordOption::Basic | IndexRecordOption::WithFreqs => false,
             IndexRecordOption::WithFreqsAndPositions => true,
         }
     }

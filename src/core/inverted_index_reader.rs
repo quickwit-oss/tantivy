@@ -1,6 +1,6 @@
-use directory::{SourceRead, ReadOnlySource};
+use directory::{ReadOnlySource, SourceRead};
 use termdict::{TermDictionary, TermDictionaryImpl};
-use postings::{SegmentPostings, BlockSegmentPostings};
+use postings::{BlockSegmentPostings, SegmentPostings};
 use postings::TermInfo;
 use schema::IndexRecordOption;
 use schema::Term;
@@ -8,7 +8,6 @@ use std::cmp;
 use fastfield::DeleteBitSet;
 use schema::Schema;
 use compression::CompressedIntStream;
-
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -39,7 +38,6 @@ impl InvertedIndexReader {
         delete_bitset: DeleteBitSet,
         schema: Schema,
     ) -> InvertedIndexReader {
-
         InvertedIndexReader {
             termdict: TermDictionaryImpl::from_source(termdict_source),
             postings_source,
@@ -53,7 +51,6 @@ impl InvertedIndexReader {
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
         self.termdict.get(term.as_slice())
     }
-
 
     /// Return the term dictionary datastructure.
     pub fn terms(&self) -> &TermDictionaryImpl {
@@ -81,8 +78,6 @@ impl InvertedIndexReader {
         let postings_reader = SourceRead::from(postings_slice);
         block_postings.reset(term_info.doc_freq as usize, postings_reader);
     }
-
-
 
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
@@ -144,10 +139,7 @@ impl InvertedIndexReader {
         let term_info = get!(self.get_term_info(term));
         let maximum_option = get!(field_entry.field_type().get_index_record_option());
         let best_effort_option = cmp::min(maximum_option, option);
-        Some(self.read_postings_from_terminfo(
-            &term_info,
-            best_effort_option,
-        ))
+        Some(self.read_postings_from_terminfo(&term_info, best_effort_option))
     }
 
     /// Returns the number of documents containing the term.

@@ -12,7 +12,6 @@ use Score;
 use SegmentReader;
 use SegmentLocalId;
 
-
 /// Facet collector  for i64/u64 fast field
 pub struct FacetCollector<T>
 where
@@ -23,7 +22,6 @@ where
     field: Field,
     ff_reader: Option<T>,
 }
-
 
 impl<T> FacetCollector<T>
 where
@@ -40,7 +38,6 @@ where
     }
 }
 
-
 impl<T> Collector for FacetCollector<T>
 where
     T: FastFieldReader,
@@ -54,15 +51,11 @@ where
     fn collect(&mut self, doc: DocId, _: Score) {
         let val = self.ff_reader
             .as_ref()
-            .expect(
-                "collect() was called before set_segment. This should never happen.",
-            )
+            .expect("collect() was called before set_segment. This should never happen.")
             .get(doc);
         *(self.counters.entry(val).or_insert(0)) += 1;
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -77,7 +70,6 @@ mod tests {
     // create 10 documents, set num field value to 0 or 1 for even/odd ones
     // make sure we have facet counters correctly filled
     fn test_facet_collector_results() {
-
         let mut schema_builder = schema::SchemaBuilder::new();
         let num_field_i64 = schema_builder.add_i64_field("num_i64", FAST);
         let num_field_u64 = schema_builder.add_u64_field("num_u64", FAST);
@@ -117,6 +109,5 @@ mod tests {
         assert_eq!(ffvf_u64.counters[&1], 5);
         assert_eq!(ffvf_i64.counters[&0], 4);
         assert_eq!(ffvf_i64.counters[&1], 3);
-
     }
 }

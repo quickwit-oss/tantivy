@@ -8,7 +8,6 @@ use std::io;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 
-
 /// A `CompositeWrite` is used to write a `CompositeFile`.
 pub struct CompositeWrite<W = WritePtr> {
     write: CountingWriter<W>,
@@ -33,7 +32,6 @@ impl<W: Write> CompositeWrite<W> {
         &mut self.write
     }
 
-
     /// Close the composite file.
     ///
     /// An index of the different field offsets
@@ -51,9 +49,7 @@ impl<W: Write> CompositeWrite<W> {
 
         let mut prev_offset = 0;
         for (offset, field) in offset_fields {
-            VInt((offset - prev_offset) as u64).serialize(
-                &mut self.write,
-            )?;
+            VInt((offset - prev_offset) as u64).serialize(&mut self.write)?;
             field.serialize(&mut self.write)?;
             prev_offset = *offset;
         }
@@ -64,7 +60,6 @@ impl<W: Write> CompositeWrite<W> {
         Ok(())
     }
 }
-
 
 /// A composite file is an abstraction to store a
 /// file partitioned by field.
@@ -129,19 +124,18 @@ impl CompositeFile {
     /// Returns the `ReadOnlySource` associated
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
-        self.offsets_index.get(&field).map(|&(from, to)| {
-            self.data.slice(from, to)
-        })
+        self.offsets_index
+            .get(&field)
+            .map(|&(from, to)| self.data.slice(from, to))
     }
 }
-
 
 #[cfg(test)]
 mod test {
 
     use std::io::Write;
-    use super::{CompositeWrite, CompositeFile};
-    use directory::{RAMDirectory, Directory};
+    use super::{CompositeFile, CompositeWrite};
+    use directory::{Directory, RAMDirectory};
     use schema::Field;
     use common::VInt;
     use common::BinarySerializable;
@@ -185,7 +179,6 @@ mod test {
                 assert_eq!(payload_4, 2u64);
             }
         }
-
     }
 
 }

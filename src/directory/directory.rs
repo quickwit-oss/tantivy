@@ -1,7 +1,7 @@
 use std::marker::Send;
 use std::fmt;
 use std::path::Path;
-use directory::error::{OpenReadError, DeleteError, OpenWriteError};
+use directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::result;
 use std::io;

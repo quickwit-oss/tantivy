@@ -5,7 +5,6 @@ use std::io::Write;
 use schema::Field;
 use schema::Value;
 
-
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct FieldValue {
@@ -16,10 +15,7 @@ pub struct FieldValue {
 impl FieldValue {
     /// Constructor
     pub fn new(field: Field, value: Value) -> FieldValue {
-        FieldValue {
-            field,
-            value,
-        }
+        FieldValue { field, value }
     }
 
     /// Field accessor

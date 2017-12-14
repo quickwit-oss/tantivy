@@ -1,15 +1,15 @@
 use DocId;
 use schema::Term;
-use postings::{InvertedIndexSerializer, FieldSerializer};
+use postings::{FieldSerializer, InvertedIndexSerializer};
 use std::io;
 use postings::Recorder;
 use Result;
-use schema::{Schema, Field};
+use schema::{Field, Schema};
 use tokenizer::Token;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use datastruct::stacker::{HashMap, Heap};
-use postings::{NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
+use postings::{NothingRecorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use schema::FieldEntry;
 use schema::FieldType;
 use tokenizer::TokenStream;
@@ -20,29 +20,25 @@ fn posting_from_field_entry<'a>(
     heap: &'a Heap,
 ) -> Box<PostingsWriter + 'a> {
     match *field_entry.field_type() {
-        FieldType::Str(ref text_options) => {
-            text_options
-                .get_indexing_options()
-                .map(|indexing_options| match indexing_options.index_option() {
-                    IndexRecordOption::Basic => {
-                        SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
-                    }
-                    IndexRecordOption::WithFreqs => {
-                        SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
-                    }
-                    IndexRecordOption::WithFreqsAndPositions => {
-                        SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
-                    }
-                })
-                .unwrap_or_else(|| {
+        FieldType::Str(ref text_options) => text_options
+            .get_indexing_options()
+            .map(|indexing_options| match indexing_options.index_option() {
+                IndexRecordOption::Basic => {
                     SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
-                })
+                }
+                IndexRecordOption::WithFreqs => {
+                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
+                }
+                IndexRecordOption::WithFreqsAndPositions => {
+                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
+                }
+            })
+            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)),
+        FieldType::U64(_) | FieldType::I64(_) => {
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
         }
-        FieldType::U64(_) |
-        FieldType::I64(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap),
     }
 }
-
 
 pub struct MultiFieldPostingsWriter<'a> {
     heap: &'a Heap,
@@ -77,7 +73,6 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
         postings_writer.suscribe(&mut self.term_index, doc, 0u32, term, self.heap)
     }
-
 
     /// Serialize the inverted index.
     /// It pushes all term, one field at a time, towards the
@@ -122,7 +117,6 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         self.term_index.is_saturated()
     }
 }
-
 
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
@@ -216,8 +210,6 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         }
         recorder.record_position(position, heap);
     }
-
-
 
     fn serialize(
         &self,

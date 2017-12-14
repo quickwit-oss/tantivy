@@ -32,17 +32,17 @@ mod delete;
 pub use self::delete::write_delete_bitset;
 pub use self::delete::DeleteBitSet;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-pub use self::reader::{U64FastFieldReader, I64FastFieldReader};
+pub use self::reader::{I64FastFieldReader, U64FastFieldReader};
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
-pub use self::error::{Result, FastFieldNotAvailableError};
+pub use self::error::{FastFieldNotAvailableError, Result};
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use schema::Field;
     use std::path::Path;
-    use directory::{Directory, WritePtr, RAMDirectory};
+    use directory::{Directory, RAMDirectory, WritePtr};
     use schema::Document;
     use schema::{Schema, SchemaBuilder};
     use schema::FAST;
@@ -151,7 +151,6 @@ mod tests {
     fn test_intfastfield_null_amplitude() {
         let path = Path::new("test");
         let mut directory: RAMDirectory = RAMDirectory::create();
-
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
@@ -279,7 +278,6 @@ mod tests {
 
         let source = directory.open_read(&path).unwrap();
         {
-
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: I64FastFieldReader =
                 I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
@@ -371,7 +369,6 @@ mod tests {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
-
 
             b.iter(|| {
                 let n = test::black_box(7000u32);

@@ -12,9 +12,8 @@ where
         phrase.or(word)
     };
 
-    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric()))).map(
-        |(s1, s2): (char, String)| format!("{}{}", s1, s2),
-    );
+    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric())))
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
 
     let field = (
         letter(),
@@ -23,17 +22,14 @@ where
 
     let term_val_with_field = negative_numbers.or(term_val());
 
-    let term_query = (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| {
-        UserInputLiteral {
+    let term_query =
+        (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
             field_name: Some(field_name),
             phrase,
-        }
-    });
-    let term_default_field = term_val().map(|phrase| {
-        UserInputLiteral {
-            field_name: None,
-            phrase,
-        }
+        });
+    let term_default_field = term_val().map(|phrase| UserInputLiteral {
+        field_name: None,
+        phrase,
     });
     try(term_query)
         .or(term_default_field)
@@ -41,34 +37,31 @@ where
         .parse_stream(input)
 }
 
-
 fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
     (char('-'), parser(literal))
         .map(|(_, expr)| UserInputAST::Not(box expr))
-        .or((char('+'), parser(literal)).map(|(_, expr)| {
-            UserInputAST::Must(box expr)
-        }))
+        .or((char('+'), parser(literal)).map(|(_, expr)| UserInputAST::Must(box expr)))
         .or(parser(literal))
         .parse_stream(input)
 }
-
 
 pub fn parse_to_ast<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
     sep_by(parser(leaf), spaces())
-        .map(|subqueries: Vec<UserInputAST>| if subqueries.len() == 1 {
-            subqueries.into_iter().next().unwrap()
-        } else {
-            UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
+        .map(|subqueries: Vec<UserInputAST>| {
+            if subqueries.len() == 1 {
+                subqueries.into_iter().next().unwrap()
+            } else {
+                UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
+            }
         })
         .parse_stream(input)
 }
-
 
 #[cfg(test)]
 mod test {

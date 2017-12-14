@@ -49,7 +49,6 @@ impl FastFieldSerializer {
         FastSingleFieldSerializer::open(field_write, min_value, max_value)
     }
 
-
     /// Closes the serializer
     ///
     /// After this call the data must be persistently save on disk.

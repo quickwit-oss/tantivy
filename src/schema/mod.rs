@@ -100,7 +100,6 @@ the field is required during scoring or collection for instance.
 
 */
 
-
 mod schema;
 mod term;
 mod document;
@@ -115,7 +114,6 @@ mod field;
 mod value;
 mod named_field_document;
 mod index_record_option;
-
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::{Schema, SchemaBuilder};
@@ -144,7 +142,6 @@ pub use self::int_options::INT_STORED;
 
 use regex::Regex;
 
-
 /// Validator for a potential `field_name`.
 /// Returns true iff the name can be use for a field name.
 ///
@@ -156,8 +153,6 @@ pub fn is_valid_field_name(field_name: &str) -> bool {
     }
     FIELD_NAME_PTN.is_match(field_name)
 }
-
-
 
 #[cfg(test)]
 mod tests {

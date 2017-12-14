@@ -22,7 +22,6 @@ pub trait Scorer: DocSet {
     }
 }
 
-
 impl<'a> Scorer for Box<Scorer + 'a> {
     fn score(&self) -> Score {
         self.deref().score()

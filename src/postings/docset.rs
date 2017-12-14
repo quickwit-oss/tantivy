@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 
-
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
 pub enum SkipResult {
@@ -15,7 +14,6 @@ pub enum SkipResult {
     /// element greater than the target.
     End,
 }
-
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet {
@@ -51,7 +49,6 @@ pub trait DocSet {
             }
         }
     }
-
 
     /// Fills a given mutable buffer with the next doc ids from the
     /// `DocSet`
@@ -97,7 +94,6 @@ pub trait DocSet {
     /// length of the docset.
     fn size_hint(&self) -> usize;
 }
-
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn advance(&mut self) -> bool {

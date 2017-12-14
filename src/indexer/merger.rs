@@ -11,12 +11,12 @@ use itertools::Itertools;
 use postings::Postings;
 use postings::DocSet;
 use fastfield::DeleteBitSet;
-use schema::{Schema, Field};
+use schema::{Field, Schema};
 use termdict::TermMerger;
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use termdict::TermDictionary;
 use schema::Term;
 use termdict::TermStreamer;
@@ -26,7 +26,6 @@ pub struct IndexMerger {
     readers: Vec<SegmentReader>,
     max_doc: u32,
 }
-
 
 fn compute_min_max_val(
     u64_reader: &U64FastFieldReader,
@@ -62,7 +61,6 @@ fn extract_fast_field_reader(
     field: Field,
 ) -> Option<U64FastFieldReader> {
     segment_reader.get_fast_field_reader(field).ok()
-
 }
 
 struct DeltaComputer {
@@ -71,7 +69,9 @@ struct DeltaComputer {
 
 impl DeltaComputer {
     fn new() -> DeltaComputer {
-        DeltaComputer { buffer: vec![0u32; 512] }
+        DeltaComputer {
+            buffer: vec![0u32; 512],
+        }
     }
 
     fn compute_delta(&mut self, positions: &[u32]) -> &[u32] {
@@ -88,7 +88,6 @@ impl DeltaComputer {
         &self.buffer[..positions.len()]
     }
 }
-
 
 impl IndexMerger {
     pub fn open(schema: Schema, segments: &[Segment]) -> Result<IndexMerger> {
@@ -138,7 +137,6 @@ impl IndexMerger {
         )
     }
 
-
     // used both to merge field norms and regular u64 fast fields.
     fn generic_write_fast_field(
         &self,
@@ -146,9 +144,7 @@ impl IndexMerger {
         field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U64FastFieldReader>,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> Result<()> {
-
         for field in fields {
-
             let mut u64_readers = vec![];
             let mut min_val = u64::max_value();
             let mut max_val = u64::min_value();
@@ -156,13 +152,11 @@ impl IndexMerger {
             for reader in &self.readers {
                 match field_reader_extractor(reader, field) {
                     Some(u64_reader) => {
-                        if let Some((seg_min_val, seg_max_val)) =
-                            compute_min_max_val(
-                                &u64_reader,
-                                reader.max_doc(),
-                                reader.delete_bitset(),
-                            )
-                        {
+                        if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
+                            &u64_reader,
+                            reader.max_doc(),
+                            reader.delete_bitset(),
+                        ) {
                             // the segment has some non-deleted documents
                             min_val = min(min_val, seg_min_val);
                             max_val = max(max_val, seg_max_val);
@@ -190,12 +184,8 @@ impl IndexMerger {
 
             assert!(min_val <= max_val);
 
-
-            let mut fast_single_field_serializer = fast_field_serializer.new_u64_fast_field(
-                field,
-                min_val,
-                max_val,
-            )?;
+            let mut fast_single_field_serializer =
+                fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
             for (max_doc, u64_reader, delete_bitset) in u64_readers {
                 for doc_id in 0..max_doc {
                     if !delete_bitset.is_deleted(doc_id) {
@@ -211,7 +201,6 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
-
         let mut delta_computer = DeltaComputer::new();
 
         let mut indexed_fields = vec![];
@@ -222,7 +211,6 @@ impl IndexMerger {
         }
 
         for indexed_field in indexed_fields {
-
             let field_readers = self.readers
                 .iter()
                 .map(|reader| reader.inverted_index(indexed_field))
@@ -276,7 +264,6 @@ impl IndexMerger {
                 );
 
             while merged_terms.advance() {
-
                 let term = Term::wrap(merged_terms.key());
 
                 // Let's compute the list of non-empty posting lists
@@ -288,10 +275,8 @@ impl IndexMerger {
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
                         let inverted_index = segment_reader.inverted_index(term.field());
-                        let mut segment_postings = inverted_index.read_postings_from_terminfo(
-                            term_info,
-                            segment_postings_option,
-                        );
+                        let mut segment_postings = inverted_index
+                            .read_postings_from_terminfo(term_info, segment_postings_option);
                         if segment_postings.advance() {
                             Some((segment_ord, segment_postings))
                         } else {
@@ -342,11 +327,9 @@ impl IndexMerger {
                     // closing the term.
                     field_serializer.close_term()?;
                 }
-
             }
 
             field_serializer.close()?;
-
         }
         Ok(())
     }
@@ -369,12 +352,8 @@ impl IndexMerger {
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> Result<u32> {
         self.write_postings(serializer.get_postings_serializer())?;
-        self.write_fieldnorms(
-            serializer.get_fieldnorms_serializer(),
-        )?;
-        self.write_fast_fields(
-            serializer.get_fast_field_serializer(),
-        )?;
+        self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
+        self.write_fast_fields(serializer.get_fast_field_serializer())?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
         Ok(self.max_doc)
@@ -457,13 +436,14 @@ mod tests {
             }
         }
         {
-            let segment_ids = index.searchable_segment_ids().expect(
-                "Searchable segments failed.",
-            );
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            index_writer.merge(&segment_ids).wait().expect(
-                "Merging failed",
-            );
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
         }
         {
@@ -539,9 +519,9 @@ mod tests {
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_fieldtype = schema::TextOptions::default()
-            .set_indexing_options(TextFieldIndexing::default().set_index_option(
-                IndexRecordOption::WithFreqs,
-            ))
+            .set_indexing_options(
+                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+            )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast();
@@ -664,12 +644,13 @@ mod tests {
         }
         {
             // merging the segments
-            let segment_ids = index.searchable_segment_ids().expect(
-                "Searchable segments failed.",
-            );
-            index_writer.merge(&segment_ids).wait().expect(
-                "Merging failed",
-            );
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
             index.load_searchers().unwrap();
             let ref searcher = *index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -759,12 +740,13 @@ mod tests {
         }
         {
             // Test merging a single segment in order to remove deletes.
-            let segment_ids = index.searchable_segment_ids().expect(
-                "Searchable segments failed.",
-            );
-            index_writer.merge(&segment_ids).wait().expect(
-                "Merging failed",
-            );
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
             index.load_searchers().unwrap();
 
             let ref searcher = *index.searcher();
@@ -811,19 +793,18 @@ mod tests {
         {
             // Test removing all docs
             index_writer.delete_term(Term::from_field_text(text_field, "g"));
-            let segment_ids = index.searchable_segment_ids().expect(
-                "Searchable segments failed.",
-            );
-            index_writer.merge(&segment_ids).wait().expect(
-                "Merging failed",
-            );
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
             index.load_searchers().unwrap();
 
             let ref searcher = *index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 0);
         }
-
-
     }
 }

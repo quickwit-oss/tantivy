@@ -30,7 +30,11 @@ use std::ops::Deref;
 /// number of bits.
 pub fn compute_num_bits(amplitude: u64) -> u8 {
     let amplitude = (64u32 - amplitude.leading_zeros()) as u8;
-    if amplitude <= 64 - 8 { amplitude } else { 64 }
+    if amplitude <= 64 - 8 {
+        amplitude
+    } else {
+        64
+    }
 }
 
 pub struct BitPacker {
@@ -85,8 +89,6 @@ impl BitPacker {
     }
 }
 
-
-
 pub struct BitUnpacker<Data>
 where
     Data: Deref<Target = [u8]>,
@@ -131,20 +133,20 @@ where
                 addr + 8 <= data.len(),
                 "The fast field field should have been padded with 7 bytes."
             );
-            let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
+            let val_unshifted_unmasked: u64 =
+                unsafe { *(data[addr..].as_ptr() as *const u64) };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         } else {
-            let val_unshifted_unmasked: u64 =
-                if addr + 8 <= data.len() {
-                    unsafe { *(data[addr..].as_ptr() as *const u64) }
-                } else {
-                    let mut buffer = [0u8; 8];
-                    for i in addr..data.len() {
-                        buffer[i - addr] += data[i];
-                    }
-                    unsafe { *(buffer[..].as_ptr() as *const u64) }
-                };
+            let val_unshifted_unmasked: u64 = if addr + 8 <= data.len() {
+                unsafe { *(data[addr..].as_ptr() as *const u64) }
+            } else {
+                let mut buffer = [0u8; 8];
+                for i in addr..data.len() {
+                    buffer[i - addr] += data[i];
+                }
+                unsafe { *(buffer[..].as_ptr() as *const u64) }
+            };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         }
@@ -163,22 +165,19 @@ where
             for output_val in output.iter_mut() {
                 let addr = addr_in_bits >> 3;
                 let bit_shift = addr_in_bits & 7;
-                let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
+                let val_unshifted_unmasked: u64 =
+                    unsafe { *(data[addr..].as_ptr() as *const u64) };
                 let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
                 *output_val = val_shifted & mask;
                 addr_in_bits += num_bits;
             }
         }
-
     }
 }
 
-
-
-
 #[cfg(test)]
 mod test {
-    use super::{BitPacker, BitUnpacker, compute_num_bits};
+    use super::{compute_num_bits, BitPacker, BitUnpacker};
 
     #[test]
     fn test_compute_num_bits() {

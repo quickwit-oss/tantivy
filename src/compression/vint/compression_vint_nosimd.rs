@@ -1,4 +1,3 @@
-
 #[inline(always)]
 pub(crate) fn compress_sorted<'a>(
     input: &[u32],

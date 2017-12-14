@@ -1,4 +1,3 @@
-
 mod serialize;
 mod timer;
 mod vint;
@@ -6,8 +5,7 @@ mod counting_writer;
 mod composite_file;
 pub mod bitpacker;
 
-
-pub(crate) use self::composite_file::{CompositeWrite, CompositeFile};
+pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::serialize::BinarySerializable;
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;
@@ -22,7 +20,6 @@ pub fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
-
 /// Has length trait
 pub trait HasLen {
     /// Return length
@@ -35,7 +32,6 @@ pub trait HasLen {
 }
 
 const HIGHEST_BIT: u64 = 1 << 63;
-
 
 /// Maps a `i64` to `u64`
 ///
@@ -67,7 +63,6 @@ pub fn i64_to_u64(val: i64) -> u64 {
 pub fn u64_to_i64(val: u64) -> i64 {
     (val ^ HIGHEST_BIT) as i64
 }
-
 
 #[cfg(test)]
 mod test {

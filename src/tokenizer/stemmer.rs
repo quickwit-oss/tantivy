@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use super::{TokenFilter, TokenStream, Token};
+use super::{Token, TokenFilter, TokenStream};
 use rust_stemmers::{self, Algorithm};
 
 #[derive(Clone)]
@@ -9,7 +9,9 @@ pub struct Stemmer {
 
 impl Stemmer {
     pub fn new() -> Stemmer {
-        Stemmer { stemmer_algorithm: Arc::new(Algorithm::English) }
+        Stemmer {
+            stemmer_algorithm: Arc::new(Algorithm::English),
+        }
     }
 }
 
@@ -25,7 +27,6 @@ where
     }
 }
 
-
 pub struct StemmerTokenStream<TailTokenStream>
 where
     TailTokenStream: TokenStream,
@@ -35,7 +36,8 @@ where
 }
 
 impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn token(&self) -> &Token {
         self.tail.token()
@@ -47,7 +49,7 @@ impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
 
     fn advance(&mut self) -> bool {
         if self.tail.advance() {
-// TODO remove allocation
+            // TODO remove allocation
             let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
             self.token_mut().text.clear();
             self.token_mut().text.push_str(&stemmed_str);
@@ -66,9 +68,6 @@ where
         stemmer: rust_stemmers::Stemmer,
         tail: TailTokenStream,
     ) -> StemmerTokenStream<TailTokenStream> {
-        StemmerTokenStream {
-            tail,
-            stemmer,
-        }
+        StemmerTokenStream { tail, stemmer }
     }
 }

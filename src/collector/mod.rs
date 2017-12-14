@@ -64,7 +64,6 @@ pub trait Collector {
     fn collect(&mut self, doc: DocId, score: Score);
 }
 
-
 impl<'a, C: Collector> Collector for &'a mut C {
     fn set_segment(
         &mut self,
@@ -78,7 +77,6 @@ impl<'a, C: Collector> Collector for &'a mut C {
         (*self).collect(doc, score);
     }
 }
-
 
 #[cfg(test)]
 pub mod tests {
@@ -132,9 +130,6 @@ pub mod tests {
         }
     }
 
-
-
-
     /// Collects in order all of the fast fields for all of the
     /// doc in the `DocSet`
     ///
@@ -170,7 +165,6 @@ pub mod tests {
             self.vals.push(val);
         }
     }
-
 
     #[bench]
     fn build_collector(b: &mut Bencher) {

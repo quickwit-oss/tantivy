@@ -7,7 +7,6 @@ use super::Weight;
 use std::fmt;
 use std::any::Any;
 
-
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
 ///
@@ -69,10 +68,7 @@ pub trait Query: fmt::Debug {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
                     let _ = segment_search_timer.open("set_segment");
-                    collector.set_segment(
-                        segment_ord as SegmentLocalId,
-                        segment_reader,
-                    )?;
+                    collector.set_segment(segment_ord as SegmentLocalId, segment_reader)?;
                 }
                 let mut scorer = weight.scorer(segment_reader)?;
                 {

@@ -31,7 +31,6 @@ impl TermQuery {
         }
     }
 
-
     /// Returns a weight object.
     ///
     /// While `.weight(...)` returns a boxed trait object,

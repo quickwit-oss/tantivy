@@ -1,5 +1,4 @@
-use super::{TokenFilter, TokenStream, Token};
-
+use super::{Token, TokenFilter, TokenStream};
 
 /// `RemoveLongFilter` removes tokens that are longer
 /// than a given number of bytes (in UTF-8 representation).
@@ -37,7 +36,6 @@ where
     }
 }
 
-
 impl<TailTokenStream> TokenFilter<TailTokenStream> for RemoveLongFilter
 where
     TailTokenStream: TokenStream,
@@ -58,7 +56,8 @@ where
 }
 
 impl<TailTokenStream> TokenStream for RemoveLongFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn token(&self) -> &Token {
         self.tail.token()

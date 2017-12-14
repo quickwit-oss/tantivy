@@ -54,7 +54,6 @@ impl SegmentMeta {
         SegmentComponent::iterator()
             .map(|component| self.relative_path(*component))
             .collect::<HashSet<PathBuf>>()
-
     }
 
     /// Returns the relative path of a component of our segment.

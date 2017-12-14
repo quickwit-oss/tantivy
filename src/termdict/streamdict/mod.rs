@@ -1,13 +1,12 @@
-use std::io::{self, Write, Read};
+use std::io::{self, Read, Write};
 use common::BinarySerializable;
 
 mod termdict;
 mod streamer;
 mod delta_encoder;
 
-
-pub use self::delta_encoder::{TermDeltaEncoder, TermDeltaDecoder};
-pub use self::delta_encoder::{TermInfoDeltaEncoder, TermInfoDeltaDecoder, DeltaTermInfo};
+pub use self::delta_encoder::{TermDeltaDecoder, TermDeltaEncoder};
+pub use self::delta_encoder::{DeltaTermInfo, TermInfoDeltaDecoder, TermInfoDeltaEncoder};
 
 pub use self::termdict::TermDictionaryImpl;
 pub use self::termdict::TermDictionaryBuilderImpl;

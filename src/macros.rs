@@ -1,8 +1,6 @@
-
 macro_rules! get(
     ($e:expr) => (match $e { Some(e) => e, None => return None })
 );
-
 
 /// `doc!` is a shortcut that helps building `Document`
 /// objects.

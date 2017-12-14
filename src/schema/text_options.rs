@@ -33,7 +33,6 @@ impl TextOptions {
     }
 }
 
-
 impl Default for TextOptions {
     fn default() -> TextOptions {
         TextOptions {
@@ -43,13 +42,11 @@ impl Default for TextOptions {
     }
 }
 
-
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
 }
-
 
 impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
@@ -71,7 +68,6 @@ impl TextFieldIndexing {
     pub fn tokenizer(&self) -> &str {
         &self.tokenizer
     }
-
 
     /// Sets which information should be indexed with the tokens.
     ///
@@ -98,7 +94,6 @@ pub const STRING: TextOptions = TextOptions {
     stored: false,
 };
 
-
 /// The field will be tokenized and indexed
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
@@ -117,7 +112,6 @@ pub const STORED: TextOptions = TextOptions {
     stored: true,
 };
 
-
 impl BitOr for TextOptions {
     type Output = TextOptions;
 
@@ -128,7 +122,6 @@ impl BitOr for TextOptions {
         res
     }
 }
-
 
 #[cfg(test)]
 mod tests {

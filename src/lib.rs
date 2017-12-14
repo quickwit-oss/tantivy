@@ -1,21 +1,15 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
-
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
-
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(iterator_step_by))]
-
-
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-
 #![allow(unknown_lints)]
 #![allow(new_without_default)]
-
 #![warn(missing_docs)]
 
 //! # `tantivy`
@@ -40,30 +34,30 @@ extern crate log;
 #[macro_use]
 extern crate error_chain;
 
-#[macro_use]
-extern crate version;
-extern crate fst;
-extern crate byteorder;
-extern crate memmap;
-extern crate regex;
 extern crate atomicwrites;
-extern crate tempdir;
-extern crate serde;
-extern crate serde_json;
-extern crate time;
-extern crate lz4;
-extern crate uuid;
-extern crate num_cpus;
-extern crate combine;
-extern crate itertools;
-extern crate chan;
-extern crate crossbeam;
 extern crate bit_set;
+extern crate byteorder;
+extern crate chan;
+extern crate combine;
+extern crate crossbeam;
+extern crate fst;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate itertools;
+extern crate lz4;
+extern crate memmap;
+extern crate num_cpus;
 extern crate owning_ref;
-extern crate stable_deref_trait;
+extern crate regex;
 extern crate rust_stemmers;
+extern crate serde;
+extern crate serde_json;
+extern crate stable_deref_trait;
+extern crate tempdir;
+extern crate time;
+extern crate uuid;
+#[macro_use]
+extern crate version;
 
 #[cfg(test)]
 extern crate env_logger;
@@ -75,17 +69,14 @@ extern crate libc;
 extern crate winapi;
 
 #[cfg(test)]
-extern crate test;
-#[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate test;
 
 extern crate tinysegmenter;
 
 #[cfg(test)]
 mod functional_test;
-
-
-
 
 #[macro_use]
 mod macros;
@@ -114,12 +105,11 @@ pub mod postings;
 pub mod schema;
 pub mod fastfield;
 
-
 pub use directory::Directory;
-pub use core::{Index, Segment, SegmentId, SegmentMeta, Searcher};
+pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};
 pub use indexer::IndexWriter;
-pub use schema::{Term, Document};
-pub use core::{SegmentReader, InvertedIndexReader};
+pub use schema::{Document, Term};
+pub use core::{InvertedIndexReader, SegmentReader};
 pub use self::common::TimerTree;
 
 pub use postings::DocSet;
@@ -177,7 +167,6 @@ impl DocAddress {
     }
 }
 
-
 /// `DocAddress` contains all the necessary information
 /// to identify a document given a `Searcher` object.
 ///
@@ -188,7 +177,6 @@ impl DocAddress {
 /// in the list of segment hold by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
-
 
 #[cfg(test)]
 mod tests {
@@ -201,9 +189,9 @@ mod tests {
     use schema::*;
     use DocSet;
     use IndexWriter;
-    use fastfield::{FastFieldReader, U64FastFieldReader, I64FastFieldReader};
+    use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;
-    use rand::{XorShiftRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, XorShiftRng};
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
@@ -251,7 +239,6 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-
     }
 
     #[test]
@@ -325,7 +312,6 @@ mod tests {
             assert_eq!(fieldnorms_reader.get(2), 2);
         }
     }
-
 
     #[test]
     fn test_delete_postings1() {
@@ -501,7 +487,6 @@ mod tests {
             }
         }
     }
-
 
     #[test]
     fn test_indexed_u64() {
@@ -730,8 +715,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document =
-            doc!(text_field => "tantivy",
+        let document = doc!(text_field => "tantivy",
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
@@ -794,6 +778,5 @@ mod tests {
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
-
     }
 }

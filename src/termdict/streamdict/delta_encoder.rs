@@ -15,7 +15,6 @@ fn common_prefix_len(s1: &[u8], s2: &[u8]) -> usize {
         .count()
 }
 
-
 #[derive(Default)]
 pub struct TermDeltaEncoder {
     last_term: Vec<u8>,
@@ -45,7 +44,9 @@ pub struct TermDeltaDecoder {
 
 impl TermDeltaDecoder {
     pub fn with_previous_term(term: Vec<u8>) -> TermDeltaDecoder {
-        TermDeltaDecoder { term: Vec::from(term) }
+        TermDeltaDecoder {
+            term: Vec::from(term),
+        }
     }
 
     #[inline(always)]
@@ -104,8 +105,8 @@ impl TermInfoDeltaEncoder {
             positions_inner_offset: 0,
         };
         if self.has_positions {
-            delta_term_info.delta_positions_offset = term_info.positions_offset -
-                self.term_info.positions_offset;
+            delta_term_info.delta_positions_offset =
+                term_info.positions_offset - self.term_info.positions_offset;
             delta_term_info.positions_inner_offset = term_info.positions_inner_offset;
         }
         mem::replace(&mut self.term_info, term_info);
@@ -113,12 +114,10 @@ impl TermInfoDeltaEncoder {
     }
 }
 
-
 pub struct TermInfoDeltaDecoder {
     term_info: TermInfo,
     has_positions: bool,
 }
-
 
 #[inline(always)]
 pub fn make_mask(num_bytes: usize) -> u32 {
@@ -159,8 +158,8 @@ impl TermInfoDeltaDecoder {
         self.term_info.postings_offset += delta_postings_offset;
         if self.has_positions {
             let num_bytes_positions_offset = ((code >> 5) & 3) as usize + 1;
-            let delta_positions_offset: u32 = unsafe { *(cursor.as_ptr() as *const u32) } &
-                make_mask(num_bytes_positions_offset);
+            let delta_positions_offset: u32 =
+                unsafe { *(cursor.as_ptr() as *const u32) } & make_mask(num_bytes_positions_offset);
             self.term_info.positions_offset += delta_positions_offset;
             self.term_info.positions_inner_offset = cursor[num_bytes_positions_offset];
             &cursor[num_bytes_positions_offset + 1..]

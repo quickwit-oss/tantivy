@@ -51,11 +51,9 @@ impl<'a> TermMerger<'a> {
             current_streamers: streams
                 .into_iter()
                 .enumerate()
-                .map(|(ord, streamer)| {
-                    HeapItem {
-                        streamer,
-                        segment_ord: ord,
-                    }
+                .map(|(ord, streamer)| HeapItem {
+                    streamer,
+                    segment_ord: ord,
                 })
                 .collect(),
         }
@@ -70,7 +68,6 @@ impl<'a> TermMerger<'a> {
             }
         }
     }
-
 
     /// Advance the term iterator to the next term.
     /// Returns true if there is indeed another term

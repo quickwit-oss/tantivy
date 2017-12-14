@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-
 #[derive(Clone)]
 pub struct SharedVecSlice {
     pub data: Arc<Vec<u8>>,
@@ -34,7 +33,6 @@ impl SharedVecSlice {
         }
     }
 }
-
 
 impl From<Vec<u8>> for SharedVecSlice {
     fn from(data: Vec<u8>) -> SharedVecSlice {

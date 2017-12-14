@@ -4,7 +4,6 @@ use indexer::delete_queue::DeleteCursor;
 use core::SegmentId;
 use std::fmt;
 
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SegmentState {
     Ready,
@@ -19,7 +18,6 @@ impl SegmentState {
         }
     }
 }
-
 
 /// A segment entry describes the state of
 /// a given segment, at a given instant.
@@ -57,7 +55,6 @@ impl SegmentEntry {
         }
     }
 
-
     /// Return a reference to the segment entry deleted bitset.
     ///
     /// `DocId` in this bitset are flagged as deleted.
@@ -69,7 +66,6 @@ impl SegmentEntry {
     pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
         self.meta = segment_meta;
     }
-
 
     /// Return a reference to the segment_entry's delete cursor
     pub fn delete_cursor(&mut self) -> &mut DeleteCursor {
@@ -89,12 +85,10 @@ impl SegmentEntry {
         self.meta.id()
     }
 
-
     /// Accessor to the `SegmentMeta`
     pub fn meta(&self) -> &SegmentMeta {
         &self.meta
     }
-
 
     /// Mark the `SegmentEntry` as in merge.
     ///
@@ -112,7 +106,6 @@ impl SegmentEntry {
     pub fn cancel_merge(&mut self) {
         self.state = SegmentState::Ready;
     }
-
 
     /// Returns true iff a segment should
     /// be considered for a merge.

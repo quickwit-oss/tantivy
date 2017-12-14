@@ -9,7 +9,6 @@ pub struct PhraseScorer {
     pub intersection_docset: IntersectionDocSet<SegmentPostings>,
 }
 
-
 impl PhraseScorer {
     fn phrase_match(&self) -> bool {
         let mut positions_arr: Vec<&[u32]> = self.intersection_docset
@@ -72,7 +71,6 @@ impl DocSet for PhraseScorer {
         self.intersection_docset.size_hint()
     }
 }
-
 
 impl Scorer for PhraseScorer {
     fn score(&self) -> f32 {

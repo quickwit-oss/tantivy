@@ -34,28 +34,25 @@ impl CompressedIntStream {
             let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
             if num_els >= available {
                 if available > 0 {
-                    let uncompressed_block = &self.block_decoder.output_array()
-                        [self.inner_offset..];
+                    let uncompressed_block =
+                        &self.block_decoder.output_array()[self.inner_offset..];
                     output[start..][..available].clone_from_slice(uncompressed_block);
                 }
                 num_els -= available;
                 start += available;
-                let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(
-                    self.buffer.as_ref(),
-                );
+                let num_consumed_bytes = self.block_decoder
+                    .uncompress_block_unsorted(self.buffer.as_ref());
                 self.buffer.advance(num_consumed_bytes);
                 self.inner_offset = 0;
             } else {
-                let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..
-                                                                                self.inner_offset +
-                                                                                    num_els];
+                let uncompressed_block = &self.block_decoder.output_array()
+                    [self.inner_offset..self.inner_offset + num_els];
                 output[start..][..num_els].clone_from_slice(uncompressed_block);
                 self.inner_offset += num_els;
                 break;
             }
         }
     }
-
 
     /// Skip the next `skip_len` integer.
     ///
@@ -74,15 +71,13 @@ impl CompressedIntStream {
                 let block_len = compressed_block_size(num_bits);
                 self.buffer.advance(block_len);
             }
-            let num_consumed_bytes = self.block_decoder.uncompress_block_unsorted(
-                self.buffer.as_ref(),
-            );
+            let num_consumed_bytes = self.block_decoder
+                .uncompress_block_unsorted(self.buffer.as_ref());
             self.buffer.advance(num_consumed_bytes);
             self.inner_offset = skip_len;
         }
     }
 }
-
 
 #[cfg(test)]
 pub mod tests {

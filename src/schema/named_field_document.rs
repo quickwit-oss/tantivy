@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 use schema::Value;
 
-
-
 /// Internal representation of a document used for JSON
 /// serialization.
 ///

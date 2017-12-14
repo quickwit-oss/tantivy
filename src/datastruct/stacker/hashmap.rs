@@ -1,6 +1,6 @@
 use std::iter;
 use std::mem;
-use super::heap::{Heap, HeapAllocable, BytesRef};
+use super::heap::{BytesRef, Heap, HeapAllocable};
 
 mod murmurhash2 {
 
@@ -52,9 +52,6 @@ mod murmurhash2 {
     }
 }
 
-
-
-
 /// Split the thread memory budget into
 /// - the heap size
 /// - the hash table "table" itself.
@@ -68,9 +65,7 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     };
     let table_num_bits: usize = (1..)
         .into_iter()
-        .take_while(|num_bits: &usize| {
-            compute_table_size(*num_bits) < table_size_limit
-        })
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
         .expect(&format!(
             "Per thread memory is too small: {}",
@@ -80,7 +75,6 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     let heap_size = per_thread_memory_budget - table_size;
     (heap_size, table_num_bits)
 }
-
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
@@ -101,7 +95,6 @@ impl KeyValue {
     }
 }
 
-
 /// Customized `HashMap` with string keys
 ///
 /// This `HashMap` takes String as keys. Keys are
@@ -118,7 +111,6 @@ pub struct HashMap<'a> {
     occupied: Vec<usize>,
 }
 
-
 struct QuadraticProbing {
     hash: usize,
     i: usize,
@@ -127,11 +119,7 @@ struct QuadraticProbing {
 
 impl QuadraticProbing {
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
-        QuadraticProbing {
-            hash,
-            i: 0,
-            mask,
-        }
+        QuadraticProbing { hash, i: 0, mask }
     }
 
     #[inline]
@@ -140,7 +128,6 @@ impl QuadraticProbing {
         (self.hash + self.i * self.i) & self.mask
     }
 }
-
 
 impl<'a> HashMap<'a> {
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
@@ -207,7 +194,6 @@ impl<'a> HashMap<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -217,7 +203,6 @@ mod tests {
     use test::Bencher;
     use std::collections::HashSet;
     use super::split_memory;
-
 
     struct TestValue {
         val: u32,
@@ -239,7 +224,6 @@ mod tests {
         assert_eq!(split_memory(1_000_000), (737856, 12));
         assert_eq!(split_memory(10_000_000), (7902848, 15));
     }
-
 
     #[test]
     fn test_hash_map() {
@@ -313,6 +297,5 @@ mod tests {
                 .unwrap()
         });
     }
-
 
 }

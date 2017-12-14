@@ -2,17 +2,15 @@
 
 use std::cmp::max;
 use super::TermDictionaryImpl;
-use termdict::{TermStreamerBuilder, TermStreamer};
+use termdict::{TermStreamer, TermStreamerBuilder};
 use postings::TermInfo;
-use super::delta_encoder::{TermInfoDeltaDecoder, TermDeltaDecoder};
-
+use super::delta_encoder::{TermDeltaDecoder, TermInfoDeltaDecoder};
 
 fn stream_before<'a>(
     term_dictionary: &'a TermDictionaryImpl,
     target_key: &[u8],
     has_positions: bool,
 ) -> TermStreamerImpl<'a> {
-
     let (prev_key, checkpoint) = term_dictionary.strictly_previous_key(target_key.as_ref());
     let stream_data: &'a [u8] = &term_dictionary.stream_data()[checkpoint.stream_offset as usize..];
     TermStreamerImpl {
@@ -21,7 +19,6 @@ fn stream_before<'a>(
         term_info_decoder: TermInfoDeltaDecoder::from_checkpoint(&checkpoint, has_positions),
     }
 }
-
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
 pub struct TermStreamerBuilderImpl<'a> {
@@ -157,17 +154,12 @@ impl<'a> TermStreamerBuilderImpl<'a> {
     }
 }
 
-
-
 /// See [`TermStreamer`](./trait.TermStreamer.html)
 pub struct TermStreamerImpl<'a> {
     cursor: &'a [u8],
     term_delta_decoder: TermDeltaDecoder,
     term_info_decoder: TermInfoDeltaDecoder,
 }
-
-
-
 
 impl<'a> TermStreamer for TermStreamerImpl<'a> {
     fn advance(&mut self) -> bool {

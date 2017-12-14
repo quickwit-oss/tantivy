@@ -6,7 +6,7 @@ use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
 use directory::WritePtr;
-use compression::{COMPRESSION_BLOCK_SIZE, BlockEncoder};
+use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
 use core::Segment;
 use std::io::{self, Write};
@@ -14,7 +14,6 @@ use compression::VIntEncoder;
 use common::CountingWriter;
 use common::CompositeWrite;
 use termdict::TermDictionaryBuilder;
-
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -54,7 +53,6 @@ pub struct InvertedIndexSerializer {
     schema: Schema,
 }
 
-
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
     fn new(
@@ -71,10 +69,9 @@ impl InvertedIndexSerializer {
         })
     }
 
-
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
-        use SegmentComponent::{TERMS, POSTINGS, POSITIONS};
+        use SegmentComponent::{POSITIONS, POSTINGS, TERMS};
         InvertedIndexSerializer::new(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
@@ -109,7 +106,6 @@ impl InvertedIndexSerializer {
     }
 }
 
-
 /// The field serializer is in charge of
 /// the serialization of a specific field.
 pub struct FieldSerializer<'a> {
@@ -120,7 +116,6 @@ pub struct FieldSerializer<'a> {
     term_open: bool,
 }
 
-
 impl<'a> FieldSerializer<'a> {
     fn new(
         field_type: FieldType,
@@ -128,7 +123,6 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
     ) -> io::Result<FieldSerializer<'a>> {
-
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {
@@ -218,15 +212,13 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.term_dictionary_builder.insert_value(
-                &self.current_term_info,
-            )?;
+            self.term_dictionary_builder
+                .insert_value(&self.current_term_info)?;
             self.postings_serializer.close_term()?;
             self.term_open = false;
         }
         Ok(())
     }
-
 
     /// Closes the current current field.
     pub fn close(mut self) -> io::Result<()> {
@@ -239,7 +231,6 @@ impl<'a> FieldSerializer<'a> {
         Ok(())
     }
 }
-
 
 struct PostingsSerializer<W: Write> {
     postings_write: CountingWriter<W>,
@@ -274,10 +265,8 @@ impl<W: Write> PostingsSerializer<W> {
         if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
             {
                 // encode the doc ids
-                let block_encoded: &[u8] = self.block_encoder.compress_block_sorted(
-                    &self.doc_ids,
-                    self.last_doc_id_encoded,
-                );
+                let block_encoded: &[u8] = self.block_encoder
+                    .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 self.postings_write.write_all(block_encoded)?;
             }
@@ -302,18 +291,15 @@ impl<W: Write> PostingsSerializer<W> {
             // In that case, the remaining part is encoded
             // using variable int encoding.
             {
-                let block_encoded = self.block_encoder.compress_vint_sorted(
-                    &self.doc_ids,
-                    self.last_doc_id_encoded,
-                );
+                let block_encoded = self.block_encoder
+                    .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.postings_write.write_all(block_encoded)?;
                 self.doc_ids.clear();
             }
             // ... Idem for term frequencies
             if self.termfreq_enabled {
-                let block_encoded = self.block_encoder.compress_vint_unsorted(
-                    &self.term_freqs[..],
-                );
+                let block_encoded = self.block_encoder
+                    .compress_vint_unsorted(&self.term_freqs[..]);
                 self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();
             }
@@ -324,7 +310,6 @@ impl<W: Write> PostingsSerializer<W> {
     fn close(mut self) -> io::Result<()> {
         self.postings_write.flush()
     }
-
 
     fn addr(&self) -> u32 {
         self.postings_write.written_bytes() as u32

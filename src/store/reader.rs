@@ -11,7 +11,6 @@ use std::io::{self, Read};
 use datastruct::SkipList;
 use lz4;
 
-
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
 pub struct StoreReader {
@@ -48,8 +47,8 @@ impl StoreReader {
             let total_buffer = self.data.as_slice();
             let mut cursor = &total_buffer[block_offset..];
             let block_length = u32::deserialize(&mut cursor).unwrap();
-            let block_array: &[u8] = &total_buffer[(block_offset + 4 as usize)..
-                                                       (block_offset + 4 + block_length as usize)];
+            let block_array: &[u8] = &total_buffer
+                [(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
             let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
             *self.current_block_offset.borrow_mut() = usize::max_value();
             try!(lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ()));

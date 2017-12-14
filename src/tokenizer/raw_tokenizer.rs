@@ -1,5 +1,4 @@
-use super::{Token, Tokenizer, TokenStream};
-
+use super::{Token, TokenStream, Tokenizer};
 
 /// For each value of the field, emit a single unprocessed token.
 #[derive(Clone)]

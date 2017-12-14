@@ -5,7 +5,6 @@ use Result;
 use SegmentReader;
 use SegmentLocalId;
 
-
 /// Multicollector makes it possible to collect on more than one collector.
 /// It should only be used for use cases where the Collector types is unknown
 /// at compile time.
@@ -17,10 +16,11 @@ pub struct MultiCollector<'a> {
 impl<'a> MultiCollector<'a> {
     /// Constructor
     pub fn from(collectors: Vec<&'a mut Collector>) -> MultiCollector {
-        MultiCollector { collectors: collectors }
+        MultiCollector {
+            collectors: collectors,
+        }
     }
 }
-
 
 impl<'a> Collector for MultiCollector<'a> {
     fn set_segment(
@@ -40,8 +40,6 @@ impl<'a> Collector for MultiCollector<'a> {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

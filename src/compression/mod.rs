@@ -8,16 +8,16 @@ pub use self::stream::CompressedIntStream;
 #[cfg(not(feature = "simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;
-    pub use self::compression_pack_nosimd::{BlockEncoder, BlockDecoder};
+    pub use self::compression_pack_nosimd::{BlockDecoder, BlockEncoder};
 }
 
 #[cfg(feature = "simdcompression")]
 mod pack {
     mod compression_pack_simd;
-    pub use self::compression_pack_simd::{BlockEncoder, BlockDecoder};
+    pub use self::compression_pack_simd::{BlockDecoder, BlockEncoder};
 }
 
-pub use self::pack::{BlockEncoder, BlockDecoder};
+pub use self::pack::{BlockDecoder, BlockEncoder};
 
 #[cfg(any(not(feature = "simdcompression"), target_env = "msvc"))]
 mod vint {
@@ -112,7 +112,6 @@ impl VIntDecoder for BlockDecoder {
     }
 }
 
-
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 
 #[cfg(test)]
@@ -192,7 +191,6 @@ pub mod tests {
         }
     }
 
-
     #[test]
     fn test_encode_vint() {
         {
@@ -211,12 +209,13 @@ pub mod tests {
         }
     }
 
-
     #[bench]
     fn bench_compress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
         let data = tests::generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
-        b.iter(|| { encoder.compress_block_sorted(&data, 0u32); });
+        b.iter(|| {
+            encoder.compress_block_sorted(&data, 0u32);
+        });
     }
 
     #[bench]
@@ -225,7 +224,9 @@ pub mod tests {
         let data = tests::generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
         let compressed = encoder.compress_block_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::new();
-        b.iter(|| { decoder.uncompress_block_sorted(compressed, 0u32); });
+        b.iter(|| {
+            decoder.uncompress_block_sorted(compressed, 0u32);
+        });
     }
 
     #[test]
@@ -248,7 +249,9 @@ pub mod tests {
     fn bench_compress_vint(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
         let data = tests::generate_array(NUM_INTS_BENCH_VINT, 0.001);
-        b.iter(|| { encoder.compress_vint_sorted(&data, 0u32); });
+        b.iter(|| {
+            encoder.compress_vint_sorted(&data, 0u32);
+        });
     }
 
     #[bench]

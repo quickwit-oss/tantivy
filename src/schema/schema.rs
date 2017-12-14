@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use schema::field_type::ValueParsingError;
 use std::sync::Arc;
 
-use serde_json::{self, Value as JsonValue, Map as JsonObject};
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde_json::{self, Map as JsonObject, Value as JsonValue};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeSeq;
-use serde::de::{Visitor, SeqAccess};
+use serde::de::{SeqAccess, Visitor};
 use super::*;
 use std::fmt;
 
@@ -34,7 +34,6 @@ pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>,
 }
-
 
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
@@ -90,7 +89,6 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
-
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);
@@ -99,7 +97,6 @@ impl SchemaBuilder {
         self.fields_map.insert(field_name, field);
         field
     }
-
 
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
@@ -110,7 +107,6 @@ impl SchemaBuilder {
         }))
     }
 }
-
 
 impl Default for SchemaBuilder {
     fn default() -> SchemaBuilder {
@@ -126,8 +122,6 @@ struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
 }
-
-
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
@@ -196,7 +190,6 @@ impl Schema {
         NamedFieldDocument(field_map)
     }
 
-
     /// Encode the schema in JSON.
     ///
     /// Encoding a document cannot fail.
@@ -206,14 +199,15 @@ impl Schema {
 
     /// Build a document object from a json-object.
     pub fn parse_document(&self, doc_json: &str) -> Result<Document, DocParsingError> {
-        let json_obj: JsonObject<String, JsonValue> = serde_json::from_str(doc_json).map_err(|_| {
-            let doc_json_sample: String = if doc_json.len() < 20 {
-                String::from(doc_json)
-            } else {
-                format!("{:?}...", &doc_json[0..20])
-            };
-            DocParsingError::NotJSON(doc_json_sample)
-        })?;
+        let json_obj: JsonObject<String, JsonValue> =
+            serde_json::from_str(doc_json).map_err(|_| {
+                let doc_json_sample: String = if doc_json.len() < 20 {
+                    String::from(doc_json)
+                } else {
+                    format!("{:?}...", &doc_json[0..20])
+                };
+                DocParsingError::NotJSON(doc_json_sample)
+            })?;
 
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
@@ -222,21 +216,18 @@ impl Schema {
                     let field_entry = self.get_field_entry(field);
                     let field_type = field_entry.field_type();
                     match *json_value {
-                        JsonValue::Array(ref json_items) => {
-                            for json_item in json_items {
-                                let value = field_type.value_from_json(json_item).map_err(|e| {
-                                    DocParsingError::ValueError(field_name.clone(), e)
-                                })?;
-                                doc.add(FieldValue::new(field, value));
-                            }
-                        }
+                        JsonValue::Array(ref json_items) => for json_item in json_items {
+                            let value = field_type
+                                .value_from_json(json_item)
+                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                            doc.add(FieldValue::new(field, value));
+                        },
                         _ => {
-                            let value = field_type.value_from_json(json_value).map_err(|e| {
-                                DocParsingError::ValueError(field_name.clone(), e)
-                            })?;
+                            let value = field_type
+                                .value_from_json(json_value)
+                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
                             doc.add(FieldValue::new(field, value));
                         }
-
                     }
                 }
                 None => return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone())),
@@ -300,16 +291,11 @@ impl<'de> Deserialize<'de> for Schema {
     }
 }
 
-
 impl From<SchemaBuilder> for Schema {
     fn from(schema_builder: SchemaBuilder) -> Schema {
         schema_builder.build()
     }
 }
-
-
-
-
 
 /// Error that may happen when deserializing
 /// a document from JSON.
@@ -322,7 +308,6 @@ pub enum DocParsingError {
     /// The json-document contains a field that is not declared in the schema.
     NoSuchFieldInSchema(String),
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -339,7 +324,6 @@ mod tests {
         let schema = schema_builder.build();
         assert!(schema.get_field_entry(field_str).is_indexed());
     }
-
 
     #[test]
     pub fn test_schema_serialization() {
@@ -405,8 +389,6 @@ mod tests {
         assert_eq!("count", fields.next().unwrap().name());
         assert_eq!("popularity", fields.next().unwrap().name());
     }
-
-
 
     #[test]
     pub fn test_document_to_json() {

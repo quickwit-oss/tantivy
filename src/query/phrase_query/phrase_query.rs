@@ -6,7 +6,6 @@ use std::any::Any;
 use query::Weight;
 use Result;
 
-
 /// `PhraseQuery` matches a specific sequence of words.
 ///
 /// For instance the phrase query for `"part time"` will match
@@ -40,7 +39,6 @@ impl Query for PhraseQuery {
         Ok(box PhraseWeight::from(self.phrase_terms.clone()))
     }
 }
-
 
 impl From<Vec<Term>> for PhraseQuery {
     fn from(phrase_terms: Vec<Term>) -> PhraseQuery {

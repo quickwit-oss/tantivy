@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use DocId;
-use postings::{Postings, DocSet, HasLen};
+use postings::{DocSet, HasLen, Postings};
 use std::num::Wrapping;
 
 const EMPTY_ARRAY: [u32; 0] = [];
@@ -61,8 +61,7 @@ pub mod tests {
 
     use super::*;
     use DocId;
-    use postings::{Postings, SkipResult, DocSet};
-
+    use postings::{DocSet, Postings, SkipResult};
 
     #[test]
     pub fn test_vec_postings() {

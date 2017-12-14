@@ -30,8 +30,6 @@ pub fn compress_sorted(vals: &mut [u32], output: &mut [u8], offset: u32) -> usiz
     counting_writer.written_bytes()
 }
 
-
-
 pub struct BlockEncoder {
     pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
     pub output_len: usize,
@@ -56,9 +54,10 @@ impl BlockEncoder {
     pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
         let compressed_size = {
             let output: &mut [u8] = &mut self.output;
-            let max = vals.iter().cloned().max().expect(
-                "compress unsorted called with an empty array",
-            );
+            let max = vals.iter()
+                .cloned()
+                .max()
+                .expect("compress unsorted called with an empty array");
             let num_bits = compute_num_bits(max as u64);
             let mut counting_writer = CountingWriter::wrap(output);
             counting_writer.write_all(&[num_bits]).unwrap();
@@ -73,7 +72,7 @@ impl BlockEncoder {
             }
             bit_packer.flush(&mut counting_writer).expect(
                 "Flushing the bitpacking \
-                         in an in RAM buffer should never fail",
+                 in an in RAM buffer should never fail",
             );
             // we avoid writing "closing", because we
             // do not want 7 bytes of padding here.
@@ -87,7 +86,6 @@ pub struct BlockDecoder {
     pub output: [u32; COMPRESSED_BLOCK_MAX_SIZE],
     pub output_len: usize,
 }
-
 
 impl BlockDecoder {
     pub fn new() -> BlockDecoder {

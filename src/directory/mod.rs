@@ -13,7 +13,7 @@ mod managed_directory;
 /// Errors specific to the directory module.
 pub mod error;
 
-use std::io::{Write, Seek, BufWriter};
+use std::io::{BufWriter, Seek, Write};
 
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
@@ -21,7 +21,7 @@ pub use self::ram_directory::RAMDirectory;
 pub use self::mmap_directory::MmapDirectory;
 
 pub(crate) use self::read_only_source::SourceRead;
-pub(crate) use self::managed_directory::{ManagedDirectory, FileProtection};
+pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}
@@ -38,7 +38,7 @@ mod tests {
 
     use super::*;
     use std::path::Path;
-    use std::io::{Write, Seek, SeekFrom};
+    use std::io::{Seek, SeekFrom, Write};
 
     lazy_static! {
         static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
@@ -104,7 +104,6 @@ mod tests {
         {
             directory.open_write(*TEST_PATH).unwrap();
             assert!(directory.exists(*TEST_PATH));
-
         }
         {
             assert!(directory.open_write(*TEST_PATH).is_err());

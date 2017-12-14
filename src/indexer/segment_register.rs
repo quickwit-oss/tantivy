@@ -19,23 +19,16 @@ pub struct SegmentRegister {
     segment_states: HashMap<SegmentId, SegmentEntry>,
 }
 
-
 impl Debug for SegmentRegister {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         write!(f, "SegmentRegister(")?;
         for (k, v) in &self.segment_states {
-            write!(
-                f,
-                "{}:{}, ",
-                k.short_uuid_string(),
-                v.state().letter_code()
-            )?;
+            write!(f, "{}:{}, ", k.short_uuid_string(), v.state().letter_code())?;
         }
         write!(f, ")")?;
         Ok(())
     }
 }
-
 
 impl SegmentRegister {
     pub fn clear(&mut self) {
@@ -79,9 +72,9 @@ impl SegmentRegister {
     }
 
     pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
-        segment_ids.iter().all(|segment_id| {
-            self.segment_states.contains_key(segment_id)
-        })
+        segment_ids
+            .iter()
+            .all(|segment_id| self.segment_states.contains_key(segment_id))
     }
 
     pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
@@ -96,18 +89,14 @@ impl SegmentRegister {
     pub fn cancel_merge(&mut self, segment_id: &SegmentId) {
         self.segment_states
             .get_mut(segment_id)
-            .expect(
-                "Received a merge notification for a segment that is not registered",
-            )
+            .expect("Received a merge notification for a segment that is not registered")
             .cancel_merge();
     }
 
     pub fn start_merge(&mut self, segment_id: &SegmentId) {
         self.segment_states
             .get_mut(segment_id)
-            .expect(
-                "Received a merge notification for a segment that is not registered",
-            )
+            .expect("Received a merge notification for a segment that is not registered")
             .start_merge();
     }
 
@@ -121,7 +110,6 @@ impl SegmentRegister {
         SegmentRegister { segment_states }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

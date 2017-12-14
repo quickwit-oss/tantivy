@@ -6,18 +6,16 @@ pub use self::phrase_query::PhraseQuery;
 pub use self::phrase_weight::PhraseWeight;
 pub use self::phrase_scorer::PhraseScorer;
 
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use core::Index;
-    use schema::{Term, SchemaBuilder, TEXT};
+    use schema::{SchemaBuilder, Term, TEXT};
     use collector::tests::TestCollector;
 
     #[test]
     pub fn test_phrase_query() {
-
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -61,9 +59,9 @@ mod tests {
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::from(terms);
-            searcher.search(&phrase_query, &mut test_collector).expect(
-                "search should succeed",
-            );
+            searcher
+                .search(&phrase_query, &mut test_collector)
+                .expect("search should succeed");
             test_collector.docs()
         };
 

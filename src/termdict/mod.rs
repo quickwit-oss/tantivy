@@ -46,7 +46,7 @@ followed by a streaming through at most `1024` elements in the
 term `stream`.
 */
 
-use schema::{Field, Term, FieldType};
+use schema::{Field, FieldType, Term};
 use directory::ReadOnlySource;
 use postings::TermInfo;
 
@@ -55,19 +55,17 @@ pub use self::merger::TermMerger;
 #[cfg(not(feature = "streamdict"))]
 mod fstdict;
 #[cfg(not(feature = "streamdict"))]
-pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
-                        TermStreamerBuilderImpl};
-
+pub use self::fstdict::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerBuilderImpl,
+                        TermStreamerImpl};
 
 #[cfg(feature = "streamdict")]
 mod streamdict;
 #[cfg(feature = "streamdict")]
-pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
-                           TermStreamerBuilderImpl};
+pub use self::streamdict::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerBuilderImpl,
+                           TermStreamerImpl};
 
 mod merger;
 use std::io;
-
 
 /// Dictionary associating sorted `&[u8]` to values
 pub trait TermDictionary<'a>
@@ -126,7 +124,6 @@ where
     fn finish(self) -> io::Result<W>;
 }
 
-
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
 pub trait TermStreamer: Sized {
@@ -168,7 +165,6 @@ pub trait TermStreamer: Sized {
     }
 }
 
-
 /// `TermStreamerBuilder` is an helper object used to define
 /// a range of terms that should be streamed.
 pub trait TermStreamerBuilder {
@@ -192,13 +188,12 @@ pub trait TermStreamerBuilder {
     fn into_stream(self) -> Self::Streamer;
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl};
-    use directory::{RAMDirectory, Directory, ReadOnlySource};
+    use super::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerImpl};
+    use directory::{Directory, RAMDirectory, ReadOnlySource};
     use std::path::PathBuf;
-    use schema::{FieldType, Term, SchemaBuilder, Document, TEXT};
+    use schema::{Document, FieldType, SchemaBuilder, Term, TEXT};
     use core::Index;
     use std::str;
     use termdict::TermStreamer;
@@ -208,7 +203,6 @@ mod tests {
     use postings::TermInfo;
 
     const BLOCK_SIZE: usize = 1_500;
-
 
     fn make_term_info(val: u32) -> TermInfo {
         TermInfo {
@@ -226,8 +220,8 @@ mod tests {
         {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(write, field_type).unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u32))
                 .unwrap();
@@ -307,7 +301,6 @@ mod tests {
         assert_eq!(&*term_string, "abcdef");
     }
 
-
     #[test]
     fn test_term_dictionary_stream() {
         let ids: Vec<_> = (0u32..10_000u32)
@@ -315,8 +308,8 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i))
@@ -341,13 +334,12 @@ mod tests {
         term_dictionary.get(key.as_bytes());
     }
 
-
     #[test]
     fn test_stream_high_range_prefix_suffix() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             // term requires more than 16bits
             term_dictionary_builder
                 .insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))
@@ -381,8 +373,8 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i))
@@ -446,13 +438,12 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_stream_range_boundaries() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder

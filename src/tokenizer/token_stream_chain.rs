@@ -1,4 +1,4 @@
-use tokenizer::{TokenStream, Token};
+use tokenizer::{Token, TokenStream};
 
 pub(crate) struct TokenStreamChain<TTokenStream: TokenStream> {
     offsets: Vec<usize>,
@@ -7,7 +7,6 @@ pub(crate) struct TokenStreamChain<TTokenStream: TokenStream> {
     stream_idx: usize,
     token: Token,
 }
-
 
 impl<'a, TTokenStream> TokenStreamChain<TTokenStream>
 where

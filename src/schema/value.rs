@@ -1,5 +1,5 @@
 use std::fmt;
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Visitor;
 
 /// Value represents the value of a any field.
@@ -103,7 +103,6 @@ impl From<String> for Value {
     }
 }
 
-
 impl From<u64> for Value {
     fn from(v: u64) -> Value {
         Value::U64(v)
@@ -163,15 +162,10 @@ mod binary_serialize {
                     let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
                 }
-                _ => {
-                    Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!(
-                            "No field type is associated with code {:?}",
-                            type_code
-                        ),
-                    ))
-                }
+                _ => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("No field type is associated with code {:?}", type_code),
+                )),
             }
         }
     }

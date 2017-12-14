@@ -19,7 +19,6 @@ impl BooleanWeight {
     }
 }
 
-
 impl Weight for BooleanWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let sub_scorers: Vec<Box<Scorer + 'a>> = self.weights

@@ -1,4 +1,4 @@
-use schema::{Schema, Field, Document};
+use schema::{Document, Field, Schema};
 use fastfield::FastFieldSerializer;
 use std::io;
 use schema::Value;
@@ -58,11 +58,10 @@ impl FastFieldsWriter {
     /// Get the `FastFieldWriter` associated to a field.
     pub fn get_field_writer(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
-        self.field_writers.iter_mut().find(|field_writer| {
-            field_writer.field == field
-        })
+        self.field_writers
+            .iter_mut()
+            .find(|field_writer| field_writer.field == field)
     }
-
 
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
@@ -155,9 +154,9 @@ impl IntFastFieldWriter {
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
-        VInt(val).serialize(&mut self.vals).expect(
-            "unable to serialize VInt to Vec",
-        );
+        VInt(val)
+            .serialize(&mut self.vals)
+            .expect("unable to serialize VInt to Vec");
 
         if val > self.val_max {
             self.val_max = val;
@@ -168,7 +167,6 @@ impl IntFastFieldWriter {
 
         self.val_count += 1;
     }
-
 
     /// Extract the value associated to the fast field for
     /// this document.
@@ -182,13 +180,11 @@ impl IntFastFieldWriter {
     /// only the first one is taken in account.
     fn extract_val(&self, doc: &Document) -> u64 {
         match doc.get_first(self.field) {
-            Some(v) => {
-                match *v {
-                    Value::U64(ref val) => *val,
-                    Value::I64(ref val) => common::i64_to_u64(*val),
-                    _ => panic!("Expected a u64field, got {:?} ", v),
-                }
-            }
+            Some(v) => match *v {
+                Value::U64(ref val) => *val,
+                Value::I64(ref val) => common::i64_to_u64(*val),
+                _ => panic!("Expected a u64field, got {:?} ", v),
+            },
             None => self.val_if_missing,
         }
     }
@@ -207,7 +203,6 @@ impl IntFastFieldWriter {
         } else {
             (self.val_min, self.val_max)
         };
-
 
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
 

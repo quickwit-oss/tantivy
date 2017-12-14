@@ -1,4 +1,4 @@
 mod skip;
 pub mod stacker;
 
-pub use self::skip::{SkipListBuilder, SkipList};
+pub use self::skip::{SkipList, SkipListBuilder};

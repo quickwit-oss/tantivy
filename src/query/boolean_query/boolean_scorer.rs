@@ -6,7 +6,6 @@ use postings::DocSet;
 use query::OccurFilter;
 use query::boolean_query::ScoreCombiner;
 
-
 /// Each `HeapItem` represents the head of
 /// one of scorer being merged.
 ///
@@ -54,11 +53,9 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             .iter()
             .map(|posting| posting.doc())
             .enumerate()
-            .map(|(ord, doc)| {
-                HeapItem {
-                    doc,
-                    ord: ord as u32,
-                }
+            .map(|(ord, doc)| HeapItem {
+                doc,
+                ord: ord as u32,
             })
             .collect();
         BooleanScorer {
@@ -103,7 +100,6 @@ impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
             .max()
             .unwrap()
     }
-
 
     fn advance(&mut self) -> bool {
         loop {

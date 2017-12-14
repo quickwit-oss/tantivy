@@ -1,4 +1,4 @@
-use super::{TokenFilter, TokenStream, Token};
+use super::{Token, TokenFilter, TokenStream};
 
 /// Token filter that lowercase terms.
 #[derive(Clone)]
@@ -23,7 +23,8 @@ where
 }
 
 impl<TailTokenStream> TokenStream for LowerCaserTokenStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn token(&self) -> &Token {
         self.tail.token()

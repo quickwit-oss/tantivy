@@ -41,7 +41,6 @@ impl fmt::Debug for UserInputAST {
                     }
                 }
                 Ok(())
-
             }
             UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),

@@ -17,7 +17,6 @@ use postings::MultiFieldPostingsWriter;
 use tokenizer::BoxedTokenizer;
 use schema::Value;
 
-
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
 ///
@@ -34,7 +33,6 @@ pub struct SegmentWriter<'a> {
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 
-
 fn create_fieldnorms_writer(schema: &Schema) -> FastFieldsWriter {
     let u64_fields: Vec<Field> = schema
         .fields()
@@ -45,7 +43,6 @@ fn create_fieldnorms_writer(schema: &Schema) -> FastFieldsWriter {
         .collect();
     FastFieldsWriter::new(u64_fields)
 }
-
 
 impl<'a> SegmentWriter<'a> {
     /// Creates a new `SegmentWriter`
@@ -70,14 +67,12 @@ impl<'a> SegmentWriter<'a> {
             .iter()
             .map(|field_entry| field_entry.field_type())
             .map(|field_type| match field_type {
-                &FieldType::Str(ref text_options) => {
-                    text_options.get_indexing_options().and_then(
-                        |text_index_option| {
-                            let tokenizer_name = &text_index_option.tokenizer();
-                            segment.index().tokenizers().get(tokenizer_name)
-                        },
-                    )
-                }
+                &FieldType::Str(ref text_options) => text_options.get_indexing_options().and_then(
+                    |text_index_option| {
+                        let tokenizer_name = &text_index_option.tokenizer();
+                        segment.index().tokenizers().get(tokenizer_name)
+                    },
+                ),
                 _ => None,
             })
             .collect();
@@ -118,14 +113,12 @@ impl<'a> SegmentWriter<'a> {
         self.heap.num_free_bytes() <= MARGIN_IN_BYTES
     }
 
-
     /// Return true if the term dictionary hashmap is reaching capacity.
     /// It is one of the condition that triggers a `SegmentWriter` to
     /// be finalized.
     pub(crate) fn is_term_saturated(&self) -> bool {
         self.multifield_postings.is_term_saturated()
     }
-
 
     /// Indexes a new document
     ///
@@ -156,16 +149,15 @@ impl<'a> SegmentWriter<'a> {
                                 .collect();
                             let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
                             self.multifield_postings
-                                .index_text(
-                                    doc_id,
-                                    field,
-                                    &mut token_stream)
+                                .index_text(doc_id, field, &mut token_stream)
                         } else {
                             0
                         };
-                    self.fieldnorms_writer.get_field_writer(field).map(
-                        |field_norms_writer| field_norms_writer.add_val(u64::from(num_tokens)),
-                    );
+                    self.fieldnorms_writer
+                        .get_field_writer(field)
+                        .map(|field_norms_writer| {
+                            field_norms_writer.add_val(u64::from(num_tokens))
+                        });
                 }
                 FieldType::U64(ref int_option) => {
                     if int_option.is_indexed() {
@@ -195,16 +187,13 @@ impl<'a> SegmentWriter<'a> {
         self.fast_field_writers.add_document(doc);
         let stored_fieldvalues: Vec<&FieldValue> = doc.field_values()
             .iter()
-            .filter(|field_value| {
-                schema.get_field_entry(field_value.field()).is_stored()
-            })
+            .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
             .collect();
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&stored_fieldvalues)?;
         self.max_doc += 1;
         Ok(())
     }
-
 
     /// Max doc is
     /// - the number of documents in the segment assuming there is no deletes
@@ -234,16 +223,9 @@ fn write(
     fieldnorms_writer: &FastFieldsWriter,
     mut serializer: SegmentSerializer,
 ) -> Result<()> {
-
-    multifield_postings.serialize(
-        serializer.get_postings_serializer(),
-    )?;
-    fast_field_writers.serialize(
-        serializer.get_fast_field_serializer(),
-    )?;
-    fieldnorms_writer.serialize(
-        serializer.get_fieldnorms_serializer(),
-    )?;
+    multifield_postings.serialize(serializer.get_postings_serializer())?;
+    fast_field_writers.serialize(serializer.get_fast_field_serializer())?;
+    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer())?;
     serializer.close()?;
 
     Ok(())

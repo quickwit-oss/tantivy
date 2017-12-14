@@ -2,8 +2,6 @@ use Directory;
 use directory::error::OpenWriteError;
 use core::LOCKFILE_FILEPATH;
 
-
-
 /// The directory lock is a mechanism used to
 /// prevent the creation of two [`IndexWriter`](struct.IndexWriter.html)
 ///

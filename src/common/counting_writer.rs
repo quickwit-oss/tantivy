@@ -1,7 +1,6 @@
 use std::io::Write;
 use std::io;
 
-
 pub struct CountingWriter<W> {
     underlying: W,
     written_bytes: usize,
@@ -36,8 +35,6 @@ impl<W: Write> Write for CountingWriter<W> {
         self.underlying.flush()
     }
 }
-
-
 
 #[cfg(test)]
 mod test {

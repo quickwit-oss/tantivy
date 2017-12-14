@@ -5,7 +5,6 @@ use byteorder::{BigEndian, ByteOrder};
 use super::Field;
 use std::str;
 
-
 /// Size (in bytes) of the buffer of a int field.
 const INT_TERM_LEN: usize = 4 + 8;
 
@@ -29,7 +28,6 @@ impl Term {
         let val_u64: u64 = common::i64_to_u64(val);
         Term::from_field_u64(field, val_u64)
     }
-
 
     /// Builds a term given a field, and a string value
     ///
@@ -92,7 +90,6 @@ impl Term {
     pub fn set_i64(&mut self, val: i64) {
         self.set_u64(common::i64_to_u64(val));
     }
-
 
     /// Set the texts only, keeping the field untouched.
     pub fn set_text(&mut self, text: &str) {
@@ -183,7 +180,6 @@ impl fmt::Debug for Term {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -215,6 +211,5 @@ mod tests {
             assert_eq!(term.as_slice()[10], (933u64 / 256u64) as u8);
             assert_eq!(term.as_slice()[11], (983u64 % 256u64) as u8);
         }
-
     }
 }

@@ -6,7 +6,6 @@ pub use self::term_query::TermQuery;
 pub use self::term_weight::TermWeight;
 pub use self::term_scorer::TermScorer;
 
-
 #[cfg(test)]
 mod tests {
 
@@ -24,7 +23,6 @@ mod tests {
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
     }
-
 
     #[test]
     pub fn test_term_query_no_freq() {
@@ -55,7 +53,6 @@ mod tests {
         assert_eq!(term_scorer.doc(), 0);
         assert_eq!(term_scorer.score(), 0.30685282);
     }
-
 
     #[test]
     pub fn test_term_scorer() {

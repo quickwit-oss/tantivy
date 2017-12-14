@@ -77,7 +77,6 @@ impl Recorder for NothingRecorder {
     }
 }
 
-
 /// Recorder encoding document ids, and term frequencies
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
@@ -115,7 +114,6 @@ impl Recorder for TermFrequencyRecorder {
         self.current_tf = 0;
     }
 
-
     fn serialize(
         &self,
         self_addr: u32,
@@ -124,15 +122,14 @@ impl Recorder for TermFrequencyRecorder {
     ) -> io::Result<()> {
         // the last document has not been closed...
         // its term freq is self.current_tf.
-        let mut doc_iter = self.stack.iter(self_addr, heap).chain(
-            Some(self.current_tf)
-                .into_iter(),
-        );
+        let mut doc_iter = self.stack
+            .iter(self_addr, heap)
+            .chain(Some(self.current_tf).into_iter());
 
         while let Some(doc) = doc_iter.next() {
-            let term_freq = doc_iter.next().expect(
-                "The IndexWriter recorded a doc without a term freq.",
-            );
+            let term_freq = doc_iter
+                .next()
+                .expect("The IndexWriter recorded a doc without a term freq.");
             serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
         }
         Ok(())
@@ -191,11 +188,7 @@ impl Recorder for TFAndPositionRecorder {
                     prev_position = position;
                 }
             }
-            serializer.write_doc(
-                doc,
-                doc_positions.len() as u32,
-                &doc_positions,
-            )?;
+            serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions)?;
         }
         Ok(())
     }

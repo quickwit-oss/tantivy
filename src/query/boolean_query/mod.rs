@@ -7,8 +7,6 @@ pub use self::boolean_query::BooleanQuery;
 pub use self::boolean_scorer::BooleanScorer;
 pub use self::score_combiner::ScoreCombiner;
 
-
-
 #[cfg(test)]
 mod tests {
 
@@ -29,7 +27,6 @@ mod tests {
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()
     }
-
 
     #[test]
     pub fn test_boolean_query() {
@@ -151,7 +148,5 @@ mod tests {
         assert!(abs_diff(boolean_scorer.score(), 0.31622776) < 0.001f32);
         assert!(!boolean_scorer.advance());
     }
-
-
 
 }

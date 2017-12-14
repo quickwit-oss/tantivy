@@ -1,7 +1,7 @@
 use std::cell::UnsafeCell;
 use std::mem;
 use std::ptr;
-use byteorder::{NativeEndian, ByteOrder};
+use byteorder::{ByteOrder, NativeEndian};
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
 ///
@@ -40,7 +40,9 @@ pub struct Heap {
 impl Heap {
     /// Creates a new heap with a given capacity
     pub fn with_capacity(num_bytes: usize) -> Heap {
-        Heap { inner: UnsafeCell::new(InnerHeap::with_capacity(num_bytes)) }
+        Heap {
+            inner: UnsafeCell::new(InnerHeap::with_capacity(num_bytes)),
+        }
     }
 
     fn inner(&self) -> &mut InnerHeap {
@@ -102,14 +104,12 @@ impl Heap {
     }
 }
 
-
 struct InnerHeap {
     buffer: Vec<u8>,
     buffer_len: u32,
     used: u32,
     next_heap: Option<Box<InnerHeap>>,
 }
-
 
 impl InnerHeap {
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
@@ -144,8 +144,10 @@ impl InnerHeap {
             addr
         } else {
             if self.next_heap.is_none() {
-                info!(r#"Exceeded heap size. The segment will be committed right
-                         after indexing this document."#,);
+                info!(
+                    r#"Exceeded heap size. The segment will be committed right
+                         after indexing this document."#,
+                );
                 self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
             }
             self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len
@@ -155,9 +157,10 @@ impl InnerHeap {
     fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
         let start = bytes_ref.0;
         if start >= self.buffer_len {
-            self.next_heap.as_ref().unwrap().get_slice(BytesRef(
-                start - self.buffer_len,
-            ))
+            self.next_heap
+                .as_ref()
+                .unwrap()
+                .get_slice(BytesRef(start - self.buffer_len))
         } else {
             let start = start as usize;
             let len = NativeEndian::read_u16(&self.buffer[start..start + 2]) as usize;
@@ -167,10 +170,10 @@ impl InnerHeap {
 
     fn get_mut_slice(&mut self, start: u32, stop: u32) -> &mut [u8] {
         if start >= self.buffer_len {
-            self.next_heap.as_mut().unwrap().get_mut_slice(
-                start - self.buffer_len,
-                stop - self.buffer_len,
-            )
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut_slice(start - self.buffer_len, stop - self.buffer_len)
         } else {
             &mut self.buffer[start as usize..stop as usize]
         }
@@ -188,9 +191,10 @@ impl InnerHeap {
 
     fn get_mut(&mut self, addr: u32) -> *mut u8 {
         if addr >= self.buffer_len {
-            self.next_heap.as_mut().unwrap().get_mut(
-                addr - self.buffer_len,
-            )
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut(addr - self.buffer_len)
         } else {
             let addr_isize = addr as isize;
             unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
@@ -199,9 +203,10 @@ impl InnerHeap {
 
     fn get_mut_ref<Item>(&mut self, addr: u32) -> &mut Item {
         if addr >= self.buffer_len {
-            self.next_heap.as_mut().unwrap().get_mut_ref(
-                addr - self.buffer_len,
-            )
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .get_mut_ref(addr - self.buffer_len)
         } else {
             let v_ptr_u8 = self.get_mut(addr) as *mut u8;
             let v_ptr = v_ptr_u8 as *mut Item;
@@ -211,10 +216,10 @@ impl InnerHeap {
 
     pub fn set<Item>(&mut self, addr: u32, val: &Item) {
         if addr >= self.buffer_len {
-            self.next_heap.as_mut().unwrap().set(
-                addr - self.buffer_len,
-                val,
-            );
+            self.next_heap
+                .as_mut()
+                .unwrap()
+                .set(addr - self.buffer_len, val);
         } else {
             let v_ptr: *const Item = val as *const Item;
             let v_ptr_u8: *const u8 = v_ptr as *const u8;

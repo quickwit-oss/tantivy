@@ -5,7 +5,6 @@ use SegmentReader;
 use DocId;
 use Score;
 
-
 /// Collector that does nothing.
 /// This is used in the chain Collector and will hopefully
 /// be optimized away by the compiler.
@@ -61,7 +60,6 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
         right: DoNothingCollector,
     }
 }
-
 
 #[cfg(test)]
 mod tests {

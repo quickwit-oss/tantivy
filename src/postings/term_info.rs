@@ -1,7 +1,6 @@
 use common::BinarySerializable;
 use std::io;
 
-
 /// `TermInfo` contains all of the information
 /// associated to terms in the `.term` file.
 ///
@@ -23,7 +22,6 @@ pub struct TermInfo {
     /// Offset within the position block.
     pub positions_inner_offset: u8,
 }
-
 
 impl BinarySerializable for TermInfo {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {

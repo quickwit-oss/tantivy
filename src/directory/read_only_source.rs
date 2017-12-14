@@ -110,7 +110,6 @@ impl From<Vec<u8>> for ReadOnlySource {
     }
 }
 
-
 /// Acts as a owning cursor over the data backed up by a `ReadOnlySource`
 pub(crate) struct SourceRead {
     _data_owner: ReadOnlySource,

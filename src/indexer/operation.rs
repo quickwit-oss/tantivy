@@ -1,7 +1,6 @@
 use schema::Document;
 use schema::Term;
 
-
 /// Timestamped Delete operation.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct DeleteOperation {

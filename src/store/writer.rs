@@ -9,7 +9,6 @@ use common::CountingWriter;
 
 const BLOCK_SIZE: usize = 16_384;
 
-
 /// Write tantivy's [`Store`](./index.html)
 ///
 /// Contrary to the other components of `tantivy`,
@@ -25,7 +24,6 @@ pub struct StoreWriter {
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
-
 
 impl StoreWriter {
     /// Create a store writer.
@@ -49,15 +47,11 @@ impl StoreWriter {
     ///
     pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        (field_values.len() as u32)
-            .serialize(&mut self.intermediary_buffer)?;
+        (field_values.len() as u32).serialize(&mut self.intermediary_buffer)?;
         for &field_value in field_values {
-            field_value
-                .serialize(&mut self.intermediary_buffer)?;
+            field_value.serialize(&mut self.intermediary_buffer)?;
         }
-        (self.intermediary_buffer.len() as u32).serialize(
-            &mut self.current_block,
-        )?;
+        (self.intermediary_buffer.len() as u32).serialize(&mut self.current_block)?;
         self.current_block.write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
@@ -69,25 +63,18 @@ impl StoreWriter {
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         self.intermediary_buffer.clear();
         {
-            let mut encoder = lz4::EncoderBuilder::new()
-                .build(&mut self.intermediary_buffer)?;
+            let mut encoder = lz4::EncoderBuilder::new().build(&mut self.intermediary_buffer)?;
             encoder.write_all(&self.current_block)?;
             let (_, encoder_result) = encoder.finish();
             encoder_result?;
         }
-        (self.intermediary_buffer.len() as u32).serialize(
-            &mut self.writer,
-        )?;
+        (self.intermediary_buffer.len() as u32).serialize(&mut self.writer)?;
         self.writer.write_all(&self.intermediary_buffer)?;
-        self.offset_index_writer.insert(
-            self.doc,
-            &(self.writer.written_bytes() as
-                u64),
-        )?;
+        self.offset_index_writer
+            .insert(self.doc, &(self.writer.written_bytes() as u64))?;
         self.current_block.clear();
         Ok(())
     }
-
 
     /// Finalized the store writer.
     ///

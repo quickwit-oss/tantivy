@@ -1,6 +1,5 @@
 use query::Occur;
 
-
 /// An `OccurFilter` represents a filter over a bitset of
 /// at most 64 elements.
 ///
@@ -35,9 +34,6 @@ impl OccurFilter {
                 Occur::Should => {}
             }
         }
-        OccurFilter {
-            and_mask,
-            result,
-        }
+        OccurFilter { and_mask, result }
     }
 }

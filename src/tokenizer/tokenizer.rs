@@ -4,7 +4,6 @@
 use std::borrow::{Borrow, BorrowMut};
 use tokenizer::TokenStreamChain;
 
-
 /// Token
 pub struct Token {
     /// Offset (byte index) of the first character of the token.
@@ -30,9 +29,6 @@ impl Default for Token {
         }
     }
 }
-
-
-
 
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
@@ -138,7 +134,6 @@ where
     box BoxableTokenizer(a)
 }
 
-
 impl<'b> TokenStream for Box<TokenStream + 'b> {
     fn advance(&mut self) -> bool {
         let token_stream: &mut TokenStream = self.borrow_mut();
@@ -155,7 +150,6 @@ impl<'b> TokenStream for Box<TokenStream + 'b> {
         token_stream.token_mut()
     }
 }
-
 
 /// `TokenStream` is the result of the tokenization.
 ///
@@ -190,7 +184,6 @@ impl<'b> TokenStream for Box<TokenStream + 'b> {
 /// ```
 ///
 pub trait TokenStream {
-
     /// Advance to the next token
     ///
     /// Returns false if there are no other tokens.
@@ -240,7 +233,6 @@ pub struct ChainTokenizer<HeadTokenFilterFactory, TailTokenizer> {
     tail: TailTokenizer,
 }
 
-
 impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
     for ChainTokenizer<HeadTokenFilterFactory, TailTokenizer>
 where
@@ -254,7 +246,6 @@ where
         self.head.transform(tail_token_stream)
     }
 }
-
 
 pub trait TokenFilter<TailTokenStream: TokenStream>: Clone {
     type ResultTokenStream: TokenStream;

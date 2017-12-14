@@ -7,7 +7,6 @@ Postings module (also called inverted index)
 /// Postings, also called inverted lists, is the key datastructure
 /// to full-text search.
 
-
 mod postings;
 mod recorder;
 mod serializer;
@@ -18,9 +17,9 @@ mod segment_postings;
 mod intersection;
 mod docset;
 
-pub use self::docset::{SkipResult, DocSet};
-use self::recorder::{Recorder, NothingRecorder, TermFrequencyRecorder, TFAndPositionRecorder};
-pub use self::serializer::{InvertedIndexSerializer, FieldSerializer};
+pub use self::docset::{DocSet, SkipResult};
+use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
+pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 
 pub use self::term_info::TermInfo;
@@ -29,16 +28,15 @@ pub use self::postings::Postings;
 #[cfg(test)]
 pub use self::vec_postings::VecPostings;
 
-pub use self::segment_postings::{SegmentPostings, BlockSegmentPostings};
+pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 pub use self::intersection::IntersectionDocSet;
 pub use common::HasLen;
-
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use schema::{Document, INT_INDEXED, TEXT, STRING, SchemaBuilder, Term};
+    use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
     use core::SegmentReader;
@@ -52,7 +50,7 @@ mod tests {
     use test::{self, Bencher};
     use indexer::operation::AddOperation;
     use tests;
-    use rand::{XorShiftRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, XorShiftRng};
 
     #[test]
     pub fn test_position_write() {
@@ -394,7 +392,6 @@ mod tests {
             assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
         }
     }
-
 
     lazy_static! {
         static ref TERM_A: Term = {

@@ -2,9 +2,9 @@ use schema::TextOptions;
 use schema::IntOptions;
 
 use std::fmt;
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::ser::SerializeStruct;
-use serde::de::{self, Visitor, MapAccess};
+use serde::de::{self, MapAccess, Visitor};
 use schema::FieldType;
 
 /// A `FieldEntry` represents a field and its configuration.
@@ -48,7 +48,6 @@ impl FieldEntry {
         }
     }
 
-
     /// Returns the name of the field
     pub fn name(&self) -> &str {
         &self.name
@@ -63,16 +62,14 @@ impl FieldEntry {
     pub fn is_indexed(&self) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_some(),
-            FieldType::U64(ref options) |
-            FieldType::I64(ref options) => options.is_indexed(),
+            FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_indexed(),
         }
     }
 
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_int_fast(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) |
-            FieldType::I64(ref options) => options.is_fast(),
+            FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_fast(),
             _ => false,
         }
     }
@@ -80,8 +77,7 @@ impl FieldEntry {
     /// Returns true iff the field is stored
     pub fn is_stored(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) |
-            FieldType::I64(ref options) => options.is_stored(),
+            FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
         }
     }
@@ -159,52 +155,36 @@ impl<'de> Deserialize<'de> for FieldEntry {
                             }
                             ty = Some(map.next_value()?);
                         }
-                        Field::Options => {
-                            match ty {
-                                None => {
-                                    let msg = "The `type` field must be \
-                                               specified before `options`";
+                        Field::Options => match ty {
+                            None => {
+                                let msg = "The `type` field must be \
+                                           specified before `options`";
+                                return Err(de::Error::custom(msg));
+                            }
+                            Some(ty) => match ty {
+                                "text" => field_type = Some(FieldType::Str(map.next_value()?)),
+                                "u64" => field_type = Some(FieldType::U64(map.next_value()?)),
+                                "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
+                                _ => {
+                                    let msg = format!("Unrecognised type {}", ty);
                                     return Err(de::Error::custom(msg));
                                 }
-                                Some(ty) => {
-                                    match ty {
-                                        "text" => {
-                                            field_type = Some(FieldType::Str(map.next_value()?))
-                                        }
-                                        "u64" => {
-                                            field_type = Some(FieldType::U64(map.next_value()?))
-                                        }
-                                        "i64" => {
-                                            field_type = Some(FieldType::I64(map.next_value()?))
-                                        }
-                                        _ => {
-                                            let msg = format!("Unrecognised type {}", ty);
-                                            return Err(de::Error::custom(msg));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                            },
+                        },
                     }
                 }
 
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
                 ty.ok_or_else(|| de::Error::missing_field("ty"))?;
-                let field_type = field_type.ok_or_else(
-                    || de::Error::missing_field("options"),
-                )?;
+                let field_type = field_type.ok_or_else(|| de::Error::missing_field("options"))?;
 
-                Ok(FieldEntry {
-                    name,
-                    field_type,
-                })
+                Ok(FieldEntry { name, field_type })
             }
         }
 
         deserializer.deserialize_struct("field_entry", FIELDS, FieldEntryVisitor)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

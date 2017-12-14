@@ -3,11 +3,9 @@ use core::SegmentMeta;
 use std::marker;
 use std::fmt::Debug;
 
-
 /// Set of segment suggested for a merge.
 #[derive(Debug, Clone)]
 pub struct MergeCandidate(pub Vec<SegmentId>);
-
 
 /// The `MergePolicy` defines which segments should be merged.
 ///
@@ -43,14 +41,12 @@ impl MergePolicy for NoMergePolicy {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
 
     use super::*;
     use core::SegmentId;
     use core::SegmentMeta;
-
 
     /// `MergePolicy` useful for test purposes.
     ///

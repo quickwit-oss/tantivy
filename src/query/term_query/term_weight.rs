@@ -14,7 +14,6 @@ pub struct TermWeight {
     pub(crate) index_record_option: IndexRecordOption,
 }
 
-
 impl Weight for TermWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let specialized_scorer = self.specialized_scorer(reader)?;

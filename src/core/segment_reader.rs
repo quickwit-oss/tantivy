@@ -20,8 +20,6 @@ use schema::Field;
 use fastfield::{FastFieldReader, U64FastFieldReader};
 use schema::Schema;
 
-
-
 /// Entry point to access all of the datastructures of the `Segment`
 ///
 /// - term dictionary
@@ -109,9 +107,9 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
-        self.fieldnorms_composite.open_read(field).map(
-            U64FastFieldReader::open,
-        )
+        self.fieldnorms_composite
+            .open_read(field)
+            .map(U64FastFieldReader::open)
     }
 
     /// Accessor to the segment's `StoreReader`.
@@ -121,7 +119,6 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: Segment) -> Result<SegmentReader> {
-
         let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
         let termdict_composite = CompositeFile::open(&termdict_source)?;
 
@@ -139,13 +136,11 @@ impl SegmentReader {
             }
         };
 
-
         let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
 
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
-
 
         let delete_bitset = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;
@@ -170,33 +165,31 @@ impl SegmentReader {
         })
     }
 
-
     /// Returns a field reader associated to the field given in argument.
     ///
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
     pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
-        if let Some(inv_idx_reader) =
-            self.inv_idx_reader_cache
-                .read()
-                .expect("Lock poisoned. This should never happen")
-                .get(&field)
+        if let Some(inv_idx_reader) = self.inv_idx_reader_cache
+            .read()
+            .expect("Lock poisoned. This should never happen")
+            .get(&field)
         {
             Arc::clone(inv_idx_reader);
         }
 
-        let termdict_source: ReadOnlySource = self.termdict_composite.open_read(field).expect(
-            "Index corrupted. Failed to open field term dictionary in composite file.",
-        );
+        let termdict_source: ReadOnlySource = self.termdict_composite
+            .open_read(field)
+            .expect("Index corrupted. Failed to open field term dictionary in composite file.");
 
-        let postings_source = self.postings_composite.open_read(field).expect(
-            "Index corrupted. Failed to open field postings in composite file.",
-        );
+        let postings_source = self.postings_composite
+            .open_read(field)
+            .expect("Index corrupted. Failed to open field postings in composite file.");
 
-        let positions_source = self.positions_composite.open_read(field).expect(
-            "Index corrupted. Failed to open field positions in composite file.",
-        );
+        let positions_source = self.positions_composite
+            .open_read(field)
+            .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             termdict_source,
@@ -210,9 +203,7 @@ impl SegmentReader {
         // twice, but this is fine.
         self.inv_idx_reader_cache
             .write()
-            .expect(
-                "Field reader cache lock poisoned. This should never happen.",
-            )
+            .expect("Field reader cache lock poisoned. This should never happen.")
             .insert(field, Arc::clone(&inv_idx_reader));
 
         inv_idx_reader
@@ -226,7 +217,6 @@ impl SegmentReader {
         self.store_reader.get(doc_id)
     }
 
-
     /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
@@ -238,14 +228,12 @@ impl SegmentReader {
         &self.delete_bitset
     }
 
-
     /// Returns true iff the `doc` is marked
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         self.delete_bitset.is_deleted(doc)
     }
 }
-
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

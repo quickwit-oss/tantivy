@@ -10,8 +10,6 @@ use tokenizer::RemoveLongFilter;
 use tokenizer::LowerCaser;
 use tokenizer::Stemmer;
 
-
-
 /// The tokenizer manager serves as a store for
 /// all of the pre-configured tokenizer pipelines.
 ///
@@ -57,13 +55,15 @@ impl Default for TokenizerManager {
     /// - en_stem
     /// - ja
     fn default() -> TokenizerManager {
-        let manager = TokenizerManager { tokenizers: Arc::new(RwLock::new(HashMap::new())) };
+        let manager = TokenizerManager {
+            tokenizers: Arc::new(RwLock::new(HashMap::new())),
+        };
         manager.register("raw", RawTokenizer);
         manager.register(
             "default",
-            SimpleTokenizer.filter(RemoveLongFilter::limit(40)).filter(
-                LowerCaser,
-            ),
+            SimpleTokenizer
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser),
         );
         manager.register(
             "en_stem",

@@ -30,7 +30,6 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
     }
 }
 
-
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
     fn size_hint(&self) -> usize {
         self.docsets
@@ -50,7 +49,6 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
         let mut candidate_ord = self.docsets.len();
 
         'outer: loop {
-
             for (ord, docset) in self.docsets.iter_mut().enumerate() {
                 if ord != candidate_ord {
                     // `candidate_ord` is already at the
@@ -85,11 +83,10 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
-    use postings::{DocSet, VecPostings, IntersectionDocSet};
+    use postings::{DocSet, IntersectionDocSet, VecPostings};
 
     #[test]
     fn test_intersection() {

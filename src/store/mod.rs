@@ -38,8 +38,6 @@ mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-
-
 #[cfg(test)]
 mod tests {
 
@@ -49,7 +47,7 @@ mod tests {
     use schema::{Schema, SchemaBuilder};
     use schema::TextOptions;
     use schema::FieldValue;
-    use directory::{RAMDirectory, Directory, MmapDirectory, WritePtr};
+    use directory::{Directory, MmapDirectory, RAMDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
         let mut schema_builder = SchemaBuilder::default();
@@ -59,13 +57,13 @@ mod tests {
         let schema = schema_builder.build();
         let lorem = String::from(
             "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
-                                  do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
-                                  Ut enim ad minim veniam, quis nostrud exercitation ullamco \
-                                  laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
-                                  dolor in reprehenderit in voluptate velit esse cillum dolore eu \
-                                  fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
-                                  proident, sunt in culpa qui officia deserunt mollit anim id est \
-                                  laborum.",
+             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
+             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
+             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
+             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
+             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
+             proident, sunt in culpa qui officia deserunt mollit anim id est \
+             laborum.",
         );
         {
             let mut store_writer = StoreWriter::new(writer);
@@ -115,7 +113,6 @@ mod tests {
         });
     }
 
-
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
         let mut directory = MmapDirectory::create_from_tempdir().unwrap();
@@ -123,7 +120,8 @@ mod tests {
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
         let store_source = directory.open_read(path).unwrap();
         let store = StoreReader::from_source(store_source);
-        b.iter(|| { store.get(12).unwrap(); });
-
+        b.iter(|| {
+            store.get(12).unwrap();
+        });
     }
 }

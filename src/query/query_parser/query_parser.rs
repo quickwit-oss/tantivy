@@ -1,4 +1,4 @@
-use schema::{Schema, Field};
+use schema::{Field, Schema};
 use query::Query;
 use query::BooleanQuery;
 use super::logical_ast::*;
@@ -8,7 +8,7 @@ use query::Occur;
 use query::TermQuery;
 use schema::IndexRecordOption;
 use query::PhraseQuery;
-use schema::{Term, FieldType};
+use schema::{FieldType, Term};
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
 use std::num::ParseIntError;
@@ -37,7 +37,6 @@ pub enum QueryParserError {
     /// The two argument strings are the name of the field, the name of the tokenizer
     UnknownTokenizer(String, String),
 }
-
 
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
@@ -132,18 +131,16 @@ impl QueryParser {
 
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
-        let (user_input_ast, _remaining) = parse_to_ast(query).map_err(
-            |_| QueryParserError::SyntaxError,
-        )?;
+        let (user_input_ast, _remaining) =
+            parse_to_ast(query).map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
     }
 
     fn resolve_field_name(&self, field_name: &str) -> Result<Field, QueryParserError> {
-        self.schema.get_field(field_name).ok_or_else(|| {
-            QueryParserError::FieldDoesNotExist(String::from(field_name))
-        })
+        self.schema
+            .get_field(field_name)
+            .ok_or_else(|| QueryParserError::FieldDoesNotExist(String::from(field_name)))
     }
-
 
     fn compute_logical_ast(
         &self,
@@ -160,7 +157,6 @@ impl QueryParser {
         field: Field,
         phrase: &str,
     ) -> Result<Option<LogicalLiteral>, QueryParserError> {
-
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         if !field_type.is_indexed() {
@@ -180,14 +176,14 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let mut tokenizer = self.tokenizer_manager.get(option.tokenizer()).ok_or_else(
-                        || {
+                    let mut tokenizer = self.tokenizer_manager
+                        .get(option.tokenizer())
+                        .ok_or_else(|| {
                             QueryParserError::UnknownTokenizer(
                                 field_entry.name().to_string(),
                                 option.tokenizer().to_string(),
                             )
-                        },
-                    )?;
+                        })?;
                     let mut terms: Vec<Term> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
@@ -197,9 +193,9 @@ impl QueryParser {
                     if terms.is_empty() {
                         Ok(None)
                     } else if terms.len() == 1 {
-                        Ok(Some(
-                            LogicalLiteral::Term(terms.into_iter().next().unwrap()),
-                        ))
+                        Ok(Some(LogicalLiteral::Term(
+                            terms.into_iter().next().unwrap(),
+                        )))
                     } else {
                         Ok(Some(LogicalLiteral::Phrase(terms)))
                     }
@@ -211,7 +207,6 @@ impl QueryParser {
                 }
             }
         }
-
     }
 
     fn default_occur(&self) -> Occur {
@@ -222,12 +217,10 @@ impl QueryParser {
         }
     }
 
-
     fn compute_logical_ast_with_occur(
         &self,
         user_input_ast: UserInputAST,
     ) -> Result<(Occur, LogicalAST), QueryParserError> {
-
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
@@ -325,11 +318,9 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
     }
 }
 
-
-
 #[cfg(test)]
 mod test {
-    use schema::{SchemaBuilder, Term, TEXT, STRING, STORED, INT_INDEXED};
+    use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
     use tokenizer::TokenizerManager;
     use query::Query;
     use schema::Field;
@@ -353,7 +344,6 @@ mod test {
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
 
-
     fn parse_query_to_logical_ast(
         query: &str,
         default_conjunction: bool,
@@ -374,7 +364,6 @@ mod test {
         let query_str = format!("{:?}", query);
         assert_eq!(query_str, expected);
     }
-
 
     #[test]
     pub fn test_parse_query_simple() {
@@ -409,13 +398,12 @@ mod test {
         );
     }
 
-
     #[test]
     pub fn test_parse_query_untokenized() {
         test_parse_query_to_logical_ast_helper(
             "nottokenized:\"wordone wordtwo\"",
             "Term([0, 0, 0, 7, 119, 111, 114, 100, 111, 110, \
-                                               101, 32, 119, 111, 114, 100, 116, 119, 111])",
+             101, 32, 119, 111, 114, 100, 116, 119, 111])",
             false,
         );
     }
@@ -458,7 +446,6 @@ mod test {
         );
     }
 
-
     #[test]
     pub fn test_parse_query_to_ast_disjunction() {
         test_parse_query_to_logical_ast_helper(
@@ -474,8 +461,8 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "+title:toto -titi",
             "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) \
-                                                 -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
-                                                   Term([0, 0, 0, 1, 116, 105, 116, 105])))",
+             -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
+             Term([0, 0, 0, 1, 116, 105, 116, 105])))",
             false,
         );
         assert_eq!(
@@ -487,13 +474,13 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "title:a b",
             "(Term([0, 0, 0, 0, 97]) (Term([0, 0, 0, 0, 98]) \
-                                                 Term([0, 0, 0, 1, 98])))",
+             Term([0, 0, 0, 1, 98])))",
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
             "\"[Term([0, 0, 0, 0, 97]), \
-                                                   Term([0, 0, 0, 0, 98])]\"",
+             Term([0, 0, 0, 0, 98])]\"",
             false,
         );
     }
@@ -513,8 +500,8 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "+title:toto -titi",
             "(+Term([0, 0, 0, 0, 116, 111, 116, 111]) \
-                                                 -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
-                                                   Term([0, 0, 0, 1, 116, 105, 116, 105])))",
+             -(Term([0, 0, 0, 0, 116, 105, 116, 105]) \
+             Term([0, 0, 0, 1, 116, 105, 116, 105])))",
             true,
         );
         assert_eq!(
@@ -526,14 +513,14 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "title:a b",
             "(+Term([0, 0, 0, 0, 97]) \
-                                                 +(Term([0, 0, 0, 0, 98]) \
-                                                   Term([0, 0, 0, 1, 98])))",
+             +(Term([0, 0, 0, 0, 98]) \
+             Term([0, 0, 0, 1, 98])))",
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
             "\"[Term([0, 0, 0, 0, 97]), \
-                                                   Term([0, 0, 0, 0, 98])]\"",
+             Term([0, 0, 0, 0, 98])]\"",
             true,
         );
     }

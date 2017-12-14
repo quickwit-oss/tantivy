@@ -68,10 +68,11 @@ impl TimerTree {
 
 impl Default for TimerTree {
     fn default() -> TimerTree {
-        TimerTree { timings: Vec::new() }
+        TimerTree {
+            timings: Vec::new(),
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -6,8 +6,6 @@ use std::io::Read;
 use std::io;
 use common::VInt;
 
-
-
 pub trait BinarySerializable: fmt::Debug + Sized {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()>;
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self>;
@@ -41,7 +39,6 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     }
 }
 
-
 impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for (Left, Right) {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         self.0.serialize(write)?;
@@ -62,7 +59,6 @@ impl BinarySerializable for u32 {
     }
 }
 
-
 impl BinarySerializable for u64 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u64::<Endianness>(*self)
@@ -80,7 +76,6 @@ impl BinarySerializable for i64 {
         reader.read_i64::<Endianness>()
     }
 }
-
 
 impl BinarySerializable for u8 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -101,13 +96,12 @@ impl BinarySerializable for String {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<String> {
         let string_length = VInt::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
-        reader.take(string_length as u64).read_to_string(
-            &mut result,
-        )?;
+        reader
+            .take(string_length as u64)
+            .read_to_string(&mut result)?;
         Ok(result)
     }
 }
-
 
 #[cfg(test)]
 mod test {

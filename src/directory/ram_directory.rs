@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::io::{self, BufWriter, Cursor, Write, Seek, SeekFrom};
+use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
 use common::make_io_err;
 use directory::{Directory, ReadOnlySource};
-use directory::error::{IOError, OpenWriteError, OpenReadError, DeleteError};
+use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
 use super::shared_vec_slice::SharedVecSlice;
 
@@ -64,10 +64,8 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        self.shared_directory.write(
-            self.path.clone(),
-            self.data.get_ref(),
-        )?;
+        self.shared_directory
+            .write(self.path.clone(), self.data.get_ref())?;
         Ok(())
     }
 }
@@ -75,21 +73,18 @@ impl Write for VecWriter {
 #[derive(Clone)]
 struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
 
-
-
 impl InnerDirectory {
     fn new() -> InnerDirectory {
         InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
     }
 
     fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let mut map = self.0.write()
-            .map_err(|_| {
-                make_io_err(format!(
-                    "Failed to lock the directory, when trying to write {:?}",
-                    path
-                ))
-            })?;
+        let mut map = self.0.write().map_err(|_| {
+            make_io_err(format!(
+                "Failed to lock the directory, when trying to write {:?}",
+                path
+            ))
+        })?;
         let prev_value = map.insert(path, Arc::new(Vec::from(data)));
         Ok(prev_value.is_some())
     }
@@ -100,7 +95,7 @@ impl InnerDirectory {
             .map_err(|_| {
                 let msg = format!(
                     "Failed to acquire read lock for the \
-                                            directory when trying to read {:?}",
+                     directory when trying to read {:?}",
                     path
                 );
                 let io_err = make_io_err(msg);
@@ -111,9 +106,7 @@ impl InnerDirectory {
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
                     .map(Arc::clone)
-                    .map(|data| {
-                        ReadOnlySource::Anonymous(SharedVecSlice::new(data))
-                    })
+                    .map(|data| ReadOnlySource::Anonymous(SharedVecSlice::new(data)))
             })
     }
 
@@ -123,7 +116,7 @@ impl InnerDirectory {
             .map_err(|_| {
                 let msg = format!(
                     "Failed to acquire write lock for the \
-                                            directory when trying to delete {:?}",
+                     directory when trying to delete {:?}",
                     path
                 );
                 let io_err = make_io_err(msg);
@@ -149,7 +142,6 @@ impl fmt::Debug for RAMDirectory {
     }
 }
 
-
 /// A Directory storing everything in anonymous memory.
 ///
 /// It is mainly meant for unit testing.
@@ -163,7 +155,9 @@ pub struct RAMDirectory {
 impl RAMDirectory {
     /// Constructor
     pub fn create() -> RAMDirectory {
-        RAMDirectory { fs: InnerDirectory::new() }
+        RAMDirectory {
+            fs: InnerDirectory::new(),
+        }
     }
 }
 
@@ -176,11 +170,9 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
 
-        let exists = self.fs.write(path_buf.clone(), &Vec::new()).map_err(
-            |err| {
-                IOError::with_path(path.to_owned(), err)
-            },
-        )?;
+        let exists = self.fs
+            .write(path_buf.clone(), &Vec::new())
+            .map_err(|err| IOError::with_path(path.to_owned(), err))?;
 
         // force the creation of the file to mimic the MMap directory.
         if exists {
@@ -193,7 +185,6 @@ impl Directory for RAMDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.fs.delete(path)
     }
-
 
     fn exists(&self, path: &Path) -> bool {
         self.fs.exists(path)
