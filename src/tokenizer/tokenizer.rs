@@ -110,7 +110,7 @@ where
     }
 
     fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
-        assert!(texts.len() > 0);
+        assert!(!texts.is_empty());
         if texts.len() == 1 {
             box self.0.token_stream(texts[0])
         } else {

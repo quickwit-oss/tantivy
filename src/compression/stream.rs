@@ -36,7 +36,7 @@ impl CompressedIntStream {
                 if available > 0 {
                     let uncompressed_block = &self.block_decoder.output_array()
                         [self.inner_offset..];
-                    &mut output[start..start + available].clone_from_slice(uncompressed_block);
+                    output[start..][..available].clone_from_slice(uncompressed_block);
                 }
                 num_els -= available;
                 start += available;
@@ -49,7 +49,7 @@ impl CompressedIntStream {
                 let uncompressed_block = &self.block_decoder.output_array()[self.inner_offset..
                                                                                 self.inner_offset +
                                                                                     num_els];
-                &output[start..start + num_els].clone_from_slice(uncompressed_block);
+                output[start..][..num_els].clone_from_slice(uncompressed_block);
                 self.inner_offset += num_els;
                 break;
             }

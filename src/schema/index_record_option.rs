@@ -6,11 +6,11 @@
 ///
 ///  * describe in the schema the amount of information
 /// that should be retained during indexing (See
-/// [TextFieldIndexing.html.set_index_option](
+/// [`TextFieldIndexing.html.set_index_option`](
 ///     ../schema/struct.TextFieldIndexing.html#method.set_index_option))
 ///  * to request for a given
 /// amount of information to be decoded as one goes through a posting list.
-/// (See [InvertedIndexReader.read_postings](
+/// (See [`InvertedIndexReader.read_postings`](
 ///     ../struct.InvertedIndexReader.html#method.read_postings))
 ///
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize)]

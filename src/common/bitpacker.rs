@@ -135,16 +135,16 @@ where
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         } else {
-            let val_unshifted_unmasked: u64;
-            if addr + 8 <= data.len() {
-                val_unshifted_unmasked = unsafe { *(data[addr..].as_ptr() as *const u64) };
-            } else {
-                let mut buffer = [0u8; 8];
-                for i in addr..data.len() {
-                    buffer[i - addr] += data[i];
-                }
-                val_unshifted_unmasked = unsafe { *(buffer[..].as_ptr() as *const u64) };
-            }
+            let val_unshifted_unmasked: u64 =
+                if addr + 8 <= data.len() {
+                    unsafe { *(data[addr..].as_ptr() as *const u64) }
+                } else {
+                    let mut buffer = [0u8; 8];
+                    for i in addr..data.len() {
+                        buffer[i - addr] += data[i];
+                    }
+                    unsafe { *(buffer[..].as_ptr() as *const u64) }
+                };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         }

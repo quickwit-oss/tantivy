@@ -282,7 +282,7 @@ impl Clone for ManagedDirectory {
     fn clone(&self) -> ManagedDirectory {
         ManagedDirectory {
             directory: self.directory.box_clone(),
-            meta_informations: self.meta_informations.clone(),
+            meta_informations: Arc::clone(&self.meta_informations),
         }
     }
 }

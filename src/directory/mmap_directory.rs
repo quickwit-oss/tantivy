@@ -108,7 +108,7 @@ impl MmapCache {
         }
     }
 
-    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<Arc<Mmap>>, OpenReadError> {
+    fn get_mmap(&mut self, full_path: &PathBuf) -> Result<Option<Arc<Mmap>>, OpenReadError> {
         // if we exceed this limit, then we go through the weak
         // and remove those that are obsolete.
         if self.cache.len() > self.purge_weak_limit {
@@ -118,11 +118,11 @@ impl MmapCache {
             HashMapEntry::Occupied(mut occupied_entry) => {
                 if let Some(mmap_arc) = occupied_entry.get().upgrade() {
                     self.counters.hit += 1;
-                    Some(mmap_arc.clone())
+                    Some(Arc::clone(&mmap_arc))
                 } else {
                     // The entry exists but the weak ref has been destroyed.
                     self.counters.miss_weak += 1;
-                    if let Some(mmap_arc) = open_mmap(&full_path)? {
+                    if let Some(mmap_arc) = open_mmap(full_path)? {
                         occupied_entry.insert(Arc::downgrade(&mmap_arc));
                         Some(mmap_arc)
                     } else {
@@ -132,7 +132,7 @@ impl MmapCache {
             }
             HashMapEntry::Vacant(vacant_entry) => {
                 self.counters.miss_empty += 1;
-                if let Some(mmap_arc) = open_mmap(&full_path)? {
+                if let Some(mmap_arc) = open_mmap(full_path)? {
                     vacant_entry.insert(Arc::downgrade(&mmap_arc));
                     Some(mmap_arc)
                 } else {
@@ -169,7 +169,7 @@ impl MmapDirectory {
         let tempdir = TempDir::new("index")?;
         let tempdir_path = PathBuf::from(tempdir.path());
         let directory = MmapDirectory {
-            root_path: PathBuf::from(tempdir_path),
+            root_path: tempdir_path,
             mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
             _temp_directory: Arc::new(Some(tempdir)),
         };
@@ -288,7 +288,7 @@ impl Directory for MmapDirectory {
 
         Ok(
             mmap_cache
-                .get_mmap(full_path)?
+                .get_mmap(&full_path)?
                 .map(MmapReadOnly::from)
                 .map(ReadOnlySource::Mmap)
                 .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())),

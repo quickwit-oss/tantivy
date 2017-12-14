@@ -41,7 +41,7 @@ impl BinarySerializable for VInt {
         loop {
             match bytes.next() {
                 Some(Ok(b)) => {
-                    result += ((b % 128u8) as u64) << shift;
+                    result += u64::from(b % 128u8) << shift;
                     if b & 128u8 != 0u8 {
                         break;
                     }

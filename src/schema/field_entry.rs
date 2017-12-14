@@ -127,7 +127,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
             Options,
         };
 
-        const FIELDS: &'static [&'static str] = &["name", "type", "options"];
+        const FIELDS: &[&str] = &["name", "type", "options"];
 
         struct FieldEntryVisitor;
 

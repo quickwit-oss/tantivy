@@ -138,7 +138,7 @@ impl NextBlock {
                 "Failed to acquire write lock in delete queue",
             );
             if let InnerNextBlock::Closed(ref block) = *next_read_lock {
-                return Some(block.clone());
+                return Some(Arc::clone(block));
             }
         }
         let next_block;
@@ -148,7 +148,7 @@ impl NextBlock {
             );
             match *next_write_lock {
                 InnerNextBlock::Closed(ref block) => {
-                    return Some(block.clone());
+                    return Some(Arc::clone(block));
                 }
                 InnerNextBlock::Writer(ref writer) => {
                     match writer.flush() {
@@ -161,7 +161,7 @@ impl NextBlock {
                     }
                 }
             }
-            *next_write_lock.deref_mut() = InnerNextBlock::Closed(next_block.clone());
+            *next_write_lock.deref_mut() = InnerNextBlock::Closed(Arc::clone(&next_block));
             Some(next_block)
         }
     }

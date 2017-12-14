@@ -31,7 +31,7 @@ mod vint {
     pub(crate) use self::compression_vint_simd::*;
 }
 
-/// Returns the size in bytes of a compressed block, given num_bits.
+/// Returns the size in bytes of a compressed block, given `num_bits`.
 pub fn compressed_block_size(num_bits: u8) -> usize {
     1 + (num_bits as usize) * 16
 }

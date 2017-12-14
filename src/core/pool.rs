@@ -44,7 +44,7 @@ impl<T> Pool<T> {
     /// At the exit of this method,
     /// - freshest_generation has a value greater or equal than generation
     /// - freshest_generation has a value that has been advertised
-    /// - freshest_generation has
+    /// - freshest_generation has)
     fn advertise_generation(&self, generation: usize) {
         // not optimal at all but the easiest to read proof.
         loop {
@@ -71,7 +71,7 @@ impl<T> Pool<T> {
             if gen_item.generation >= generation {
                 return LeasedItem {
                     gen_item: Some(gen_item),
-                    recycle_queue: self.queue.clone(),
+                    recycle_queue: Arc::clone(&self.queue),
                 };
             } else {
                 // this searcher is obsolete,

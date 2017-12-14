@@ -154,7 +154,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
 
         let source = directory.open_read(path).expect("Failed to open the file");
         let composite_file =
-            CompositeFile::open(source).expect("Failed to read the composite file");
+            CompositeFile::open(&source).expect("Failed to read the composite file");
 
         let field_source = composite_file.open_read(field).expect(
             "File component not found",

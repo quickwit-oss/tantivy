@@ -76,7 +76,7 @@ pub trait DocSet {
                 return i;
             }
         }
-        return buffer.len();
+        buffer.len()
     }
 
     /// Returns the current document

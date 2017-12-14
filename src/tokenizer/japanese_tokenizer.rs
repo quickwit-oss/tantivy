@@ -48,10 +48,10 @@ impl<'a> TokenStream for JapaneseTokenizerStream {
     fn advance(&mut self) -> bool {
         let new_cursor = match self.cursor {
             Cursor::HasNotStarted => {
-                if self.tokens.len() > 0 {
-                    Cursor::Cursor(0)
-                } else {
+                if self.tokens.is_empty() {
                     Cursor::Terminated
+                } else {
+                    Cursor::Cursor(0)
                 }
             }
             Cursor::Cursor(pos) => {

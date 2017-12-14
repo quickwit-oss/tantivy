@@ -73,7 +73,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         postings_writer.index_text(&mut self.term_index, doc, field, token_stream, self.heap)
     }
 
-    pub fn suscribe(&mut self, doc: DocId, term: &Term) {
+    pub fn subscribe(&mut self, doc: DocId, term: &Term) {
         let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
         postings_writer.suscribe(&mut self.term_index, doc, 0u32, term, self.heap)
     }
@@ -155,7 +155,7 @@ pub trait PostingsWriter {
     ) -> io::Result<()>;
 
     /// Tokenize a text and suscribe all of its token.
-    fn index_text<'a>(
+    fn index_text(
         &mut self,
         term_index: &mut HashMap,
         doc_id: DocId,

@@ -108,7 +108,7 @@ impl SegmentPostings {
 
 
     fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
-        if let Some(ref position_computer) = self.position_computer.as_ref() {
+        if let Some(position_computer) = self.position_computer.as_ref() {
             let num_skips = num_skips_fn();
             unsafe {
                 (*position_computer.get()).add_skip(num_skips);

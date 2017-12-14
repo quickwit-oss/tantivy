@@ -164,7 +164,7 @@ impl<'a> SegmentWriter<'a> {
                             0
                         };
                     self.fieldnorms_writer.get_field_writer(field).map(
-                        |field_norms_writer| field_norms_writer.add_val(num_tokens as u64),
+                        |field_norms_writer| field_norms_writer.add_val(u64::from(num_tokens)),
                     );
                 }
                 FieldType::U64(ref int_option) => {
@@ -174,7 +174,7 @@ impl<'a> SegmentWriter<'a> {
                                 field_value.field(),
                                 field_value.value().u64_value(),
                             );
-                            self.multifield_postings.suscribe(doc_id, &term);
+                            self.multifield_postings.subscribe(doc_id, &term);
                         }
                     }
                 }
@@ -185,7 +185,7 @@ impl<'a> SegmentWriter<'a> {
                                 field_value.field(),
                                 field_value.value().i64_value(),
                             );
-                            self.multifield_postings.suscribe(doc_id, &term);
+                            self.multifield_postings.subscribe(doc_id, &term);
                         }
                     }
                 }

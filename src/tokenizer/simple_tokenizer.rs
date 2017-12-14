@@ -32,7 +32,7 @@ impl<'a> SimpleTokenStream<'a> {
             .filter(|&(_, ref c)| !c.is_alphanumeric())
             .map(|(offset, _)| offset)
             .next()
-            .unwrap_or(self.text.len())
+            .unwrap_or_else(|| self.text.len())
     }
 }
 

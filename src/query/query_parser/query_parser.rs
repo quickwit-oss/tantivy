@@ -102,7 +102,7 @@ impl QueryParser {
     ///  * an index
     ///  * a set of default - fields used to search if no field is specifically defined
     ///   in the query.
-    pub fn for_index(index: Index, default_fields: Vec<Field>) -> QueryParser {
+    pub fn for_index(index: &Index, default_fields: Vec<Field>) -> QueryParser {
         QueryParser::new(index.schema(), default_fields, index.tokenizers().clone())
     }
 

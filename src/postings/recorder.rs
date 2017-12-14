@@ -1,10 +1,10 @@
 use DocId;
-use std::io;
+use std::{self, io};
 use postings::FieldSerializer;
 use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
-const POSITION_END: u32 = 4294967295;
+const POSITION_END: u32 = std::u32::MAX;
 
 /// Recorder is in charge of recording relevant information about
 /// the presence of a term in a document.

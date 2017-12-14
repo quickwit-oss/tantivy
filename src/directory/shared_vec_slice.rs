@@ -28,7 +28,7 @@ impl SharedVecSlice {
 
     pub fn slice(&self, from_offset: usize, to_offset: usize) -> SharedVecSlice {
         SharedVecSlice {
-            data: self.data.clone(),
+            data: Arc::clone(&self.data),
             start: self.start + from_offset,
             len: to_offset - from_offset,
         }

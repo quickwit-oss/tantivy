@@ -9,7 +9,7 @@ mod murmurhash2 {
     #[inline(always)]
     pub fn murmurhash2(key: &[u8]) -> u32 {
         let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
-        let m: u32 = 0x5bd1e995;
+        let m: u32 = 0x5bd1_e995;
         let r = 24;
         let len = key.len() as u32;
 
@@ -30,18 +30,18 @@ mod murmurhash2 {
         let key_ptr_u8: *const u8 = key_ptr as *const u8;
         match remaining {
             3 => {
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(2) as u32 } << 16;
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(2)) } << 16;
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             2 => {
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             1 => {
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             _ => {}

@@ -110,8 +110,9 @@ impl InnerDirectory {
                 readable_map
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
+                    .map(Arc::clone)
                     .map(|data| {
-                        ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone()))
+                        ReadOnlySource::Anonymous(SharedVecSlice::new(data))
                     })
             })
     }

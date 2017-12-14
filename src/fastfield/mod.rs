@@ -98,7 +98,7 @@ mod tests {
             assert_eq!(source.len(), 35 as usize);
         }
         {
-            let composite_file = CompositeFile::open(source).unwrap();
+            let composite_file = CompositeFile::open(&source).unwrap();
             let field_source = composite_file.open_read(*FIELD).unwrap();
             let fast_field_reader: U64FastFieldReader = U64FastFieldReader::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
@@ -132,7 +132,7 @@ mod tests {
             assert_eq!(source.len(), 60 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
             assert_eq!(fast_field_reader.get(0), 4u64);
@@ -168,7 +168,7 @@ mod tests {
             assert_eq!(source.len(), 33 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
             for doc in 0..10_000 {
@@ -203,7 +203,7 @@ mod tests {
             assert_eq!(source.len(), 80041 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
 
@@ -242,7 +242,7 @@ mod tests {
             assert_eq!(source.len(), 17708 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: I64FastFieldReader =
                 I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
 
@@ -280,7 +280,7 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
 
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: I64FastFieldReader =
                 I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
             assert_eq!(fast_field_reader.get(0u32), 0i64);
@@ -313,7 +313,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
 
@@ -368,7 +368,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
 
@@ -401,7 +401,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&source).unwrap();
             let fast_field_reader: U64FastFieldReader =
                 U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
 

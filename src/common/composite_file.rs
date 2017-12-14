@@ -81,7 +81,7 @@ pub struct CompositeFile {
 impl CompositeFile {
     /// Opens a composite file stored in a given
     /// `ReadOnlySource`.
-    pub fn open(data: ReadOnlySource) -> io::Result<CompositeFile> {
+    pub fn open(data: &ReadOnlySource) -> io::Result<CompositeFile> {
         let end = data.len();
         let footer_len_data = data.slice_from(end - 4);
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
@@ -169,7 +169,7 @@ mod test {
         }
         {
             let r = directory.open_read(path).unwrap();
-            let composite_file = CompositeFile::open(r).unwrap();
+            let composite_file = CompositeFile::open(&r).unwrap();
             {
                 let file0 = composite_file.open_read(Field(0u32)).unwrap();
                 let mut file0_buf = file0.as_slice();

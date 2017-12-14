@@ -131,7 +131,7 @@ impl<'a> FieldSerializer<'a> {
 
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
-                if let Some(ref text_indexing_options) = text_options.get_indexing_options() {
+                if let Some(text_indexing_options) = text_options.get_indexing_options() {
                     let index_option = text_indexing_options.index_option();
                     (
                         index_option.is_termfreq_enabled(),
@@ -373,7 +373,7 @@ impl<W: Write> PositionSerializer<W> {
             vals = &vals[len_to_completion..];
             buffer_len = self.buffer.len();
         }
-        self.buffer.extend_from_slice(&vals);
+        self.buffer.extend_from_slice(vals);
         Ok(())
     }
 

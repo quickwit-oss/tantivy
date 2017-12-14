@@ -78,7 +78,7 @@
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
-//! register it with a name in your index's [TokenizerManager](./struct.TokenizerManager.html).
+//! register it with a name in your index's [`TokenizerManager`](./struct.TokenizerManager.html).
 //!
 //! ```
 //! # extern crate tantivy;
