@@ -66,9 +66,9 @@ where
         let postings_offset = term_info.postings_offset as u32;
         let positions_offset = term_info.positions_offset as u32;
         let checkpoint = CheckPoint {
-            stream_offset: stream_offset,
-            postings_offset: postings_offset,
-            positions_offset: positions_offset,
+            stream_offset,
+            postings_offset,
+            positions_offset,
         };
         self.block_index
             .insert(
@@ -330,10 +330,10 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let fst_index = open_fst_index(fst_data).expect("Index FST data corrupted");
 
         TermDictionaryImpl {
-            has_positions: has_positions,
-            stream_data: stream_data,
-            checkpoints_data: checkpoints_data,
-            fst_index: fst_index,
+            has_positions,
+            stream_data,
+            checkpoints_data,
+            fst_index,
         }
     }
 

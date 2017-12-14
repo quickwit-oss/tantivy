@@ -82,14 +82,14 @@ impl<'a> SegmentWriter<'a> {
             })
             .collect();
         Ok(SegmentWriter {
-            heap: heap,
+            heap,
             max_doc: 0,
-            multifield_postings: multifield_postings,
+            multifield_postings,
             fieldnorms_writer: create_fieldnorms_writer(schema),
-            segment_serializer: segment_serializer,
+            segment_serializer,
             fast_field_writers: FastFieldsWriter::from_schema(schema),
             doc_opstamps: Vec::with_capacity(1_000),
-            tokenizers: tokenizers,
+            tokenizers,
         })
     }
 

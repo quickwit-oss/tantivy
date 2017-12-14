@@ -34,9 +34,9 @@ impl BinarySerializable for CheckPoint {
         let postings_offset = u32::deserialize(reader)?;
         let positions_offset = u32::deserialize(reader)?;
         Ok(CheckPoint {
-            stream_offset: stream_offset,
-            postings_offset: postings_offset,
-            positions_offset: positions_offset,
+            stream_offset,
+            postings_offset,
+            positions_offset,
         })
     }
 }

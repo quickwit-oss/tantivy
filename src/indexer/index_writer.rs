@@ -133,21 +133,21 @@ pub fn open_index_writer(
     let mut index_writer = IndexWriter {
         _directory_lock: directory_lock,
 
-        heap_size_in_bytes_per_thread: heap_size_in_bytes_per_thread,
+        heap_size_in_bytes_per_thread,
         index: index.clone(),
 
-        document_receiver: document_receiver,
-        document_sender: document_sender,
+        document_receiver,
+        document_sender,
 
-        segment_updater: segment_updater,
+        segment_updater,
 
         workers_join_handle: vec![],
-        num_threads: num_threads,
+        num_threads,
 
-        delete_queue: delete_queue,
+        delete_queue,
 
         committed_opstamp: current_opstamp,
-        stamper: stamper,
+        stamper,
 
         generation: 0,
 
@@ -272,7 +272,7 @@ fn index_documents(
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
     for doc in document_iterator {
-        try!(segment_writer.add_document(&doc, schema));
+        segment_writer.add_document(&doc, schema)?;
         // There is two possible conditions to close the segment.
         // One is the memory arena dedicated to the segment is
         // getting full.
@@ -451,7 +451,7 @@ impl IndexWriter {
 
     fn start_workers(&mut self) -> Result<()> {
         for _ in 0..self.num_threads {
-            try!(self.add_indexing_worker());
+            self.add_indexing_worker()?;
         }
         Ok(())
     }
@@ -584,8 +584,8 @@ impl IndexWriter {
     pub fn delete_term(&mut self, term: Term) -> u64 {
         let opstamp = self.stamper.stamp();
         let delete_operation = DeleteOperation {
-            opstamp: opstamp,
-            term: term,
+            opstamp,
+            term,
         };
         self.delete_queue.push(delete_operation);
         opstamp
@@ -615,8 +615,8 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation {
-            opstamp: opstamp,
-            document: document,
+            opstamp,
+            document,
         };
         self.document_sender.send(add_operation);
         opstamp

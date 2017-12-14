@@ -35,7 +35,7 @@ impl FastFieldSerializer {
     pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FastFieldSerializer { composite_write: composite_write })
+        Ok(FastFieldSerializer { composite_write })
     }
 
     /// Start serializing a new u64 fast field
@@ -76,9 +76,9 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
         let num_bits = compute_num_bits(amplitude);
         let bit_packer = BitPacker::new(num_bits as usize);
         Ok(FastSingleFieldSerializer {
-            write: write,
-            bit_packer: bit_packer,
-            min_value: min_value,
+            write,
+            bit_packer,
+            min_value,
         })
     }
 

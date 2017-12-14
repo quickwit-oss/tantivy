@@ -18,9 +18,9 @@ where
         token_streams: Vec<TTokenStream>,
     ) -> TokenStreamChain<TTokenStream> {
         TokenStreamChain {
-            offsets: offsets,
+            offsets,
             stream_idx: 0,
-            token_streams: token_streams,
+            token_streams,
             position_shift: 0,
             token: Token::default(),
         }

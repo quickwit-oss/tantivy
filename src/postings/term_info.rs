@@ -39,10 +39,10 @@ impl BinarySerializable for TermInfo {
         let positions_offset = u32::deserialize(reader)?;
         let positions_inner_offset = u8::deserialize(reader)?;
         Ok(TermInfo {
-            doc_freq: doc_freq,
-            postings_offset: postings_offset,
-            positions_offset: positions_offset,
-            positions_inner_offset: positions_inner_offset,
+            doc_freq,
+            postings_offset,
+            positions_offset,
+            positions_inner_offset,
         })
     }
 }

@@ -17,9 +17,13 @@ use tokenizer::Stemmer;
 ///
 /// By default, it is populated with the following managers.
 ///
-///  * raw : does not process nor tokenize the text.
-///  * default : Chops the text on according to whitespace and
-///  punctuation, removes tokens that are too long, lowercases
+///  * `raw` : does not process nor tokenize the text.
+///  * `default` : Chops the text on according to whitespace and
+///  punctuation, removes tokens that are too long, and lowercases
+///  tokens
+///  * `en_stem` : Like `default`, but also applies stemming on the
+///  resulting tokens. Stemming can improve the recall of your
+///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
     tokenizers: Arc<RwLock<HashMap<String, Box<BoxedTokenizer>>>>,

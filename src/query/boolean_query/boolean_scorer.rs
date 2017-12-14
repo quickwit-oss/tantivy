@@ -56,7 +56,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             .enumerate()
             .map(|(ord, doc)| {
                 HeapItem {
-                    doc: doc,
+                    doc,
                     ord: ord as u32,
                 }
             })
@@ -65,8 +65,8 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
             scorers: non_empty_scorers,
             queue: BinaryHeap::from(heap_items),
             doc: 0u32,
-            score_combiner: score_combiner,
-            occur_filter: occur_filter,
+            score_combiner,
+            occur_filter,
         }
     }
 

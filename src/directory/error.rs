@@ -33,7 +33,7 @@ impl IOError {
     pub(crate) fn with_path(path: PathBuf, err: io::Error) -> Self {
         IOError {
             path: Some(path),
-            err: err,
+            err,
         }
     }
 }
@@ -42,7 +42,7 @@ impl From<io::Error> for IOError {
     fn from(err: io::Error) -> IOError {
         IOError {
             path: None,
-            err: err,
+            err,
         }
     }
 }

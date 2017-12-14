@@ -25,7 +25,7 @@ impl SegmentMeta {
     /// a segment with no deletes and no documents.
     pub fn new(segment_id: SegmentId) -> SegmentMeta {
         SegmentMeta {
-            segment_id: segment_id,
+            segment_id,
             max_doc: 0,
             deletes: None,
         }
@@ -109,8 +109,8 @@ impl SegmentMeta {
     #[doc(hidden)]
     pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
         self.deletes = Some(DeleteMeta {
-            num_deleted_docs: num_deleted_docs,
-            opstamp: opstamp,
+            num_deleted_docs,
+            opstamp,
         });
     }
 }

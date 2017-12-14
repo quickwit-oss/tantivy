@@ -21,7 +21,7 @@ impl<'a> Tokenizer<'a> for RawTokenizer {
             text: text.to_string(),
         };
         RawTokenStream {
-            token: token,
+            token,
             has_token: true,
         }
     }

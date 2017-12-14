@@ -52,8 +52,8 @@ impl SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             state: SegmentState::Ready,
-            delete_bitset: delete_bitset,
-            delete_cursor: delete_cursor,
+            delete_bitset,
+            delete_cursor,
         }
     }
 

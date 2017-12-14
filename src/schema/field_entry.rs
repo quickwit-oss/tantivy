@@ -195,8 +195,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
                 )?;
 
                 Ok(FieldEntry {
-                    name: name,
-                    field_type: field_type,
+                    name,
+                    field_type,
                 })
             }
         }

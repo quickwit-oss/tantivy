@@ -6,7 +6,7 @@ use core::SegmentMeta;
 /// This object is serialized on disk in the `meta.json` file.
 /// It keeps information about
 /// * the searchable segments,
-/// * the index docstamp
+/// * the index `docstamp`
 /// * the schema
 ///
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ impl IndexMeta {
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
             segments: vec![],
-            schema: schema,
+            schema,
             opstamp: 0u64,
         }
     }

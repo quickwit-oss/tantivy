@@ -88,7 +88,7 @@ impl TermInfoDeltaEncoder {
     pub fn new(has_positions: bool) -> Self {
         TermInfoDeltaEncoder {
             term_info: TermInfo::default(),
-            has_positions: has_positions,
+            has_positions,
         }
     }
 
@@ -129,8 +129,8 @@ pub fn make_mask(num_bytes: usize) -> u32 {
 impl TermInfoDeltaDecoder {
     pub fn from_term_info(term_info: TermInfo, has_positions: bool) -> TermInfoDeltaDecoder {
         TermInfoDeltaDecoder {
-            term_info: term_info,
-            has_positions: has_positions,
+            term_info,
+            has_positions,
         }
     }
 
@@ -142,7 +142,7 @@ impl TermInfoDeltaDecoder {
                 positions_offset: checkpoint.positions_offset,
                 positions_inner_offset: 0u8,
             },
-            has_positions: has_positions,
+            has_positions,
         }
     }
 

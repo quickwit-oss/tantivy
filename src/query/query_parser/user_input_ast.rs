@@ -33,11 +33,11 @@ impl fmt::Debug for UserInputAST {
             UserInputAST::Must(ref subquery) => write!(formatter, "+({:?})", subquery),
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
-                    try!(write!(formatter, "<emptyclause>"));
+                    write!(formatter, "<emptyclause>")?;
                 } else {
-                    try!(write!(formatter, "{:?}", &subqueries[0]));
+                    write!(formatter, "{:?}", &subqueries[0])?;
                     for subquery in &subqueries[1..] {
-                        try!(write!(formatter, " {:?}", subquery));
+                        write!(formatter, " {:?}", subquery)?;
                     }
                 }
                 Ok(())

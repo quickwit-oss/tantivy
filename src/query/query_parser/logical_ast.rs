@@ -27,14 +27,14 @@ impl fmt::Debug for LogicalAST {
         match *self {
             LogicalAST::Clause(ref clause) => {
                 if clause.is_empty() {
-                    try!(write!(formatter, "<emptyclause>"));
+                    write!(formatter, "<emptyclause>")?;
                 } else {
                     let (ref occur, ref subquery) = clause[0];
-                    try!(write!(formatter, "({}{:?}", occur_letter(*occur), subquery));
+                    write!(formatter, "({}{:?}", occur_letter(*occur), subquery)?;
                     for &(ref occur, ref subquery) in &clause[1..] {
-                        try!(write!(formatter, " {}{:?}", occur_letter(*occur), subquery));
+                        write!(formatter, " {}{:?}", occur_letter(*occur), subquery)?;
                     }
-                    try!(formatter.write_str(")"));
+                    formatter.write_str(")")?;
                 }
                 Ok(())
             }

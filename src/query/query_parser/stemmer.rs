@@ -37,8 +37,8 @@ impl<TailTokenStream> StemmerTokenStream<TailTokenStream>
     
     fn wrap(stemmer: Arc<stemmer::Stemmer>, tail: TailTokenStream) -> StemmerTokenStream<TailTokenStream> {
         StemmerTokenStream {
-            tail: tail,
-            stemmer: stemmer,
+            tail,
+            stemmer,
         }
     } 
 }

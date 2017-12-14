@@ -49,11 +49,11 @@ impl StoreWriter {
     ///
     pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        try!((field_values.len() as u32).serialize(
-            &mut self.intermediary_buffer,
-        ));
-        for field_value in field_values {
-            try!((*field_value).serialize(&mut self.intermediary_buffer));
+        (field_values.len() as u32)
+            .serialize(&mut self.intermediary_buffer)?;
+        for &field_value in field_values {
+            field_value
+                .serialize(&mut self.intermediary_buffer)?;
         }
         (self.intermediary_buffer.len() as u32).serialize(
             &mut self.current_block,
@@ -69,12 +69,11 @@ impl StoreWriter {
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         self.intermediary_buffer.clear();
         {
-            let mut encoder = try!(lz4::EncoderBuilder::new().build(
-                &mut self.intermediary_buffer,
-            ));
-            try!(encoder.write_all(&self.current_block));
+            let mut encoder = lz4::EncoderBuilder::new()
+                .build(&mut self.intermediary_buffer)?;
+            encoder.write_all(&self.current_block)?;
             let (_, encoder_result) = encoder.finish();
-            try!(encoder_result);
+            encoder_result?;
         }
         (self.intermediary_buffer.len() as u32).serialize(
             &mut self.writer,
@@ -96,12 +95,12 @@ impl StoreWriter {
     /// and serializes the skip list index on disc.
     pub fn close(mut self) -> io::Result<()> {
         if !self.current_block.is_empty() {
-            try!(self.write_and_compress_block());
+            self.write_and_compress_block()?;
         }
         let header_offset: u64 = self.writer.written_bytes() as u64;
-        try!(self.offset_index_writer.write(&mut self.writer));
-        try!(header_offset.serialize(&mut self.writer));
-        try!(self.doc.serialize(&mut self.writer));
+        self.offset_index_writer.write(&mut self.writer)?;
+        header_offset.serialize(&mut self.writer)?;
+        self.doc.serialize(&mut self.writer)?;
         self.writer.flush()
     }
 }

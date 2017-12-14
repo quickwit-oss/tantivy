@@ -166,7 +166,7 @@ impl MmapDirectory {
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RAMDirectory.
     pub fn create_from_tempdir() -> io::Result<MmapDirectory> {
-        let tempdir = try!(TempDir::new("index"));
+        let tempdir = TempDir::new("index")?;
         let tempdir_path = PathBuf::from(tempdir.path());
         let directory = MmapDirectory {
             root_path: PathBuf::from(tempdir_path),
@@ -227,8 +227,8 @@ impl MmapDirectory {
             );
         }
 
-        let fd = try!(open_opts.open(&self.root_path));
-        try!(fd.sync_all());
+        let fd = open_opts.open(&self.root_path)?;
+        fd.sync_all()?;
         Ok(())
     }
     /// Returns some statistical information
@@ -260,7 +260,7 @@ impl Write for SafeFileWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        try!(self.0.flush());
+        self.0.flush()?;
         self.0.sync_all()
     }
 }
@@ -387,7 +387,7 @@ impl Directory for MmapDirectory {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
-        try!(meta_file.write(|f| f.write_all(data)));
+        meta_file.write(|f| f.write_all(data))?;
         Ok(())
     }
 

@@ -158,15 +158,15 @@ impl SegmentReader {
         Ok(SegmentReader {
             inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
             segment_meta: segment.meta().clone(),
-            termdict_composite: termdict_composite,
-            postings_composite: postings_composite,
-            fast_fields_composite: fast_fields_composite,
-            fieldnorms_composite: fieldnorms_composite,
+            termdict_composite,
+            postings_composite,
+            fast_fields_composite,
+            fieldnorms_composite,
             segment_id: segment.id(),
-            store_reader: store_reader,
-            delete_bitset: delete_bitset,
-            positions_composite: positions_composite,
-            schema: schema,
+            store_reader,
+            delete_bitset,
+            positions_composite,
+            schema,
         })
     }
 

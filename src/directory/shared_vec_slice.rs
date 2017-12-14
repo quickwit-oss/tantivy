@@ -16,7 +16,7 @@ impl SharedVecSlice {
     pub fn new(data: Arc<Vec<u8>>) -> SharedVecSlice {
         let data_len = data.len();
         SharedVecSlice {
-            data: data,
+            data,
             start: 0,
             len: data_len,
         }

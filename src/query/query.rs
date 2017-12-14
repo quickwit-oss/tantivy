@@ -62,19 +62,19 @@ pub trait Query: fmt::Debug {
     ///
     fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<TimerTree> {
         let mut timer_tree = TimerTree::default();
-        let weight = try!(self.weight(searcher));
+        let weight = self.weight(searcher)?;
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
                 let mut segment_search_timer = search_timer.open("segment_search");
                 {
                     let _ = segment_search_timer.open("set_segment");
-                    try!(collector.set_segment(
+                    collector.set_segment(
                         segment_ord as SegmentLocalId,
                         segment_reader,
-                    ));
+                    )?;
                 }
-                let mut scorer = try!(weight.scorer(segment_reader));
+                let mut scorer = weight.scorer(segment_reader)?;
                 {
                     let _collection_timer = segment_search_timer.open("collection");
                     scorer.collect(collector);

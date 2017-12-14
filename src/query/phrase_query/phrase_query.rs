@@ -45,6 +45,6 @@ impl Query for PhraseQuery {
 impl From<Vec<Term>> for PhraseQuery {
     fn from(phrase_terms: Vec<Term>) -> PhraseQuery {
         assert!(phrase_terms.len() > 1);
-        PhraseQuery { phrase_terms: phrase_terms }
+        PhraseQuery { phrase_terms }
     }
 }

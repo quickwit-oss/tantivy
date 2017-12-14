@@ -27,7 +27,7 @@ impl PositionComputer {
         PositionComputer {
             position_to_skip: None,
             positions: vec![],
-            positions_stream: positions_stream,
+            positions_stream,
         }
     }
 
@@ -299,7 +299,7 @@ pub struct BlockSegmentPostings {
 
     doc_freq: usize,
     doc_offset: DocId,
-    num_binpacked_blocks: usize,
+    num_bitpacked_blocks: usize,
     num_vint_docs: usize,
     remaining_data: SourceRead,
 }
@@ -310,20 +310,17 @@ impl BlockSegmentPostings {
         data: SourceRead,
         has_freq: bool,
     ) -> BlockSegmentPostings {
-        let num_binpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
-        let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_binpacked_blocks;
+        let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
+        let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
         BlockSegmentPostings {
-            num_binpacked_blocks: num_binpacked_blocks,
-            num_vint_docs: num_vint_docs,
-
+            num_bitpacked_blocks,
+            num_vint_docs,
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
-
-            has_freq: has_freq,
-
+            has_freq,
             remaining_data: data,
             doc_offset: 0,
-            doc_freq: doc_freq,
+            doc_freq,
         }
     }
 
@@ -340,7 +337,7 @@ impl BlockSegmentPostings {
     pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: SourceRead) {
         let num_binpacked_blocks: usize = doc_freq / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = doc_freq & (COMPRESSION_BLOCK_SIZE - 1);
-        self.num_binpacked_blocks = num_binpacked_blocks;
+        self.num_bitpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
         self.doc_offset = 0;
@@ -396,7 +393,7 @@ impl BlockSegmentPostings {
     ///
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
-        if self.num_binpacked_blocks > 0 {
+        if self.num_bitpacked_blocks > 0 {
             let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
                 self.remaining_data.as_ref(),
                 self.doc_offset,
@@ -411,7 +408,7 @@ impl BlockSegmentPostings {
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
-            self.num_binpacked_blocks -= 1;
+            self.num_bitpacked_blocks -= 1;
             true
         } else if self.num_vint_docs > 0 {
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
@@ -436,7 +433,7 @@ impl BlockSegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
-            num_binpacked_blocks: 0,
+            num_bitpacked_blocks: 0,
             num_vint_docs: 0,
 
             doc_decoder: BlockDecoder::new(),
@@ -554,7 +551,7 @@ mod tests {
             );
         }
         assert!(block_segments.advance());
-        assert!(block_segments.docs() == &[0, 2, 4]);
+        assert_eq!(block_segments.docs(), &[0, 2, 4]);
         {
             let term = Term::from_field_u64(int_field, 1u64);
             let inverted_index = segment_reader.inverted_index(int_field);
@@ -562,6 +559,6 @@ mod tests {
             inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
         }
         assert!(block_segments.advance());
-        assert!(block_segments.docs() == &[1, 3, 5]);
+        assert_eq!(block_segments.docs(), &[1, 3, 5]);
     }
 }

@@ -47,7 +47,7 @@ impl DeleteBitSet {
             .map(|b| b.count_ones() as usize)
             .sum();
         DeleteBitSet {
-            data: data,
+            data,
             len: num_deleted,
         }
     }

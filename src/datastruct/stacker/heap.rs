@@ -115,7 +115,7 @@ impl InnerHeap {
     pub fn with_capacity(num_bytes: usize) -> InnerHeap {
         let buffer: Vec<u8> = vec![0u8; num_bytes];
         InnerHeap {
-            buffer: buffer,
+            buffer,
             buffer_len: num_bytes as u32,
             next_heap: None,
             used: 0u32,

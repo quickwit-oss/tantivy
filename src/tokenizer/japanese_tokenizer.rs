@@ -30,15 +30,15 @@ impl<'a> Tokenizer<'a> for JapaneseTokenizer {
             offset_to = offset_from + term.len();
             if term.chars().all(char::is_alphanumeric) {
                 tokens.push(Token {
-                    offset_from: offset_from,
-                    offset_to: offset_to,
+                    offset_from,
+                    offset_to,
                     position: pos,
                     text: term,
                 });
             }
         }
         JapaneseTokenizerStream {
-            tokens: tokens,
+            tokens,
             cursor: Cursor::HasNotStarted,
         }
     }

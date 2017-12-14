@@ -149,18 +149,18 @@ mod binary_serialize {
             }
         }
         fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-            let type_code = try!(u8::deserialize(reader));
+            let type_code = u8::deserialize(reader)?;
             match type_code {
                 TEXT_CODE => {
-                    let text = try!(String::deserialize(reader));
+                    let text = String::deserialize(reader)?;
                     Ok(Value::Str(text))
                 }
                 U64_CODE => {
-                    let value = try!(u64::deserialize(reader));
+                    let value = u64::deserialize(reader)?;
                     Ok(Value::U64(value))
                 }
                 I64_CODE => {
-                    let value = try!(i64::deserialize(reader));
+                    let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
                 }
                 _ => {

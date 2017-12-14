@@ -19,7 +19,7 @@ pub struct VecPostings {
 impl From<Vec<DocId>> for VecPostings {
     fn from(doc_ids: Vec<DocId>) -> VecPostings {
         VecPostings {
-            doc_ids: doc_ids,
+            doc_ids,
             cursor: Wrapping(usize::max_value()),
         }
     }

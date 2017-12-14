@@ -87,7 +87,7 @@ pub struct FieldSearcher {
 
 impl FieldSearcher {
     fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
-        FieldSearcher { inv_index_readers: inv_index_readers }
+        FieldSearcher { inv_index_readers }
     }
 
 
@@ -104,7 +104,7 @@ impl FieldSearcher {
 
 impl From<Vec<SegmentReader>> for Searcher {
     fn from(segment_readers: Vec<SegmentReader>) -> Searcher {
-        Searcher { segment_readers: segment_readers }
+        Searcher { segment_readers }
     }
 }
 

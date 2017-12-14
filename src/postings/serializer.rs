@@ -64,10 +64,10 @@ impl InvertedIndexSerializer {
         schema: Schema,
     ) -> Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
-            terms_write: terms_write,
-            postings_write: postings_write,
-            positions_write: positions_write,
-            schema: schema,
+            terms_write,
+            postings_write,
+            positions_write,
+            schema,
         })
     }
 
@@ -153,9 +153,9 @@ impl<'a> FieldSerializer<'a> {
         };
 
         Ok(FieldSerializer {
-            term_dictionary_builder: term_dictionary_builder,
-            postings_serializer: postings_serializer,
-            positions_serializer_opt: positions_serializer_opt,
+            term_dictionary_builder,
+            postings_serializer,
+            positions_serializer_opt,
             current_term_info: TermInfo::default(),
             term_open: false,
         })
@@ -262,7 +262,7 @@ impl<W: Write> PostingsSerializer<W> {
             term_freqs: vec![],
 
             last_doc_id_encoded: 0u32,
-            termfreq_enabled: termfreq_enabled,
+            termfreq_enabled,
         }
     }
 

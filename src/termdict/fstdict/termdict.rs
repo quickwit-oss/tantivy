@@ -52,7 +52,7 @@ where
     fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
-            fst_builder: fst_builder,
+            fst_builder,
             data: Vec::new(),
         })
     }
@@ -121,7 +121,7 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let values_source = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
-            fst_index: fst_index,
+            fst_index,
             values_mmap: values_source,
         }
     }

@@ -42,10 +42,10 @@ impl InvertedIndexReader {
 
         InvertedIndexReader {
             termdict: TermDictionaryImpl::from_source(termdict_source),
-            postings_source: postings_source,
-            positions_source: positions_source,
-            delete_bitset: delete_bitset,
-            schema: schema,
+            postings_source,
+            positions_source,
+            delete_bitset,
+            schema,
         }
     }
 

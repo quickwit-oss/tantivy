@@ -40,7 +40,7 @@ impl TermWeight {
         if let Some(segment_postings) = postings_opt {
             Ok(TermScorer {
                 idf: self.idf(),
-                fieldnorm_reader_opt: fieldnorm_reader_opt,
+                fieldnorm_reader_opt,
                 postings: segment_postings,
             })
         } else {

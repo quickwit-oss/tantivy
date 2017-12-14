@@ -32,9 +32,9 @@ impl<'a, T: BinarySerializable> From<&'a [u8]> for Layer<'a, T> {
         let mut cursor = data;
         let next_id = u32::deserialize(&mut cursor).unwrap_or(u32::max_value());
         Layer {
-            data: data,
-            cursor: cursor,
-            next_id: next_id,
+            data,
+            cursor,
+            next_id,
             _phantom_: PhantomData,
         }
     }
@@ -123,8 +123,8 @@ impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
             .map(|(start, stop)| Layer::from(&layers_data[start..stop]))
             .collect();
         SkipList {
-            skip_layers: skip_layers,
-            data_layer: data_layer,
+            skip_layers,
+            data_layer,
         }
     }
 }

@@ -16,7 +16,7 @@ use std::ops::DerefMut;
 // - calling `delete_queue.cursor()` returns a cursor, that
 //   will include all future delete operation (and no past operations).
 // - cloning an existing cursor returns a new cursor, that
-//   is at the exact same position, and can now advance independantly
+//   is at the exact same position, and can now advance independently
 //   from the original cursor.
 #[derive(Default)]
 struct InnerDeleteQueue {

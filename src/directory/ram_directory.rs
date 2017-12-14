@@ -32,7 +32,7 @@ impl VecWriter {
         VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
-            shared_directory: shared_directory,
+            shared_directory,
             is_flushed: true,
         }
     }
@@ -58,16 +58,16 @@ impl Seek for VecWriter {
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.is_flushed = false;
-        try!(self.data.write_all(buf));
+        self.data.write_all(buf)?;
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        try!(self.shared_directory.write(
+        self.shared_directory.write(
             self.path.clone(),
             self.data.get_ref(),
-        ));
+        )?;
         Ok(())
     }
 }
@@ -83,12 +83,13 @@ impl InnerDirectory {
     }
 
     fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let mut map = try!(self.0.write().map_err(|_| {
-            make_io_err(format!(
-                "Failed to lock the directory, when trying to write {:?}",
-                path
-            ))
-        }));
+        let mut map = self.0.write()
+            .map_err(|_| {
+                make_io_err(format!(
+                    "Failed to lock the directory, when trying to write {:?}",
+                    path
+                ))
+            })?;
         let prev_value = map.insert(path, Arc::new(Vec::from(data)));
         Ok(prev_value.is_some())
     }
@@ -205,9 +206,9 @@ impl Directory for RAMDirectory {
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         let path_buf = PathBuf::from(path);
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
-        try!(self.fs.write(path_buf, &Vec::new()));
-        try!(vec_writer.write_all(data));
-        try!(vec_writer.flush());
+        self.fs.write(path_buf, &Vec::new())?;
+        vec_writer.write_all(data)?;
+        vec_writer.flush()?;
         Ok(())
     }
 

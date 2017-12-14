@@ -107,8 +107,8 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a> {
             TermInfoDeltaDecoder::from_term_info(self.term_info, self.has_positions);
         TermStreamerImpl {
             cursor: &data[start..stop],
-            term_delta_decoder: term_delta_decoder,
-            term_info_decoder: term_info_decoder,
+            term_delta_decoder,
+            term_info_decoder,
         }
     }
 }
@@ -146,13 +146,13 @@ impl<'a> TermStreamerBuilderImpl<'a> {
         let data = term_dictionary.stream_data();
         let origin = data.as_ptr() as usize;
         TermStreamerBuilderImpl {
-            term_dictionary: term_dictionary,
+            term_dictionary,
             term_info: TermInfo::default(),
-            origin: origin,
+            origin,
             offset_from: 0,
             offset_to: data.len(),
             current_key: Vec::with_capacity(300),
-            has_positions: has_positions,
+            has_positions,
         }
     }
 }

@@ -37,7 +37,7 @@ impl ScoreCombiner {
 impl From<Vec<Score>> for ScoreCombiner {
     fn from(coords: Vec<Score>) -> ScoreCombiner {
         ScoreCombiner {
-            coords: coords,
+            coords,
             num_fields: 0,
             score: 0f32,
         }

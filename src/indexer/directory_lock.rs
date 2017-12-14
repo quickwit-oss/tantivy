@@ -15,8 +15,8 @@ pub struct DirectoryLock {
 
 impl DirectoryLock {
     pub fn lock(mut directory: Box<Directory>) -> Result<DirectoryLock, OpenWriteError> {
-        try!(directory.open_write(&*LOCKFILE_FILEPATH));
-        Ok(DirectoryLock { directory: directory })
+        directory.open_write(&*LOCKFILE_FILEPATH)?;
+        Ok(DirectoryLock { directory })
     }
 }
 

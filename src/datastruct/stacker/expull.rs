@@ -26,7 +26,7 @@ pub struct ExpUnrolledLinkedList {
 impl ExpUnrolledLinkedList {
     pub fn iter<'a>(&self, addr: u32, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
         ExpUnrolledLinkedListIterator {
-            heap: heap,
+            heap,
             addr: addr + 2u32 * (mem::size_of::<u32>() as u32),
             len: self.len,
             consumed: 0,

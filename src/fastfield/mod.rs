@@ -9,14 +9,14 @@ It is designed for the fast random access of some document
 fields given a document id.
 
 `FastField` are useful when a field is required for all or most of
-the `DocSet` : for instance for scoring, grouping, filtering, or facetting.
+the `DocSet` : for instance for scoring, grouping, filtering, or faceting.
 
 
 Fields have to be declared as `FAST` in the  schema.
 Currently only 64-bits integers (signed or unsigned) are
 supported.
 
-They are stored in a bitpacked fashion so that their
+They are stored in a bit-packed fashion so that their
 memory usage is directly linear with the amplitude of the
 values stored.
 

@@ -26,13 +26,13 @@ where
     let term_query = (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| {
         UserInputLiteral {
             field_name: Some(field_name),
-            phrase: phrase,
+            phrase,
         }
     });
     let term_default_field = term_val().map(|phrase| {
         UserInputLiteral {
             field_name: None,
-            phrase: phrase,
+            phrase,
         }
     });
     try(term_query)

@@ -13,8 +13,8 @@ pub struct TermStreamerBuilderImpl<'a> {
 impl<'a> TermStreamerBuilderImpl<'a> {
     pub(crate) fn new(fst_map: &'a TermDictionaryImpl, stream_builder: StreamBuilder<'a>) -> Self {
         TermStreamerBuilderImpl {
-            fst_map: fst_map,
-            stream_builder: stream_builder,
+            fst_map,
+            stream_builder,
         }
     }
 }

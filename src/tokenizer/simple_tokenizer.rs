@@ -18,7 +18,7 @@ impl<'a> Tokenizer<'a> for SimpleTokenizer {
 
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         SimpleTokenStream {
-            text: text,
+            text,
             chars: text.char_indices(),
             token: Token::default(),
         }

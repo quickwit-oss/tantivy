@@ -53,7 +53,7 @@ impl<'a> TermMerger<'a> {
                 .enumerate()
                 .map(|(ord, streamer)| {
                     HeapItem {
-                        streamer: streamer,
+                        streamer,
                         segment_ord: ord,
                     }
                 })

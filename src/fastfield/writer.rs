@@ -43,7 +43,7 @@ impl FastFieldsWriter {
                 }
             })
             .collect();
-        FastFieldsWriter { field_writers: field_writers }
+        FastFieldsWriter { field_writers }
     }
 
     /// Returns a `FastFieldsWriter`
@@ -119,7 +119,7 @@ impl IntFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
     pub fn new(field: Field) -> IntFastFieldWriter {
         IntFastFieldWriter {
-            field: field,
+            field,
             vals: Vec::new(),
             val_count: 0,
             val_if_missing: 0u64,

@@ -69,12 +69,12 @@ pub fn save_metas(
 ) -> Result<()> {
     let metas = IndexMeta {
         segments: segment_metas,
-        schema: schema,
-        opstamp: opstamp,
+        schema,
+        opstamp,
     };
-    let mut w = try!(serde_json::to_vec_pretty(&metas));
-    try!(write!(&mut w, "\n"));
-    directory.atomic_write(&META_FILEPATH, &w[..])?;
+    let mut buffer = serde_json::to_vec_pretty(&metas)?;
+    write!(&mut buffer, "\n")?;
+    directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
     Ok(())
 }
@@ -177,14 +177,14 @@ impl SegmentUpdater {
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
             pool: CpuPool::new(1),
-            index: index,
-            segment_manager: segment_manager,
+            index,
+            segment_manager,
             merge_policy: RwLock::new(box DefaultMergePolicy::default()),
             merging_thread_id: AtomicUsize::default(),
             merging_threads: RwLock::new(HashMap::new()),
             generation: AtomicUsize::default(),
             killed: AtomicBool::new(false),
-            stamper: stamper,
+            stamper,
         })))
     }
 

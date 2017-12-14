@@ -24,7 +24,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
 
     fn with_period(period: usize) -> LayerBuilder<T> {
         LayerBuilder {
-            period: period,
+            period,
             buffer: Vec::new(),
             remaining: period,
             len: 0,
@@ -58,7 +58,7 @@ pub struct SkipListBuilder<T: BinarySerializable> {
 impl<T: BinarySerializable> SkipListBuilder<T> {
     pub fn new(period: usize) -> SkipListBuilder<T> {
         SkipListBuilder {
-            period: period,
+            period,
             data_layer: LayerBuilder::with_period(period),
             skip_layers: Vec::new(),
         }
@@ -74,14 +74,14 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
 
     pub fn insert(&mut self, doc_id: DocId, dest: &T) -> io::Result<()> {
         let mut layer_id = 0;
-        let mut skip_pointer = try!(self.data_layer.insert(doc_id, dest));
+        let mut skip_pointer = self.data_layer.insert(doc_id, dest)?;
         loop {
             skip_pointer = match skip_pointer {
                 Some((skip_doc_id, skip_offset)) => {
-                    try!(self.get_skip_layer(layer_id).insert(
+                    self.get_skip_layer(layer_id).insert(
                         skip_doc_id,
                         &skip_offset,
-                    ))
+                    )?
                 }
                 None => {
                     return Ok(());

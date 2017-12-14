@@ -26,7 +26,7 @@ impl TermQuery {
     /// Creates a new term query.
     pub fn new(term: Term, segment_postings_options: IndexRecordOption) -> TermQuery {
         TermQuery {
-            term: term,
+            term,
             index_record_option: segment_postings_options,
         }
     }

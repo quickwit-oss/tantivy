@@ -17,8 +17,8 @@ impl FieldValue {
     /// Constructor
     pub fn new(field: Field, value: Value) -> FieldValue {
         FieldValue {
-            field: field,
-            value: value,
+            field,
+            value,
         }
     }
 

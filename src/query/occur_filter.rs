@@ -36,8 +36,8 @@ impl OccurFilter {
             }
         }
         OccurFilter {
-            and_mask: and_mask,
-            result: result,
+            and_mask,
+            result,
         }
     }
 }

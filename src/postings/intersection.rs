@@ -14,7 +14,7 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
         assert!(docsets.len() >= 2);
         docsets.sort_by_key(|docset| docset.size_hint());
         IntersectionDocSet {
-            docsets: docsets,
+            docsets,
             finished: false,
             doc: 0u32,
         }

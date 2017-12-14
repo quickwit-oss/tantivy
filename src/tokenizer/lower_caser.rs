@@ -48,6 +48,6 @@ where
     TailTokenStream: TokenStream,
 {
     fn wrap(tail: TailTokenStream) -> LowerCaserTokenStream<TailTokenStream> {
-        LowerCaserTokenStream { tail: tail }
+        LowerCaserTokenStream { tail }
     }
 }

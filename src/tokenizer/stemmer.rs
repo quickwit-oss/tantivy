@@ -67,8 +67,8 @@ where
         tail: TailTokenStream,
     ) -> StemmerTokenStream<TailTokenStream> {
         StemmerTokenStream {
-            tail: tail,
-            stemmer: stemmer,
+            tail,
+            stemmer,
         }
     }
 }

@@ -14,7 +14,7 @@ pub struct RemoveLongFilter {
 impl RemoveLongFilter {
     // the limit is in bytes of the UTF-8 representation.
     pub fn limit(length_limit: usize) -> RemoveLongFilter {
-        RemoveLongFilter { length_limit: length_limit }
+        RemoveLongFilter { length_limit }
     }
 }
 
@@ -31,8 +31,8 @@ where
         tail: TailTokenStream,
     ) -> RemoveLongFilterStream<TailTokenStream> {
         RemoveLongFilterStream {
-            token_length_limit: token_length_limit,
-            tail: tail,
+            token_length_limit,
+            tail,
         }
     }
 }

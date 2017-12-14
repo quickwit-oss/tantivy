@@ -93,7 +93,7 @@ impl QueryParser {
         QueryParser {
             schema,
             default_fields,
-            tokenizer_manager: tokenizer_manager,
+            tokenizer_manager,
             conjunction_by_default: false,
         }
     }

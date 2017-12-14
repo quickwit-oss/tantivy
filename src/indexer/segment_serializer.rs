@@ -18,20 +18,20 @@ pub struct SegmentSerializer {
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
     pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer> {
-        let store_write = try!(segment.open_write(SegmentComponent::STORE));
+        let store_write = segment.open_write(SegmentComponent::STORE)?;
 
-        let fast_field_write = try!(segment.open_write(SegmentComponent::FASTFIELDS));
-        let fast_field_serializer = try!(FastFieldSerializer::from_write(fast_field_write));
+        let fast_field_write = segment.open_write(SegmentComponent::FASTFIELDS)?;
+        let fast_field_serializer = FastFieldSerializer::from_write(fast_field_write)?;
 
-        let fieldnorms_write = try!(segment.open_write(SegmentComponent::FIELDNORMS));
-        let fieldnorms_serializer = try!(FastFieldSerializer::from_write(fieldnorms_write));
+        let fieldnorms_write = segment.open_write(SegmentComponent::FIELDNORMS)?;
+        let fieldnorms_serializer = FastFieldSerializer::from_write(fieldnorms_write)?;
 
-        let postings_serializer = try!(InvertedIndexSerializer::open(segment));
+        let postings_serializer = InvertedIndexSerializer::open(segment)?;
         Ok(SegmentSerializer {
-            postings_serializer: postings_serializer,
+            postings_serializer,
             store_writer: StoreWriter::new(store_write),
-            fast_field_serializer: fast_field_serializer,
-            fieldnorms_serializer: fieldnorms_serializer,
+            fast_field_serializer,
+            fieldnorms_serializer,
         })
     }
 

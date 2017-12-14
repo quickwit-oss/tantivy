@@ -14,7 +14,7 @@ pub struct PhraseWeight {
 
 impl From<Vec<Term>> for PhraseWeight {
     fn from(phrase_terms: Vec<Term>) -> PhraseWeight {
-        PhraseWeight { phrase_terms: phrase_terms }
+        PhraseWeight { phrase_terms }
     }
 }
 

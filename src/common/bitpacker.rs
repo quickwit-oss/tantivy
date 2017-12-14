@@ -44,7 +44,7 @@ impl BitPacker {
         BitPacker {
             mini_buffer: 0u64,
             mini_buffer_written: 0,
-            num_bits: num_bits,
+            num_bits,
         }
     }
 
@@ -107,9 +107,9 @@ where
             (1u64 << num_bits) - 1u64
         };
         BitUnpacker {
-            num_bits: num_bits,
-            mask: mask,
-            data: data,
+            num_bits,
+            mask,
+            data,
         }
     }
 
