@@ -23,7 +23,7 @@ impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
         let queue = Arc::new(MsQueue::new());
         Pool {
-            queue: queue,
+            queue,
             freshest_generation: AtomicUsize::default(),
             next_generation: AtomicUsize::default(),
         }
@@ -33,7 +33,7 @@ impl<T> Pool<T> {
         let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         for item in items {
             let gen_item = GenerationItem {
-                item: item,
+                item,
                 generation: next_generation,
             };
             self.queue.push(gen_item);
