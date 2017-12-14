@@ -90,7 +90,6 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
 /// For this reason, the (start, stop) information is actually redundant
 /// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
-#[repr(packed)]
 struct KeyValue {
     key_value_addr: BytesRef,
     hash: u32,
@@ -184,7 +183,6 @@ impl<'a> HashMap<'a> {
             self.get_key_value(kv.key_value_addr)
         })
     }
-
 
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
         let key_bytes: &[u8] = key.as_ref();
