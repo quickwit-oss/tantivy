@@ -86,7 +86,7 @@ impl Index {
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
-    fn create_from_metas(directory: ManagedDirectory, metas: IndexMeta) -> Result<Index> {
+    fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
         let index = Index {
             directory,
@@ -101,7 +101,8 @@ impl Index {
     /// Create a new index from a directory.
     pub fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
-        Index::create_from_metas(directory, IndexMeta::with_schema(schema))
+        let metas = IndexMeta::with_schema(schema);
+        Index::create_from_metas(directory, &metas)
     }
 
     /// Opens a new directory from an index path.
@@ -109,7 +110,7 @@ impl Index {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
         let metas = load_metas(&directory)?;
-        Index::create_from_metas(directory, metas)
+        Index::create_from_metas(directory, &metas)
     }
 
     /// Returns the index opstamp.
@@ -205,6 +206,7 @@ impl Index {
     }
 
     /// Creates a new generation of searchers after
+
     /// a change of the set of searchable indexes.
     ///
     /// This needs to be called when a new segment has been
@@ -212,7 +214,7 @@ impl Index {
     pub fn load_searchers(&self) -> Result<()> {
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
-            .into_iter()
+            .iter()
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let searchers = (0..NUM_SEARCHERS)
@@ -248,7 +250,7 @@ impl Clone for Index {
         Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
-            searcher_pool: self.searcher_pool.clone(),
+            searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
         }
     }

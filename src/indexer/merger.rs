@@ -79,10 +79,8 @@ impl DeltaComputer {
             self.buffer.resize(positions.len(), 0u32);
         }
         let mut last_pos = 0u32;
-        let num_positions = positions.len();
-        for i in 0..num_positions {
-            let cur_pos = positions[i];
-            self.buffer[i] = cur_pos - last_pos;
+        for (cur_pos, dest) in positions.iter().cloned().zip(self.buffer.iter_mut()) {
+            *dest = cur_pos - last_pos;
             last_pos = cur_pos;
         }
         &self.buffer[..positions.len()]
@@ -95,15 +93,15 @@ impl IndexMerger {
         let mut max_doc: u32 = 0u32;
         for segment in segments {
             if segment.meta().num_docs() > 0 {
-                let reader = SegmentReader::open(segment.clone())?;
+                let reader = SegmentReader::open(segment)?;
                 max_doc += reader.num_docs();
                 readers.push(reader);
             }
         }
         Ok(IndexMerger {
-            schema: schema,
-            readers: readers,
-            max_doc: max_doc,
+            schema,
+            readers,
+            max_doc,
         })
     }
 

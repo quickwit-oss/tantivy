@@ -52,7 +52,7 @@ type DocumentReceiver = chan::Receiver<AddOperation>;
 ///
 /// It manages a small number of indexing thread, as well as a shared
 /// indexing queue.
-/// Each indexing thread builds its own independant `Segment`, via
+/// Each indexing thread builds its own independent `Segment`, via
 /// a `SegmentWriter` object.
 pub struct IndexWriter {
     // the lock is just used to bind the
@@ -124,7 +124,7 @@ pub fn open_index_writer(
     let stamper = Stamper::new(current_opstamp);
 
     let segment_updater =
-        SegmentUpdater::new(index.clone(), stamper.clone(), delete_queue.cursor())?;
+        SegmentUpdater::new(index.clone(), stamper.clone(), &delete_queue.cursor())?;
 
     let mut index_writer = IndexWriter {
         _directory_lock: directory_lock,
@@ -211,7 +211,7 @@ pub fn advance_deletes(
                 return Ok(file_protect);
             }
         }
-        let segment_reader = SegmentReader::open(segment.clone())?;
+        let segment_reader = SegmentReader::open(&segment)?;
         let max_doc = segment_reader.max_doc();
 
         let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
@@ -251,7 +251,7 @@ pub fn advance_deletes(
 fn index_documents(
     heap: &mut Heap,
     table_size: usize,
-    segment: Segment,
+    segment: &Segment,
     schema: &Schema,
     generation: usize,
     document_iterator: &mut Iterator<Item = AddOperation>,
@@ -405,7 +405,7 @@ impl IndexWriter {
                     index_documents(
                         &mut heap,
                         table_size,
-                        segment,
+                        &segment,
                         &schema,
                         generation,
                         &mut document_iterator,

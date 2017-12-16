@@ -124,7 +124,7 @@ impl QueryParser {
     ///
     /// Implementing a lenient mode for this query parser is tracked
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
-    pub fn parse_query(&mut self, query: &str) -> Result<Box<Query>, QueryParserError> {
+    pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
     }
@@ -367,15 +367,15 @@ mod test {
 
     #[test]
     pub fn test_parse_query_simple() {
-        let mut query_parser = make_query_parser();
+        let query_parser = make_query_parser();
         assert!(query_parser.parse_query("toto").is_ok());
     }
 
     #[test]
     pub fn test_parse_nonindexed_field_yields_error() {
-        let mut query_parser = make_query_parser();
+        let  query_parser = make_query_parser();
 
-        let mut is_not_indexed_err = |query: &str| {
+        let is_not_indexed_err = |query: &str| {
             let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);
             if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
                 Some(field_name.clone())
@@ -410,7 +410,7 @@ mod test {
 
     #[test]
     pub fn test_parse_query_ints() {
-        let mut query_parser = make_query_parser();
+        let query_parser = make_query_parser();
         assert!(query_parser.parse_query("signed:2324").is_ok());
         assert!(query_parser.parse_query("signed:\"22\"").is_ok());
         assert!(query_parser.parse_query("signed:\"-2234\"").is_ok());

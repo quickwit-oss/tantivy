@@ -185,7 +185,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Here, if the user does not specify which
     // field they want to search, tantivy will search
     // in both title and body.
-    let mut query_parser = QueryParser::for_index(&index, vec![title, body]);
+    let query_parser = QueryParser::for_index(&index, vec![title, body]);
 
     // QueryParser may fail if the query is not in the right
     // format. For user facing applications, this can be a problem.

@@ -122,7 +122,7 @@ mod tests {
             segment_writer.finalize().unwrap();
         }
         {
-            let segment_reader = SegmentReader::open(segment).unwrap();
+            let segment_reader = SegmentReader::open(&segment).unwrap();
             {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
                 assert_eq!(fieldnorm_reader.get(0), 8 + 5);

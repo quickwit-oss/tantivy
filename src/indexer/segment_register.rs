@@ -100,7 +100,7 @@ impl SegmentRegister {
             .start_merge();
     }
 
-    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: DeleteCursor) -> SegmentRegister {
+    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> SegmentRegister {
         let mut segment_states = HashMap::new();
         for segment_meta in segment_metas {
             let segment_id = segment_meta.id();

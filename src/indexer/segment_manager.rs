@@ -51,7 +51,7 @@ pub fn get_mergeable_segments(
 impl SegmentManager {
     pub fn from_segments(
         segment_metas: Vec<SegmentMeta>,
-        delete_cursor: DeleteCursor,
+        delete_cursor: &DeleteCursor,
     ) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {

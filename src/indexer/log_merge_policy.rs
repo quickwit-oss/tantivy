@@ -60,7 +60,7 @@ impl MergePolicy for LogMergePolicy {
 
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples
             .into_iter()
-            .map(|(ind, num_docs)| (ind, (self.clip_min_size(num_docs) as f64).log2()))
+            .map(|(ind, num_docs)| (ind, f64::from(self.clip_min_size(num_docs)).log2()))
             .collect();
 
         let (first_ind, first_score) = size_sorted_log_tuples[0];

@@ -118,7 +118,7 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: Segment) -> Result<SegmentReader> {
+    pub fn open(segment: &Segment) -> Result<SegmentReader> {
         let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
         let termdict_composite = CompositeFile::open(&termdict_source)?;
 

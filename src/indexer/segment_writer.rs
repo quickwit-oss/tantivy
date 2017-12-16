@@ -66,8 +66,8 @@ impl<'a> SegmentWriter<'a> {
             .fields()
             .iter()
             .map(|field_entry| field_entry.field_type())
-            .map(|field_type| match field_type {
-                &FieldType::Str(ref text_options) => text_options.get_indexing_options().and_then(
+            .map(|field_type| match *field_type {
+                FieldType::Str(ref text_options) => text_options.get_indexing_options().and_then(
                     |text_index_option| {
                         let tokenizer_name = &text_index_option.tokenizer();
                         segment.index().tokenizers().get(tokenizer_name)
@@ -142,8 +142,8 @@ impl<'a> SegmentWriter<'a> {
                         if let Some(ref mut tokenizer) = self.tokenizers[field.0 as usize] {
                             let texts: Vec<&str> = field_values
                                 .iter()
-                                .flat_map(|field_value| match field_value.value() {
-                                    &Value::Str(ref text) => Some(text.as_str()),
+                                .flat_map(|field_value| match *field_value.value() {
+                                    Value::Str(ref text) => Some(text.as_str()),
                                     _ => None,
                                 })
                                 .collect();
