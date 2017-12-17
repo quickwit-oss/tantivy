@@ -41,8 +41,8 @@ rust-stemmers = "0.1.0"
 downcast = { version="0.9" }
 matches = "0.1"
 bitpacking = "0.4"
-rusoto_core = {version = "*", optional = true}
-rusoto_s3 = {version = "*", optional = true}
+rusoto_core = {version = "0.30.0", optional = true}
+rusoto_s3 = {version = "0.30.0", optional = true}
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
