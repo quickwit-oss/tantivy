@@ -108,6 +108,13 @@ impl InnerDirectory {
     }
 
     fn write(&self, client: &S3, path: PathBuf, data: &[u8]) -> io::Result<bool> {
+        // TODO: this is comical and I'm more than likely over thinking it
+        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
+            let msg = format!("Could not build key path");
+            let io_err = make_io_err(msg);
+            io_err
+        })?;
+
         let mut map = try!(self.cache.write().map_err(|_| {
             make_io_err(format!(
                 "Failed to lock the directory, when trying to write {:?}",
@@ -116,7 +123,11 @@ impl InnerDirectory {
         }));
 
         let result = client
-            .put_object(&PutObjectRequest { ..Default::default() })
+            .put_object(&PutObjectRequest {
+                body: Some(data.to_vec()),
+                key: key,
+                ..Default::default()
+            })
             .map_err(|_| {
                 let msg = format!("Error writing for {:?}", path);
                 make_io_err(msg)
@@ -146,7 +157,10 @@ impl InnerDirectory {
                 OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
             })?;
 
-        Ok(Arc::new(obj.body.unwrap()))
+        let mut body = obj.body.unwrap();
+        let mut raw = Vec::new();
+        body.read_to_end(&mut raw).unwrap();
+        Ok(Arc::new(raw))
     }
 
     fn open_read(&self, path: &Path, client: &S3) -> result::Result<ReadOnlySource, OpenReadError> {
