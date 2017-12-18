@@ -124,11 +124,13 @@ impl InnerDirectory {
 
         let result = client
             .put_object(&PutObjectRequest {
+                bucket: self.bucket.clone(),
                 body: Some(data.to_vec()),
                 key: key,
                 ..Default::default()
             })
-            .map_err(|_| {
+            .map_err(|a| {
+                println!("eh? {:?}", a);
                 let msg = format!("Error writing for {:?}", path);
                 make_io_err(msg)
             })?;
@@ -154,7 +156,7 @@ impl InnerDirectory {
             .map_err(|_| {
                 let msg = format!("No key found for {:?}", path);
                 let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+                OpenReadError::FileDoesNotExist(path.to_owned())
             })?;
 
         let mut body = obj.body.unwrap();
@@ -177,9 +179,16 @@ impl InnerDirectory {
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        let data = cache.entry(PathBuf::from(path)).or_insert_with(|| {
-            self.fetch(client, path).unwrap()
-        });
+        if !cache.contains_key(path) {
+            let data = self.fetch(client, path)?;
+            cache.insert(PathBuf::from(path), data);
+        }
+
+        let data = cache.get(path).ok_or_else(|| {
+            let msg = format!("No file at this location {:?}", path);
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
     }
