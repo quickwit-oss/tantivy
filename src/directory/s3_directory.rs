@@ -130,7 +130,6 @@ impl InnerDirectory {
                 ..Default::default()
             })
             .map_err(|a| {
-                println!("eh? {:?}", a);
                 let msg = format!("Error writing for {:?}", path);
                 make_io_err(msg)
             })?;
@@ -140,6 +139,7 @@ impl InnerDirectory {
     }
 
     fn fetch(&self, client: &S3, path: &Path) -> Result<Arc<Vec<u8>>, OpenReadError> {
+        println!("Fetch: {:?}", path);
         // TODO: this is comical and I'm more than likely over thinking it
         let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
             let msg = format!("Could not build key path");
@@ -147,10 +147,12 @@ impl InnerDirectory {
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
+        let clean_key = key.trim_left_matches('/').to_string();
+
         let obj = client
             .get_object(&GetObjectRequest {
                 bucket: self.bucket.clone(),
-                key,
+                key: clean_key,
                 ..Default::default()
             })
             .map_err(|_| {
