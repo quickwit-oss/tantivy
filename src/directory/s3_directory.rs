@@ -93,31 +93,56 @@ fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
     Ok(Box::new(S3Client::new(client, provider, region)))
 }
 
-struct S3FileWriter {}
+struct S3FileWriter {
+    data: Cursor<Vec<u8>>,
+    is_flushed: bool,
+    path: PathBuf
+}
 
 impl S3FileWriter {
-    fn new() -> S3FileWriter {
-        S3FileWriter {}
+    fn new(path_buf: PathBuf) -> S3FileWriter {
+        S3FileWriter {
+            data: Cursor::new(Vec::new()),
+            is_flushed: true,
+            path: path_buf,
+        }
+    }
+}
+
+impl Drop for S3FileWriter {
+    fn drop(&mut self) {
+        if !self.is_flushed {
+            panic!(
+                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
+                self.path
+            )
+        }
     }
 }
 
 impl Write for S3FileWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        //self.0.write(buf)
-        unimplemented!();
+        self.is_flushed = false;
+        self.data.write_all(buf)?;
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        // TOOD: write to s3 now.
         // self.0.flush()?;
         // self.0.sync_all()
+
+        //self.is_flushed = true;
+        // self.shared_directory
+        //     .write(self.path.clone(), self.data.get_ref())?;
+        // Ok(())
         unimplemented!();
     }
 }
 
 impl Seek for S3FileWriter {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        //self.0.seek(pos)
-        unimplemented!();
+        self.data.seek(pos)
     }
 }
 
@@ -230,7 +255,7 @@ impl InnerDirectory {
 
         // if it exists, report that as an error?
 
-        let writer = S3FileWriter::new();
+        let writer = S3FileWriter::new(PathBuf::from(path));
         Ok(BufWriter::new(Box::new(writer)))
     }
 
