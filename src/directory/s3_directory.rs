@@ -93,6 +93,34 @@ fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
     Ok(Box::new(S3Client::new(client, provider, region)))
 }
 
+struct S3FileWriter {}
+
+impl S3FileWriter {
+    fn new() -> S3FileWriter {
+        S3FileWriter {}
+    }
+}
+
+impl Write for S3FileWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        //self.0.write(buf)
+        unimplemented!();
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        // self.0.flush()?;
+        // self.0.sync_all()
+        unimplemented!();
+    }
+}
+
+impl Seek for S3FileWriter {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        //self.0.seek(pos)
+        unimplemented!();
+    }
+}
+
 #[derive(Clone)]
 struct InnerDirectory {
     bucket: String,
@@ -193,6 +221,17 @@ impl InnerDirectory {
         })?;
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
+    }
+
+    fn open_write(&self, path: &Path, client: &S3) -> result::Result<WritePtr, OpenWriteError> {
+        debug!("Open Read {:?}", path);
+
+        // create the file
+
+        // if it exists, report that as an error?
+
+        let writer = S3FileWriter::new();
+        Ok(BufWriter::new(Box::new(writer)))
     }
 
     fn delete(&self, path: &Path, client: &S3) -> result::Result<(), DeleteError> {
@@ -339,17 +378,29 @@ impl S3Directory {
 
 impl Directory for S3Directory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+        debug!("Open Read {:?}", path);
+        let full_path = self.resolve_path(path);
+
         let s3 = self.get_client().map_err(|_| {
             let msg = format!("Could not get s3 client");
             let io_err = make_io_err(msg);
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.open_read(&self.resolve_path(path), s3.as_ref())
+        self.fs.open_read(&full_path, s3.as_ref())
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        unimplemented!()
+        debug!("Open Write {:?}", path);
+        let full_path = self.resolve_path(path);
+
+        let s3 = self.get_client().map_err(|_| {
+            let msg = format!("Could not get s3 client");
+            let io_err = make_io_err(msg);
+            OpenWriteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        self.fs.open_write(&full_path, s3.as_ref())
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
