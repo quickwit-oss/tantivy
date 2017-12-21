@@ -125,12 +125,12 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        try!(self.fs.write(
+        self.fs.write(
             &self.s3,
-            self.bucket.clone(),
-            self.key.clone(),
+            &self.bucket,
+            &self.key,
             self.data.get_ref(),
-        ));
+        )?;
         Ok(())
     }
 }
@@ -148,20 +148,20 @@ impl InnerDirectory {
     fn write(
         &self,
         client: &Box<S3>,
-        bucket: Bucket,
-        key: ObjectKey,
+        bucket: &Bucket,
+        key: &ObjectKey,
         data: &[u8],
     ) -> io::Result<bool> {
-        let mut map = try!(self.cache.write().map_err(|_| {
+        let mut map = self.cache.write().map_err(|_| {
             make_io_err(format!(
                 "Failed to lock the directory, when trying to write {:?}",
                 key
             ))
-        }));
+        })?;
 
         let result = client
             .put_object(&PutObjectRequest {
-                bucket: bucket,
+                bucket: bucket.clone(),
                 body: Some(data.to_vec()),
                 key: key.clone(),
                 ..Default::default()
@@ -178,7 +178,7 @@ impl InnerDirectory {
     fn fetch(
         &self,
         client: Box<S3>,
-        bucket: Bucket,
+        bucket: &Bucket,
         key: &ObjectKey,
     ) -> Result<Arc<Vec<u8>>, OpenReadError> {
         println!("Fetch: {:?}", key);
@@ -186,7 +186,7 @@ impl InnerDirectory {
 
         let obj = client
             .get_object(&GetObjectRequest {
-                bucket,
+                bucket: bucket.clone(),
                 key: key.clone(),
                 ..Default::default()
             })
@@ -205,7 +205,7 @@ impl InnerDirectory {
     fn open_read(
         &self,
         client: Box<S3>,
-        bucket: Bucket,
+        bucket: &Bucket,
         key: &ObjectKey,
     ) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", key);
@@ -238,19 +238,19 @@ impl InnerDirectory {
     fn open_write(
         &self,
         client: Box<S3>,
-        bucket: Bucket,
-        key: ObjectKey,
+        bucket: &Bucket,
+        key: &ObjectKey,
     ) -> result::Result<WritePtr, OpenWriteError> {
         debug!("Open Read {:?}", key);
 
-        let writer = VecWriter::new(client, bucket, key, self.clone());
+        let writer = VecWriter::new(client, bucket.clone(), key.clone(), self.clone());
         Ok(BufWriter::new(Box::new(writer)))
     }
 
     fn delete(
         &self,
         client: Box<S3>,
-        bucket: Bucket,
+        bucket: &Bucket,
         key: &ObjectKey,
     ) -> result::Result<(), DeleteError> {
         let mut writable_map = self.cache.write().map_err(|_| {
@@ -265,7 +265,7 @@ impl InnerDirectory {
 
         let obj = client
             .delete_object(&DeleteObjectRequest {
-                bucket,
+                bucket: bucket.clone(),
                 key: key.clone(),
                 ..Default::default()
             })
@@ -281,7 +281,7 @@ impl InnerDirectory {
         }
     }
 
-    fn exists(&self, client: Box<S3>, bucket: Bucket, key: &ObjectKey) -> bool {
+    fn exists(&self, client: Box<S3>, bucket: &Bucket, key: &ObjectKey) -> bool {
         let cache = self.cache.read().expect(
             "Failed to get read lock directory.",
         );
@@ -292,7 +292,7 @@ impl InnerDirectory {
             let mut cache = self.cache.write().expect(
                 "Failed to get write lock directory",
             );
-            match cache.entry(key.to_string()) {
+            match cache.entry(key.clone()) {
                 Entry::Occupied(_) => true,
                 Entry::Vacant(entry) => {
                     match self.fetch(client, bucket, key) {
@@ -342,25 +342,24 @@ impl S3Directory {
         bucket: String,
         directory_path: &Path,
     ) -> Result<S3Directory, OpenDirectoryError> {
-        // TODO: should I use a different error type? probably
-
-        // TODO: should I use the Rusoto Region type in the method call?
+        // is this a valid region?
         let region = Region::from_str(&region).map_err(|_| {
             OpenDirectoryError::DoesNotExist(PathBuf::from("/bad/region"))
         })?;
 
+        // can i generate an S3 client (i.e. are access creds available)
         let s3 = get_client(region.clone()).map_err(|_| {
             OpenDirectoryError::DoesNotExist(PathBuf::from("/cant/s3"))
         })?;
 
-        // does bucket exist?
+        // does the bucket exist?
         s3.head_bucket(&HeadBucketRequest { bucket: bucket.clone() })
             .map_err(|_| {
                 OpenDirectoryError::DoesNotExist(PathBuf::from("/no/bucket"))
             })?;
 
-        // TODO: how to store the client?
-        // `S3` does not implement `std::marker::Sync` so it can't be on the struct
+        // TODO: can I leverage a Box<S3> so I don't have to keep "making" a client
+
         let cfg = S3BucketLocation {
             bucket: bucket.clone(),
             region: region.clone(),
@@ -388,7 +387,7 @@ impl Directory for S3Directory {
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.open_read(s3, self.cfg.bucket.clone(), &key)
+        self.fs.open_read(s3, &self.cfg.bucket, &key)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -405,7 +404,7 @@ impl Directory for S3Directory {
             OpenWriteError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.open_write(s3, self.cfg.bucket.clone(), key.clone())
+        self.fs.open_write(s3, &self.cfg.bucket, &key)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
@@ -422,7 +421,7 @@ impl Directory for S3Directory {
             DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.delete(s3, self.cfg.bucket.clone(), &full_path)
+        self.fs.delete(s3, &self.cfg.bucket, &full_path)
     }
 
     fn exists(&self, path: &Path) -> bool {
@@ -432,7 +431,7 @@ impl Directory for S3Directory {
 
         let s3 = self.cfg.get_client().expect("Failed to build s3 client");
 
-        self.fs.exists(s3, self.cfg.bucket.clone(), &full_path)
+        self.fs.exists(s3, &self.cfg.bucket, &full_path)
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
@@ -441,24 +440,31 @@ impl Directory for S3Directory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        let write = self.open_write(path).map_err(|e| {
+            let msg = format!("Failed to open_write at {:?}", path);
+            make_io_err(msg)
+        })?;
+
         let key = self.cfg.resolve_path(path).map_err(|_| {
             let msg = format!("Could not build path");
             make_io_err(msg)
         })?;
 
-        let s3 = self.cfg.get_client().expect("Failed to build s3 client");
-        let s3_2 = self.cfg.get_client().expect("Failed to build s3 client");
+        let s3 = self.cfg.get_client().map_err(|_| {
+            let msg = format!("Failed to build s3 client");
+            make_io_err(msg)
+        })?;
+        let s3_2 = self.cfg.get_client().map_err(|_| {
+            let msg = format!("Failed to build s3 client");
+            make_io_err(msg)
+        })?;
 
+        // TODO: can i leverage a lifetime here to avoid all of these clones?
         let mut vec_writer =
             VecWriter::new(s3, self.cfg.bucket.clone(), key.clone(), self.fs.clone());
-        try!(self.fs.write(
-            &s3_2,
-            self.cfg.bucket.clone(),
-            key,
-            &Vec::new(),
-        ));
-        try!(vec_writer.write_all(data));
-        try!(vec_writer.flush());
+        self.fs.write(&s3_2, &self.cfg.bucket, &key, &Vec::new())?;
+        vec_writer.write_all(data)?;
+        vec_writer.flush()?;
         Ok(())
     }
 
