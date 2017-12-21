@@ -100,13 +100,13 @@ impl TermInfoDeltaEncoder {
     pub fn encode(&mut self, term_info: TermInfo) -> DeltaTermInfo {
         let mut delta_term_info = DeltaTermInfo {
             doc_freq: term_info.doc_freq,
-            delta_postings_offset: term_info.postings_offset - self.term_info.postings_offset,
+            delta_postings_offset: (term_info.postings_offset - self.term_info.postings_offset) as u32,
             delta_positions_offset: 0,
             positions_inner_offset: 0,
         };
         if self.has_positions {
             delta_term_info.delta_positions_offset =
-                term_info.positions_offset - self.term_info.positions_offset;
+                (term_info.positions_offset - self.term_info.positions_offset) as u32;
             delta_term_info.positions_inner_offset = term_info.positions_inner_offset;
         }
         mem::replace(&mut self.term_info, term_info);
@@ -155,12 +155,12 @@ impl TermInfoDeltaDecoder {
         let delta_postings_offset: u32 = (v as u32) & make_mask(num_bytes_postings_offset);
         cursor = &cursor[num_bytes_docfreq + num_bytes_postings_offset..];
         self.term_info.doc_freq = doc_freq;
-        self.term_info.postings_offset += delta_postings_offset;
+        self.term_info.postings_offset += delta_postings_offset as u64;
         if self.has_positions {
             let num_bytes_positions_offset = ((code >> 5) & 3) as usize + 1;
             let delta_positions_offset: u32 =
                 unsafe { *(cursor.as_ptr() as *const u32) } & make_mask(num_bytes_positions_offset);
-            self.term_info.positions_offset += delta_positions_offset;
+            self.term_info.positions_offset += delta_positions_offset as u64;
             self.term_info.positions_inner_offset = cursor[num_bytes_positions_offset];
             &cursor[num_bytes_positions_offset + 1..]
         } else {

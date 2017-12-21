@@ -28,11 +28,10 @@ fn has_positions(field_type: &FieldType) -> bool {
     match *field_type {
         FieldType::Str(ref text_options) => {
             let indexing_options = text_options.get_indexing_options();
-            if indexing_options.is_position_enabled() {
-                true
-            } else {
-                false
+            if let Some(text_field_indexing) = indexing_options {
+                return text_field_indexing.index_option().has_positions()
             }
+            return false;
         }
         _ => false,
     }
@@ -60,10 +59,10 @@ where
     W: Write,
 {
     fn add_index_entry(&mut self) {
-        let stream_offset = self.write.written_bytes() as u32;
+        let stream_offset: u64 = self.write.written_bytes() as u64;
         let term_info = self.term_info_encoder.term_info();
-        let postings_offset = term_info.postings_offset as u32;
-        let positions_offset = term_info.positions_offset as u32;
+        let postings_offset: u64 = term_info.postings_offset;
+        let positions_offset: u64 = term_info.positions_offset;
         let checkpoint = CheckPoint {
             stream_offset,
             postings_offset,
