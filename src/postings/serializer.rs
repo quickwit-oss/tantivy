@@ -159,7 +159,7 @@ impl<'a> FieldSerializer<'a> {
         let (filepos, offset) = self.positions_serializer_opt
             .as_ref()
             .map(|positions_serializer| positions_serializer.addr())
-            .unwrap_or((0u32, 0u8));
+            .unwrap_or((0u64, 0u8));
         TermInfo {
             doc_freq: 0,
             postings_offset: self.postings_serializer.addr(),
@@ -311,8 +311,8 @@ impl<W: Write> PostingsSerializer<W> {
         self.postings_write.flush()
     }
 
-    fn addr(&self) -> u32 {
-        self.postings_write.written_bytes() as u32
+    fn addr(&self) -> u64 {
+        self.postings_write.written_bytes() as u64
     }
 
     fn clear(&mut self) {
@@ -337,8 +337,8 @@ impl<W: Write> PositionSerializer<W> {
         }
     }
 
-    fn addr(&self) -> (u32, u8) {
-        (self.write.written_bytes() as u32, self.buffer.len() as u8)
+    fn addr(&self) -> (u64, u8) {
+        (self.write.written_bytes() as u64, self.buffer.len() as u8)
     }
 
     fn write_block(&mut self) -> io::Result<()> {

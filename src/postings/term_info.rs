@@ -16,9 +16,9 @@ pub struct TermInfo {
     /// Number of documents in the segment containing the term
     pub doc_freq: u32,
     /// Offset within the postings (`.idx`) file.
-    pub postings_offset: u32,
+    pub postings_offset: u64,
     /// Offset within the position (`.pos`) file.
-    pub positions_offset: u32,
+    pub positions_offset: u64,
     /// Offset within the position block.
     pub positions_inner_offset: u8,
 }
@@ -33,8 +33,8 @@ impl BinarySerializable for TermInfo {
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let doc_freq = u32::deserialize(reader)?;
-        let postings_offset = u32::deserialize(reader)?;
-        let positions_offset = u32::deserialize(reader)?;
+        let postings_offset = u64::deserialize(reader)?;
+        let positions_offset = u64::deserialize(reader)?;
         let positions_inner_offset = u8::deserialize(reader)?;
         Ok(TermInfo {
             doc_freq,

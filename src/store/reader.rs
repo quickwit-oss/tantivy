@@ -27,10 +27,10 @@ impl StoreReader {
         let (data_source, offset_index_source, max_doc) = split_source(data);
         StoreReader {
             data: data_source,
-            offset_index_source: offset_index_source,
+            offset_index_source,
             current_block_offset: RefCell::new(usize::max_value()),
             current_block: RefCell::new(Vec::new()),
-            max_doc: max_doc,
+            max_doc,
         }
     }
 
@@ -49,9 +49,9 @@ impl StoreReader {
             let block_length = u32::deserialize(&mut cursor).unwrap();
             let block_array: &[u8] = &total_buffer
                 [(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
-            let mut lz4_decoder = try!(lz4::Decoder::new(block_array));
+            let mut lz4_decoder = lz4::Decoder::new(block_array)?;
             *self.current_block_offset.borrow_mut() = usize::max_value();
-            try!(lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ()));
+            lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
         Ok(())
@@ -70,7 +70,7 @@ impl StoreReader {
         let current_block_mut = self.current_block.borrow_mut();
         let mut cursor = &current_block_mut[..];
         for _ in first_doc_id..doc_id {
-            let block_length = try!(u32::deserialize(&mut cursor));
+            let block_length = u32::deserialize(&mut cursor)?;
             cursor = &cursor[block_length as usize..];
         }
         u32::deserialize(&mut cursor)?;

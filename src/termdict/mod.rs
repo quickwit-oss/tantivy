@@ -133,7 +133,6 @@ pub trait TermStreamer: Sized {
     fn advance(&mut self) -> bool;
 
     /// Accesses the current key.
-    ///
     /// `.key()` should return the key that was returned
     /// by the `.next()` method.
     ///
@@ -204,11 +203,11 @@ mod tests {
 
     const BLOCK_SIZE: usize = 1_500;
 
-    fn make_term_info(val: u32) -> TermInfo {
+    fn make_term_info(val: u64) -> TermInfo {
         TermInfo {
-            doc_freq: val,
-            positions_offset: val * 2u32,
-            postings_offset: val * 3u32,
+            doc_freq: val as u32,
+            positions_offset: val * 2u64,
+            postings_offset: val * 3u64,
             positions_inner_offset: 5u8,
         }
     }
@@ -223,10 +222,10 @@ mod tests {
             let mut term_dictionary_builder =
                 TermDictionaryBuilderImpl::new(write, field_type).unwrap();
             term_dictionary_builder
-                .insert("abc".as_bytes(), &make_term_info(34u32))
+                .insert("abc".as_bytes(), &make_term_info(34u64))
                 .unwrap();
             term_dictionary_builder
-                .insert("abcd".as_bytes(), &make_term_info(346u32))
+                .insert("abcd".as_bytes(), &make_term_info(346u64))
                 .unwrap();
             term_dictionary_builder.finish().unwrap();
         }
@@ -312,7 +311,7 @@ mod tests {
                 TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
-                    .insert(id.as_bytes(), &make_term_info(*i))
+                    .insert(id.as_bytes(), &make_term_info(*i as u64))
                     .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
@@ -325,7 +324,7 @@ mod tests {
             while let Some((streamer_k, streamer_v)) = streamer.next() {
                 let &(ref key, ref v) = &ids[i];
                 assert_eq!(streamer_k.as_ref(), key.as_bytes());
-                assert_eq!(streamer_v, &make_term_info(*v));
+                assert_eq!(streamer_v, &make_term_info(*v as u64));
                 i += 1;
             }
         }
@@ -377,7 +376,7 @@ mod tests {
                 TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
-                    .insert(id.as_bytes(), &make_term_info(*i))
+                    .insert(id.as_bytes(), &make_term_info(*i as u64))
                     .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
@@ -398,7 +397,7 @@ mod tests {
                     let &(ref key, ref v) = &ids[i + j];
                     assert_eq!(str::from_utf8(streamer_k.as_ref()).unwrap(), key);
                     assert_eq!(streamer_v.doc_freq, *v);
-                    assert_eq!(streamer_v, &make_term_info(*v));
+                    assert_eq!(streamer_v, &make_term_info(*v as u64));
                 }
             }
         }
@@ -447,7 +446,7 @@ mod tests {
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder
-                    .insert(&number_arr, &make_term_info(i as u32))
+                    .insert(&number_arr, &make_term_info(i as u64))
                     .unwrap();
             }
             term_dictionary_builder.finish().unwrap()
