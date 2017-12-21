@@ -3,6 +3,7 @@ use DocId;
 use schema::FieldValue;
 use common::BinarySerializable;
 use std::io::{self, Write};
+use super::StoreReader;
 use lz4;
 use datastruct::SkipListBuilder;
 use common::CountingWriter;
@@ -56,6 +57,35 @@ impl StoreWriter {
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
             self.write_and_compress_block()?;
+        }
+        Ok(())
+    }
+
+    /// Stacks a store reader on top of the documents written so far.
+    /// This method is an optimization compared to iterating over the documents
+    /// in the store and adding them one by one, as the store's data will
+    /// not be decompressed and then recompressed.
+    pub fn stack(&mut self, store_reader: &StoreReader) -> io::Result<()> {
+        if !self.current_block.is_empty() {
+            self.write_and_compress_block()?;
+            self.offset_index_writer.insert(
+                self.doc,
+                &(self.writer.written_bytes() as u64),
+            )?;
+        }
+        let doc_offset = self.doc;
+        let start_offset = self.writer.written_bytes() as u64;
+
+        // just bulk write all of the block of the given reader.
+        self.writer.write_all(store_reader.block_data())?;
+
+        // concatenate the index of the `store_reader`, after translating
+        // its start doc id and its start file offset.
+        for (next_doc_id, block_addr) in store_reader.block_index() {
+            self.doc = doc_offset + next_doc_id;
+            self.offset_index_writer.insert(
+                self.doc,
+                &(start_offset + block_addr))?;
         }
         Ok(())
     }

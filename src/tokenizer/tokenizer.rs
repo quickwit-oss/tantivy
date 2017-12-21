@@ -195,6 +195,10 @@ pub trait TokenStream {
     /// Returns a mutable reference to the current token.
     fn token_mut(&mut self) -> &mut Token;
 
+    /// Helper to iterate over tokens. It
+    /// simply combines a call to `.advance()`
+    /// and `.token()`.
+    ///
     /// ```
     /// # extern crate tantivy;
     /// # use tantivy::tokenizer::*;
