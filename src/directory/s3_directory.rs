@@ -20,6 +20,53 @@ use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
 use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest, DeleteObjectRequest,
                 PutObjectRequest};
 
+type Bucket = String;
+type ObjectKey = String;
+
+fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
+    // TODO: handle missing creds
+    let client = default_tls_client()?;
+    let provider = DefaultCredentialsProvider::new()?;
+
+    Ok(Box::new(S3Client::new(client, provider, region)))
+}
+
+/// All of the data needed to produce the client and key
+#[derive(Clone, Debug)]
+struct S3BucketLocation {
+    /// the bucket to store files in
+    bucket: Bucket,
+
+    /// the region the bucket exists in
+    region: Region,
+
+    /// Path in the s3 bucket to store objects
+    root_path: PathBuf,
+}
+
+impl S3BucketLocation {
+    /// Joins a relative_path to the directory `root_path`
+    /// to create a proper complete `filepath`.
+    fn resolve_path(&self, relative_path: &Path) -> Result<ObjectKey, ()> {
+        let full_path = self.root_path.join(relative_path);
+
+        // TODO: this is comical and I'm more than likely over thinking it
+        let key = full_path.as_os_str().to_os_string().into_string().map_err(
+            |_| (),
+        )?;
+
+        let clean_key = key.trim_left_matches('/').to_string();
+
+        Ok(clean_key)
+    }
+
+    /// creates a S3 client
+    fn get_client(&self) -> Result<Box<S3>, Box<Error>> {
+        get_client(self.region.clone())
+    }
+}
+
+
 /// Writer associated with the `RAMDirectory`
 ///
 /// The Writer just writes a buffer.
@@ -31,21 +78,23 @@ use rusoto_s3::{S3, S3Client, HeadBucketRequest, GetObjectRequest, DeleteObjectR
 /// to write.
 ///
 struct VecWriter {
-    path: PathBuf,
-    shared_directory: InnerDirectory,
+    s3: Box<S3>,
+    bucket: Bucket,
+    key: ObjectKey,
+    fs: InnerDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
-    s3: Box<S3>,
 }
 
 impl VecWriter {
-    fn new(s3: Box<S3>, path_buf: PathBuf, shared_directory: InnerDirectory) -> VecWriter {
+    fn new(s3: Box<S3>, bucket: Bucket, key: ObjectKey, fs: InnerDirectory) -> VecWriter {
         VecWriter {
-            path: path_buf,
-            data: Cursor::new(Vec::new()),
-            shared_directory: shared_directory,
-            is_flushed: true,
             s3,
+            bucket,
+            key,
+            data: Cursor::new(Vec::new()),
+            fs: fs,
+            is_flushed: true,
         }
     }
 }
@@ -55,7 +104,7 @@ impl Drop for VecWriter {
         if !self.is_flushed {
             panic!(
                 "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
-                self.path
+                self.key
             )
         }
     }
@@ -76,114 +125,49 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        try!(self.shared_directory.write(
-            self.s3.as_ref(),
-            self.path.clone(),
+        try!(self.fs.write(
+            &self.s3,
+            self.bucket.clone(),
+            self.key.clone(),
             self.data.get_ref(),
         ));
         Ok(())
     }
 }
 
-fn get_client(region: Region) -> Result<Box<S3>, Box<Error>> {
-    // TODO: handle missing creds
-    let client = default_tls_client()?;
-    let provider = DefaultCredentialsProvider::new()?;
-
-    Ok(Box::new(S3Client::new(client, provider, region)))
-}
-
-struct S3FileWriter {
-    data: Cursor<Vec<u8>>,
-    is_flushed: bool,
-    path: PathBuf
-}
-
-impl S3FileWriter {
-    fn new(path_buf: PathBuf) -> S3FileWriter {
-        S3FileWriter {
-            data: Cursor::new(Vec::new()),
-            is_flushed: true,
-            path: path_buf,
-        }
-    }
-}
-
-impl Drop for S3FileWriter {
-    fn drop(&mut self) {
-        if !self.is_flushed {
-            panic!(
-                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
-                self.path
-            )
-        }
-    }
-}
-
-impl Write for S3FileWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.is_flushed = false;
-        self.data.write_all(buf)?;
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        // TOOD: write to s3 now.
-        // self.0.flush()?;
-        // self.0.sync_all()
-
-        //self.is_flushed = true;
-        // self.shared_directory
-        //     .write(self.path.clone(), self.data.get_ref())?;
-        // Ok(())
-        unimplemented!();
-    }
-}
-
-impl Seek for S3FileWriter {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.data.seek(pos)
-    }
-}
-
 #[derive(Clone)]
 struct InnerDirectory {
-    bucket: String,
-    cache: Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>,
+    cache: Arc<RwLock<HashMap<ObjectKey, Arc<Vec<u8>>>>>,
 }
 
 impl InnerDirectory {
-    fn new(bucket: String) -> InnerDirectory {
-        InnerDirectory {
-            cache: Arc::new(RwLock::new(HashMap::new())),
-            bucket,
-        }
+    fn new() -> InnerDirectory {
+        InnerDirectory { cache: Arc::new(RwLock::new(HashMap::new())) }
     }
 
-    fn write(&self, client: &S3, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        // TODO: this is comical and I'm more than likely over thinking it
-        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
-            let msg = format!("Could not build key path");
-            let io_err = make_io_err(msg);
-            io_err
-        })?;
-
+    fn write(
+        &self,
+        client: &Box<S3>,
+        bucket: Bucket,
+        key: ObjectKey,
+        data: &[u8],
+    ) -> io::Result<bool> {
         let mut map = try!(self.cache.write().map_err(|_| {
             make_io_err(format!(
                 "Failed to lock the directory, when trying to write {:?}",
-                path
+                key
             ))
         }));
 
         let result = client
             .put_object(&PutObjectRequest {
-                bucket: self.bucket.clone(),
+                bucket: bucket,
                 body: Some(data.to_vec()),
-                key: key,
+                key: key.clone(),
                 ..Default::default()
             })
             .map_err(|a| {
-                let msg = format!("Error writing for {:?}", path);
+                let msg = format!("Error writing for {:?}", key);
                 make_io_err(msg)
             })?;
 
@@ -191,27 +175,25 @@ impl InnerDirectory {
         Ok(true)
     }
 
-    fn fetch(&self, client: &S3, path: &Path) -> Result<Arc<Vec<u8>>, OpenReadError> {
-        println!("Fetch: {:?}", path);
+    fn fetch(
+        &self,
+        client: Box<S3>,
+        bucket: Bucket,
+        key: &ObjectKey,
+    ) -> Result<Arc<Vec<u8>>, OpenReadError> {
+        println!("Fetch: {:?}", key);
         // TODO: this is comical and I'm more than likely over thinking it
-        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
-            let msg = format!("Could not build key path");
-            let io_err = make_io_err(msg);
-            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-        })?;
-
-        let clean_key = key.trim_left_matches('/').to_string();
 
         let obj = client
             .get_object(&GetObjectRequest {
-                bucket: self.bucket.clone(),
-                key: clean_key,
+                bucket,
+                key: key.clone(),
                 ..Default::default()
             })
             .map_err(|_| {
-                let msg = format!("No key found for {:?}", path);
+                let msg = format!("No key found for {:?}", key);
                 let io_err = make_io_err(msg);
-                OpenReadError::FileDoesNotExist(path.to_owned())
+                OpenReadError::FileDoesNotExist(key.into())
             })?;
 
         let mut body = obj.body.unwrap();
@@ -220,96 +202,100 @@ impl InnerDirectory {
         Ok(Arc::new(raw))
     }
 
-    fn open_read(&self, path: &Path, client: &S3) -> result::Result<ReadOnlySource, OpenReadError> {
-        debug!("Open Read {:?}", path);
+    fn open_read(
+        &self,
+        client: Box<S3>,
+        bucket: Bucket,
+        key: &ObjectKey,
+    ) -> result::Result<ReadOnlySource, OpenReadError> {
+        debug!("Open Read {:?}", key);
 
         // TODO: I punted on this, since I'm switching to an inner `Directory` instance
         let mut cache = self.cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquire write lock for the \
                                             directory when trying to read {:?}",
-                path
+                key
             );
             let io_err = make_io_err(msg);
-            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            OpenReadError::IOError(IOError::with_path(key.into(), io_err))
         })?;
 
-        if !cache.contains_key(path) {
-            let data = self.fetch(client, path)?;
-            cache.insert(PathBuf::from(path), data);
+        if !cache.contains_key(key) {
+            let data = self.fetch(client, bucket, key)?;
+            cache.insert(key.clone(), data);
         }
 
-        let data = cache.get(path).ok_or_else(|| {
-            let msg = format!("No file at this location {:?}", path);
+        let data = cache.get(key).ok_or_else(|| {
+            let msg = format!("No file at this location {:?}", key);
             let io_err = make_io_err(msg);
-            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+            OpenReadError::IOError(IOError::with_path(key.into(), io_err))
         })?;
 
         Ok(ReadOnlySource::Anonymous(SharedVecSlice::new(data.clone())))
     }
 
-    fn open_write(&self, path: &Path, client: &S3) -> result::Result<WritePtr, OpenWriteError> {
-        debug!("Open Read {:?}", path);
+    fn open_write(
+        &self,
+        client: Box<S3>,
+        bucket: Bucket,
+        key: ObjectKey,
+    ) -> result::Result<WritePtr, OpenWriteError> {
+        debug!("Open Read {:?}", key);
 
-        // create the file
-
-        // if it exists, report that as an error?
-
-        let writer = S3FileWriter::new(PathBuf::from(path));
+        let writer = VecWriter::new(client, bucket, key, self.clone());
         Ok(BufWriter::new(Box::new(writer)))
     }
 
-    fn delete(&self, path: &Path, client: &S3) -> result::Result<(), DeleteError> {
+    fn delete(
+        &self,
+        client: Box<S3>,
+        bucket: Bucket,
+        key: &ObjectKey,
+    ) -> result::Result<(), DeleteError> {
         let mut writable_map = self.cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquire write lock for the \
                                             directory when trying to delete {:?}",
-                path
+                key
             );
             let io_err = make_io_err(msg);
-            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+            DeleteError::IOError(IOError::with_path(key.into(), io_err))
         })?;
 
-        // TODO: this is comical and I'm more than likely over thinking it
-        let key = path.as_os_str().to_os_string().into_string().map_err(|_| {
-            let msg = format!("Could not build key path");
-            let io_err = make_io_err(msg);
-            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-        })?;
         let obj = client
             .delete_object(&DeleteObjectRequest {
-                bucket: self.bucket.clone(),
-                key,
+                bucket,
+                key: key.clone(),
                 ..Default::default()
             })
             .map_err(|_| {
-                let msg = format!("No key found for {:?}", path);
+                let msg = format!("No key found for {:?}", key);
                 let io_err = make_io_err(msg);
-                DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+                DeleteError::FileDoesNotExist(PathBuf::from(key))
             })?;
 
-        match writable_map.remove(path) {
+        match writable_map.remove(key) {
             Some(_) => Ok(()),
-            None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+            None => Err(DeleteError::FileDoesNotExist(PathBuf::from(key))),
         }
     }
 
-    fn exists(&self, path: &Path, client: &S3) -> bool {
+    fn exists(&self, client: Box<S3>, bucket: Bucket, key: &ObjectKey) -> bool {
         let cache = self.cache.read().expect(
             "Failed to get read lock directory.",
         );
 
-        let key = PathBuf::from(path);
-        if cache.contains_key(&key) {
+        if cache.contains_key(key) {
             true
         } else {
             let mut cache = self.cache.write().expect(
                 "Failed to get write lock directory",
             );
-            match cache.entry(key) {
+            match cache.entry(key.to_string()) {
                 Entry::Occupied(_) => true,
                 Entry::Vacant(entry) => {
-                    match self.fetch(client, path) {
+                    match self.fetch(client, bucket, key) {
                         Ok(data) => {
                             entry.insert(data);
                             true
@@ -328,14 +314,8 @@ impl InnerDirectory {
 /// API calls
 #[derive(Clone)]
 pub struct S3Directory {
-    /// the bucket to store files in
-    bucket: String,
-
-    /// the region the bucket exists in
-    region: Region,
-
-    /// Path in the s3 bucket to store objects
-    root_path: PathBuf,
+    /// S3 configuration data
+    cfg: S3BucketLocation,
 
     fs: InnerDirectory,
 }
@@ -345,9 +325,9 @@ impl fmt::Debug for S3Directory {
         write!(
             f,
             "S3Directory({:?} {} {:?})",
-            self.region,
-            self.bucket,
-            self.root_path
+            self.cfg.region,
+            self.cfg.bucket,
+            self.cfg.root_path
         )
     }
 }
@@ -381,67 +361,78 @@ impl S3Directory {
 
         // TODO: how to store the client?
         // `S3` does not implement `std::marker::Sync` so it can't be on the struct
-        Ok(S3Directory {
+        let cfg = S3BucketLocation {
             bucket: bucket.clone(),
-            region: region,
+            region: region.clone(),
             root_path: PathBuf::from(directory_path),
-            fs: InnerDirectory::new(bucket),
+        };
+        Ok(S3Directory {
+            cfg: cfg,
+            fs: InnerDirectory::new(),
         })
-
-    }
-
-    fn get_client(&self) -> Result<Box<S3>, Box<Error>> {
-        get_client(self.region.clone())
-    }
-
-    /// Joins a relative_path to the directory `root_path`
-    /// to create a proper complete `filepath`.
-    fn resolve_path(&self, relative_path: &Path) -> PathBuf {
-        self.root_path.join(relative_path)
     }
 }
 
 impl Directory for S3Directory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         debug!("Open Read {:?}", path);
-        let full_path = self.resolve_path(path);
+        let key = self.cfg.resolve_path(path).map_err(|_| {
+            let msg = format!("Could not build key");
+            let io_err = make_io_err(msg);
+            OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
 
-        let s3 = self.get_client().map_err(|_| {
+        let s3 = self.cfg.get_client().map_err(|_| {
             let msg = format!("Could not get s3 client");
             let io_err = make_io_err(msg);
             OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.open_read(&full_path, s3.as_ref())
+        self.fs.open_read(s3, self.cfg.bucket.clone(), &key)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         debug!("Open Write {:?}", path);
-        let full_path = self.resolve_path(path);
+        let key = self.cfg.resolve_path(path).map_err(|_| {
+            let msg = format!("Could not build key");
+            let io_err = make_io_err(msg);
+            OpenWriteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
 
-        let s3 = self.get_client().map_err(|_| {
+        let s3 = self.cfg.get_client().map_err(|_| {
             let msg = format!("Could not get s3 client");
             let io_err = make_io_err(msg);
             OpenWriteError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.open_write(&full_path, s3.as_ref())
+        self.fs.open_write(s3, self.cfg.bucket.clone(), key.clone())
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        let s3 = self.get_client().map_err(|_| {
+        debug!("Delete {:?}", path);
+        let full_path = self.cfg.resolve_path(path).map_err(|_| {
+            let msg = format!("Could not build path");
+            let io_err = make_io_err(msg);
+            DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
+        })?;
+
+        let s3 = self.cfg.get_client().map_err(|_| {
             let msg = format!("Could not get s3 client");
             let io_err = make_io_err(msg);
             DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
         })?;
 
-        self.fs.delete(&self.resolve_path(path), s3.as_ref())
+        self.fs.delete(s3, self.cfg.bucket.clone(), &full_path)
     }
 
     fn exists(&self, path: &Path) -> bool {
-        let s3 = self.get_client().expect("Failed to build s3 client");
+        let full_path = self.cfg.resolve_path(path).expect(
+            "Failed to generate object key",
+        );
 
-        self.fs.exists(&self.resolve_path(path), s3.as_ref())
+        let s3 = self.cfg.get_client().expect("Failed to build s3 client");
+
+        self.fs.exists(s3, self.cfg.bucket.clone(), &full_path)
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
@@ -450,12 +441,22 @@ impl Directory for S3Directory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
-        let s3 = self.get_client().expect("Failed to build s3 client");
-        let s3_2 = self.get_client().expect("Failed to build s3 client");
+        let key = self.cfg.resolve_path(path).map_err(|_| {
+            let msg = format!("Could not build path");
+            make_io_err(msg)
+        })?;
 
-        let path_buf = PathBuf::from(path);
-        let mut vec_writer = VecWriter::new(s3_2, path_buf.clone(), self.fs.clone());
-        try!(self.fs.write(s3.as_ref(), path_buf, &Vec::new()));
+        let s3 = self.cfg.get_client().expect("Failed to build s3 client");
+        let s3_2 = self.cfg.get_client().expect("Failed to build s3 client");
+
+        let mut vec_writer =
+            VecWriter::new(s3, self.cfg.bucket.clone(), key.clone(), self.fs.clone());
+        try!(self.fs.write(
+            &s3_2,
+            self.cfg.bucket.clone(),
+            key,
+            &Vec::new(),
+        ));
         try!(vec_writer.write_all(data));
         try!(vec_writer.flush());
         Ok(())
@@ -465,9 +466,6 @@ impl Directory for S3Directory {
         Box::new(self.clone())
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
