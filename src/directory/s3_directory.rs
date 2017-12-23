@@ -128,7 +128,7 @@ impl Write for VecWriter {
         self.fs.write(
             &self.s3,
             &self.bucket,
-            &self.key,
+            self.key.clone(),
             self.data.get_ref(),
         )?;
         Ok(())
@@ -136,28 +136,29 @@ impl Write for VecWriter {
 }
 
 #[derive(Clone)]
-struct InnerDirectory {
-    cache: Arc<RwLock<HashMap<ObjectKey, Arc<Vec<u8>>>>>,
-}
+struct InnerDirectory(Arc<RwLock<HashMap<ObjectKey, Arc<Vec<u8>>>>>);
 
 impl InnerDirectory {
     fn new() -> InnerDirectory {
-        InnerDirectory { cache: Arc::new(RwLock::new(HashMap::new())) }
+        InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
     }
 
     fn write(
         &self,
         client: &Box<S3>,
         bucket: &Bucket,
-        key: &ObjectKey,
+        key: ObjectKey,
         data: &[u8],
     ) -> io::Result<bool> {
-        let mut map = self.cache.write().map_err(|_| {
+        println!("Write {:?}", key);
+        let mut map = self.0.write().map_err(|_| {
             make_io_err(format!(
                 "Failed to lock the directory, when trying to write {:?}",
                 key
             ))
         })?;
+
+        let prev_value = map.insert(key.clone(), Arc::new(Vec::from(data)));
 
         let result = client
             .put_object(&PutObjectRequest {
@@ -172,7 +173,7 @@ impl InnerDirectory {
             })?;
 
 
-        Ok(true)
+        Ok(prev_value.is_some())
     }
 
     fn fetch(
@@ -182,7 +183,6 @@ impl InnerDirectory {
         key: &ObjectKey,
     ) -> Result<Arc<Vec<u8>>, OpenReadError> {
         println!("Fetch: {:?}", key);
-        // TODO: this is comical and I'm more than likely over thinking it
 
         let obj = client
             .get_object(&GetObjectRequest {
@@ -208,13 +208,13 @@ impl InnerDirectory {
         bucket: &Bucket,
         key: &ObjectKey,
     ) -> result::Result<ReadOnlySource, OpenReadError> {
-        debug!("Open Read {:?}", key);
+        println!("Open Read {:?}", key);
 
         // TODO: I punted on this, since I'm switching to an inner `Directory` instance
-        let mut cache = self.cache.write().map_err(|_| {
+        let mut cache = self.0.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquire write lock for the \
-                                            directory when trying to read {:?}",
+                 directory when trying to read {:?}",
                 key
             );
             let io_err = make_io_err(msg);
@@ -241,7 +241,7 @@ impl InnerDirectory {
         bucket: &Bucket,
         key: &ObjectKey,
     ) -> result::Result<WritePtr, OpenWriteError> {
-        debug!("Open Read {:?}", key);
+        println!("Open Write {:?}", key);
 
         let writer = VecWriter::new(client, bucket.clone(), key.clone(), self.clone());
         Ok(BufWriter::new(Box::new(writer)))
@@ -253,7 +253,7 @@ impl InnerDirectory {
         bucket: &Bucket,
         key: &ObjectKey,
     ) -> result::Result<(), DeleteError> {
-        let mut writable_map = self.cache.write().map_err(|_| {
+        let mut writable_map = self.0.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquire write lock for the \
                                             directory when trying to delete {:?}",
@@ -282,16 +282,13 @@ impl InnerDirectory {
     }
 
     fn exists(&self, client: Box<S3>, bucket: &Bucket, key: &ObjectKey) -> bool {
-        let cache = self.cache.read().expect(
-            "Failed to get read lock directory.",
-        );
+        println!("Exists {:?}", key);
+        let cache = self.0.read().expect("Failed to get read lock directory.");
 
         if cache.contains_key(key) {
             true
         } else {
-            let mut cache = self.cache.write().expect(
-                "Failed to get write lock directory",
-            );
+            let mut cache = self.0.write().expect("Failed to get write lock directory");
             match cache.entry(key.clone()) {
                 Entry::Occupied(_) => true,
                 Entry::Vacant(entry) => {
@@ -462,7 +459,7 @@ impl Directory for S3Directory {
         // TODO: can i leverage a lifetime here to avoid all of these clones?
         let mut vec_writer =
             VecWriter::new(s3, self.cfg.bucket.clone(), key.clone(), self.fs.clone());
-        self.fs.write(&s3_2, &self.cfg.bucket, &key, &Vec::new())?;
+        self.fs.write(&s3_2, &self.cfg.bucket, key, &Vec::new())?;
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         Ok(())
