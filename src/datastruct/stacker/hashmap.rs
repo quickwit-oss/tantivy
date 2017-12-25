@@ -60,8 +60,7 @@ mod murmurhash2 {
 pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     let table_size_limit: usize = per_thread_memory_budget / 3;
     let compute_table_size = |num_bits: usize| {
-        let table_size: usize = (1 << num_bits) * mem::size_of::<KeyValue>();
-        table_size * mem::size_of::<KeyValue>()
+        (1 << num_bits) * mem::size_of::<KeyValue>()
     };
     let table_num_bits: usize = (1..)
         .into_iter()
@@ -220,9 +219,9 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (67232, 9));
-        assert_eq!(split_memory(1_000_000), (737856, 12));
-        assert_eq!(split_memory(10_000_000), (7902848, 15));
+        assert_eq!(split_memory(100_000), (67232, 12));
+        assert_eq!(split_memory(1_000_000), (737856, 15));
+        assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
     #[test]
