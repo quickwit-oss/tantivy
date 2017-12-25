@@ -63,7 +63,7 @@ debug-assertions = false
 
 
 [features]
-default = ["simdcompression", "streamdict"]
+default = ["simdcompression"]
 simdcompression = ["libc", "cc"]
 streamdict = []
 

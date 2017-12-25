@@ -56,6 +56,7 @@ impl SegmentSerializer {
     }
 
     /// Finalize the segment serialization.
+    #[inline(never)]
     pub fn close(self) -> Result<()> {
         self.fast_field_serializer.close()?;
         self.postings_serializer.close()?;

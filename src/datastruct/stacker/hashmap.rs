@@ -58,10 +58,9 @@ mod murmurhash2 {
 ///
 /// Returns (the heap size in bytes, the hash table size in number of bits)
 pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
-    let table_size_limit: usize = per_thread_memory_budget / 3;
+    let table_size_limit: usize = per_thread_memory_budget / 5;
     let compute_table_size = |num_bits: usize| {
-        let table_size: usize = (1 << num_bits) * mem::size_of::<KeyValue>();
-        table_size * mem::size_of::<KeyValue>()
+        (1 << num_bits) * mem::size_of::<KeyValue>()
     };
     let table_num_bits: usize = (1..)
         .into_iter()

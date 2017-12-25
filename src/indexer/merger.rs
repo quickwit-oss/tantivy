@@ -105,6 +105,7 @@ impl IndexMerger {
         })
     }
 
+    #[inline(never)]
     fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         let fieldnorm_fastfields: Vec<Field> = self.schema
             .fields()
@@ -120,6 +121,7 @@ impl IndexMerger {
         )
     }
 
+    #[inline(never)]
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         let fast_fields: Vec<Field> = self.schema
             .fields()
@@ -198,6 +200,7 @@ impl IndexMerger {
         Ok(())
     }
 
+    #[inline(never)]
     fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
         let mut delta_computer = DeltaComputer::new();
 
@@ -332,6 +335,7 @@ impl IndexMerger {
         Ok(())
     }
 
+    #[inline(never)]
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();

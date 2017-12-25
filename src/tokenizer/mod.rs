@@ -137,7 +137,10 @@ mod tokenizer_manager;
 mod japanese_tokenizer;
 mod token_stream_chain;
 mod raw_tokenizer;
+mod alphanum_only;
 
+
+pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer_manager::TokenizerManager;

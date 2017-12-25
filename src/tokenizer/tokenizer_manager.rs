@@ -7,6 +7,7 @@ use tokenizer::RawTokenizer;
 use tokenizer::SimpleTokenizer;
 use tokenizer::JapaneseTokenizer;
 use tokenizer::RemoveLongFilter;
+use tokenizer::AlphaNumOnlyFilter;
 use tokenizer::LowerCaser;
 use tokenizer::Stemmer;
 
@@ -70,6 +71,7 @@ impl Default for TokenizerManager {
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
+                .filter(AlphaNumOnlyFilter)
                 .filter(Stemmer::new()),
         );
         manager.register("ja", JapaneseTokenizer.filter(RemoveLongFilter::limit(40)));
