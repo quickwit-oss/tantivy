@@ -18,6 +18,7 @@ use core::SegmentMeta;
 use super::pool::LeasedItem;
 use std::path::Path;
 use core::IndexMeta;
+use indexer::DirectoryLock;
 use IndexWriter;
 use directory::ManagedDirectory;
 use core::META_FILEPATH;
@@ -113,12 +114,8 @@ impl Index {
         Index::create_from_metas(directory, &metas)
     }
 
-    /// Returns the index opstamp.
-    ///
-    /// The opstamp is the number of documents that have been added
-    /// from the beginning of time, and until the moment of the last commit.
-    pub fn opstamp(&self) -> u64 {
-        load_metas(self.directory()).unwrap().opstamp
+    pub(crate) fn load_metas(&self) -> Result<IndexMeta> {
+        load_metas(self.directory())
     }
 
     /// Open a new index writer. Attempts to acquire a lockfile.
@@ -141,7 +138,8 @@ impl Index {
         num_threads: usize,
         heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        open_index_writer(self, num_threads, heap_size_in_bytes)
+        let directory_lock = DirectoryLock::lock(self.directory().box_clone())?;
+        open_index_writer(self, num_threads, heap_size_in_bytes, directory_lock)
     }
 
     /// Creates a multithreaded writer
@@ -194,7 +192,7 @@ impl Index {
     /// Reads the meta.json and returns the list of
     /// `SegmentMeta` from the last commit.
     pub fn searchable_segment_metas(&self) -> Result<Vec<SegmentMeta>> {
-        Ok(load_metas(self.directory())?.segments)
+        Ok(self.load_metas()?.segments)
     }
 
     /// Returns the list of segment ids that are searchable.

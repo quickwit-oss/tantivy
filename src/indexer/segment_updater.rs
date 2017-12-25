@@ -46,7 +46,7 @@ use super::segment_manager::{get_mergeable_segments, SegmentManager};
 ///
 /// This method is not part of tantivy's public API
 pub fn save_new_metas(schema: Schema, opstamp: u64, directory: &mut Directory) -> Result<()> {
-    save_metas(vec![], schema, opstamp, directory)
+    save_metas(vec![], schema, opstamp, None, directory)
 }
 
 /// Save the index meta file.
@@ -62,12 +62,14 @@ pub fn save_metas(
     segment_metas: Vec<SegmentMeta>,
     schema: Schema,
     opstamp: u64,
+    payload: Option<String>,
     directory: &mut Directory,
 ) -> Result<()> {
     let metas = IndexMeta {
         segments: segment_metas,
         schema,
         opstamp,
+        payload: payload.clone(),
     };
     let mut buffer = serde_json::to_vec_pretty(&metas)?;
     write!(&mut buffer, "\n")?;
@@ -100,7 +102,8 @@ fn perform_merge(
     let mut file_protections: Vec<FileProtection> = vec![];
 
     for segment_id in segment_ids {
-        if let Some(mut segment_entry) = segment_updater.0.segment_manager.segment_entry(segment_id)
+        if let Some(mut segment_entry) =
+            segment_updater.0.segment_manager.segment_entry(segment_id)
         {
             let segment = index.segment(segment_entry.meta().clone());
             if let Some(file_protection) =
@@ -132,12 +135,13 @@ fn perform_merge(
     // ... we just serialize this index merger in our new segment
     // to merge the two segments.
 
-    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)
-        .expect("Creating index serializer failed");
+    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment).expect(
+        "Creating index serializer failed",
+    );
 
-    let num_docs = merger
-        .write(segment_serializer)
-        .expect("Serializing merged index failed");
+    let num_docs = merger.write(segment_serializer).expect(
+        "Serializing merged index failed",
+    );
     let mut segment_meta = SegmentMeta::new(merged_segment.id());
     segment_meta.set_max_doc(num_docs);
 
@@ -222,7 +226,7 @@ impl SegmentUpdater {
         self.0.killed.store(true, Ordering::Release);
     }
 
-    fn is_alive(&self) -> bool {
+    pub fn is_alive(&self) -> bool {
         !self.0.killed.load(Ordering::Acquire)
     }
 
@@ -239,7 +243,7 @@ impl SegmentUpdater {
         Ok(segment_entries)
     }
 
-    pub fn save_metas(&self, opstamp: u64) {
+    pub fn save_metas(&self, opstamp: u64, commit_message: Option<String>) {
         if self.is_alive() {
             let index = &self.0.index;
             let directory = index.directory();
@@ -247,6 +251,7 @@ impl SegmentUpdater {
                 self.0.segment_manager.committed_segment_metas(),
                 index.schema(),
                 opstamp,
+                commit_message,
                 directory.box_clone().borrow_mut(),
             ).expect("Could not save metas.");
         }
@@ -261,22 +266,20 @@ impl SegmentUpdater {
     fn garbage_collect_files_exec(&self) {
         info!("Running garbage collection");
         let mut index = self.0.index.clone();
-        index
-            .directory_mut()
-            .garbage_collect(|| self.0.segment_manager.list_files());
+        index.directory_mut().garbage_collect(
+            || self.0.segment_manager.list_files(),
+        );
     }
 
-    pub fn commit(&self, opstamp: u64) -> Result<()> {
-        self.run_async(move |segment_updater| {
-            if segment_updater.is_alive() {
-                let segment_entries = segment_updater
-                    .purge_deletes(opstamp)
-                    .expect("Failed purge deletes");
-                segment_updater.0.segment_manager.commit(segment_entries);
-                segment_updater.save_metas(opstamp);
-                segment_updater.garbage_collect_files_exec();
-                segment_updater.consider_merge_options();
-            }
+    pub fn commit(&self, opstamp: u64, payload: Option<String>) -> Result<()> {
+        self.run_async(move |segment_updater| if segment_updater.is_alive() {
+            let segment_entries = segment_updater.purge_deletes(opstamp).expect(
+                "Failed purge deletes",
+            );
+            segment_updater.0.segment_manager.commit(segment_entries);
+            segment_updater.save_metas(opstamp, payload);
+            segment_updater.garbage_collect_files_exec();
+            segment_updater.consider_merge_options();
         }).wait()
     }
 
@@ -340,11 +343,10 @@ impl SegmentUpdater {
                 .remove(&merging_thread_id);
             Ok(())
         });
-        self.0
-            .merging_threads
-            .write()
-            .unwrap()
-            .insert(merging_thread_id, merging_join_handle);
+        self.0.merging_threads.write().unwrap().insert(
+            merging_thread_id,
+            merging_join_handle,
+        );
         merging_future_recv
     }
 
@@ -367,9 +369,10 @@ impl SegmentUpdater {
         before_merge_segment_ids: &[SegmentId],
         after_merge_segment_entry: SegmentId,
     ) {
-        self.0
-            .segment_manager
-            .cancel_merge(before_merge_segment_ids, after_merge_segment_entry);
+        self.0.segment_manager.cancel_merge(
+            before_merge_segment_ids,
+            after_merge_segment_entry,
+        );
     }
 
     fn end_merge(
@@ -382,7 +385,11 @@ impl SegmentUpdater {
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
             let mut _file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
-                let committed_opstamp = segment_updater.0.index.opstamp();
+
+                let committed_opstamp = segment_updater.0
+                    .index.load_metas()
+                    .expect("Failed to read opstamp")
+                    .opstamp;
                 if delete_operation.opstamp < committed_opstamp {
                     let index = &segment_updater.0.index;
                     let segment = index.segment(after_merge_segment_entry.meta().clone());
@@ -397,7 +404,8 @@ impl SegmentUpdater {
                         Err(e) => {
                             error!(
                                 "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
-                                before_merge_segment_ids, e
+                                before_merge_segment_ids,
+                                e
                             );
                             // ... cancel merge
                             if cfg!(test) {
@@ -412,13 +420,14 @@ impl SegmentUpdater {
                     }
                 }
             }
-            segment_updater
-                .0
-                .segment_manager
-                .end_merge(&before_merge_segment_ids, after_merge_segment_entry);
+            segment_updater.0.segment_manager.end_merge(
+                &before_merge_segment_ids,
+                after_merge_segment_entry,
+            );
             segment_updater.consider_merge_options();
             info!("save metas");
-            segment_updater.save_metas(segment_updater.0.index.opstamp());
+            let previous_metas = segment_updater.0.index.load_metas().unwrap();
+            segment_updater.save_metas(previous_metas.opstamp, previous_metas.payload);
             segment_updater.garbage_collect_files_exec();
         }).wait()
     }
@@ -450,10 +459,9 @@ impl SegmentUpdater {
             }
             debug!("wait merging thread {}", new_merging_threads.len());
             for (_, merging_thread_handle) in new_merging_threads {
-                merging_thread_handle
-                    .join()
-                    .map(|_| ())
-                    .map_err(|_| ErrorKind::ErrorInThread("Merging thread failed.".into()))?;
+                merging_thread_handle.join().map(|_| ()).map_err(|_| {
+                    ErrorKind::ErrorInThread("Merging thread failed.".into())
+                })?;
             }
             // Our merging thread may have queued their completed
             self.run_async(move |_| {}).wait()?;
@@ -519,9 +527,9 @@ mod tests {
         assert_eq!(index.searcher().num_docs(), 302);
 
         {
-            index_writer
-                .wait_merging_threads()
-                .expect("waiting for merging threads");
+            index_writer.wait_merging_threads().expect(
+                "waiting for merging threads",
+            );
         }
 
         index.load_searchers().unwrap();
