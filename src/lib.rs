@@ -447,7 +447,7 @@ mod tests {
             {
                 index_writer.delete_term(Term::from_field_text(text_field, "c"));
             }
-            index_writer = index_writer.rollback().unwrap();
+            index_writer.rollback().unwrap();
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
         }
@@ -715,7 +715,8 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document = doc!(text_field => "tantivy",
+        let document =
+            doc!(text_field => "tantivy",
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
