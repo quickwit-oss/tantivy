@@ -6,7 +6,7 @@ use directory::ReadOnlySource;
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::WritePtr;
 use fst::raw::MmapReadOnly;
-use memmap::{Mmap, Protection};
+use memmap::Mmap;
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
 use std::convert::From;
@@ -40,7 +40,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Arc<Mmap>>, OpenReadErro
         // instead.
         return Ok(None);
     }
-    match Mmap::open(&file, Protection::Read) {
+    match Mmap::map(&file) {
         Ok(mmap) => Ok(Some(Arc::new(mmap))),
         Err(e) => Err(IOError::with_path(full_path.to_owned(), e))?,
     }
