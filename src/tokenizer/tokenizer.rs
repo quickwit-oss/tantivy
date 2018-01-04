@@ -221,6 +221,8 @@ pub trait TokenStream {
         }
     }
 
+    /// Helper function to consume the entire `TokenStream`
+    /// and push the tokens to a sink function.
     fn process(&mut self, sink: &mut FnMut(&Token)) -> u32 {
         let mut num_tokens_pushed = 0u32;
         while self.advance() {

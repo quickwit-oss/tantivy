@@ -1,8 +1,9 @@
 use super::{Token, TokenFilter, TokenStream};
 
+/// `TokenFilter` that removes all tokens that contain non
+/// ascii alphanumeric characters.
 #[derive(Clone)]
 pub struct AlphaNumOnlyFilter;
-
 
 pub struct AlphaNumOnlyFilterStream<TailTokenStream>
     where TailTokenStream: TokenStream

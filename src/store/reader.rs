@@ -34,7 +34,7 @@ impl StoreReader {
         }
     }
 
-    pub fn block_index(&self) -> SkipList<u64> {
+    pub(crate) fn block_index(&self) -> SkipList<u64> {
         SkipList::from(self.offset_index_source.as_slice())
     }
 
@@ -44,11 +44,11 @@ impl StoreReader {
             .unwrap_or((0u32, 0u64))
     }
 
-    pub fn block_data(&self) -> &[u8] {
+    pub(crate) fn block_data(&self) -> &[u8] {
         self.data.as_slice()
     }
 
-    pub fn compressed_block(&self, addr: usize) -> &[u8] {
+    fn compressed_block(&self, addr: usize) -> &[u8] {
         let total_buffer = self.data.as_slice();
         let mut buffer = &total_buffer[addr..];
         let block_len = u32::deserialize(&mut buffer).expect("") as usize;
