@@ -1,4 +1,4 @@
-sudo: false
+sudo: true
 language: rust
 rust:
   - nightly
@@ -20,9 +20,7 @@ addons:
       - libdw-dev
       - binutils-dev
 before_script:
-  - |
-    pip install 'travis-cargo<0.2' --user &&
-    export PATH=$HOME/.local/bin:$PATH
+  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
   - |
     travis-cargo build &&
@@ -32,4 +30,4 @@ script:
 after_success:
   - bash ./script/build-doc.sh
   - travis-cargo doc-upload
-  - travis-cargo coveralls --no-sudo --verify
+  - travis-cargo coveralls
