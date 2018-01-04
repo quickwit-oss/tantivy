@@ -114,6 +114,7 @@ impl Index {
         Index::create_from_metas(directory, &metas)
     }
 
+    /// Reads the index meta file from the directory.
     pub fn load_metas(&self) -> Result<IndexMeta> {
         load_metas(self.directory())
     }

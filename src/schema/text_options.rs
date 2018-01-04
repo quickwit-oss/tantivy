@@ -42,6 +42,11 @@ impl Default for TextOptions {
     }
 }
 
+/// Configuration defining indexing for a text field.
+/// It wraps:
+/// 
+/// * record (See [`IndexRecordOption`](./enum.IndexRecordOption.html))
+/// * tokenizer
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,

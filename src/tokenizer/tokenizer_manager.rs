@@ -28,6 +28,7 @@ pub struct TokenizerManager {
 }
 
 impl TokenizerManager {
+    /// Registers a new tokenizer associated with a given name.
     pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
     where
         A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
@@ -39,6 +40,7 @@ impl TokenizerManager {
             .insert(tokenizer_name.to_string(), boxed_tokenizer);
     }
 
+    /// Accessing a tokenizer given its name.
     pub fn get(&self, tokenizer_name: &str) -> Option<Box<BoxedTokenizer>> {
         self.tokenizers
             .read()

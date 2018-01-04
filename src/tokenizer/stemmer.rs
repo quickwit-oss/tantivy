@@ -3,6 +3,7 @@ use super::{Token, TokenFilter, TokenStream};
 use rust_stemmers::{self, Algorithm};
 
 /// `Stemmer` token filter. Currently only English is supported.
+/// Tokens are expected to be lowercased beforehands.
 #[derive(Clone)]
 pub struct Stemmer {
     stemmer_algorithm: Arc<Algorithm>,
