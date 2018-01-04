@@ -335,12 +335,16 @@ impl IndexMerger {
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
-            for doc_id in 0..reader.max_doc() {
-                if !reader.is_deleted(doc_id) {
-                    let doc = store_reader.get(doc_id)?;
-                    let field_values: Vec<&FieldValue> = doc.field_values().iter().collect();
-                    store_writer.store(&field_values)?;
+            if reader.num_deleted_docs() > 0 {
+                for doc_id in 0..reader.max_doc() {
+                    if !reader.is_deleted(doc_id) {
+                        let doc = store_reader.get(doc_id)?;
+                        let field_values: Vec<&FieldValue> = doc.field_values().iter().collect();
+                        store_writer.store(&field_values)?;
+                    }
                 }
+            } else {
+                store_writer.stack(store_reader)?;
             }
         }
         Ok(())

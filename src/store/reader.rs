@@ -34,22 +34,33 @@ impl StoreReader {
         }
     }
 
-    fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
+    pub fn block_index(&self) -> SkipList<u64> {
         SkipList::from(self.offset_index_source.as_slice())
+    }
+
+    fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
+        self.block_index()
             .seek(doc_id + 1)
             .unwrap_or((0u32, 0u64))
+    }
+
+    pub fn block_data(&self) -> &[u8] {
+        self.data.as_slice()
+    }
+
+    pub fn compressed_block(&self, addr: usize) -> &[u8] {
+        let total_buffer = self.data.as_slice();
+        let mut buffer = &total_buffer[addr..];
+        let block_len = u32::deserialize(&mut buffer).expect("") as usize;
+        &buffer[..block_len]
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {
         if block_offset != *self.current_block_offset.borrow() {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
-            let total_buffer = self.data.as_slice();
-            let mut cursor = &total_buffer[block_offset..];
-            let block_length = u32::deserialize(&mut cursor).unwrap();
-            let block_array: &[u8] = &total_buffer
-                [(block_offset + 4 as usize)..(block_offset + 4 + block_length as usize)];
-            let mut lz4_decoder = lz4::Decoder::new(block_array)?;
+            let compressed_block = self.compressed_block(block_offset);
+            let mut lz4_decoder = lz4::Decoder::new(compressed_block)?;
             *self.current_block_offset.borrow_mut() = usize::max_value();
             lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())?;
             *self.current_block_offset.borrow_mut() = block_offset;

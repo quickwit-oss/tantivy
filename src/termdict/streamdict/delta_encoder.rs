@@ -49,19 +49,26 @@ impl TermDeltaDecoder {
         }
     }
 
+
+    // code
+    // first bit represents whether the prefix / suffix len can be encoded
+    // on the same byte. (the next one)
+    //
+
     #[inline(always)]
     pub fn decode<'a>(&mut self, code: u8, mut cursor: &'a [u8]) -> &'a [u8] {
-        let (prefix_len, suffix_len): (usize, usize) = if (code & 1u8) == 1u8 {
-            let b = cursor[0];
-            cursor = &cursor[1..];
-            let prefix_len = (b & 15u8) as usize;
-            let suffix_len = (b >> 4u8) as usize;
-            (prefix_len, suffix_len)
-        } else {
-            let prefix_len = u32::deserialize(&mut cursor).unwrap();
-            let suffix_len = u32::deserialize(&mut cursor).unwrap();
-            (prefix_len as usize, suffix_len as usize)
-        };
+        let (prefix_len, suffix_len): (usize, usize) =
+            if (code & 1u8) == 1u8 {
+                let b = cursor[0];
+                cursor = &cursor[1..];
+                let prefix_len = (b & 15u8) as usize;
+                let suffix_len = (b >> 4u8) as usize;
+                (prefix_len, suffix_len)
+            } else {
+                let prefix_len = u32::deserialize(&mut cursor).unwrap();
+                let suffix_len = u32::deserialize(&mut cursor).unwrap();
+                (prefix_len as usize, suffix_len as usize)
+            };
         unsafe { self.term.set_len(prefix_len) };
         self.term.extend_from_slice(&(*cursor)[..suffix_len]);
         &cursor[suffix_len..]
@@ -75,8 +82,8 @@ impl TermDeltaDecoder {
 #[derive(Default)]
 pub struct DeltaTermInfo {
     pub doc_freq: u32,
-    pub delta_postings_offset: u32,
-    pub delta_positions_offset: u32,
+    pub delta_postings_offset: u64,
+    pub delta_positions_offset: u64,
     pub positions_inner_offset: u8,
 }
 
@@ -101,7 +108,7 @@ impl TermInfoDeltaEncoder {
         let mut delta_term_info = DeltaTermInfo {
             doc_freq: term_info.doc_freq,
             delta_postings_offset: term_info.postings_offset - self.term_info.postings_offset,
-            delta_positions_offset: 0,
+            delta_positions_offset: 0u64,
             positions_inner_offset: 0,
         };
         if self.has_positions {
@@ -152,7 +159,7 @@ impl TermInfoDeltaDecoder {
         let mut v: u64 = unsafe { *(cursor.as_ptr() as *const u64) };
         let doc_freq: u32 = (v as u32) & make_mask(num_bytes_docfreq);
         v >>= (num_bytes_docfreq as u64) * 8u64;
-        let delta_postings_offset: u32 = (v as u32) & make_mask(num_bytes_postings_offset);
+        let delta_postings_offset: u64 = v & make_mask(num_bytes_postings_offset);
         cursor = &cursor[num_bytes_docfreq + num_bytes_postings_offset..];
         self.term_info.doc_freq = doc_freq;
         self.term_info.postings_offset += delta_postings_offset;
