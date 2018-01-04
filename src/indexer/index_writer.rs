@@ -173,10 +173,8 @@ pub fn compute_deleted_bitset(
                 // that may be affected by the delete operation.
                 let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
                 let inverted_index = segment_reader.inverted_index(delete_op.term.field());
-                if let Some(mut docset) = inverted_index.read_postings(
-                    &delete_op.term,
-                    IndexRecordOption::Basic,
-                )
+                if let Some(mut docset) =
+                    inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
                 {
                     while docset.advance() {
                         let deleted_doc = docset.doc();
@@ -338,15 +336,13 @@ impl IndexWriter {
             join_handle
                 .join()
                 .expect("Indexing Worker thread panicked")
-                .chain_err(|| {
-                    ErrorKind::ErrorInThread("Error in indexing worker thread.".into())
-                })?;
+                .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
         }
         drop(self.workers_join_handle);
 
-        let result = self.segment_updater.wait_merging_thread().chain_err(|| {
-            ErrorKind::ErrorInThread("Failed to join merging thread.".into())
-        });
+        let result = self.segment_updater
+            .wait_merging_thread()
+            .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -359,10 +355,8 @@ impl IndexWriter {
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater.add_segment(
-            self.generation,
-            segment_entry,
-        );
+        self.segment_updater
+            .add_segment(self.generation, segment_entry);
     }
 
     #[doc(hidden)]
@@ -388,8 +382,7 @@ impl IndexWriter {
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
             .name(format!(
                 "indexing thread {} for gen {}",
-                self.worker_id,
-                generation
+                self.worker_id, generation
             ))
             .spawn(move || {
                 loop {
@@ -469,9 +462,10 @@ impl IndexWriter {
     ///
     /// Returns the former segment_ready channel.
     fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (mut document_sender, mut document_receiver): (DocumentSender,
-                                                           DocumentReceiver) =
-            chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+        let (mut document_sender, mut document_receiver): (
+            DocumentSender,
+            DocumentReceiver,
+        ) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
         swap(&mut self.document_sender, &mut document_sender);
         swap(&mut self.document_receiver, &mut document_receiver);
         document_receiver
@@ -495,9 +489,9 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self._directory_lock.take().expect(
-            "The IndexWriter does not have any lock. This is a bug, please report.",
-        );
+        let directory_lock = self._directory_lock
+            .take()
+            .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
         let new_index_writer: IndexWriter = open_index_writer(
             &self.index,
@@ -521,7 +515,6 @@ impl IndexWriter {
 
         Ok(())
     }
-
 
     /// Prepares a commit.
     ///
@@ -555,7 +548,7 @@ impl IndexWriter {
 
         // This will move uncommitted segments to the state of
         // committed segments.
-        info!("committing {}", self.committed_opstamp);
+        info!("Preparing commit");
 
         // this will drop the current document channel
         // and recreate a new one channels.
@@ -568,9 +561,9 @@ impl IndexWriter {
         );
 
         for worker_handle in former_workers_join_handle {
-            let indexing_worker_result = worker_handle.join().map_err(|e| {
-                Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e)))
-            })?;
+            let indexing_worker_result = worker_handle
+                .join()
+                .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.
@@ -579,7 +572,7 @@ impl IndexWriter {
 
         let commit_opstamp = self.stamper.stamp();
         let prepared_commit = PreparedCommit::new(self, commit_opstamp);
-        info!("Preparing commit {}", commit_opstamp);
+        info!("Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
 
@@ -773,9 +766,9 @@ mod tests {
             }
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
-            index_writer.wait_merging_threads().expect(
-                "waiting merging thread failed",
-            );
+            index_writer
+                .wait_merging_threads()
+                .expect("waiting merging thread failed");
             index.load_searchers().unwrap();
 
             assert_eq!(num_docs_containing("a"), 200);

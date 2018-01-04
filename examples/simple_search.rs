@@ -20,17 +20,13 @@ fn main() {
     }
 }
 
-
 fn run_example(index_path: &Path) -> tantivy::Result<()> {
-
-
     // # Defining the schema
     //
     // The Tantivy index requires a very strict schema.
     // The schema declares which fields are in the index,
     // and for each field, its type and "the way it should
     // be indexed".
-
 
     // first we need to define a schema ...
     let mut schema_builder = SchemaBuilder::default();
@@ -62,8 +58,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     let schema = schema_builder.build();
 
-
-
     // # Indexing documents
     //
     // Let's create a brand new index.
@@ -71,7 +65,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // This will actually just save a meta.json
     // with our schema in the directory.
     let index = Index::create(index_path, schema.clone())?;
-
 
     // To insert document we need an index writer.
     // There must be only one writer at a time.
@@ -85,7 +78,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Let's index our documents!
     // We first need a handle on the title and the body field.
 
-
     // ### Create a document "manually".
     //
     // We can create a document manually, by setting the fields
@@ -98,7 +90,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     old_man_doc.add_text(
         body,
         "He was an old man who fished alone in a skiff in the Gulf Stream and \
-                          he had gone eighty-four days now without taking a fish.",
+         he had gone eighty-four days now without taking a fish.",
     );
 
     // ... and add it to the `IndexWriter`.
@@ -145,7 +137,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // Indexing 5 million articles of the English wikipedia takes
     // around 4 minutes on my computer!
 
-
     // ### Committing
     //
     // At this point our documents are not searchable.
@@ -166,7 +157,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // In the scenario of a crash or a power failure,
     // tantivy behaves as if has rolled back to its last
     // commit.
-
 
     // # Searching
     //
@@ -191,7 +181,6 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // format. For user facing applications, this can be a problem.
     // A ticket has been opened regarding this problem.
     let query = query_parser.parse_query("sea whale")?;
-
 
     // A query defines a set of documents, as
     // well as the way they should be scored.

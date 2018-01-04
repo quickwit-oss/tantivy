@@ -373,7 +373,7 @@ mod test {
 
     #[test]
     pub fn test_parse_nonindexed_field_yields_error() {
-        let  query_parser = make_query_parser();
+        let query_parser = make_query_parser();
 
         let is_not_indexed_err = |query: &str| {
             let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);

@@ -114,7 +114,7 @@ impl Index {
         Index::create_from_metas(directory, &metas)
     }
 
-    pub(crate) fn load_metas(&self) -> Result<IndexMeta> {
+    pub fn load_metas(&self) -> Result<IndexMeta> {
         load_metas(self.directory())
     }
 

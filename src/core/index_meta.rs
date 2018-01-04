@@ -14,8 +14,7 @@ pub struct IndexMeta {
     pub segments: Vec<SegmentMeta>,
     pub schema: Schema,
     pub opstamp: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub payload: Option<String>,
 }
 
 impl IndexMeta {
@@ -29,14 +28,12 @@ impl IndexMeta {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
     use serde_json;
     use super::IndexMeta;
-    use schema::{TEXT, SchemaBuilder};
-
+    use schema::{SchemaBuilder, TEXT};
 
     #[test]
     fn test_serialize_metas() {
@@ -49,7 +46,7 @@ mod tests {
             segments: Vec::new(),
             schema: schema,
             opstamp: 0u64,
-            payload: None
+            payload: None,
         };
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(json, r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#);

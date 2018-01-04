@@ -133,8 +133,7 @@ where
                 addr + 8 <= data.len(),
                 "The fast field field should have been padded with 7 bytes."
             );
-            let val_unshifted_unmasked: u64 =
-                unsafe { *(data[addr..].as_ptr() as *const u64) };
+            let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         } else {
@@ -165,8 +164,7 @@ where
             for output_val in output.iter_mut() {
                 let addr = addr_in_bits >> 3;
                 let bit_shift = addr_in_bits & 7;
-                let val_unshifted_unmasked: u64 =
-                    unsafe { *(data[addr..].as_ptr() as *const u64) };
+                let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
                 let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
                 *output_val = val_shifted & mask;
                 addr_in_bits += num_bits;

@@ -715,8 +715,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
-        let document =
-            doc!(text_field => "tantivy",
+        let document = doc!(text_field => "tantivy",
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
