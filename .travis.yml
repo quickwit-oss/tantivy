@@ -1,5 +1,5 @@
-sudo: true
 language: rust
+cache: cargo
 rust:
   - nightly
 env:
@@ -12,6 +12,7 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
+      - kalakris-cmake
     packages:
       - gcc-4.8
       - g++-4.8
@@ -19,15 +20,15 @@ addons:
       - libelf-dev
       - libdw-dev
       - binutils-dev
+      - cmake
 before_script:
-  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-script:
   - |
-    travis-cargo build &&
-    travis-cargo test &&
-    travis-cargo bench
+      cargo install cargo-travis || echo "cargo-travis already installed"
+      export PATH=$HOME/.cargo/bin:$PATH
+script:
+  - cargo build
+  - cargo test
   - cargo run --example simple_search
 after_success:
-  - bash ./script/build-doc.sh
+  - cargo coveralls
   - travis-cargo doc-upload
-  - travis-cargo coveralls
