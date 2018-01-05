@@ -30,5 +30,5 @@ script:
   - cargo test
   - cargo run --example simple_search
 after_success:
-  - cargo coveralls
+  - cargo coveralls --exclude-pattern cpp/
   - travis-cargo doc-upload
