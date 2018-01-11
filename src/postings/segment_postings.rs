@@ -40,7 +40,6 @@ impl PositionComputer {
     pub fn positions(&mut self, term_freq: usize) -> &[u32] {
         if let Some(num_skip) = self.position_to_skip {
             self.positions.resize(term_freq, 0u32);
-
             self.positions_stream.skip(num_skip);
             self.positions_stream.read(&mut self.positions[..term_freq]);
 
@@ -116,6 +115,7 @@ impl DocSet for SegmentPostings {
     #[inline]
     fn advance(&mut self) -> bool {
         loop {
+            self.position_add_skip(|| self.term_freq() as usize);
             self.cur += 1;
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
@@ -124,7 +124,6 @@ impl DocSet for SegmentPostings {
                     return false;
                 }
             }
-            self.position_add_skip(|| self.term_freq() as usize);
             if !self.delete_bitset.is_deleted(self.doc()) {
                 return true;
             }
