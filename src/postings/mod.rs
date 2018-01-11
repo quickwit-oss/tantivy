@@ -77,6 +77,58 @@ mod tests {
     }
 
     #[test]
+    pub fn test_skip_positions() {
+        let mut schema_builder = SchemaBuilder::new();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
+        index_writer.add_document(doc!(title => r#"abc abc abc"#));
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        for _ in 0..1_000 {
+            index_writer.add_document(doc!(title => r#"abc abc abc"#));
+        }
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let query = TermQuery::new(Term::from_field_text(title, "abc"), IndexRecordOption::WithFreqsAndPositions);
+        let weight = query.specialized_weight(&*searcher);
+        {
+            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            scorer.advance();
+            assert_eq!(&[0,1,2], scorer.postings().positions());
+            scorer.advance();
+            assert_eq!(&[0,5], scorer.postings().positions());
+        }
+        {
+            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            scorer.advance();
+            scorer.advance();
+            assert_eq!(&[0,5], scorer.postings().positions());
+        }
+        {
+            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            assert_eq!(scorer.skip_next(1), SkipResult::Reached);
+            assert_eq!(scorer.doc(), 1);
+            assert_eq!(&[0,5], scorer.postings().positions());
+        }
+        {
+            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
+            assert_eq!(scorer.doc(), 1002);
+            assert_eq!(&[0,5], scorer.postings().positions());
+        }
+        {
+            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            assert_eq!(scorer.skip_next(100), SkipResult::Reached);
+            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
+            assert_eq!(scorer.doc(), 1002);
+            assert_eq!(&[0,5], scorer.postings().positions());
+        }
+    }
+
+    #[test]
     pub fn test_position_and_fieldnorm1() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
