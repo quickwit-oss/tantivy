@@ -4,7 +4,6 @@ use schema::Term;
 use schema::IndexRecordOption;
 use core::SegmentReader;
 use super::PhraseScorer;
-use postings::IntersectionDocSet;
 use query::EmptyScorer;
 use Result;
 
@@ -22,17 +21,14 @@ impl Weight for PhraseWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let mut term_postings_list = Vec::new();
         for term in &self.phrase_terms {
-            let inverted_index = reader.inverted_index(term.field());
-            let term_postings_option =
-                inverted_index.read_postings(term, IndexRecordOption::WithFreqsAndPositions);
-            if let Some(term_postings) = term_postings_option {
-                term_postings_list.push(term_postings);
+            if let Some(postings) = reader
+                .inverted_index(term.field())
+                .read_postings(term, IndexRecordOption::WithFreqsAndPositions) {
+                term_postings_list.push(postings);
             } else {
                 return Ok(box EmptyScorer);
             }
         }
-        Ok(box PhraseScorer {
-            intersection_docset: IntersectionDocSet::from(term_postings_list),
-        })
+        Ok(box PhraseScorer::new(term_postings_list))
     }
 }
