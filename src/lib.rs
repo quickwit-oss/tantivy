@@ -56,8 +56,6 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate time;
 extern crate uuid;
-#[macro_use]
-extern crate version;
 
 #[cfg(test)]
 extern crate env_logger;
@@ -122,9 +120,9 @@ pub use common::{i64_to_u64, u64_to_i64};
 /// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
     if cfg!(feature = "simdcompression") {
-        concat!(version!(), "-simd")
+        concat!(env!("CARGO_PKG_VERSION"), "-simd")
     } else {
-        concat!(version!(), "-nosimd")
+        concat!(env!("CARGO_PKG_VERSION"), "-nosimd")
     }
 }
 

@@ -27,7 +27,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 bincode = "0.8"
-libc = {version = "0.2.20", optional=true}
+libc = { version = "0.2.20", optional=true }
 num_cpus = "1.2"
 itertools = "0.5.9"
 lz4 = "1.20"
@@ -35,7 +35,6 @@ bit-set = "0.4.0"
 time = "0.1"
 uuid = { version = "0.5", features = ["v4", "serde"] }
 chan = "0.1"
-version = "2"
 crossbeam = "0.3"
 futures = "0.1"
 futures-cpupool = "0.1"
@@ -52,7 +51,7 @@ rand = "0.3"
 env_logger = "0.4"
 
 [build-dependencies]
-cc = {version = "1.0.0", optional=true}
+cc = { version="1.0.0", optional=true }
 
 [profile.release]
 opt-level = 3
