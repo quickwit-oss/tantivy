@@ -17,8 +17,14 @@ use common::CompositeFile;
 use std::fmt;
 use core::InvertedIndexReader;
 use schema::Field;
+use schema::FieldType;
+use error::ErrorKind;
+use termdict::TermDictionaryImpl;
+use fastfield::FacetReader;
 use fastfield::{FastFieldReader, U64FastFieldReader};
 use schema::Schema;
+use termdict::TermDictionary;
+use fastfield::MultiValueIntFastFieldReader;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -96,6 +102,40 @@ impl SegmentReader {
                 .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
                 .map(TFastFieldReader::open)
         }
+    }
+
+    /// Accessor to the `FacetReader` associated to a given `Field`.
+    pub fn facet_reader(&self, field: Field) -> Result<FacetReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        if field_entry.field_type() != &FieldType::HierarchicalFacet {
+            return Err(ErrorKind::InvalidArgument(format!("The field {:?} is not a \
+                    hierarchical facet.", field_entry)).into())
+        }
+        let term_ords_reader = self.multi_value_reader(field)?;
+        let termdict_source = self.termdict_composite
+            .open_read(field)
+            .ok_or_else(|| {
+                ErrorKind::InvalidArgument(format!("The field \"{}\" is a hierarchical \
+                    but this segment does not seem to have the field term \
+                    dictionary.", field_entry.name()))
+            })?;
+        let termdict = TermDictionaryImpl::from_source(termdict_source);
+        let facet_reader = FacetReader::new(term_ords_reader, termdict);
+        Ok(facet_reader)
+    }
+
+    /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
+    pub fn multi_value_reader(&self, field: Field) -> Result<MultiValueIntFastFieldReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        let idx_reader = self.fast_fields_composite
+            .open_read_with_idx(field, 0)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+            .map(U64FastFieldReader::open)?;
+        let vals_reader = self.fast_fields_composite
+            .open_read_with_idx(field, 1)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+            .map(U64FastFieldReader::open)?;
+        Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.

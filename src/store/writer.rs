@@ -7,6 +7,8 @@ use super::StoreReader;
 use lz4;
 use datastruct::SkipListBuilder;
 use common::CountingWriter;
+use bincode;
+use schema::Document;
 
 const BLOCK_SIZE: usize = 16_384;
 
@@ -46,13 +48,11 @@ impl StoreWriter {
     /// The document id is implicitely the number of times
     /// this method has been called.
     ///
-    pub fn store<'a>(&mut self, field_values: &[&'a FieldValue]) -> io::Result<()> {
+    pub fn store<'a>(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        (field_values.len() as u32).serialize(&mut self.intermediary_buffer)?;
-        for &field_value in field_values {
-            field_value.serialize(&mut self.intermediary_buffer)?;
-        }
-        (self.intermediary_buffer.len() as u32).serialize(&mut self.current_block)?;
+        bincode::serialize_into(&mut self.intermediary_buffer, stored_document, bincode::Infinite);
+        let doc_num_bytes = self.intermediary_buffer.len() as u32;
+        <u32 as BinarySerializable>::serialize(&doc_num_bytes, &mut self.current_block)?;
         self.current_block.write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {

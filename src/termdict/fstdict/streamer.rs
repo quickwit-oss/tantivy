@@ -1,8 +1,8 @@
 use fst::{IntoStreamer, Streamer};
-use fst::map::{Stream, StreamBuilder};
+use fst::map::{StreamBuilder, Stream};
 use postings::TermInfo;
 use super::TermDictionaryImpl;
-use termdict::{TermStreamer, TermStreamerBuilder};
+use termdict::{TermOrdinal, TermDictionary, TermStreamerBuilder, TermStreamer};
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
 pub struct TermStreamerBuilderImpl<'a> {
@@ -13,8 +13,8 @@ pub struct TermStreamerBuilderImpl<'a> {
 impl<'a> TermStreamerBuilderImpl<'a> {
     pub(crate) fn new(fst_map: &'a TermDictionaryImpl, stream_builder: StreamBuilder<'a>) -> Self {
         TermStreamerBuilderImpl {
-            fst_map,
-            stream_builder,
+            fst_map: fst_map,
+            stream_builder: stream_builder,
         }
     }
 }
@@ -46,35 +46,38 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a> {
         TermStreamerImpl {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
-            offset: 0u64,
+            term_ord: 0u64,
             current_key: Vec::with_capacity(100),
             current_value: TermInfo::default(),
         }
     }
 }
 
+
 /// See [`TermStreamer`](./trait.TermStreamer.html)
 pub struct TermStreamerImpl<'a> {
     fst_map: &'a TermDictionaryImpl,
     stream: Stream<'a>,
-    offset: u64,
+    term_ord: TermOrdinal,
     current_key: Vec<u8>,
     current_value: TermInfo,
 }
 
 impl<'a> TermStreamer for TermStreamerImpl<'a> {
     fn advance(&mut self) -> bool {
-        if let Some((term, offset)) = self.stream.next() {
+        if let Some((term, term_ord)) = self.stream.next() {
             self.current_key.clear();
             self.current_key.extend_from_slice(term);
-            self.offset = offset;
-            self.current_value = self.fst_map
-                .read_value(self.offset)
-                .expect("Fst data is corrupted. Failed to deserialize a value.");
+            self.term_ord = term_ord;
+            self.current_value = self.fst_map.term_info_from_ord(term_ord);
             true
         } else {
             false
         }
+    }
+
+    fn term_ord(&self) -> TermOrdinal {
+        self.term_ord
     }
 
     fn key(&self) -> &[u8] {
@@ -85,3 +88,4 @@ impl<'a> TermStreamer for TermStreamerImpl<'a> {
         &self.current_value
     }
 }
+

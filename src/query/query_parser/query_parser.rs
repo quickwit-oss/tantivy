@@ -206,6 +206,10 @@ impl QueryParser {
                     ))
                 }
             }
+            FieldType::HierarchicalFacet => {
+                let term = Term::from_field_text(field, phrase);
+                Ok(Some(LogicalLiteral::Term(term)))
+            }
         }
     }
 

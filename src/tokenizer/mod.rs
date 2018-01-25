@@ -133,6 +133,7 @@ mod simple_tokenizer;
 mod lower_caser;
 mod remove_long;
 mod stemmer;
+mod facet_tokenizer;
 mod tokenizer_manager;
 mod japanese_tokenizer;
 mod token_stream_chain;
@@ -150,6 +151,7 @@ pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::lower_caser::LowerCaser;
 pub use self::stemmer::Stemmer;
+pub use self::facet_tokenizer::FacetTokenizer;
 
 #[cfg(test)]
 mod test {

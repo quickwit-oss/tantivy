@@ -1,6 +1,7 @@
 use std::iter;
 use std::mem;
-use super::heap::{BytesRef, Heap, HeapAllocable};
+use postings::UnorderedTermId;
+use super::heap::{Heap, HeapAllocable, BytesRef};
 
 mod murmurhash2 {
 
@@ -9,7 +10,7 @@ mod murmurhash2 {
     #[inline(always)]
     pub fn murmurhash2(key: &[u8]) -> u32 {
         let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
-        let m: u32 = 0x5bd1_e995;
+        let m: u32 = 0x5bd1e995;
         let r = 24;
         let len = key.len() as u32;
 
@@ -30,18 +31,18 @@ mod murmurhash2 {
         let key_ptr_u8: *const u8 = key_ptr as *const u8;
         match remaining {
             3 => {
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(2)) } << 16;
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
-                h ^= unsafe { u32::from(*key_ptr_u8) };
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(2) as u32 } << 16;
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
+                h ^= unsafe { *key_ptr_u8 as u32 };
                 h = h.wrapping_mul(m);
             }
             2 => {
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
-                h ^= unsafe { u32::from(*key_ptr_u8) };
+                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
+                h ^= unsafe { *key_ptr_u8 as u32 };
                 h = h.wrapping_mul(m);
             }
             1 => {
-                h ^= unsafe { u32::from(*key_ptr_u8) };
+                h ^= unsafe { *key_ptr_u8 as u32 };
                 h = h.wrapping_mul(m);
             }
             _ => {}
@@ -52,6 +53,9 @@ mod murmurhash2 {
     }
 }
 
+
+
+
 /// Split the thread memory budget into
 /// - the heap size
 /// - the hash table "table" itself.
@@ -59,10 +63,15 @@ mod murmurhash2 {
 /// Returns (the heap size in bytes, the hash table size in number of bits)
 pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     let table_size_limit: usize = per_thread_memory_budget / 3;
-    let compute_table_size = |num_bits: usize| (1 << num_bits) * mem::size_of::<KeyValue>();
+    let compute_table_size = |num_bits: usize| {
+        let table_size: usize = (1 << num_bits) * mem::size_of::<KeyValue>();
+        table_size * mem::size_of::<KeyValue>()
+    };
     let table_num_bits: usize = (1..)
         .into_iter()
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
+        .take_while(|num_bits: &usize| {
+            compute_table_size(*num_bits) < table_size_limit
+        })
         .last()
         .expect(&format!(
             "Per thread memory is too small: {}",
@@ -73,6 +82,7 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     (heap_size, table_num_bits)
 }
 
+
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
 /// The `value_addr` also points to an address in the heap.
@@ -81,6 +91,7 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
 /// For this reason, the (start, stop) information is actually redundant
 /// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
+#[repr(packed)]
 struct KeyValue {
     key_value_addr: BytesRef,
     hash: u32,
@@ -92,6 +103,7 @@ impl KeyValue {
     }
 }
 
+
 /// Customized `HashMap` with string keys
 ///
 /// This `HashMap` takes String as keys. Keys are
@@ -101,12 +113,13 @@ impl KeyValue {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 ///
-pub struct HashMap<'a> {
+pub struct TermHashMap<'a> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     mask: usize,
     occupied: Vec<usize>,
 }
+
 
 struct QuadraticProbing {
     hash: usize,
@@ -116,7 +129,11 @@ struct QuadraticProbing {
 
 impl QuadraticProbing {
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
-        QuadraticProbing { hash, i: 0, mask }
+        QuadraticProbing {
+            hash: hash,
+            i: 0,
+            mask: mask,
+        }
     }
 
     #[inline]
@@ -126,13 +143,14 @@ impl QuadraticProbing {
     }
 }
 
-impl<'a> HashMap<'a> {
-    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
+
+impl<'a> TermHashMap<'a> {
+    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> TermHashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
-        HashMap {
+        TermHashMap {
             table: table.into_boxed_slice(),
-            heap,
+            heap: heap,
             mask: table_size - 1,
             occupied: Vec::with_capacity(table_size / 2),
         }
@@ -157,18 +175,23 @@ impl<'a> HashMap<'a> {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
             key_value_addr: key_bytes_ref,
-            hash,
+            hash: hash,
         };
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
-        self.occupied.iter().cloned().map(move |bucket: usize| {
-            let kv = self.table[bucket];
-            self.get_key_value(kv.key_value_addr)
-        })
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32, UnorderedTermId)> + 'b {
+        self.occupied
+            .iter()
+            .cloned()
+            .map(move |bucket: usize| {
+                let kv = self.table[bucket];
+                let (key, offset) = self.get_key_value(kv.key_value_addr);
+                (key, offset, bucket as UnorderedTermId)
+            })
     }
 
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
+
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> (UnorderedTermId, &mut V) {
         let key_bytes: &[u8] = key.as_ref();
         let hash = murmurhash2::murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
@@ -180,16 +203,17 @@ impl<'a> HashMap<'a> {
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
                 self.set_bucket(hash, key_bytes_ref, bucket);
-                return val;
+                return (bucket, val);
             } else if kv.hash == hash {
                 let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    return self.heap.get_mut_ref(expull_addr);
+                    return (bucket, self.heap.get_mut_ref(expull_addr));
                 }
             }
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -200,6 +224,7 @@ mod tests {
     use test::Bencher;
     use std::collections::HashSet;
     use super::split_memory;
+
 
     struct TestValue {
         val: u32,
@@ -217,41 +242,42 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (67232, 12));
-        assert_eq!(split_memory(1_000_000), (737856, 15));
-        assert_eq!(split_memory(10_000_000), (7902848, 18));
+        assert_eq!(split_memory(100_000), (67232, 9));
+        assert_eq!(split_memory(1_000_000), (737856, 12));
+        assert_eq!(split_memory(10_000_000), (7902848, 15));
     }
+
 
     #[test]
     fn test_hash_map() {
         let heap = Heap::with_capacity(2_000_000);
-        let mut hash_map: HashMap = HashMap::new(18, &heap);
+        let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc");
+            let v: &mut TestValue = hash_map.get_or_create("abc").1;
             assert_eq!(v.val, 0u32);
             v.val = 3u32;
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd");
+            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
             assert_eq!(v.val, 0u32);
             v.val = 4u32;
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc");
+            let v: &mut TestValue = hash_map.get_or_create("abc").1;
             assert_eq!(v.val, 3u32);
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd");
+            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
             assert_eq!(v.val, 4u32);
         }
         let mut iter_values = hash_map.iter();
         {
-            let (_, addr) = iter_values.next().unwrap();
+            let (_, addr, _) = iter_values.next().unwrap();
             let val: &TestValue = heap.get_ref(addr);
             assert_eq!(val.val, 3u32);
         }
         {
-            let (_, addr) = iter_values.next().unwrap();
+            let (_, addr, _) = iter_values.next().unwrap();
             let val: &TestValue = heap.get_ref(addr);
             assert_eq!(val.val, 4u32);
         }
@@ -294,5 +320,6 @@ mod tests {
                 .unwrap()
         });
     }
+
 
 }

@@ -47,6 +47,7 @@ mod tests {
     use schema::{Schema, SchemaBuilder};
     use schema::TextOptions;
     use schema::FieldValue;
+    use schema::Document;
     use directory::{Directory, MmapDirectory, RAMDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
@@ -78,8 +79,9 @@ mod tests {
                     let field_value = FieldValue::new(field_title, From::from(title_text));
                     fields.push(field_value);
                 }
-                let fields_refs: Vec<&FieldValue> = fields.iter().collect();
-                store_writer.store(&fields_refs).unwrap();
+                //let fields_refs: Vec<&FieldValue> = fields.iter().collect();
+                let doc = Document::from(fields);
+                store_writer.store(&doc).unwrap();
             }
             store_writer.close().unwrap();
         }

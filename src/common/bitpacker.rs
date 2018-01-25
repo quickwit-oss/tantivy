@@ -89,6 +89,7 @@ impl BitPacker {
     }
 }
 
+#[derive(Clone)]
 pub struct BitUnpacker<Data>
 where
     Data: Deref<Target = [u8]>,

@@ -4,7 +4,7 @@ mod expull;
 
 pub use self::heap::{Heap, HeapAllocable};
 pub use self::expull::ExpUnrolledLinkedList;
-pub use self::hashmap::HashMap;
+pub use self::hashmap::TermHashMap;
 
 #[test]
 fn test_unrolled_linked_list() {
@@ -16,15 +16,15 @@ fn test_unrolled_linked_list() {
         ks.push(2);
         ks.push(3);
         for k in (1..5).map(|k| k * 100) {
-            let mut hashmap: HashMap = HashMap::new(10, &heap);
+            let mut hashmap: TermHashMap = TermHashMap::new(10, &heap);
             for j in 0..k {
                 for i in 0..500 {
-                    let v: &mut ExpUnrolledLinkedList = hashmap.get_or_create(i.to_string());
+                    let v: &mut ExpUnrolledLinkedList = hashmap.get_or_create(i.to_string()).1;
                     v.push(i * j, &heap);
                 }
             }
             let mut map_addr: collections::HashMap<Vec<u8>, u32> = collections::HashMap::new();
-            for (key, addr) in hashmap.iter() {
+            for (key, addr, _) in hashmap.iter() {
                 map_addr.insert(Vec::from(key), addr);
             }
 
@@ -39,5 +39,6 @@ fn test_unrolled_linked_list() {
                 assert!(!it.next().is_some());
             }
         }
+
     }
 }

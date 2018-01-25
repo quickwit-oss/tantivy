@@ -260,7 +260,7 @@ fn index_documents(
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
     for doc in document_iterator {
-        segment_writer.add_document(&doc, schema)?;
+        segment_writer.add_document(doc, schema)?;
         // There is two possible conditions to close the segment.
         // One is the memory arena dedicated to the segment is
         // getting full.

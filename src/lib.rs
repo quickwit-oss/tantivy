@@ -56,6 +56,7 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate time;
 extern crate uuid;
+extern crate bincode;
 
 #[cfg(test)]
 extern crate env_logger;

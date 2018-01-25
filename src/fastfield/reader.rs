@@ -5,11 +5,12 @@ use DocId;
 use schema::SchemaBuilder;
 use std::path::Path;
 use schema::FAST;
-use directory::{Directory, RAMDirectory, WritePtr};
+use directory::{WritePtr, RAMDirectory, Directory};
 use fastfield::{FastFieldSerializer, FastFieldsWriter};
 use schema::FieldType;
 use std::mem;
 use common::CompositeFile;
+use std::collections::HashMap;
 use owning_ref::OwningRef;
 
 /// Trait for accessing a fastfield.
@@ -50,6 +51,7 @@ pub trait FastFieldReader: Sized {
 }
 
 /// `FastFieldReader` for unsigned 64-bits integers.
+#[derive(Clone)]
 pub struct U64FastFieldReader {
     bit_unpacker: BitUnpacker<OwningRef<ReadOnlySource, [u8]>>,
     min_value: u64,
@@ -86,6 +88,7 @@ impl FastFieldReader for U64FastFieldReader {
     fn is_enabled(field_type: &FieldType) -> bool {
         match *field_type {
             FieldType::U64(ref integer_options) => integer_options.is_fast(),
+            FieldType::HierarchicalFacet => { true },
             _ => false,
         }
     }
@@ -110,6 +113,7 @@ impl FastFieldReader for U64FastFieldReader {
                 u64::deserialize(&mut cursor).expect("Failed to read the min_value of fast field.");
             amplitude =
                 u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
+
         }
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
@@ -123,6 +127,7 @@ impl FastFieldReader for U64FastFieldReader {
     }
 }
 
+
 impl From<Vec<u64>> for U64FastFieldReader {
     fn from(vals: Vec<u64>) -> U64FastFieldReader {
         let mut schema_builder = SchemaBuilder::default();
@@ -131,21 +136,22 @@ impl From<Vec<u64>> for U64FastFieldReader {
         let path = Path::new("__dummy__");
         let mut directory: RAMDirectory = RAMDirectory::create();
         {
-            let write: WritePtr = directory
-                .open_write(path)
-                .expect("With a RAMDirectory, this should never fail.");
-            let mut serializer = FastFieldSerializer::from_write(write)
-                .expect("With a RAMDirectory, this should never fail.");
+            let write: WritePtr = directory.open_write(path).expect(
+                "With a RAMDirectory, this should never fail.",
+            );
+            let mut serializer = FastFieldSerializer::from_write(write).expect(
+                "With a RAMDirectory, this should never fail.",
+            );
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             {
-                let fast_field_writer = fast_field_writers
-                    .get_field_writer(field)
-                    .expect("With a RAMDirectory, this should never fail.");
+                let fast_field_writer = fast_field_writers.get_field_writer(field).expect(
+                    "With a RAMDirectory, this should never fail.",
+                );
                 for val in vals {
                     fast_field_writer.add_val(val);
                 }
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers.serialize(&mut serializer, HashMap::new()).unwrap();
             serializer.close().unwrap();
         }
 
@@ -153,9 +159,9 @@ impl From<Vec<u64>> for U64FastFieldReader {
         let composite_file =
             CompositeFile::open(&source).expect("Failed to read the composite file");
 
-        let field_source = composite_file
-            .open_read(field)
-            .expect("File component not found");
+        let field_source = composite_file.open_read(field).expect(
+            "File component not found",
+        );
         U64FastFieldReader::open(field_source)
     }
 }
@@ -216,9 +222,7 @@ impl FastFieldReader for I64FastFieldReader {
     /// # Panics
     /// Panics if the data is corrupted.
     fn open(data: ReadOnlySource) -> I64FastFieldReader {
-        I64FastFieldReader {
-            underlying: U64FastFieldReader::open(data),
-        }
+        I64FastFieldReader { underlying: U64FastFieldReader::open(data) }
     }
 
     fn is_enabled(field_type: &FieldType) -> bool {

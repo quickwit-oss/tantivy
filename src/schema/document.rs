@@ -11,9 +11,17 @@ use itertools::Itertools;
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Document {
     field_values: Vec<FieldValue>,
+}
+
+impl From<Vec<FieldValue>> for Document {
+    fn from(field_values: Vec<FieldValue>) -> Self {
+        Document {
+            field_values
+        }
+    }
 }
 
 impl PartialEq for Document {
@@ -26,6 +34,7 @@ impl PartialEq for Document {
         self_field_values.eq(&other_field_values)
     }
 }
+
 
 impl Eq for Document {}
 
@@ -43,6 +52,21 @@ impl Document {
     /// Returns true iff the document contains no fields.
     pub fn is_empty(&self) -> bool {
         self.field_values.is_empty()
+    }
+
+    /// Retain only the field that are matching the
+    /// predicate given in argument.
+    pub fn filter_fields<P: Fn(Field)->bool>(&mut self, predicate: P) {
+        self.field_values
+            .retain(|field_value| predicate(field_value.field()));
+    }
+
+    /// Adding a facet to the document.
+    pub fn add_facet<F>(&mut self, field: Field, path: F)
+        where Facet: From<F> {
+        let facet = Facet::from(path);
+        let value = Value::Facet(facet);
+        self.add(FieldValue::new(field, value));
     }
 
     /// Add a text field.
@@ -104,13 +128,7 @@ impl Document {
     }
 }
 
-impl From<Vec<FieldValue>> for Document {
-    fn from(field_values: Vec<FieldValue>) -> Document {
-        Document {
-            field_values: field_values,
-        }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
