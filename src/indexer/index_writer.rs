@@ -106,7 +106,7 @@ pub fn open_index_writer(
     heap_size_in_bytes_per_thread: usize,
     directory_lock: DirectoryLock,
 ) -> Result<IndexWriter> {
-    if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
+    if heap_size_in_bytes_per_thread < HEAP_SIZE_LIMIT as usize {
         panic!(format!(
             "The heap size per thread needs to be at least {}.",
             HEAP_SIZE_LIMIT

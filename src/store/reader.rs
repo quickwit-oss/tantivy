@@ -4,7 +4,6 @@ use directory::ReadOnlySource;
 use std::cell::RefCell;
 use DocId;
 use schema::Document;
-use schema::FieldValue;
 use common::BinarySerializable;
 use std::mem::size_of;
 use std::io::{self, Read};

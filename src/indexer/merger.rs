@@ -3,7 +3,6 @@ use core::SegmentReader;
 use core::Segment;
 use DocId;
 use core::SerializableSegment;
-use schema::FieldValue;
 use indexer::SegmentSerializer;
 use postings::InvertedIndexSerializer;
 use fastfield::U64FastFieldReader;

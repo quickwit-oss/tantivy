@@ -8,7 +8,6 @@ use core::Segment;
 use core::SerializableSegment;
 use fastfield::FastFieldsWriter;
 use schema::Field;
-use schema::FieldValue;
 use schema::FieldType;
 use indexer::segment_serializer::SegmentSerializer;
 use std::collections::HashMap;
@@ -230,10 +229,6 @@ impl<'a> SegmentWriter<'a> {
         doc.filter_fields(|field| {
             schema.get_field_entry(field).is_stored()
         });
-        let stored_fieldvalues: Vec<&FieldValue> = doc.field_values()
-            .iter()
-            .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
-            .collect();
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc)?;
         self.max_doc += 1;

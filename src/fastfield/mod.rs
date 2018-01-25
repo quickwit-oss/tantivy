@@ -134,7 +134,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 60 as usize);
+            assert_eq!(source.len(), 61 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -169,7 +169,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 33 as usize);
+            assert_eq!(source.len(), 34 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -204,7 +204,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 80041 as usize);
+            assert_eq!(source.len(), 80042 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -243,7 +243,7 @@ mod tests {
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 17708 as usize);
+            assert_eq!(source.len(), 17709 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();

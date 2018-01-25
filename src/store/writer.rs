@@ -1,6 +1,5 @@
 use directory::WritePtr;
 use DocId;
-use schema::FieldValue;
 use common::BinarySerializable;
 use std::io::{self, Write};
 use super::StoreReader;
@@ -50,7 +49,8 @@ impl StoreWriter {
     ///
     pub fn store<'a>(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        bincode::serialize_into(&mut self.intermediary_buffer, stored_document, bincode::Infinite);
+        bincode::serialize_into(&mut self.intermediary_buffer, stored_document, bincode::Infinite)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         let doc_num_bytes = self.intermediary_buffer.len() as u32;
         <u32 as BinarySerializable>::serialize(&doc_num_bytes, &mut self.current_block)?;
         self.current_block.write_all(&self.intermediary_buffer[..])?;
