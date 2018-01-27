@@ -17,7 +17,6 @@ use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{max, min};
 use termdict::TermDictionary;
-use schema::Term;
 use termdict::TermStreamer;
 
 pub struct IndexMerger {
@@ -261,7 +260,7 @@ impl IndexMerger {
                 );
 
             while merged_terms.advance() {
-                let term = Term::wrap(merged_terms.key());
+                let term_bytes: &[u8] = merged_terms.key();
 
                 // Let's compute the list of non-empty posting lists
                 let segment_postings: Vec<_> = merged_terms
@@ -271,7 +270,7 @@ impl IndexMerger {
                         let segment_ord = heap_item.segment_ord;
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
-                        let inverted_index = segment_reader.inverted_index(term.field());
+                        let inverted_index = segment_reader.inverted_index(indexed_field);
                         let mut segment_postings = inverted_index
                             .read_postings_from_terminfo(term_info, segment_postings_option);
                         if segment_postings.advance() {
@@ -292,7 +291,7 @@ impl IndexMerger {
 
                     // We know that there is at least one document containing
                     // the term, so we add it.
-                    field_serializer.new_term(term.as_ref())?;
+                    field_serializer.new_term(term_bytes)?;
 
                     // We can now serialize this postings, by pushing each document to the
                     // postings serializer.

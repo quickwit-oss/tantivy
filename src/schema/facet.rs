@@ -187,6 +187,13 @@ mod tests {
     use super::Facet;
 
     #[test]
+    fn test_root() {
+        assert_eq!(Facet::root(), Facet::from("/"));
+        assert_eq!(format!("{}", Facet::root()), "/");
+        assert!(Facet::root().is_root());
+    }
+
+    #[test]
     fn test_facet_display() {
         {
             let v = ["first", "second", "third"];

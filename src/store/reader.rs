@@ -7,7 +7,7 @@ use schema::Document;
 use common::BinarySerializable;
 use std::mem::size_of;
 use std::io::{self, Read};
-use bincode;
+use common::VInt;
 use datastruct::SkipList;
 use lz4;
 
@@ -81,13 +81,12 @@ impl StoreReader {
         let current_block_mut = self.current_block.borrow_mut();
         let mut cursor = &current_block_mut[..];
         for _ in first_doc_id..doc_id {
-            let doc_length = u32::deserialize(&mut cursor)?;
-            cursor = &cursor[doc_length as usize..];
+            let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+            cursor = &cursor[doc_length..];
         }
-        let doc_length = u32::deserialize(&mut cursor)? as usize;
-        let document: Document = bincode::deserialize(&cursor[..doc_length])
-            .expect("The docstore is corrupted. Failed to fetch doc");
-        Ok(document)
+        let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+        cursor = &cursor[..doc_length];
+        Ok(Document::deserialize(&mut cursor)?)
     }
 }
 

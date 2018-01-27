@@ -1,5 +1,8 @@
 use super::*;
 use itertools::Itertools;
+use common::VInt;
+use std::io::{self, Read, Write};
+use common::BinarySerializable;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -128,7 +131,26 @@ impl Document {
     }
 }
 
+impl BinarySerializable for Document {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let field_values = self.field_values();
+        VInt(field_values.len() as u64).serialize(writer)?;
+        for field_value in field_values {
+            field_value.serialize(writer)?;
+        }
+        Ok(())
+    }
 
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let num_field_values = VInt::deserialize(reader)?.val() as usize;
+        let field_values = (0..num_field_values)
+            .map(|_| {
+                FieldValue::deserialize(reader)
+            })
+            .collect::<io::Result<Vec<FieldValue>>>()?;
+        Ok(Document::from(field_values))
+    }
+}
 
 #[cfg(test)]
 mod tests {

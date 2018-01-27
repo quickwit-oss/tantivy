@@ -370,7 +370,7 @@ mod tests {
     "type": "u64",
     "options": {
       "indexed": false,
-      "fast": true,
+      "fast": "single",
       "stored": true
     }
   },
@@ -379,7 +379,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
-      "fast": true,
+      "fast": "single",
       "stored": true
     }
   }

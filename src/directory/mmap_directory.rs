@@ -414,7 +414,6 @@ mod tests {
                 assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
             }
             for (i, path) in paths.iter().enumerate() {
-                println!("delete paths {:?}", path);
                 mmap_directory.delete(path).unwrap();
                 assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths - i - 1);
             }

@@ -1,12 +1,11 @@
 use directory::WritePtr;
 use DocId;
-use common::BinarySerializable;
+use common::{VInt, BinarySerializable};
 use std::io::{self, Write};
 use super::StoreReader;
 use lz4;
 use datastruct::SkipListBuilder;
 use common::CountingWriter;
-use bincode;
 use schema::Document;
 
 const BLOCK_SIZE: usize = 16_384;
@@ -49,10 +48,9 @@ impl StoreWriter {
     ///
     pub fn store<'a>(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        bincode::serialize_into(&mut self.intermediary_buffer, stored_document, bincode::Infinite)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        let doc_num_bytes = self.intermediary_buffer.len() as u32;
-        <u32 as BinarySerializable>::serialize(&doc_num_bytes, &mut self.current_block)?;
+        stored_document.serialize(&mut self.intermediary_buffer)?;
+        let doc_num_bytes = self.intermediary_buffer.len();
+        VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
         self.current_block.write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {

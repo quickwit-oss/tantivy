@@ -701,32 +701,21 @@ mod tests {
 
         let num_docs_containing = |s: &str| {
             let searcher = index.searcher();
-            let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+            let term = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term)
         };
 
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(3, 40_000_000).unwrap();
-            {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"a"));
             index_writer.rollback().unwrap();
 
             assert_eq!(index_writer.commit_opstamp(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
-
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "b");
-                index_writer.add_document(doc);
-            }
-            {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "c");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"b"));
+                index_writer.add_document(doc!(text_field=>"c"));
             }
             assert_eq!(index_writer.commit().unwrap(), 2u64);
             index.load_searchers().unwrap();

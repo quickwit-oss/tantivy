@@ -78,34 +78,35 @@ mod tests {
 
         let mut facet = Facet::root();
         {
-            facet_reader.facet_from_ord(0, &mut facet);
+            facet_reader.facet_from_ord(1, &mut facet);
             assert_eq!(facet, Facet::from("/category"));
         }
         {
-            facet_reader.facet_from_ord(1, &mut facet);
+            facet_reader.facet_from_ord(2, &mut facet);
             assert_eq!(facet, Facet::from("/category/cat1"));
         }
         {
-            facet_reader.facet_from_ord(2, &mut facet);
+            facet_reader.facet_from_ord(3, &mut facet);
+            assert_eq!(format!("{}", facet), "/category/cat2");
             assert_eq!(facet, Facet::from("/category/cat2"));
         }
         {
-            facet_reader.facet_from_ord(3, &mut facet);
+            facet_reader.facet_from_ord(4, &mut facet);
             assert_eq!(facet, Facet::from("/category/cat3"));
         }
 
         let mut vals = Vec::new();
         {
             facet_reader.facet_ords(0, &mut vals);
-            assert_eq!(&vals[..], &[2, 1]);
+            assert_eq!(&vals[..], &[3, 2]);
         }
         {
             facet_reader.facet_ords(1, &mut vals);
-            assert_eq!(&vals[..], &[2]);
+            assert_eq!(&vals[..], &[3]);
         }
         {
             facet_reader.facet_ords(2, &mut vals);
-            assert_eq!(&vals[..], &[3]);
+            assert_eq!(&vals[..], &[4]);
         }
 
 

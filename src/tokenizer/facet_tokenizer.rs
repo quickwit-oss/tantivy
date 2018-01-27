@@ -14,9 +14,16 @@ use schema::FACET_SEP_BYTE;
 #[derive(Clone)]
 pub struct FacetTokenizer;
 
+#[derive(Debug)]
+enum State {
+    RootFacetNotEmitted,
+    UpToPosition(usize), //< we already emitted facet prefix up to &text[..cursor]
+    Terminated,
+}
+
 pub struct FacetTokenStream<'a> {
     text: &'a str,
-    pos: usize,
+    state: State,
     token: Token,
 }
 
@@ -26,7 +33,7 @@ impl<'a> Tokenizer<'a> for FacetTokenizer {
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         FacetTokenStream {
             text: text,
-            pos: 0,
+            state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
             token: Token::default(),
         }
     }
@@ -35,20 +42,36 @@ impl<'a> Tokenizer<'a> for FacetTokenizer {
 
 impl<'a> TokenStream for FacetTokenStream<'a> {
     fn advance(&mut self) -> bool {
-        let bytes: &[u8] = self.text.as_bytes();
-        if self.pos == bytes.len() {
-            false
-        } else {
-            let next_sep_pos = bytes[self.pos + 1..]
-                .iter()
-                .cloned()
-                .position(|b| b == FACET_SEP_BYTE)
-                .map(|pos| pos + self.pos + 1)
-                .unwrap_or(bytes.len());
-            let facet_prefix = unsafe { str::from_utf8_unchecked(&bytes[self.pos..next_sep_pos]) };
-            self.pos = next_sep_pos;
-            self.token.text.push_str(facet_prefix);
-            true
+        match self.state {
+            State::RootFacetNotEmitted => {
+                self.state =
+                    if self.text.is_empty() {
+                        State::Terminated
+                    } else {
+                        State::UpToPosition(0)
+                    };
+                true
+            }
+            State::UpToPosition(cursor) => {
+                let bytes: &[u8] = self.text.as_bytes();
+                if let Some(next_sep_pos) = bytes[cursor+1..]
+                    .iter()
+                    .cloned()
+                    .position(|b| b == FACET_SEP_BYTE)
+                    .map(|pos| cursor + 1 + pos) {
+                    let facet_part = unsafe { str::from_utf8_unchecked(&bytes[cursor..next_sep_pos]) };
+                    self.token.text.push_str(facet_part);
+                    self.state = State::UpToPosition(next_sep_pos);
+                } else {
+                    let facet_part = unsafe { str::from_utf8_unchecked(&bytes[cursor..]) };
+                    self.token.text.push_str(facet_part);
+                    self.state = State::Terminated;
+                }
+                true
+            }
+            State::Terminated => {
+                false
+            }
         }
     }
 
@@ -81,9 +104,27 @@ mod tests {
                 .token_stream(unsafe { ::std::str::from_utf8_unchecked(facet.encoded_bytes()) })
                 .process(&mut add_token);
         }
-        assert_eq!(tokens.len(), 3);
-        assert_eq!(tokens[0], "/top");
-        assert_eq!(tokens[1], "/top/a");
-        assert_eq!(tokens[2], "/top/a/b");
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens[0], "/");
+        assert_eq!(tokens[1], "/top");
+        assert_eq!(tokens[2], "/top/a");
+        assert_eq!(tokens[3], "/top/a/b");
+    }
+
+    #[test]
+    fn test_facet_tokenizer_root_facets() {
+        let facet = Facet::root();
+        let mut tokens = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                let facet = Facet::from_encoded(token.text.as_bytes().to_owned());
+                tokens.push(format!("{}", facet));
+            };
+            FacetTokenizer
+                .token_stream(unsafe { ::std::str::from_utf8_unchecked(facet.encoded_bytes()) })
+                .process(&mut add_token);
+        }
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0], "/");
     }
 }

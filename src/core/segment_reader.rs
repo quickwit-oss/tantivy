@@ -216,7 +216,7 @@ impl SegmentReader {
             .expect("Lock poisoned. This should never happen")
             .get(&field)
         {
-            Arc::clone(inv_idx_reader);
+            return Arc::clone(inv_idx_reader);
         }
 
         let termdict_source: ReadOnlySource = self.termdict_composite

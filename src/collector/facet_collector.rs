@@ -6,6 +6,7 @@ use std::cell::UnsafeCell;
 use schema::Facet;
 use std::collections::BTreeMap;
 use std::collections::BinaryHeap;
+use std::collections::Bound;
 use termdict::TermDictionary;
 use termdict::TermStreamer;
 use termdict::TermStreamerBuilder;
@@ -14,6 +15,8 @@ use termdict::TermMerger;
 use postings::SkipResult;
 use std::{u64, usize};
 use schema::FACET_SEP_BYTE;
+use std::iter::Peekable;
+
 
 use DocId;
 use Result;
@@ -218,12 +221,8 @@ pub struct FacetCollector {
     collapse: BTreeSet<Vec<u8>>,
 }
 
-
-use std::iter::Peekable;
-
 fn skip<'a, I: Iterator<Item=&'a Vec<u8>>>(target: &[u8], collapse_it: &mut Peekable<I>) -> SkipResult {
     loop {
-        println!("collapse {:?}, target {:?}", target, collapse_it.peek());
         match collapse_it.peek() {
             Some(facet_bytes) => {
                 match facet_bytes[..].cmp(&target) {
@@ -270,7 +269,8 @@ impl FacetCollector {
     pub fn add_facet<T>(&mut self, facet_from: T)
         where Facet: From<T> {
         let facet = Facet::from(facet_from);
-        let facet_bytes = facet.encoded_bytes();
+        let facet_bytes: &[u8] = facet.encoded_bytes();
+        self.collapse.remove(&facet_bytes[..0]);
         for pos in facet_bytes.iter()
                 .cloned()
                 .position(|b| b == FACET_SEP_BYTE) {
@@ -306,7 +306,7 @@ impl FacetCollector {
         }
         'outer: loop {
             // at the begining of this loop, facet_streamer
-            // is position on a term that has not been processed yet.
+            // is positionned on a term that has not been processed yet.
             let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
             match skip_result {
                 SkipResult::Reached => {
@@ -316,7 +316,6 @@ impl FacetCollector {
                     self.current_segment_collapse_mapping.push(0);
                     while facet_streamer.advance() {
                         let depth = facet_depth(facet_streamer.key());
-                        println!("depth {}", depth);
                         if depth <= collapse_depth {
                             continue 'outer;
                         } else if depth == collapse_depth + 1 {
@@ -387,7 +386,6 @@ impl FacetCollector {
                         .unwrap_or(0)
                 })
                 .sum();
-            println!("{:?} count {}", facet_merger.key(), count);
             if count > 0u64 {
                 let bytes = facet_merger.key().to_owned();
                 facet_counts.insert(Facet::from_encoded(bytes), count);
@@ -449,11 +447,19 @@ impl FacetCounts {
     pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item=(&'a Facet, u64)>
         where Facet: From<T> {
         let facet = Facet::from(facet_from);
-        let mut facet_after_bytes = facet.encoded_bytes().to_owned();
-        facet_after_bytes.push(1u8);
-        let facet_after = Facet::from_encoded(facet_after_bytes);
+        let left_bound = Bound::Excluded(facet.clone());
+        let right_bound =
+            if facet.is_root() {
+                Bound::Unbounded
+            } else {
+                let mut facet_after_bytes = facet.encoded_bytes().to_owned();
+                facet_after_bytes.push(1u8);
+                let facet_after = Facet::from_encoded(facet_after_bytes);
+                Bound::Excluded(facet_after)
+            };
+
         self.facet_counts
-            .range(facet.clone()..facet_after)
+            .range((left_bound, right_bound))
             .map(|(facet, count)| (facet, *count))
     }
 
@@ -529,8 +535,6 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-
-
         index.load_searchers().unwrap();
         let searcher = index.searcher();
 
@@ -589,11 +593,9 @@ mod tests {
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/");
-
         searcher.search(&AllQuery, &mut facet_collector).unwrap();
 
         let counts: FacetCounts = facet_collector.harvest();
-
         {
             let facets: Vec<(&Facet, u64)> = counts.top_k("/", 3);
             assert_eq!(

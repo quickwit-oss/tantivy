@@ -7,6 +7,7 @@ use SegmentLocalId;
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
+#[derive(Default)]
 pub struct CountCollector {
     count: usize,
 }
@@ -19,11 +20,6 @@ impl CountCollector {
     }
 }
 
-impl Default for CountCollector {
-    fn default() -> CountCollector {
-        CountCollector { count: 0 }
-    }
-}
 
 impl Collector for CountCollector {
     fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {

@@ -516,6 +516,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_empty_string() {
+        let field_type = FieldType::Str(TEXT);
+        let buffer: Vec<u8> = {
+            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+                .unwrap();
+            term_dictionary_builder
+                .insert(&[], &make_term_info(1 as u64)).unwrap();
+            term_dictionary_builder
+                .insert(&[1u8], &make_term_info(2 as u64)).unwrap();
+            term_dictionary_builder
+                .finish().unwrap()
+        };
+        let source = ReadOnlySource::from(buffer);
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
+        let mut stream = term_dictionary.stream();
+        assert!(stream.advance());
+        assert!(stream.key().is_empty());
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[1u8]);
+        assert!(!stream.advance());
+    }
 
     #[test]
     fn test_stream_range_boundaries() {
