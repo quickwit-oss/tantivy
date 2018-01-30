@@ -28,6 +28,7 @@ script:
   - cargo build
   - cargo test
   - cargo run --example simple_search
+  - cargo doc
 after_success:
   - cargo coveralls --exclude-pattern cpp/
   - travis-cargo doc-upload
