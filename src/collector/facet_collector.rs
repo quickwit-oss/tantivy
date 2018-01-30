@@ -266,6 +266,14 @@ impl FacetCollector {
         facet_collector
     }
 
+    /// Adds a facet that we want to collect.
+    ///
+    /// For all of the facets that are one level below the facet
+    /// given in argument, the collector will collects the count of unique
+    /// documents containing the facet.
+    ///
+    /// Calling `add_facet()` on two facets that have a ancestor
+    /// descendant relationships is not allowed.
     pub fn add_facet<T>(&mut self, facet_from: T)
         where Facet: From<T> {
         let facet = Facet::from(facet_from);
