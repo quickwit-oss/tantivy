@@ -23,8 +23,7 @@ addons:
       - cmake
 before_script:
   - |
-      cargo install cargo-travis || echo "cargo-travis already installed"
-      export PATH=$HOME/.cargo/bin:$PATH
+          pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
   - cargo build
   - cargo test
