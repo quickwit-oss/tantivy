@@ -90,7 +90,7 @@ impl<TScorer: Scorer> BooleanScorer<TScorer> {
 }
 
 impl<TScorer: Scorer> DocSet for BooleanScorer<TScorer> {
-    fn size_hint(&self) -> usize {
+    fn size_hint(&self) -> u32 {
         // TODO fix this. it should be the min
         // of the MUST scorer
         // and the max of the SHOULD scorers.

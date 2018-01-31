@@ -62,8 +62,8 @@ impl DocSet for AllScorer {
         self.doc
     }
 
-    fn size_hint(&self) -> usize {
-        self.max_doc as usize
+    fn size_hint(&self) -> u32 {
+        self.max_doc
     }
 }
 

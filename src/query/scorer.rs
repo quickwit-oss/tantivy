@@ -49,7 +49,7 @@ impl DocSet for EmptyScorer {
         DocId::max_value()
     }
 
-    fn size_hint(&self) -> usize {
+    fn size_hint(&self) -> u32 {
         0
     }
 }

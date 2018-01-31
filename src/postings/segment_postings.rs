@@ -235,8 +235,8 @@ impl DocSet for SegmentPostings {
         }
     }
 
-    fn size_hint(&self) -> usize {
-        self.len()
+    fn size_hint(&self) -> u32 {
+        self.len() as u32
     }
 
     /// Return the current document's `DocId`.

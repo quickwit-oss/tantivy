@@ -12,7 +12,9 @@ mod term_query;
 mod query_parser;
 mod phrase_query;
 mod all_query;
+mod bitset;
 
+pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur_filter::OccurFilter;
 pub use self::occur::Occur;

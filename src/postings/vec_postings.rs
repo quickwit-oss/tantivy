@@ -35,8 +35,8 @@ impl DocSet for VecPostings {
         self.doc_ids[self.cursor.0]
     }
 
-    fn size_hint(&self) -> usize {
-        self.len()
+    fn size_hint(&self) -> u32 {
+        self.len() as u32
     }
 }
 
