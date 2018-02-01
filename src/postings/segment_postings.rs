@@ -1,5 +1,6 @@
 use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
+use common::DocBitSet;
 use postings::{DocSet, HasLen, Postings, SkipResult};
 use std::cmp;
 use fst::Streamer;
@@ -248,6 +249,23 @@ impl DocSet for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling .doc()."
         );
         docs[self.cur]
+    }
+    
+    fn to_doc_bitset(mut self, max_doc: DocId) -> DocBitSet {
+        // finish the current block
+        let mut docs = DocBitSet::with_maxdoc(max_doc);
+        if self.advance() {
+            for &doc in self.block_cursor.docs()[self.cur..] {
+                docs.insert(doc);
+            }
+            // ... iterate through the remaining blocks.
+            while self.block_cursor.advance() {
+                for &doc in self.block_cursor.docs() {
+                    docs.insert(doc);
+                }
+            }
+        }
+        return docs;
     }
 }
 

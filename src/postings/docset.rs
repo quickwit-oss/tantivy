@@ -2,6 +2,7 @@ use DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
+use common::DocBitSet;
 
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
@@ -93,6 +94,15 @@ pub trait DocSet {
     /// Returns a best-effort hint of the
     /// length of the docset.
     fn size_hint(&self) -> u32;
+
+    fn to_doc_bitset(mut self, max_doc: DocId) -> DocBitSet {
+        let mut docs = DocBitSet::with_maxdoc(max_doc);
+        while self.advance() {
+            let doc = self.doc();
+            docs.insert(doc);
+        }
+        docs
+    }
 }
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
