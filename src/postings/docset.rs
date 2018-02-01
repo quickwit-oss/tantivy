@@ -95,7 +95,7 @@ pub trait DocSet {
     /// length of the docset.
     fn size_hint(&self) -> u32;
 
-    fn to_doc_bitset(mut self, max_doc: DocId) -> DocBitSet {
+    fn to_doc_bitset(&mut self, max_doc: DocId) -> DocBitSet {
         let mut docs = DocBitSet::with_maxdoc(max_doc);
         while self.advance() {
             let doc = self.doc();

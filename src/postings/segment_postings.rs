@@ -251,11 +251,11 @@ impl DocSet for SegmentPostings {
         docs[self.cur]
     }
     
-    fn to_doc_bitset(mut self, max_doc: DocId) -> DocBitSet {
+    fn to_doc_bitset(&mut self, max_doc: DocId) -> DocBitSet {
         // finish the current block
         let mut docs = DocBitSet::with_maxdoc(max_doc);
         if self.advance() {
-            for &doc in self.block_cursor.docs()[self.cur..] {
+            for &doc in &self.block_cursor.docs()[self.cur..] {
                 docs.insert(doc);
             }
             // ... iterate through the remaining blocks.
