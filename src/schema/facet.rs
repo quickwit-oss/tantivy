@@ -2,6 +2,7 @@ use std::fmt::{self, Display, Debug, Formatter};
 use std::str;
 use std::io::{self, Read, Write};
 use regex::Regex;
+use std::borrow::Borrow;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use common::BinarySerializable;
@@ -93,8 +94,26 @@ impl Facet {
     pub(crate) fn inner_buffer_mut(&mut self) -> &mut Vec<u8> {
         &mut self.0
     }
+
+
+    /// Returns `true` iff other is a subfacet of `self`.
+    pub fn is_prefix_of(&self, other: &Facet) -> bool {
+        let self_bytes: &[u8] = self.encoded_bytes();
+        let other_bytes: &[u8] = other.encoded_bytes();
+        if self_bytes.len() < other_bytes.len() {
+            if other_bytes.starts_with(self_bytes) {
+                return other_bytes[self_bytes.len()] == 0u8;
+            }
+        }
+        false
+    }
 }
 
+impl Borrow<[u8]> for Facet {
+    fn borrow(&self) -> &[u8] {
+        self.encoded_bytes()
+    }
+}
 
 impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
 
