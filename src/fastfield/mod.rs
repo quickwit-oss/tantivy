@@ -334,7 +334,7 @@ mod tests {
         b.iter(|| {
             let n = test::black_box(7000u32);
             let mut a = 0u64;
-            for i in Iterator::step_by((0u32..n), 7) {
+            for i in Iterator::step_by(0u32..n, 7) {
                 a ^= permutation[i as usize];
             }
             a
@@ -378,7 +378,7 @@ mod tests {
             b.iter(|| {
                 let n = test::black_box(7000u32);
                 let mut a = 0u64;
-                for i in Iterator::step_by((0u32..n), 7) {
+                for i in Iterator::step_by(0u32..n, 7) {
                     a ^= fast_field_reader.get(i);
                 }
                 a

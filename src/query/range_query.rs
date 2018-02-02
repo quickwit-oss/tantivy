@@ -24,7 +24,7 @@ pub struct RangeDefinition {
 }
 
 impl RangeDefinition {
-    fn for_field(field: Field) -> RangeDefinition{
+    pub fn for_field(field: Field) -> RangeDefinition{
         RangeDefinition {
             field,
             left_bound: Boundary::Unbounded,
@@ -32,31 +32,31 @@ impl RangeDefinition {
         }
     }
 
-    fn left_included(mut self, left: Term) -> RangeDefinition {
+    pub fn left_included(mut self, left: Term) -> RangeDefinition {
         assert_eq!(left.field(), self.field);
         self.left_bound = Boundary::Included(left.value_bytes().to_owned());
         self
     }
 
-    fn left_excluded(mut self, left: Term) -> RangeDefinition {
+    pub fn left_excluded(mut self, left: Term) -> RangeDefinition {
         assert_eq!(left.field(), self.field);
         self.left_bound = Boundary::Excluded(left.value_bytes().to_owned());
         self
     }
 
-    fn right_included(mut self, right: Term) -> RangeDefinition {
+    pub fn right_included(mut self, right: Term) -> RangeDefinition {
         assert_eq!(right.field(), self.field);
         self.right_bound = Boundary::Included(right.value_bytes().to_owned());
         self
     }
 
-    fn right_excluded(mut self, right: Term) -> RangeDefinition {
+    pub fn right_excluded(mut self, right: Term) -> RangeDefinition {
         assert_eq!(right.field(), self.field);
         self.right_bound = Boundary::Excluded(right.value_bytes().to_owned());
         self
     }
 
-    fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
+    pub fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
         where T: TermDictionary<'a> + 'a
     {
         use self::Boundary::*;

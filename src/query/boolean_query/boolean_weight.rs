@@ -9,12 +9,14 @@ use Result;
 
 pub struct BooleanWeight {
     weights: Vec<(Occur, Box<Weight>)>,
+    scoring_disabled: bool
 }
 
 impl BooleanWeight {
-    pub fn new(weights: Vec<(Occur, Box<Weight>)>) -> BooleanWeight {
+    pub fn new(weights: Vec<(Occur, Box<Weight>)>, scoring_disabled: bool) -> BooleanWeight {
         BooleanWeight {
-            weights
+            weights,
+            scoring_disabled
         }
     }
 }

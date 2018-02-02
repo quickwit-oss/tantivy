@@ -482,7 +482,7 @@ mod tests {
         }
 
         {
-            for i in (0..20).chain((BLOCK_SIZE - 10..BLOCK_SIZE + 10)) {
+            for i in (0..20).chain(BLOCK_SIZE - 10..BLOCK_SIZE + 10) {
                 let &(ref target_key, _) = &ids[i];
                 let mut streamer = term_dictionary
                     .range()
@@ -498,7 +498,7 @@ mod tests {
         }
 
         {
-            for i in (0..20).chain((BLOCK_SIZE - 10..BLOCK_SIZE + 10)) {
+            for i in (0..20).chain(BLOCK_SIZE - 10..BLOCK_SIZE + 10) {
                 for j in 0..3 {
                     let &(ref fst_key, _) = &ids[i];
                     let &(ref last_key, _) = &ids[i + j];

@@ -45,6 +45,13 @@ pub trait Query: fmt::Debug {
     /// into a specific type. This is mostly useful for unit tests.
     fn as_any(&self) -> &Any;
 
+
+    /// Disable scoring.
+    ///
+    /// For some query this may improve performance
+    /// when scoring is not required.
+    fn disable_scoring(&mut self) {}
+
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).

@@ -11,7 +11,7 @@ pub struct TermWeight {
     pub(crate) num_docs: u32,
     pub(crate) doc_freq: u32,
     pub(crate) term: Term,
-    pub(crate) index_record_option: IndexRecordOption,
+    pub(crate) index_record_option: IndexRecordOption
 }
 
 impl Weight for TermWeight {

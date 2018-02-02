@@ -41,7 +41,7 @@ impl TermQuery {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
-            index_record_option: self.index_record_option,
+            index_record_option: self.index_record_option
         }
     }
 }
@@ -53,5 +53,9 @@ impl Query for TermQuery {
 
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         Ok(box self.specialized_weight(searcher))
+    }
+
+    fn disable_scoring(&mut self) {
+        self.index_record_option = IndexRecordOption::Basic;
     }
 }
