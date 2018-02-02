@@ -55,7 +55,7 @@ impl DocSet for BitSetDocSet {
         }
     }
 
-    
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         // skip is required to advance.
         if !self.advance() {
@@ -66,18 +66,24 @@ impl DocSet for BitSetDocSet {
         // Mask for all of the bits greater or equal
         // to our target document.
         match target_bucket.cmp(&self.cursor_bucket) {
-            Ordering::Less => {
+            Ordering::Greater => {
                 self.cursor_bucket = target_bucket;
                 self.cursor_tinybitset = self.docs.tiny_bitset(target_bucket);
-                let greater: u64 = <u64 as TinySet>::range_greater_or_equal(target % 64);
-                self.cursor_tinybitset.intersect(greater);
-                if !self.advance() {
-                    SkipResult::End
-                } else {
-                    if self.doc() == target {
-                        SkipResult::Reached
+//                let greater: u64 = <u64 as TinySet>::range_greater_or_equal(target % 64);
+//                self.cursor_tinybitset.intersect(greater);
+                loop {
+                    if !self.advance() {
+                        return SkipResult::End;
                     } else {
-                        SkipResult::OverStep
+                        if self.doc() == target {
+                            return SkipResult::Reached;
+                        } else {
+                            // assert!(self.doc() > target);
+                            if self.doc() > target {
+                                return SkipResult::OverStep;
+                            }
+
+                        }
                     }
                 }
             }
@@ -90,15 +96,21 @@ impl DocSet for BitSetDocSet {
                             }
                         }
                         Ordering::Equal => {
+                            assert!(self.doc() == target);
                             return SkipResult::Reached;
                         }
                         Ordering::Greater => {
+                            assert!(self.doc() > target);
                             return SkipResult::OverStep;
                         }
                     }
                 }
             }
-            Ordering::Greater => SkipResult::OverStep
+
+            Ordering::Less => {
+                assert!(self.doc() > target);
+                SkipResult::OverStep
+            }
         }
     }
 
