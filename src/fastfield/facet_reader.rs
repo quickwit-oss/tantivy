@@ -4,7 +4,6 @@ use termdict::TermOrdinal;
 use schema::Facet;
 use termdict::{TermDictionary, TermDictionaryImpl};
 
-
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific
 /// segment.
@@ -24,7 +23,6 @@ pub struct FacetReader {
 }
 
 impl FacetReader {
-
     /// Creates a new `FacetReader`.
     ///
     /// A facet reader just wraps :
@@ -32,8 +30,10 @@ impl FacetReader {
     /// access the list of facet ords for a given document.
     /// - a `TermDictionaryImpl` that helps associating a facet to
     /// an ordinal and vice versa.
-    pub fn new(term_ords: MultiValueIntFastFieldReader,
-               term_dict: TermDictionaryImpl) -> FacetReader {
+    pub fn new(
+        term_ords: MultiValueIntFastFieldReader,
+        term_dict: TermDictionaryImpl,
+    ) -> FacetReader {
         FacetReader {
             term_ords: term_ords,
             term_dict: term_dict,
@@ -56,7 +56,8 @@ impl FacetReader {
 
     /// Given a term ordinal returns the term associated to it.
     pub fn facet_from_ord(&self, facet_ord: TermOrdinal, output: &mut Facet) {
-        let found_term = self.term_dict.ord_to_term(facet_ord as u64, output.inner_buffer_mut());
+        let found_term = self.term_dict
+            .ord_to_term(facet_ord as u64, output.inner_buffer_mut());
         assert!(found_term, "Term ordinal {} no found.", facet_ord);
     }
 

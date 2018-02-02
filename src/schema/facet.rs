@@ -1,4 +1,4 @@
-use std::fmt::{self, Display, Debug, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str;
 use std::io::{self, Read, Write};
 use regex::Regex;
@@ -6,7 +6,6 @@ use std::borrow::Borrow;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use common::BinarySerializable;
-
 
 const SLASH_BYTE: u8 = '/' as u8;
 const ESCAPE_BYTE: u8 = '\\' as u8;
@@ -30,7 +29,6 @@ pub const FACET_SEP_BYTE: u8 = 0u8;
 pub struct Facet(Vec<u8>);
 
 impl Facet {
-
     /// Returns a new instance of the "root facet"
     /// Equivalent to `/`.
     pub fn root() -> Facet {
@@ -66,7 +64,9 @@ impl Facet {
     /// contains a `/` or a `\`, it should be escaped
     /// using an anti-slash `/`.
     pub fn from_text<'a, T>(path: &'a T) -> Facet
-        where T: ?Sized + AsRef<str> {
+    where
+        T: ?Sized + AsRef<str>,
+    {
         From::from(path)
     }
 
@@ -75,9 +75,10 @@ impl Facet {
     ///
     /// The steps are expected to be unescaped.
     pub fn from_path<Path>(path: Path) -> Facet
-        where
-            Path: IntoIterator,
-            Path::Item: ToString {
+    where
+        Path: IntoIterator,
+        Path::Item: ToString,
+    {
         let mut facet_bytes: Vec<u8> = Vec::with_capacity(100);
         let mut step_it = path.into_iter();
         if let Some(step) = step_it.next() {
@@ -94,7 +95,6 @@ impl Facet {
     pub(crate) fn inner_buffer_mut(&mut self) -> &mut Vec<u8> {
         &mut self.0
     }
-
 
     /// Returns `true` iff other is a subfacet of `self`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
@@ -116,7 +116,6 @@ impl Borrow<[u8]> for Facet {
 }
 
 impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
-
     fn from(path_asref: &'a T) -> Facet {
         #[derive(Copy, Clone)]
         enum State {
@@ -129,9 +128,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
         let path_bytes = path.as_bytes();
         for &c in &path_bytes[1..] {
             match (state, c) {
-                (State::Idle, ESCAPE_BYTE) => {
-                    state = State::Escaped
-                }
+                (State::Idle, ESCAPE_BYTE) => state = State::Escaped,
                 (State::Idle, SLASH_BYTE) => {
                     facet_encoded.push(FACET_SEP_BYTE);
                 }
@@ -179,16 +176,19 @@ fn escape_slashes(s: &str) -> Cow<str> {
 
 impl Serialize for Facet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&self.to_string())
     }
 }
 
 impl<'de> Deserialize<'de> for Facet {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where
-        D: Deserializer<'de> {
-        <&'de str as Deserialize<'de>>::deserialize(deserializer)
-            .map(Facet::from)
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        <&'de str as Deserialize<'de>>::deserialize(deserializer).map(Facet::from)
     }
 }
 
@@ -198,7 +198,6 @@ impl Debug for Facet {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -225,7 +224,6 @@ mod tests {
             assert_eq!(format!("{}", facet), "/first/sec\\/ond/third");
         }
     }
-
 
     #[test]
     fn test_facet_debug() {

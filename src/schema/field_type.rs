@@ -39,7 +39,7 @@ impl FieldType {
             FieldType::U64(ref int_options) | FieldType::I64(ref int_options) => {
                 int_options.is_indexed()
             }
-            FieldType::HierarchicalFacet => true
+            FieldType::HierarchicalFacet => true,
         }
     }
 
@@ -59,7 +59,7 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::HierarchicalFacet => Some(IndexRecordOption::Basic)
+            FieldType::HierarchicalFacet => Some(IndexRecordOption::Basic),
         }
     }
 
@@ -75,9 +75,7 @@ impl FieldType {
                 FieldType::U64(_) | FieldType::I64(_) => Err(ValueParsingError::TypeError(
                     format!("Expected an integer, got {:?}", json),
                 )),
-                FieldType::HierarchicalFacet => {
-                    Ok(Value::Facet(Facet::from(field_text)))
-                }
+                FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
             },
             JsonValue::Number(ref field_val_num) => match *self {
                 FieldType::I64(_) => {

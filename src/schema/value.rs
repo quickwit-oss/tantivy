@@ -26,7 +26,7 @@ impl Serialize for Value {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
-            Value::Facet(ref facet) => facet.serialize(serializer)
+            Value::Facet(ref facet) => facet.serialize(serializer),
         }
     }
 }
@@ -178,9 +178,7 @@ mod binary_serialize {
                     let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
                 }
-                HIERARCHICAL_FACET_CODE => {
-                    Ok(Value::Facet(Facet::deserialize(reader)?))
-                }
+                HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {:?}", type_code),

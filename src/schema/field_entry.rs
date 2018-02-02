@@ -71,7 +71,7 @@ impl FieldEntry {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_some(),
             FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_indexed(),
-            FieldType::HierarchicalFacet => true
+            FieldType::HierarchicalFacet => true,
         }
     }
 

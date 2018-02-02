@@ -253,7 +253,6 @@ where
     }
 }
 
-
 /// Trait for the pluggable components of `Tokenizer`s.
 pub trait TokenFilter<TailTokenStream: TokenStream>: Clone {
     /// The resulting `TokenStream` type.

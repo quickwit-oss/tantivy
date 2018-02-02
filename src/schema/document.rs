@@ -21,9 +21,7 @@ pub struct Document {
 
 impl From<Vec<FieldValue>> for Document {
     fn from(field_values: Vec<FieldValue>) -> Self {
-        Document {
-            field_values
-        }
+        Document { field_values }
     }
 }
 
@@ -37,7 +35,6 @@ impl PartialEq for Document {
         self_field_values.eq(&other_field_values)
     }
 }
-
 
 impl Eq for Document {}
 
@@ -59,14 +56,16 @@ impl Document {
 
     /// Retain only the field that are matching the
     /// predicate given in argument.
-    pub fn filter_fields<P: Fn(Field)->bool>(&mut self, predicate: P) {
+    pub fn filter_fields<P: Fn(Field) -> bool>(&mut self, predicate: P) {
         self.field_values
             .retain(|field_value| predicate(field_value.field()));
     }
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-        where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add(FieldValue::new(field, value));
@@ -144,9 +143,7 @@ impl BinarySerializable for Document {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num_field_values = VInt::deserialize(reader)?.val() as usize;
         let field_values = (0..num_field_values)
-            .map(|_| {
-                FieldValue::deserialize(reader)
-            })
+            .map(|_| FieldValue::deserialize(reader))
             .collect::<io::Result<Vec<FieldValue>>>()?;
         Ok(Document::from(field_values))
     }

@@ -1,4 +1,4 @@
-use schema::{Schema, Field, Document, Cardinality};
+use schema::{Cardinality, Document, Field, Schema};
 use fastfield::FastFieldSerializer;
 use std::io;
 use schema::Value;
@@ -25,12 +25,11 @@ impl FastFieldsWriter {
 
         for (field_id, field_entry) in schema.fields().iter().enumerate() {
             let field = Field(field_id as u32);
-            let default_value =
-                if let FieldType::I64(_) = *field_entry.field_type() {
-                    common::i64_to_u64(0i64)
-                } else {
-                    0u64
-                };
+            let default_value = if let FieldType::I64(_) = *field_entry.field_type() {
+                common::i64_to_u64(0i64)
+            } else {
+                0u64
+            };
             match *field_entry.field_type() {
                 FieldType::I64(ref int_options) | FieldType::U64(ref int_options) => {
                     match int_options.get_fastfield_cardinality() {
@@ -50,7 +49,7 @@ impl FastFieldsWriter {
                     let fast_field_writer = MultiValueIntFastFieldWriter::new(field);
                     multi_values_writers.push(fast_field_writer);
                 }
-                _ => {},
+                _ => {}
             }
         }
         FastFieldsWriter {
@@ -64,7 +63,7 @@ impl FastFieldsWriter {
     pub(crate) fn new(fields: Vec<Field>) -> FastFieldsWriter {
         FastFieldsWriter {
             single_value_writers: fields.into_iter().map(IntFastFieldWriter::new).collect(),
-            multi_values_writers: vec!(),
+            multi_values_writers: vec![],
         }
     }
 
@@ -73,23 +72,22 @@ impl FastFieldsWriter {
         // TODO optimize
         self.single_value_writers
             .iter_mut()
-            .find(|field_writer| {
-                field_writer.field() == field
-            })
+            .find(|field_writer| field_writer.field() == field)
     }
 
     /// Returns the fast field multi-value writer for the given field.
     ///
     /// Returns None if the field does not exist, or is not
     /// configured as a multivalued fastfield in the schema.
-    pub(crate) fn get_multivalue_writer(&mut self, field: Field) -> Option<&mut MultiValueIntFastFieldWriter> {
+    pub(crate) fn get_multivalue_writer(
+        &mut self,
+        field: Field,
+    ) -> Option<&mut MultiValueIntFastFieldWriter> {
         // TODO optimize
         // TODO expose for users
         self.multi_values_writers
             .iter_mut()
-            .find(|multivalue_writer| {
-                multivalue_writer.field() == field
-            })
+            .find(|multivalue_writer| multivalue_writer.field() == field)
     }
 
     /// Indexes all of the fastfields of a new document.
@@ -104,9 +102,11 @@ impl FastFieldsWriter {
 
     /// Serializes all of the `FastFieldWriter`s by pushing them in
     /// order to the fast field serializer.
-    pub fn serialize(&self,
-                     serializer: &mut FastFieldSerializer,
-                     mapping: HashMap<Field, HashMap<UnorderedTermId, usize>>) -> io::Result<()> {
+    pub fn serialize(
+        &self,
+        serializer: &mut FastFieldSerializer,
+        mapping: HashMap<Field, HashMap<UnorderedTermId, usize>>,
+    ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;
         }
@@ -201,9 +201,9 @@ impl IntFastFieldWriter {
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
-        VInt(val).serialize(&mut self.vals).expect(
-            "unable to serialize VInt to Vec",
-        );
+        VInt(val)
+            .serialize(&mut self.vals)
+            .expect("unable to serialize VInt to Vec");
 
         if val > self.val_max {
             self.val_max = val;
@@ -214,7 +214,6 @@ impl IntFastFieldWriter {
 
         self.val_count += 1;
     }
-
 
     /// Extract the value associated to the fast field for
     /// this document.
@@ -228,13 +227,11 @@ impl IntFastFieldWriter {
     /// only the first one is taken in account.
     fn extract_val(&self, doc: &Document) -> u64 {
         match doc.get_first(self.field) {
-            Some(v) => {
-                match *v {
-                    Value::U64(ref val) => *val,
-                    Value::I64(ref val) => common::i64_to_u64(*val),
-                    _ => panic!("Expected a u64field, got {:?} ", v),
-                }
-            }
+            Some(v) => match *v {
+                Value::U64(ref val) => *val,
+                Value::I64(ref val) => common::i64_to_u64(*val),
+                _ => panic!("Expected a u64field, got {:?} ", v),
+            },
             None => self.val_if_missing,
         }
     }

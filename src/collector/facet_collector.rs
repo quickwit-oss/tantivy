@@ -13,7 +13,7 @@ use termdict::TermStreamerBuilder;
 use std::collections::BTreeSet;
 use termdict::TermMerger;
 use postings::SkipResult;
-use std::{u64, usize};
+use std::{usize, u64};
 use std::iter::Peekable;
 
 use DocId;
@@ -48,7 +48,6 @@ impl<'a> Ord for Hit<'a> {
     }
 }
 
-
 struct SegmentFacetCounter {
     pub facet_reader: FacetReader,
     pub facet_ords: Vec<u64>,
@@ -59,15 +58,9 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
     if facet_bytes.is_empty() {
         0
     } else {
-        facet_bytes
-            .iter()
-            .cloned()
-            .filter(|b| *b == 0u8)
-            .count() + 1
+        facet_bytes.iter().cloned().filter(|b| *b == 0u8).count() + 1
     }
 }
-
-
 
 /// Collector for faceting
 ///
@@ -215,23 +208,24 @@ pub struct FacetCollector {
     // collapse facet_id -> facet_ord
     current_collapse_facet_ords: Vec<u64>,
 
-    facets: BTreeSet<Facet>
+    facets: BTreeSet<Facet>,
 }
 
-fn skip<'a, I: Iterator<Item=&'a Facet>>(target: &[u8], collapse_it: &mut Peekable<I>) -> SkipResult {
+fn skip<'a, I: Iterator<Item = &'a Facet>>(
+    target: &[u8],
+    collapse_it: &mut Peekable<I>,
+) -> SkipResult {
     loop {
         match collapse_it.peek() {
-            Some(facet_bytes) => {
-                match facet_bytes.encoded_bytes().cmp(&target) {
-                    Ordering::Less => {}
-                    Ordering::Greater => {
-                        return SkipResult::OverStep;
-                    }
-                    Ordering::Equal => {
-                        return SkipResult::Reached;
-                    }
+            Some(facet_bytes) => match facet_bytes.encoded_bytes().cmp(&target) {
+                Ordering::Less => {}
+                Ordering::Greater => {
+                    return SkipResult::OverStep;
                 }
-            }
+                Ordering::Equal => {
+                    return SkipResult::Reached;
+                }
+            },
             None => {
                 return SkipResult::End;
             }
@@ -241,7 +235,6 @@ fn skip<'a, I: Iterator<Item=&'a Facet>>(target: &[u8], collapse_it: &mut Peekab
 }
 
 impl FacetCollector {
-
     /// Create a facet collector to collect the facets
     /// from a specific facet `Field`.
     ///
@@ -261,7 +254,6 @@ impl FacetCollector {
         }
     }
 
-
     /// Adds a facet that we want to record counts
     ///
     /// Adding facet `Facet::from("/country")` for instance,
@@ -272,12 +264,15 @@ impl FacetCollector {
     /// If you need the correct number of unique documents for two such facets,
     /// just add them in separate `FacetCollector`.
     pub fn add_facet<T>(&mut self, facet_from: T)
-        where Facet: From<T> {
+    where
+        Facet: From<T>,
+    {
         let facet = Facet::from(facet_from);
         for old_facet in &self.facets {
             assert!(
                 !old_facet.is_prefix_of(&facet),
-                "Tried to add a facet which is a descendant of an already added facet.");
+                "Tried to add a facet which is a descendant of an already added facet."
+            );
             assert!(
                 !facet.is_prefix_of(&old_facet),
                 "Tried to add a facet which is an ancestor of an already added facet."
@@ -292,10 +287,7 @@ impl FacetCollector {
         self.current_segment_counts.clear();
         let mut collapse_facet_it = self.facets.iter().peekable();
         self.current_collapse_facet_ords.push(0);
-        let mut facet_streamer = facet_reader
-            .facet_dict()
-            .range()
-            .into_stream();
+        let mut facet_streamer = facet_reader.facet_dict().range().into_stream();
         if !facet_streamer.advance() {
             return;
         }
@@ -315,7 +307,8 @@ impl FacetCollector {
                             continue 'outer;
                         } else if depth == collapse_depth + 1 {
                             collapsed_id = self.current_collapse_facet_ords.len();
-                            self.current_collapse_facet_ords.push(facet_streamer.term_ord());
+                            self.current_collapse_facet_ords
+                                .push(facet_streamer.term_ord());
                             self.current_segment_collapse_mapping.push(collapsed_id);
                         } else {
                             self.current_segment_collapse_mapping.push(collapsed_id);
@@ -335,13 +328,11 @@ impl FacetCollector {
 
     fn finalize_segment(&mut self) {
         if self.ff_reader.is_some() {
-            self.segment_counters.push(
-                SegmentFacetCounter {
-                    facet_reader: unsafe { self.ff_reader.take().unwrap().into_inner() },
-                    facet_ords: mem::replace(&mut self.current_collapse_facet_ords, Vec::new()),
-                    facet_counts: mem::replace(&mut self.current_segment_counts, Vec::new()),
-                }
-            );
+            self.segment_counters.push(SegmentFacetCounter {
+                facet_reader: unsafe { self.ff_reader.take().unwrap().into_inner() },
+                facet_ords: mem::replace(&mut self.current_collapse_facet_ords, Vec::new()),
+                facet_counts: mem::replace(&mut self.current_segment_counts, Vec::new()),
+            });
         }
     }
 
@@ -361,14 +352,9 @@ impl FacetCollector {
             .map(|segment_counter| &segment_counter.facet_counts[..])
             .collect();
 
-
         let facet_streams = self.segment_counters
             .iter()
-            .map(|seg_counts| seg_counts
-                .facet_reader
-                .facet_dict()
-                .range()
-                .into_stream())
+            .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
             .collect::<Vec<_>>();
 
         let mut facet_merger = TermMerger::new(facet_streams);
@@ -398,50 +384,42 @@ impl FacetCollector {
                 facet_counts.insert(Facet::from_encoded(bytes), count);
             }
         }
-        FacetCounts {
-            facet_counts
-        }
+        FacetCounts { facet_counts }
     }
 }
-
-
-
 
 impl Collector for FacetCollector {
     fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
         self.finalize_segment();
         let facet_reader = reader.facet_reader(self.field)?;
         self.set_collapse_mapping(&facet_reader);
-        self.current_segment_counts.resize(self.current_collapse_facet_ords.len(), 0);
+        self.current_segment_counts
+            .resize(self.current_collapse_facet_ords.len(), 0);
         self.ff_reader = Some(UnsafeCell::new(facet_reader));
         Ok(())
     }
 
     fn collect(&mut self, doc: DocId, _: Score) {
-        let facet_reader: &mut FacetReader =
-            unsafe {
-                &mut *self.ff_reader
-                    .as_ref()
-                    .expect("collect() was called before set_segment. This should never happen.")
-                    .get()
-            };
+        let facet_reader: &mut FacetReader = unsafe {
+            &mut *self.ff_reader
+                .as_ref()
+                .expect("collect() was called before set_segment. This should never happen.")
+                .get()
+        };
         facet_reader.facet_ords(doc, &mut self.facet_ords);
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords {
             let collapsed_ord = self.current_segment_collapse_mapping[facet_ord as usize];
-            self.current_segment_counts[collapsed_ord] +=
-                if collapsed_ord == previous_collapsed_ord {
-                    0
-                } else {
-                    1
-                };
+            self.current_segment_counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord
+            {
+                0
+            } else {
+                1
+            };
             previous_collapsed_ord = collapsed_ord;
         }
     }
 }
-
-
-
 
 /// Intermediary result of the `FacetCollector` that stores
 /// the facet counts for all the segments.
@@ -450,20 +428,20 @@ pub struct FacetCounts {
 }
 
 impl FacetCounts {
-
-    pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item=(&'a Facet, u64)>
-        where Facet: From<T> {
+    pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item = (&'a Facet, u64)>
+    where
+        Facet: From<T>,
+    {
         let facet = Facet::from(facet_from);
         let left_bound = Bound::Excluded(facet.clone());
-        let right_bound =
-            if facet.is_root() {
-                Bound::Unbounded
-            } else {
-                let mut facet_after_bytes = facet.encoded_bytes().to_owned();
-                facet_after_bytes.push(1u8);
-                let facet_after = Facet::from_encoded(facet_after_bytes);
-                Bound::Excluded(facet_after)
-            };
+        let right_bound = if facet.is_root() {
+            Bound::Unbounded
+        } else {
+            let mut facet_after_bytes = facet.encoded_bytes().to_owned();
+            facet_after_bytes.push(1u8);
+            let facet_after = Facet::from_encoded(facet_after_bytes);
+            Bound::Excluded(facet_after)
+        };
 
         self.facet_counts
             .range((left_bound, right_bound))
@@ -471,8 +449,9 @@ impl FacetCounts {
     }
 
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
-        where Facet: From<T> {
-
+    where
+        Facet: From<T>,
+    {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
@@ -480,9 +459,7 @@ impl FacetCounts {
             heap.push(Hit { count, facet });
         }
 
-        let mut lowest_count: u64 = heap.peek()
-            .map(|hit| hit.count)
-            .unwrap_or(u64::MIN);
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN);
         for (facet, count) in it {
             if count > lowest_count {
                 lowest_count = count;
@@ -496,16 +473,13 @@ impl FacetCounts {
             .map(|hit| (hit.facet, hit.count))
             .collect::<Vec<_>>()
     }
-
 }
-
-
 
 #[cfg(test)]
 mod tests {
     use test::Bencher;
     use core::Index;
-    use schema::{SchemaBuilder, Document, Facet};
+    use schema::{Document, Facet, SchemaBuilder};
     use query::AllQuery;
     use super::{FacetCollector, FacetCounts};
     use std::iter;
@@ -550,21 +524,23 @@ mod tests {
                 .get("/top1")
                 .map(|(facet, count)| (facet.to_string(), count))
                 .collect();
-            assert_eq!(facets, [
-                ("/top1/mid0", 50),
-                ("/top1/mid1", 50),
-                ("/top1/mid2", 50),
-                ("/top1/mid3", 50),
-            ].iter()
-                .map(|&(facet_str, count)| {
-                    (String::from(facet_str), count)
-                })
-                .collect::<Vec<_>>());
+            assert_eq!(
+                facets,
+                [
+                    ("/top1/mid0", 50),
+                    ("/top1/mid1", 50),
+                    ("/top1/mid2", 50),
+                    ("/top1/mid3", 50),
+                ].iter()
+                    .map(|&(facet_str, count)| (String::from(facet_str), count))
+                    .collect::<Vec<_>>()
+            );
         }
     }
 
     #[test]
-    #[should_panic(expected="Tried to add a facet which is a descendant of an already added facet.")]
+    #[should_panic(expected = "Tried to add a facet which is a descendant of \
+                               an already added facet.")]
     fn test_misused_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field(0));
         facet_collector.add_facet(Facet::from("/country"));
@@ -585,18 +561,14 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut docs: Vec<Document> = vec![
-                ("a", 10),
-                ("b", 100),
-                ("c", 7),
-                ("d", 12),
-                ("e", 21)
-            ].into_iter()
-             .flat_map(|(c, count)| {
-                 let facet = Facet::from(&format!("/facet_{}", c));
-                 let doc = doc!(facet_field => facet);
-                 iter::repeat(doc).take(count)
-             }).collect();
+        let mut docs: Vec<Document> = vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
+            .into_iter()
+            .flat_map(|(c, count)| {
+                let facet = Facet::from(&format!("/facet_{}", c));
+                let doc = doc!(facet_field => facet);
+                iter::repeat(doc).take(count)
+            })
+            .collect();
         thread_rng().shuffle(&mut docs[..]);
 
         let mut index_writer = index.writer(3_000_000).unwrap();
@@ -620,8 +592,9 @@ mod tests {
                 vec![
                     (&Facet::from("/facet_b"), 100),
                     (&Facet::from("/facet_e"), 21),
-                    (&Facet::from("/facet_d"), 12)
-                ]);
+                    (&Facet::from("/facet_d"), 12),
+                ]
+            );
         }
     }
 
@@ -632,12 +605,12 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut docs = vec!();
+        let mut docs = vec![];
         for val in 0..50 {
             let facet = Facet::from(&format!("/facet_{}", val));
-             for _ in 0..val*val {
-                 docs.push(doc!(facet_field=>facet.clone()));
-             }
+            for _ in 0..val * val {
+                docs.push(doc!(facet_field=>facet.clone()));
+            }
         }
         // 40425 docs
         thread_rng().shuffle(&mut docs[..]);
@@ -656,4 +629,3 @@ mod tests {
         });
     }
 }
-

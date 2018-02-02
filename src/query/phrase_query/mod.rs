@@ -6,7 +6,6 @@ pub use self::phrase_query::PhraseQuery;
 pub use self::phrase_weight::PhraseWeight;
 pub use self::phrase_scorer::PhraseScorer;
 
-
 #[cfg(test)]
 mod tests {
 
@@ -75,8 +74,6 @@ mod tests {
         assert_eq!(test_query(vec!["g", "a"]), empty_vec);
     }
 
-
-
     #[test] // motivated by #234
     pub fn test_phrase_query_docfreq_order() {
         let mut schema_builder = SchemaBuilder::default();
@@ -90,11 +87,13 @@ mod tests {
                 let doc = doc!(text_field=>"b");
                 index_writer.add_document(doc);
             }
-            {   // 1
+            {
+                // 1
                 let doc = doc!(text_field=>"a b");
                 index_writer.add_document(doc);
             }
-            {   // 2
+            {
+                // 2
                 let doc = doc!(text_field=>"b a");
                 index_writer.add_document(doc);
             }

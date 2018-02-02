@@ -1,8 +1,8 @@
 use fst::{IntoStreamer, Streamer};
-use fst::map::{StreamBuilder, Stream};
+use fst::map::{Stream, StreamBuilder};
 use postings::TermInfo;
 use super::TermDictionaryImpl;
-use termdict::{TermOrdinal, TermDictionary, TermStreamerBuilder, TermStreamer};
+use termdict::{TermDictionary, TermOrdinal, TermStreamer, TermStreamerBuilder};
 
 /// See [`TermStreamerBuilder`](./trait.TermStreamerBuilder.html)
 pub struct TermStreamerBuilderImpl<'a> {
@@ -53,7 +53,6 @@ impl<'a> TermStreamerBuilder for TermStreamerBuilderImpl<'a> {
     }
 }
 
-
 /// See [`TermStreamer`](./trait.TermStreamer.html)
 pub struct TermStreamerImpl<'a> {
     fst_map: &'a TermDictionaryImpl,
@@ -88,4 +87,3 @@ impl<'a> TermStreamer for TermStreamerImpl<'a> {
         &self.current_value
     }
 }
-

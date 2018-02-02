@@ -1,6 +1,6 @@
 use query::Scorer;
 use DocId;
-use postings::{SkipResult, IntersectionDocSet, DocSet, Postings, SegmentPostings};
+use postings::{DocSet, IntersectionDocSet, Postings, SegmentPostings, SkipResult};
 
 struct PostingsWithOffset {
     offset: u32,
@@ -11,7 +11,7 @@ impl PostingsWithOffset {
     pub fn new(segment_postings: SegmentPostings, offset: u32) -> PostingsWithOffset {
         PostingsWithOffset {
             offset,
-            segment_postings
+            segment_postings,
         }
     }
 }
@@ -49,7 +49,6 @@ pub struct PhraseScorer {
 }
 
 impl PhraseScorer {
-
     pub fn new(term_postings: Vec<SegmentPostings>) -> PhraseScorer {
         let postings_with_offsets: Vec<_> = term_postings
             .into_iter()
@@ -57,12 +56,11 @@ impl PhraseScorer {
             .map(|(offset, postings)| PostingsWithOffset::new(postings, offset as u32))
             .collect();
         PhraseScorer {
-            intersection_docset: IntersectionDocSet::from(postings_with_offsets)
+            intersection_docset: IntersectionDocSet::from(postings_with_offsets),
         }
     }
 
     fn phrase_match(&self) -> bool {
-
         // TODO maybe we could avoid decoding positions lazily for all terms
         // when there is > 2 terms.
         //
@@ -73,7 +71,6 @@ impl PhraseScorer {
         for docset in docsets {
             positions_arr[docset.offset as usize] = docset.positions();
         }
-
 
         let num_postings = positions_arr.len() as u32;
 

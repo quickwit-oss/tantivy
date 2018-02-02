@@ -8,7 +8,6 @@ use std::io::{self, Read};
 use directory::ReadOnlySource;
 use common::BinarySerializable;
 
-
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
     field: Field,
@@ -19,7 +18,7 @@ impl FileAddr {
     fn new(field: Field, idx: usize) -> FileAddr {
         FileAddr {
             field: field,
-            idx: idx
+            idx: idx,
         }
     }
 }
@@ -36,7 +35,7 @@ impl BinarySerializable for FileAddr {
         let idx = VInt::deserialize(reader)?.0 as usize;
         Ok(FileAddr {
             field: field,
-            idx: idx
+            idx: idx,
         })
     }
 }
@@ -59,7 +58,7 @@ impl<W: Write> CompositeWrite<W> {
 
     /// Start writing a new field.
     pub fn for_field(&mut self, field: Field) -> &mut CountingWriter<W> {
-       self.for_field_with_idx(field, 0)
+        self.for_field_with_idx(field, 0)
     }
 
     /// Start writing a new field.
@@ -70,7 +69,6 @@ impl<W: Write> CompositeWrite<W> {
         self.offsets.insert(file_addr, offset);
         &mut self.write
     }
-
 
     /// Close the composite file.
     ///
@@ -89,9 +87,7 @@ impl<W: Write> CompositeWrite<W> {
 
         let mut prev_offset = 0;
         for (offset, file_addr) in offset_fields {
-            VInt((offset - prev_offset) as u64).serialize(
-                &mut self.write,
-            )?;
+            VInt((offset - prev_offset) as u64).serialize(&mut self.write)?;
             file_addr.serialize(&mut self.write)?;
             prev_offset = offset;
         }
@@ -102,7 +98,6 @@ impl<W: Write> CompositeWrite<W> {
         Ok(())
     }
 }
-
 
 /// A composite file is an abstraction to store a
 /// file partitioned by field.
@@ -174,20 +169,20 @@ impl CompositeFile {
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<ReadOnlySource> {
         self.offsets_index
-            .get(&FileAddr {field: field, idx: idx})
-            .map(|&(from, to)| {
-                self.data.slice(from, to)
+            .get(&FileAddr {
+                field: field,
+                idx: idx,
             })
+            .map(|&(from, to)| self.data.slice(from, to))
     }
 }
-
 
 #[cfg(test)]
 mod test {
 
     use std::io::Write;
-    use super::{CompositeWrite, CompositeFile};
-    use directory::{RAMDirectory, Directory};
+    use super::{CompositeFile, CompositeWrite};
+    use directory::{Directory, RAMDirectory};
     use schema::Field;
     use common::VInt;
     use common::BinarySerializable;
@@ -231,7 +226,6 @@ mod test {
                 assert_eq!(payload_4, 2u64);
             }
         }
-
     }
 
 }

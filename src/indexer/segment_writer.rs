@@ -17,7 +17,7 @@ use super::operation::AddOperation;
 use postings::MultiFieldPostingsWriter;
 use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
-use tokenizer::{Tokenizer, TokenStream};
+use tokenizer::{TokenStream, Tokenizer};
 use schema::Value;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
@@ -126,11 +126,7 @@ impl<'a> SegmentWriter<'a> {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(
-        &mut self,
-        add_operation: AddOperation,
-        schema: &Schema,
-    ) -> io::Result<()> {
+    pub fn add_document(&mut self, add_operation: AddOperation, schema: &Schema) -> io::Result<()> {
         let doc_id = self.max_doc;
         let mut doc = add_operation.document;
         self.doc_opstamps.push(add_operation.opstamp);
@@ -144,17 +140,16 @@ impl<'a> SegmentWriter<'a> {
             }
             match *field_options.field_type() {
                 FieldType::HierarchicalFacet => {
-                    let facets: Vec<&[u8]> = field_values.iter()
-                        .flat_map(|field_value| {
-                            match field_value.value() {
-                                &Value::Facet(ref facet) => Some(facet.encoded_bytes()),
-                                _ => {
-                                    panic!("Expected hierarchical facet");
-                                }
+                    let facets: Vec<&[u8]> = field_values
+                        .iter()
+                        .flat_map(|field_value| match field_value.value() {
+                            &Value::Facet(ref facet) => Some(facet.encoded_bytes()),
+                            _ => {
+                                panic!("Expected hierarchical facet");
                             }
                         })
                         .collect();
-                    let mut term = unsafe {Term::with_capacity(100)};
+                    let mut term = unsafe { Term::with_capacity(100) };
                     term.set_field(field);
                     for facet_bytes in facets {
                         let mut unordered_term_id_opt = None;
@@ -163,7 +158,8 @@ impl<'a> SegmentWriter<'a> {
                             .token_stream(&fake_str)
                             .process(&mut |ref token| {
                                 term.set_text(&token.text);
-                                let unordered_term_id = self.multifield_postings.subscribe(doc_id, &term);
+                                let unordered_term_id =
+                                    self.multifield_postings.subscribe(doc_id, &term);
                                 unordered_term_id_opt = Some(unordered_term_id);
                             });
 
@@ -176,25 +172,26 @@ impl<'a> SegmentWriter<'a> {
                     }
                 }
                 FieldType::Str(_) => {
-                    let num_tokens =
-                        if let Some(ref mut tokenizer) = self.tokenizers[field.0 as usize] {
-                            let texts: Vec<&str> = field_values
-                                .iter()
-                                .flat_map(|field_value| match *field_value.value() {
-                                    Value::Str(ref text) => Some(text.as_str()),
-                                    _ => None,
-                                })
-                                .collect();
-                            if texts.is_empty() {
-                                0
-                            } else {
-                                let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
-                                self.multifield_postings
-                                    .index_text(doc_id, field, &mut token_stream)
-                            }
-                        } else {
+                    let num_tokens = if let Some(ref mut tokenizer) =
+                        self.tokenizers[field.0 as usize]
+                    {
+                        let texts: Vec<&str> = field_values
+                            .iter()
+                            .flat_map(|field_value| match *field_value.value() {
+                                Value::Str(ref text) => Some(text.as_str()),
+                                _ => None,
+                            })
+                            .collect();
+                        if texts.is_empty() {
                             0
-                        };
+                        } else {
+                            let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
+                            self.multifield_postings
+                                .index_text(doc_id, field, &mut token_stream)
+                        }
+                    } else {
+                        0
+                    };
                     self.fieldnorms_writer
                         .get_field_writer(field)
                         .map(|field_norms_writer| {
@@ -226,9 +223,7 @@ impl<'a> SegmentWriter<'a> {
             }
         }
         self.fieldnorms_writer.fill_val_up_to(doc_id);
-        doc.filter_fields(|field| {
-            schema.get_field_entry(field).is_stored()
-        });
+        doc.filter_fields(|field| schema.get_field_entry(field).is_stored());
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc)?;
         self.max_doc += 1;

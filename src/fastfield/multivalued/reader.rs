@@ -18,8 +18,10 @@ pub struct MultiValueIntFastFieldReader {
 }
 
 impl MultiValueIntFastFieldReader {
-
-    pub(crate) fn open(idx_reader: U64FastFieldReader, vals_reader: U64FastFieldReader) -> MultiValueIntFastFieldReader {
+    pub(crate) fn open(
+        idx_reader: U64FastFieldReader,
+        vals_reader: U64FastFieldReader,
+    ) -> MultiValueIntFastFieldReader {
         MultiValueIntFastFieldReader {
             idx_reader: idx_reader,
             vals_reader: vals_reader,
@@ -38,12 +40,11 @@ impl MultiValueIntFastFieldReader {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
     use core::Index;
-    use schema::{Facet, Document, SchemaBuilder};
+    use schema::{Document, Facet, SchemaBuilder};
 
     #[test]
     fn test_multifastfield_reader() {
@@ -51,7 +52,9 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facets");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 30_000_000).expect("Failed to create index writer.");
+        let mut index_writer = index
+            .writer_with_num_threads(1, 30_000_000)
+            .expect("Failed to create index writer.");
         {
             let mut doc = Document::new();
             doc.add_facet(facet_field, "/category/cat2");
@@ -72,9 +75,7 @@ mod tests {
         index.load_searchers().expect("Reloading searchers");
         let searcher = index.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let mut facet_reader = segment_reader
-            .facet_reader(facet_field)
-            .unwrap();
+        let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
 
         let mut facet = Facet::root();
         {
@@ -108,7 +109,5 @@ mod tests {
             facet_reader.facet_ords(2, &mut vals);
             assert_eq!(&vals[..], &[4]);
         }
-
-
     }
 }
