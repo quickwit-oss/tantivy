@@ -5,12 +5,14 @@
 #![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
 #![feature(integer_atomics)]
+#![feature(drain_filter)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(iterator_step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![allow(unknown_lints)]
 #![allow(new_without_default)]
 #![warn(missing_docs)]
+
 
 //! # `tantivy`
 //!

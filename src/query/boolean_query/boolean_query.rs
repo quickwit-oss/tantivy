@@ -51,6 +51,9 @@ impl Query for BooleanQuery {
 
     fn disable_scoring(&mut self) {
         self.scoring_disabled = true;
+        for &mut (_, ref mut subquery) in &mut self.subqueries {
+            subquery.disable_scoring();
+        }
     }
 }
 

@@ -15,6 +15,7 @@ mod term_info;
 mod vec_postings;
 mod segment_postings;
 mod intersection;
+mod union;
 mod docset;
 
 pub use self::docset::{DocSet, SkipResult};
@@ -30,6 +31,8 @@ pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 pub use self::intersection::IntersectionDocSet;
+pub use self::union::UnionDocSet;
+
 pub use common::HasLen;
 
 pub(crate) type UnorderedTermId = usize;

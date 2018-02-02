@@ -128,6 +128,24 @@ impl DocSet for PhraseScorer {
     fn size_hint(&self) -> u32 {
         self.intersection_docset.size_hint()
     }
+
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        if self.intersection_docset.skip_next(target) == SkipResult::End {
+            SkipResult::End
+        } else if self.phrase_match() {
+            if self.doc() == target {
+                SkipResult::Reached
+            } else {
+                SkipResult::OverStep
+            }
+        } else {
+            if self.advance() {
+                SkipResult::OverStep
+            } else {
+                SkipResult::End
+            }
+        }
+    }
 }
 
 impl Scorer for PhraseScorer {
