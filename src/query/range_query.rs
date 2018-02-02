@@ -83,7 +83,7 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
-    fn new(range_definition: RangeDefinition) -> RangeQuery {
+    pub fn new(range_definition: RangeDefinition) -> RangeQuery {
         RangeQuery {
             range_definition
         }
