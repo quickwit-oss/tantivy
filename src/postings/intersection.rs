@@ -41,6 +41,28 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
             .unwrap() // safe as docsets cannot be empty.
     }
 
+    fn skip_next(&mut self, mut target: DocId) -> SkipResult {
+        let mut overstep = false;
+        for docset in &mut self.docsets {
+            match docset.skip_next(target) {
+                SkipResult::End => {
+                    return SkipResult::End;
+                }
+                SkipResult::OverStep => {
+                    overstep = true;
+                    target = docset.doc();
+                }
+                SkipResult::Reached => {}
+            }
+        }
+        if overstep {
+            SkipResult::OverStep
+        } else {
+            SkipResult::Reached
+        }
+    }
+
+
     #[allow(never_loop)]
     fn advance(&mut self) -> bool {
         if self.finished {
