@@ -429,7 +429,6 @@ pub struct FacetCounts {
 }
 
 impl FacetCounts {
-
     #[allow(needless_lifetimes)] //< compiler fails if we remove the lifetime
     pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item = (&'a Facet, u64)>
     where

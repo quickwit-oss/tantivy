@@ -142,27 +142,24 @@ impl<'a> SegmentWriter<'a> {
                 FieldType::HierarchicalFacet => {
                     let facets: Vec<&[u8]> = field_values
                         .iter()
-                        .flat_map(|field_value|
-                            match *field_value.value() {
-                                Value::Facet(ref facet) => Some(facet.encoded_bytes()),
-                                _ => {
-                                    panic!("Expected hierarchical facet");
-                                }
-                            })
+                        .flat_map(|field_value| match *field_value.value() {
+                            Value::Facet(ref facet) => Some(facet.encoded_bytes()),
+                            _ => {
+                                panic!("Expected hierarchical facet");
+                            }
+                        })
                         .collect();
                     let mut term = unsafe { Term::with_capacity(100) };
                     term.set_field(field);
                     for facet_bytes in facets {
                         let mut unordered_term_id_opt = None;
                         let fake_str = unsafe { str::from_utf8_unchecked(facet_bytes) };
-                        FacetTokenizer
-                            .token_stream(fake_str)
-                            .process(&mut |token| {
-                                term.set_text(&token.text);
-                                let unordered_term_id =
-                                    self.multifield_postings.subscribe(doc_id, &term);
-                                unordered_term_id_opt = Some(unordered_term_id);
-                            });
+                        FacetTokenizer.token_stream(fake_str).process(&mut |token| {
+                            term.set_text(&token.text);
+                            let unordered_term_id =
+                                self.multifield_postings.subscribe(doc_id, &term);
+                            unordered_term_id_opt = Some(unordered_term_id);
+                        });
 
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers

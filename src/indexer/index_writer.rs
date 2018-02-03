@@ -257,7 +257,8 @@ fn index_documents(
     heap.clear();
     let schema = segment.schema();
     let segment_id = segment.id();
-    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
+    let mut segment_writer =
+        SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
         // There is two possible conditions to close the segment.
