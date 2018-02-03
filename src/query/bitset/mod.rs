@@ -20,6 +20,23 @@ pub struct BitSetDocSet {
     doc: u32
 }
 
+impl BitSetDocSet {
+    #[inline(always)]
+    fn check_validity(&self) {
+        if cfg!(test) {
+            let original_bucket = self.docs.tiny_bitset(self.cursor_bucket);
+            debug_assert_eq!(original_bucket & self.cursor_tinybitset, self.cursor_tinybitset);
+            debug_assert_eq!(original_bucket | self.cursor_tinybitset, original_bucket);
+            debug_assert!(self.cursor_bucket >= self.doc() as usize / 64);
+        }
+    }
+
+    fn go_to_bucket(&mut self, bucket_addr: usize) {
+        self.cursor_bucket = bucket_addr;
+        self.cursor_tinybitset = self.docs.tiny_bitset(bucket_addr);
+    }
+}
+
 impl From<DocBitSet> for BitSetDocSet {
     fn from(docs: DocBitSet) -> BitSetDocSet {
         let first_tiny_bitset = 
@@ -39,14 +56,15 @@ impl From<DocBitSet> for BitSetDocSet {
 
 impl DocSet for BitSetDocSet {
     fn advance(&mut self) -> bool {
+        self.check_validity();
         loop {
             if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
                 self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
                 return true;
             } else {
                 if self.cursor_bucket < self.docs.num_tiny_bitsets() - 1 {
-                    self.cursor_bucket += 1;
-                    self.cursor_tinybitset = self.docs.tiny_bitset(self.cursor_bucket);
+                    let inc_bucket = self.cursor_bucket + 1;
+                    self.go_to_bucket(inc_bucket);
                 } else {
                     return false;
                 }
@@ -54,9 +72,9 @@ impl DocSet for BitSetDocSet {
 
         }
     }
-
     
     fn skip_next(&mut self, target: DocId) -> SkipResult {
+        self.check_validity();
         // skip is required to advance.
         if !self.advance() {
             return SkipResult::End;
@@ -66,17 +84,17 @@ impl DocSet for BitSetDocSet {
         // Mask for all of the bits greater or equal
         // to our target document.
         match target_bucket.cmp(&self.cursor_bucket) {
-            Ordering::Less => {
-                self.cursor_bucket = target_bucket;
-                self.cursor_tinybitset = self.docs.tiny_bitset(target_bucket);
-                let greater: u64 = <u64 as TinySet>::range_greater_or_equal(target % 64);
-                self.cursor_tinybitset.intersect(greater);
+            Ordering::Greater => {
+                self.go_to_bucket(target_bucket);
+                let greater_filter: u64 = <u64 as TinySet>::range_greater_or_equal(target % 64);
+                self.cursor_tinybitset.intersect(greater_filter);
                 if !self.advance() {
                     SkipResult::End
                 } else {
                     if self.doc() == target {
                         SkipResult::Reached
                     } else {
+                        debug_assert!(self.doc() > target);
                         SkipResult::OverStep
                     }
                 }
@@ -93,12 +111,16 @@ impl DocSet for BitSetDocSet {
                             return SkipResult::Reached;
                         }
                         Ordering::Greater => {
+                            debug_assert!(self.doc() > target);
                             return SkipResult::OverStep;
                         }
                     }
                 }
             }
-            Ordering::Greater => SkipResult::OverStep
+            Ordering::Less => {
+                debug_assert!(self.doc() > target);
+                SkipResult::OverStep
+            }
         }
     }
 
@@ -192,6 +214,36 @@ mod tests {
             let mut docset = create_docbitset(&[5112], 10_000);
             assert_eq!(docset.skip_next(5111), SkipResult::OverStep);
             assert_eq!(docset.doc(), 5112);
+            assert!(!docset.advance());
+        }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112,5500, 6666], 10_000);
+            assert_eq!(docset.skip_next(5112), SkipResult::Reached);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5500);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
+            assert!(!docset.advance());
+        }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112,5500, 6666], 10_000);
+            assert_eq!(docset.skip_next(5111), SkipResult::OverStep);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5500);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
+            assert!(!docset.advance());
+        }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112,5513, 6666], 10_000);
+            assert_eq!(docset.skip_next(5111), SkipResult::OverStep);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5513);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
             assert!(!docset.advance());
         }
     }

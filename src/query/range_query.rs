@@ -17,40 +17,40 @@ enum Boundary {
 }
 
 #[derive(Clone, Debug)]
-pub struct RangeDefinition {
+pub struct TermRange {
     field: Field,
     left_bound: Boundary,
     right_bound: Boundary
 }
 
-impl RangeDefinition {
-    fn for_field(field: Field) -> RangeDefinition{
-        RangeDefinition {
+impl TermRange {
+    fn for_field(field: Field) -> TermRange {
+        TermRange {
             field,
             left_bound: Boundary::Unbounded,
             right_bound: Boundary::Unbounded
         }
     }
 
-    fn left_included(mut self, left: Term) -> RangeDefinition {
+    fn left_included(mut self, left: Term) -> TermRange {
         assert_eq!(left.field(), self.field);
         self.left_bound = Boundary::Included(left.value_bytes().to_owned());
         self
     }
 
-    fn left_excluded(mut self, left: Term) -> RangeDefinition {
+    fn left_excluded(mut self, left: Term) -> TermRange {
         assert_eq!(left.field(), self.field);
         self.left_bound = Boundary::Excluded(left.value_bytes().to_owned());
         self
     }
 
-    fn right_included(mut self, right: Term) -> RangeDefinition {
+    fn right_included(mut self, right: Term) -> TermRange {
         assert_eq!(right.field(), self.field);
         self.right_bound = Boundary::Included(right.value_bytes().to_owned());
         self
     }
 
-    fn right_excluded(mut self, right: Term) -> RangeDefinition {
+    fn right_excluded(mut self, right: Term) -> TermRange {
         assert_eq!(right.field(), self.field);
         self.right_bound = Boundary::Excluded(right.value_bytes().to_owned());
         self
@@ -79,11 +79,11 @@ impl RangeDefinition {
 
 #[derive(Debug)]
 pub struct RangeQuery {
-    range_definition: RangeDefinition
+    range_definition: TermRange
 }
 
 impl RangeQuery {
-    fn new(range_definition: RangeDefinition) -> RangeQuery {
+    fn new(range_definition: TermRange) -> RangeQuery {
         RangeQuery {
             range_definition
         }
@@ -104,7 +104,7 @@ impl Query for RangeQuery {
 
 
 pub struct RangeWeight {
-    range_definition: RangeDefinition
+    range_definition: TermRange
 }
 
 impl Weight for RangeWeight {
@@ -134,7 +134,6 @@ mod tests {
 
     use Index;
     use schema::{SchemaBuilder, Field, Document, INT_INDEXED};
-
 
     #[test]
     fn test_range_query() {
@@ -166,9 +165,9 @@ mod tests {
         use collector::CountCollector;
         use schema::Term;
         use query::Query;
-        use super::{RangeQuery, RangeDefinition};
+        use super::{RangeQuery, TermRange};
 
-        let count_multiples = |range: RangeDefinition| {
+        let count_multiples = |range: TermRange| {
             let mut count_collector = CountCollector::default();
             let range_query = RangeQuery::new(range);
             range_query.search(&*searcher, &mut count_collector).unwrap();
@@ -176,25 +175,25 @@ mod tests {
         };
 
         assert_eq!(
-            count_multiples(RangeDefinition::for_field(int_field)
+            count_multiples(TermRange::for_field(int_field)
                 .left_included(Term::from_field_i64(int_field, 10))
                .right_excluded(Term::from_field_i64(int_field, 11)))
             , 9
         );
         assert_eq!(
-            count_multiples(RangeDefinition::for_field(int_field)
+            count_multiples(TermRange::for_field(int_field)
                 .left_included(Term::from_field_i64(int_field, 10))
                 .right_included(Term::from_field_i64(int_field, 11)))
             , 18
         );
         assert_eq!(
-            count_multiples(RangeDefinition::for_field(int_field)
+            count_multiples(TermRange::for_field(int_field)
                 .left_excluded(Term::from_field_i64(int_field, 9))
                 .right_included(Term::from_field_i64(int_field, 10)))
             , 9
         );
         assert_eq!(
-            count_multiples(RangeDefinition::for_field(int_field)
+            count_multiples(TermRange::for_field(int_field)
                 .left_excluded(Term::from_field_i64(int_field, 9)))
             , 90
         );

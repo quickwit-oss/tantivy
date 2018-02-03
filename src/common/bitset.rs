@@ -1,6 +1,6 @@
 use DocId;
 
-pub trait TinySet {
+pub trait TinySet: Sized {
     fn insert(&mut self, b: u32);
     fn is_empty(&self) -> bool;
     fn pop_lowest(&mut self) -> Option<u32>;
@@ -16,22 +16,33 @@ pub trait TinySet {
     /// to limit excluded.
     ///
     /// The limit is assumed to be strictly lower than 64.
-    fn range_lower(limit: u32) -> u64;
+    fn range_lower(limit: u32) -> Self;
 
     /// Returns a `TinySet` that contains all values greater
     /// or equal to the given limit, included. (and up to 63)
     ///
     /// The limit is assumed to be strictly lower than 64.
-    fn range_greater_or_equal(from_included: u32) -> u64 {
-        assert!(from_included < 64);
-        0 ^ Self::range_lower(from_included)
+    fn range_greater_or_equal(from_included: u32) -> Self {
+        debug_assert!(from_included <= 63);
+        Self::range_lower(from_included).negate()
     }
+
+    fn negate(&self) -> Self;
 }
 
 impl TinySet for u64 {
     fn range_lower(from_included: u32) -> u64 {
-        assert!(from_included < 64);
-        (1u64 << (from_included as u64)) - 1u64
+        debug_assert!(from_included <= 64);
+        if from_included == 64u32 {
+            !0u64
+        } else {
+            (1u64 << (from_included as u64)) - 1u64
+        }
+
+    }
+
+    fn negate(&self) -> u64 {
+        !self
     }
 
     fn intersect(&mut self, filter_mask: u64) {
@@ -205,6 +216,24 @@ mod tests {
         assert_eq!(DocBitSet::with_maxdoc(65u32).num_tiny_bitsets(), 2);
         assert_eq!(DocBitSet::with_maxdoc(128u32).num_tiny_bitsets(), 2);
         assert_eq!(DocBitSet::with_maxdoc(129u32).num_tiny_bitsets(), 3);
+    }
+
+    fn tinyset_to_vec(mut val: u64) -> Vec<u32>{
+        let mut v = vec![];
+        while let Some(el) = val.pop_lowest() {
+            v.push(el)
+        }
+        v
+    }
+
+    #[test]
+    fn test_tinyset_range() {
+        assert_eq!(tinyset_to_vec(u64::range_lower(3)), [0,1,2]);
+        assert!(tinyset_to_vec(u64::range_lower(0)).is_empty());
+        assert_eq!(tinyset_to_vec(u64::range_lower(64)), (0u32..64u32).collect::<Vec<_>>());
+        assert_eq!(tinyset_to_vec(u64::range_lower(1)), [0]);
+        assert_eq!(tinyset_to_vec(u64::range_lower(2)), [0,1]);
+        assert_eq!(tinyset_to_vec(u64::range_greater_or_equal(3)), (3u32..64u32).collect::<Vec<_>>());
     }
 }
 
