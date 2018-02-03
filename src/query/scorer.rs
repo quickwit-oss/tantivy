@@ -64,14 +64,14 @@ impl Scorer for EmptyScorer {
 
 pub struct ConstScorer<TDocSet: DocSet> {
     docset: TDocSet,
-    score: Score
+    score: Score,
 }
 
 impl<TDocSet: DocSet> ConstScorer<TDocSet> {
     pub fn new(docset: TDocSet) -> ConstScorer<TDocSet> {
         ConstScorer {
             docset,
-            score: 1f32
+            score: 1f32,
         }
     }
 
@@ -105,7 +105,6 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.to_doc_bitset(max_doc)
     }
 }
-
 
 impl<TDocSet: DocSet> Scorer for ConstScorer<TDocSet> {
     fn score(&self) -> Score {

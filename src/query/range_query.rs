@@ -1,5 +1,5 @@
-use schema::{Field, Term, IndexRecordOption};
-use query::{Query, Weight, Scorer};
+use schema::{Field, IndexRecordOption, Term};
+use query::{Query, Scorer, Weight};
 use termdict::{TermDictionary, TermStreamer, TermStreamerBuilder};
 use core::SegmentReader;
 use common::DocBitSet;
@@ -20,7 +20,7 @@ enum Boundary {
 pub struct TermRange {
     field: Field,
     left_bound: Boundary,
-    right_bound: Boundary
+    right_bound: Boundary,
 }
 
 impl TermRange {
@@ -28,7 +28,7 @@ impl TermRange {
         TermRange {
             field,
             left_bound: Boundary::Unbounded,
-            right_bound: Boundary::Unbounded
+            right_bound: Boundary::Unbounded,
         }
     }
 
@@ -57,36 +57,33 @@ impl TermRange {
     }
 
     fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
-        where T: TermDictionary<'a> + 'a
+    where
+        T: TermDictionary<'a> + 'a,
     {
         use self::Boundary::*;
         let mut term_stream_builder = term_dict.range();
-        term_stream_builder =
-            match &self.left_bound {
-                &Included(ref term_val) => term_stream_builder.ge(term_val),
-                &Excluded(ref term_val) => term_stream_builder.gt(term_val),
-                &Unbounded => term_stream_builder
-            };
-        term_stream_builder =
-            match &self.right_bound {
-                &Included(ref term_val) => term_stream_builder.le(term_val),
-                &Excluded(ref term_val) => term_stream_builder.lt(term_val),
-                &Unbounded => term_stream_builder
-            };
+        term_stream_builder = match &self.left_bound {
+            &Included(ref term_val) => term_stream_builder.ge(term_val),
+            &Excluded(ref term_val) => term_stream_builder.gt(term_val),
+            &Unbounded => term_stream_builder,
+        };
+        term_stream_builder = match &self.right_bound {
+            &Included(ref term_val) => term_stream_builder.le(term_val),
+            &Excluded(ref term_val) => term_stream_builder.lt(term_val),
+            &Unbounded => term_stream_builder,
+        };
         term_stream_builder.into_stream()
     }
 }
 
 #[derive(Debug)]
 pub struct RangeQuery {
-    range_definition: TermRange
+    range_definition: TermRange,
 }
 
 impl RangeQuery {
     fn new(range_definition: TermRange) -> RangeQuery {
-        RangeQuery {
-            range_definition
-        }
+        RangeQuery { range_definition }
     }
 }
 
@@ -97,14 +94,13 @@ impl Query for RangeQuery {
 
     fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
         Ok(box RangeWeight {
-            range_definition: self.range_definition.clone()
+            range_definition: self.range_definition.clone(),
         })
     }
 }
 
-
 pub struct RangeWeight {
-    range_definition: TermRange
+    range_definition: TermRange,
 }
 
 impl Weight for RangeWeight {
@@ -117,7 +113,8 @@ impl Weight for RangeWeight {
         let mut term_range = self.range_definition.term_range(term_dict);
         while term_range.advance() {
             let term_info = term_range.value();
-            let mut block_segment_postings = inverted_index.read_block_postings_from_terminfo(term_info,IndexRecordOption::Basic);
+            let mut block_segment_postings = inverted_index
+                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
             while block_segment_postings.advance() {
                 for &doc in block_segment_postings.docs() {
                     doc_bitset.insert(doc);
@@ -133,7 +130,7 @@ impl Weight for RangeWeight {
 mod tests {
 
     use Index;
-    use schema::{SchemaBuilder, Field, Document, INT_INDEXED};
+    use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
 
     #[test]
     fn test_range_query() {
@@ -170,35 +167,42 @@ mod tests {
         let count_multiples = |range: TermRange| {
             let mut count_collector = CountCollector::default();
             let range_query = RangeQuery::new(range);
-            range_query.search(&*searcher, &mut count_collector).unwrap();
+            range_query
+                .search(&*searcher, &mut count_collector)
+                .unwrap();
             count_collector.count()
         };
 
         assert_eq!(
-            count_multiples(TermRange::for_field(int_field)
-                .left_included(Term::from_field_i64(int_field, 10))
-               .right_excluded(Term::from_field_i64(int_field, 11)))
-            , 9
+            count_multiples(
+                TermRange::for_field(int_field)
+                    .left_included(Term::from_field_i64(int_field, 10))
+                    .right_excluded(Term::from_field_i64(int_field, 11))
+            ),
+            9
         );
         assert_eq!(
-            count_multiples(TermRange::for_field(int_field)
-                .left_included(Term::from_field_i64(int_field, 10))
-                .right_included(Term::from_field_i64(int_field, 11)))
-            , 18
+            count_multiples(
+                TermRange::for_field(int_field)
+                    .left_included(Term::from_field_i64(int_field, 10))
+                    .right_included(Term::from_field_i64(int_field, 11))
+            ),
+            18
         );
         assert_eq!(
-            count_multiples(TermRange::for_field(int_field)
-                .left_excluded(Term::from_field_i64(int_field, 9))
-                .right_included(Term::from_field_i64(int_field, 10)))
-            , 9
+            count_multiples(
+                TermRange::for_field(int_field)
+                    .left_excluded(Term::from_field_i64(int_field, 9))
+                    .right_included(Term::from_field_i64(int_field, 10))
+            ),
+            9
         );
         assert_eq!(
-            count_multiples(TermRange::for_field(int_field)
-                .left_excluded(Term::from_field_i64(int_field, 9)))
-            , 90
+            count_multiples(
+                TermRange::for_field(int_field).left_excluded(Term::from_field_i64(int_field, 9))
+            ),
+            90
         );
-
     }
-
 
 }

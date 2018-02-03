@@ -13,9 +13,7 @@ pub struct BooleanWeight {
 
 impl BooleanWeight {
     pub fn new(weights: Vec<(Occur, Box<Weight>)>) -> BooleanWeight {
-        BooleanWeight {
-            weights
-        }
+        BooleanWeight { weights }
     }
 }
 
@@ -24,7 +22,7 @@ impl Weight for BooleanWeight {
         if self.weights.is_empty() {
             Ok(box EmptyScorer)
         } else if self.weights.len() == 1 {
-            let &(occur, ref weight) =  &self.weights[0];
+            let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
                 Ok(box EmptyScorer)
             } else {
@@ -36,14 +34,10 @@ impl Weight for BooleanWeight {
                 .map(|&(_, ref weight)| weight)
                 .map(|weight| weight.scorer(reader))
                 .collect::<Result<_>>()?;
-            let occurs: Vec<Occur> = self.weights
-                .iter()
-                .map(|&(ref occur, _)| *occur)
-                .collect();
+            let occurs: Vec<Occur> = self.weights.iter().map(|&(ref occur, _)| *occur).collect();
             let occur_filter = OccurFilter::new(&occurs);
             let boolean_scorer = BooleanScorer::new(sub_scorers, occur_filter);
             Ok(box boolean_scorer)
         }
-
-   }
+    }
 }

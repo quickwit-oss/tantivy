@@ -1,66 +1,61 @@
 use DocId;
+use std::iter;
+use std::fmt;
 
-pub trait TinySet: Sized {
-    fn insert(&mut self, b: u32);
-    fn is_empty(&self) -> bool;
-    fn pop_lowest(&mut self) -> Option<u32>;
-    fn remove(&mut self, b: u32);
-    fn lowest(&mut self) -> Option<u32>;
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct TinySet(u64);
+
+impl fmt::Debug for TinySet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.clone().collect::<Vec<u32>>().fmt(f)
+    }
+}
+
+impl Iterator for TinySet {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.pop_lowest()
+    }
+}
+
+impl TinySet {
+    pub fn empty() -> TinySet {
+        TinySet(0u64)
+    }
+
+    pub fn negate(&self) -> TinySet {
+        TinySet(!self.0)
+    }
+
+    pub fn contains(&self, val: u32) -> bool {
+        let mask = 1u64 << (val as u64);
+        (self.0 & mask) != 0u64
+    }
 
     /// Update self to represent the
     /// intersection of its elements and the other
     /// set given in arguments.
-    fn intersect(&mut self, other: Self);
-
-    /// Returns a `TinySet` than contains all values up
-    /// to limit excluded.
-    ///
-    /// The limit is assumed to be strictly lower than 64.
-    fn range_lower(limit: u32) -> Self;
-
-    /// Returns a `TinySet` that contains all values greater
-    /// or equal to the given limit, included. (and up to 63)
-    ///
-    /// The limit is assumed to be strictly lower than 64.
-    fn range_greater_or_equal(from_included: u32) -> Self {
-        debug_assert!(from_included <= 63);
-        Self::range_lower(from_included).negate()
+    pub fn intersect_update(&mut self, other: TinySet) {
+        self.0 &= self.intersect(other).0;
     }
 
-    fn negate(&self) -> Self;
-}
-
-impl TinySet for u64 {
-    fn range_lower(from_included: u32) -> u64 {
-        debug_assert!(from_included <= 64);
-        if from_included == 64u32 {
-            !0u64
-        } else {
-            (1u64 << (from_included as u64)) - 1u64
-        }
-
-    }
-
-    fn negate(&self) -> u64 {
-        !self
-    }
-
-    fn intersect(&mut self, filter_mask: u64) {
-        *self &= filter_mask;
+    pub fn intersect(&self, other: TinySet) -> TinySet {
+        TinySet(self.0 & other.0)
     }
 
     #[inline(always)]
-    fn insert(&mut self, b: u32) {
-        *self |= 1u64 << (b as u64);
+    pub fn insert(&mut self, b: u32) {
+        self.0 |= 1u64 << (b as u64);
     }
 
     #[inline(always)]
-    fn is_empty(&self) -> bool {
-        *self == 0u64
+    pub fn is_empty(&self) -> bool {
+        self.0 == 0u64
     }
 
     #[inline(always)]
-    fn pop_lowest(&mut self) -> Option<u32> {
+    pub fn pop_lowest(&mut self) -> Option<u32> {
         if let Some(lowest) = self.lowest() {
             self.remove(lowest);
             Some(lowest)
@@ -70,36 +65,56 @@ impl TinySet for u64 {
     }
 
     #[inline(always)]
-    fn remove(&mut self, b: u32) {
-        *self ^= 1 << (b as u64);
+    pub fn remove(&mut self, b: u32) {
+        self.0 ^= 1 << (b as u64);
     }
 
     #[inline(always)]
-    fn lowest(&mut self) -> Option<u32> {
+    pub fn lowest(&mut self) -> Option<u32> {
         if self.is_empty() {
             None
         } else {
-            let least_significant_bit = self.trailing_zeros() as u32;
+            let least_significant_bit = self.0.trailing_zeros() as u32;
             Some(least_significant_bit)
         }
+    }
+
+    /// Returns a `TinySet` than contains all values up
+    /// to limit excluded.
+    ///
+    /// The limit is assumed to be strictly lower than 64.
+    pub fn range_lower(upper_bound: u32) -> TinySet {
+        TinySet((1u64 << ((upper_bound % 64u32) as u64)) - 1u64)
+    }
+
+    /// Returns a `TinySet` that contains all values greater
+    /// or equal to the given limit, included. (and up to 63)
+    ///
+    /// The limit is assumed to be strictly lower than 64.
+    pub fn range_greater_or_equal(from_included: u32) -> TinySet {
+        TinySet::range_lower(from_included).negate()
     }
 }
 
 pub struct DocBitSet {
-    tinybitsets: Box<[u64]>,
+    tinybitsets: Box<[TinySet]>,
     size_hint: usize, //< Technically it should be u32, but we
-                      // count multiple inserts.
-                      // `usize` guards us from overflow.
-    max_doc: DocId
+    // count multiple inserts.
+    // `usize` guards us from overflow.
+    max_doc: DocId,
 }
 
 impl DocBitSet {
     pub fn with_maxdoc(max_doc: DocId) -> DocBitSet {
         let num_buckets = (max_doc + 63) / 64;
+        let tinybitsets = iter::repeat(TinySet::empty())
+            .take(num_buckets as usize)
+            .collect::<Vec<TinySet>>()
+            .into_boxed_slice();
         DocBitSet {
-            tinybitsets: vec![0u64; num_buckets as usize].into_boxed_slice(),
+            tinybitsets,
             size_hint: 0,
-            max_doc
+            max_doc,
         }
     }
 
@@ -121,8 +136,7 @@ impl DocBitSet {
     pub fn contains(&self, doc: DocId) -> bool {
         let tiny_bitset = self.tiny_bitset((doc / 64u32) as usize);
         let lower = doc % 64;
-        let mask = 1u64 << (lower as u64);
-        (tiny_bitset & mask) != 0u64
+        tiny_bitset.contains(lower)
     }
 
     pub fn max_doc(&self) -> DocId {
@@ -133,7 +147,7 @@ impl DocBitSet {
         self.tinybitsets.len()
     }
 
-    pub fn tiny_bitset(&self, bucket: usize) -> u64 {
+    pub fn tiny_bitset(&self, bucket: usize) -> TinySet {
         self.tinybitsets[bucket]
     }
 }
@@ -142,27 +156,27 @@ impl DocBitSet {
 mod tests {
     use std::collections::HashSet;
     use DocId;
-    use super::TinySet;
     use super::DocBitSet;
+    use super::TinySet;
 
     #[test]
     fn test_tiny_set() {
-        assert!(0u64.is_empty());
+        assert!(TinySet::empty().is_empty());
         {
-            let mut u = 0u64;
+            let mut u = TinySet::empty();
             u.insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = 0u64;
+            let mut u = TinySet::empty();
             u.insert(1u32);
             u.insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = 0u64;
+            let mut u = TinySet::empty();
             u.insert(2u32);
             assert_eq!(u.pop_lowest(), Some(2u32));
             u.insert(1u32);
@@ -170,13 +184,12 @@ mod tests {
             assert!(u.pop_lowest().is_none());
         }
         {
-            let mut u = 0u64;
+            let mut u = TinySet::empty();
             u.insert(63u32);
             assert_eq!(u.pop_lowest(), Some(63u32));
             assert!(u.pop_lowest().is_none());
         }
     }
-
 
     #[test]
     fn test_docbitset() {
@@ -190,10 +203,7 @@ mod tests {
                 docbitset.insert(doc);
             }
             for doc in 0..max_doc {
-                assert_eq!(
-                    hashset.contains(&doc),
-                    docbitset.contains(doc)
-                );
+                assert_eq!(hashset.contains(&doc), docbitset.contains(doc));
             }
             assert_eq!(docbitset.max_doc(), max_doc);
         };
@@ -205,7 +215,7 @@ mod tests {
         test_against_hashset(&[1u32, 2u32], 4);
         test_against_hashset(&[99u32], 100);
         test_against_hashset(&[63u32], 64);
-        test_against_hashset(&[62u32,63u32], 64);
+        test_against_hashset(&[62u32, 63u32], 64);
     }
 
     #[test]
@@ -218,22 +228,19 @@ mod tests {
         assert_eq!(DocBitSet::with_maxdoc(129u32).num_tiny_bitsets(), 3);
     }
 
-    fn tinyset_to_vec(mut val: u64) -> Vec<u32>{
-        let mut v = vec![];
-        while let Some(el) = val.pop_lowest() {
-            v.push(el)
-        }
-        v
-    }
-
     #[test]
     fn test_tinyset_range() {
-        assert_eq!(tinyset_to_vec(u64::range_lower(3)), [0,1,2]);
-        assert!(tinyset_to_vec(u64::range_lower(0)).is_empty());
-        assert_eq!(tinyset_to_vec(u64::range_lower(64)), (0u32..64u32).collect::<Vec<_>>());
-        assert_eq!(tinyset_to_vec(u64::range_lower(1)), [0]);
-        assert_eq!(tinyset_to_vec(u64::range_lower(2)), [0,1]);
-        assert_eq!(tinyset_to_vec(u64::range_greater_or_equal(3)), (3u32..64u32).collect::<Vec<_>>());
+        assert_eq!(TinySet::range_lower(3).collect::<Vec<u32>>(), [0, 1, 2]);
+        assert!(TinySet::range_lower(0).is_empty());
+        assert_eq!(
+            TinySet::range_lower(63).collect::<Vec<u32>>(),
+            (0u32..63u32).collect::<Vec<_>>()
+        );
+        assert_eq!(TinySet::range_lower(1).collect::<Vec<u32>>(), [0]);
+        assert_eq!(TinySet::range_lower(2).collect::<Vec<u32>>(), [0, 1]);
+        assert_eq!(
+            TinySet::range_greater_or_equal(3).collect::<Vec<u32>>(),
+            (3u32..64u32).collect::<Vec<_>>()
+        );
     }
 }
-

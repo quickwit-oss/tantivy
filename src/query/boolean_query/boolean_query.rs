@@ -38,9 +38,7 @@ impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
-            .map(|&(ref occur, ref subquery)| {
-                Ok((*occur, subquery.weight(searcher)?))
-            })
+            .map(|&(ref occur, ref subquery)| Ok((*occur, subquery.weight(searcher)?)))
             .collect::<Result<_>>()?;
         Ok(box BooleanWeight::new(sub_weights))
     }
