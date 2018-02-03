@@ -3,7 +3,6 @@ use core::SegmentReader;
 use core::Segment;
 use DocId;
 use core::SerializableSegment;
-use schema::FieldValue;
 use indexer::SegmentSerializer;
 use postings::InvertedIndexSerializer;
 use fastfield::U64FastFieldReader;
@@ -18,7 +17,6 @@ use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{max, min};
 use termdict::TermDictionary;
-use schema::Term;
 use termdict::TermStreamer;
 
 pub struct IndexMerger {
@@ -262,7 +260,7 @@ impl IndexMerger {
                 );
 
             while merged_terms.advance() {
-                let term = Term::wrap(merged_terms.key());
+                let term_bytes: &[u8] = merged_terms.key();
 
                 // Let's compute the list of non-empty posting lists
                 let segment_postings: Vec<_> = merged_terms
@@ -272,7 +270,7 @@ impl IndexMerger {
                         let segment_ord = heap_item.segment_ord;
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
-                        let inverted_index = segment_reader.inverted_index(term.field());
+                        let inverted_index = segment_reader.inverted_index(indexed_field);
                         let mut segment_postings = inverted_index
                             .read_postings_from_terminfo(term_info, segment_postings_option);
                         if segment_postings.advance() {
@@ -293,7 +291,7 @@ impl IndexMerger {
 
                     // We know that there is at least one document containing
                     // the term, so we add it.
-                    field_serializer.new_term(term.as_ref())?;
+                    field_serializer.new_term(term_bytes)?;
 
                     // We can now serialize this postings, by pushing each document to the
                     // postings serializer.
@@ -339,8 +337,7 @@ impl IndexMerger {
                 for doc_id in 0..reader.max_doc() {
                     if !reader.is_deleted(doc_id) {
                         let doc = store_reader.get(doc_id)?;
-                        let field_values: Vec<&FieldValue> = doc.field_values().iter().collect();
-                        store_writer.store(&field_values)?;
+                        store_writer.store(&doc)?;
                     }
                 }
             } else {
@@ -378,6 +375,7 @@ mod tests {
     use collector::tests::TestCollector;
     use query::BooleanQuery;
     use schema::IndexRecordOption;
+    use schema::Cardinality;
     use futures::Future;
 
     #[test]
@@ -391,7 +389,7 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::IntOptions::default().set_fast();
+        let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
 
@@ -526,7 +524,7 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let score_fieldtype = schema::IntOptions::default().set_fast();
+        let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();

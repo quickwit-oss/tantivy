@@ -4,14 +4,46 @@ use std::collections::HashMap;
 use schema::Field;
 use common::VInt;
 use directory::WritePtr;
-use std::io;
+use std::io::{self, Read};
 use directory::ReadOnlySource;
 use common::BinarySerializable;
+
+#[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
+pub struct FileAddr {
+    field: Field,
+    idx: usize,
+}
+
+impl FileAddr {
+    fn new(field: Field, idx: usize) -> FileAddr {
+        FileAddr {
+            field: field,
+            idx: idx,
+        }
+    }
+}
+
+impl BinarySerializable for FileAddr {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.field.serialize(writer)?;
+        VInt(self.idx as u64).serialize(writer)?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let field = Field::deserialize(reader)?;
+        let idx = VInt::deserialize(reader)?.0 as usize;
+        Ok(FileAddr {
+            field: field,
+            idx: idx,
+        })
+    }
+}
 
 /// A `CompositeWrite` is used to write a `CompositeFile`.
 pub struct CompositeWrite<W = WritePtr> {
     write: CountingWriter<W>,
-    offsets: HashMap<Field, usize>,
+    offsets: HashMap<FileAddr, usize>,
 }
 
 impl<W: Write> CompositeWrite<W> {
@@ -26,9 +58,15 @@ impl<W: Write> CompositeWrite<W> {
 
     /// Start writing a new field.
     pub fn for_field(&mut self, field: Field) -> &mut CountingWriter<W> {
+        self.for_field_with_idx(field, 0)
+    }
+
+    /// Start writing a new field.
+    pub fn for_field_with_idx(&mut self, field: Field, idx: usize) -> &mut CountingWriter<W> {
         let offset = self.write.written_bytes();
-        assert!(!self.offsets.contains_key(&field));
-        self.offsets.insert(field, offset);
+        let file_addr = FileAddr::new(field, idx);
+        assert!(!self.offsets.contains_key(&file_addr));
+        self.offsets.insert(file_addr, offset);
         &mut self.write
     }
 
@@ -42,16 +80,16 @@ impl<W: Write> CompositeWrite<W> {
 
         let mut offset_fields: Vec<_> = self.offsets
             .iter()
-            .map(|(field, offset)| (offset, field))
+            .map(|(file_addr, offset)| (*offset, *file_addr))
             .collect();
 
         offset_fields.sort();
 
         let mut prev_offset = 0;
-        for (offset, field) in offset_fields {
+        for (offset, file_addr) in offset_fields {
             VInt((offset - prev_offset) as u64).serialize(&mut self.write)?;
-            field.serialize(&mut self.write)?;
-            prev_offset = *offset;
+            file_addr.serialize(&mut self.write)?;
+            prev_offset = offset;
         }
 
         let footer_len = (self.write.written_bytes() - footer_offset) as u32;
@@ -70,7 +108,7 @@ impl<W: Write> CompositeWrite<W> {
 #[derive(Clone)]
 pub struct CompositeFile {
     data: ReadOnlySource,
-    offsets_index: HashMap<Field, (usize, usize)>,
+    offsets_index: HashMap<FileAddr, (usize, usize)>,
 }
 
 impl CompositeFile {
@@ -86,7 +124,7 @@ impl CompositeFile {
         let mut footer_buffer = footer_data.as_slice();
         let num_fields = VInt::deserialize(&mut footer_buffer)?.0 as usize;
 
-        let mut fields = vec![];
+        let mut file_addrs = vec![];
         let mut offsets = vec![];
 
         let mut field_index = HashMap::new();
@@ -94,16 +132,16 @@ impl CompositeFile {
         let mut offset = 0;
         for _ in 0..num_fields {
             offset += VInt::deserialize(&mut footer_buffer)?.0 as usize;
-            let field = Field::deserialize(&mut footer_buffer)?;
+            let file_addr = FileAddr::deserialize(&mut footer_buffer)?;
             offsets.push(offset);
-            fields.push(field);
+            file_addrs.push(file_addr);
         }
         offsets.push(footer_start);
         for i in 0..num_fields {
-            let field = fields[i];
+            let file_addr = file_addrs[i];
             let start_offset = offsets[i];
             let end_offset = offsets[i + 1];
-            field_index.insert(field, (start_offset, end_offset));
+            field_index.insert(file_addr, (start_offset, end_offset));
         }
 
         Ok(CompositeFile {
@@ -124,8 +162,17 @@ impl CompositeFile {
     /// Returns the `ReadOnlySource` associated
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
+        self.open_read_with_idx(field, 0)
+    }
+
+    /// Returns the `ReadOnlySource` associated
+    /// to a given `Field` and stored in a `CompositeFile`.
+    pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<ReadOnlySource> {
         self.offsets_index
-            .get(&field)
+            .get(&FileAddr {
+                field: field,
+                idx: idx,
+            })
             .map(|&(from, to)| self.data.slice(from, to))
     }
 }

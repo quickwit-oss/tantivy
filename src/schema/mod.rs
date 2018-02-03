@@ -103,6 +103,7 @@ the field is required during scoring or collection for instance.
 mod schema;
 mod term;
 mod document;
+mod facet;
 
 mod field_type;
 mod field_entry;
@@ -119,6 +120,9 @@ pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;
 pub use self::schema::DocParsingError;
+
+pub use self::facet::Facet;
+pub use self::facet::FACET_SEP_BYTE;
 
 pub use self::document::Document;
 pub use self::field::Field;
@@ -139,6 +143,7 @@ pub use self::int_options::IntOptions;
 pub use self::int_options::FAST;
 pub use self::int_options::INT_INDEXED;
 pub use self::int_options::INT_STORED;
+pub use self::int_options::Cardinality;
 
 use regex::Regex;
 

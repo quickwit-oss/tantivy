@@ -89,6 +89,12 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a facet field to the schema.
+    pub fn add_facet_field(&mut self, field_name: &str) -> Field {
+        let field_entry = FieldEntry::new_facet(field_name.to_string());
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);
@@ -328,8 +334,12 @@ mod tests {
     #[test]
     pub fn test_schema_serialization() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast();
-        let popularity_options = IntOptions::default().set_stored().set_fast();
+        let count_options = IntOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
+        let popularity_options = IntOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -364,7 +374,7 @@ mod tests {
     "type": "u64",
     "options": {
       "indexed": false,
-      "fast": true,
+      "fast": "single",
       "stored": true
     }
   },
@@ -373,7 +383,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
-      "fast": true,
+      "fast": "single",
       "stored": true
     }
   }
@@ -393,7 +403,9 @@ mod tests {
     #[test]
     pub fn test_document_to_json() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast();
+        let count_options = IntOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
@@ -412,8 +424,12 @@ mod tests {
     #[test]
     pub fn test_parse_document() {
         let mut schema_builder = SchemaBuilder::default();
-        let count_options = IntOptions::default().set_stored().set_fast();
-        let popularity_options = IntOptions::default().set_stored().set_fast();
+        let count_options = IntOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
+        let popularity_options = IntOptions::default()
+            .set_stored()
+            .set_fast(Cardinality::SingleValue);
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);

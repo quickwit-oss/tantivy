@@ -5,7 +5,7 @@ use directory::ReadOnlySource;
 use common::BinarySerializable;
 use schema::FieldType;
 use postings::TermInfo;
-use termdict::{TermDictionary, TermDictionaryBuilder};
+use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
 use super::{TermStreamerBuilderImpl, TermStreamerImpl};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
@@ -16,6 +16,7 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 pub struct TermDictionaryBuilderImpl<W> {
     fst_builder: fst::MapBuilder<W>,
     data: Vec<u8>,
+    term_ord: u64,
 }
 
 impl<W> TermDictionaryBuilderImpl<W>
@@ -31,8 +32,9 @@ where
     /// Prefer using `.insert(key, value)`
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.fst_builder
-            .insert(key, self.data.len() as u64)
+            .insert(key, self.term_ord)
             .map_err(convert_fst_error)?;
+        self.term_ord += 1;
         Ok(())
     }
 
@@ -52,17 +54,16 @@ where
     fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
-            fst_builder,
+            fst_builder: fst_builder,
             data: Vec::new(),
+            term_ord: 0,
         })
     }
 
     fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
         let key = key_ref.as_ref();
-        self.fst_builder
-            .insert(key, self.data.len() as u64)
-            .map_err(convert_fst_error)?;
-        value.serialize(&mut self.data)?;
+        self.insert_key(key)?;
+        self.insert_value(value)?;
         Ok(())
     }
 
@@ -94,15 +95,6 @@ pub struct TermDictionaryImpl {
     values_mmap: ReadOnlySource,
 }
 
-impl TermDictionaryImpl {
-    /// Deserialize and returns the value at address `offset`
-    pub(crate) fn read_value(&self, offset: u64) -> io::Result<TermInfo> {
-        let buffer = self.values_mmap.as_slice();
-        let mut cursor = &buffer[(offset as usize)..];
-        TermInfo::deserialize(&mut cursor)
-    }
-}
-
 impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
 
@@ -119,16 +111,50 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let values_source = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
-            fst_index,
+            fst_index: fst_index,
             values_mmap: values_source,
         }
     }
 
+    fn num_terms(&self) -> usize {
+        self.values_mmap.len() / TermInfo::SIZE_IN_BYTES
+    }
+
+    fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool {
+        bytes.clear();
+        let fst = self.fst_index.as_fst();
+        let mut node = fst.root();
+        while ord != 0 || !node.is_final() {
+            if let Some(transition) = node.transitions()
+                .take_while(|transition| transition.out.value() <= ord)
+                .last()
+            {
+                ord -= transition.out.value();
+                bytes.push(transition.inp);
+                let new_node_addr = transition.addr;
+                node = fst.node(new_node_addr);
+            } else {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
+        self.fst_index.get(key)
+    }
+
+    fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo {
+        let buffer = self.values_mmap.as_slice();
+        let offset = term_ord as usize * TermInfo::SIZE_IN_BYTES;
+        let mut cursor = &buffer[offset..];
+        TermInfo::deserialize(&mut cursor)
+            .expect("The fst is corrupted. Failed to deserialize a value.")
+    }
+
     fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
-        self.fst_index.get(key).map(|offset| {
-            self.read_value(offset)
-                .expect("The fst is corrupted. Failed to deserialize a value.")
-        })
+        self.term_ord(key)
+            .map(|term_ord| self.term_info_from_ord(term_ord))
     }
 
     fn range(&self) -> TermStreamerBuilderImpl {

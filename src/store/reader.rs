@@ -4,10 +4,10 @@ use directory::ReadOnlySource;
 use std::cell::RefCell;
 use DocId;
 use schema::Document;
-use schema::FieldValue;
 use common::BinarySerializable;
 use std::mem::size_of;
 use std::io::{self, Read};
+use common::VInt;
 use datastruct::SkipList;
 use lz4;
 
@@ -39,9 +39,7 @@ impl StoreReader {
     }
 
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
-        self.block_index()
-            .seek(doc_id + 1)
-            .unwrap_or((0u32, 0u64))
+        self.block_index().seek(doc_id + 1).unwrap_or((0u32, 0u64))
     }
 
     pub(crate) fn block_data(&self) -> &[u8] {
@@ -81,17 +79,12 @@ impl StoreReader {
         let current_block_mut = self.current_block.borrow_mut();
         let mut cursor = &current_block_mut[..];
         for _ in first_doc_id..doc_id {
-            let block_length = u32::deserialize(&mut cursor)?;
-            cursor = &cursor[block_length as usize..];
+            let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+            cursor = &cursor[doc_length..];
         }
-        u32::deserialize(&mut cursor)?;
-        let num_fields = u32::deserialize(&mut cursor)?;
-        let mut field_values = Vec::new();
-        for _ in 0..num_fields {
-            let field_value = FieldValue::deserialize(&mut cursor)?;
-            field_values.push(field_value);
-        }
-        Ok(Document::from(field_values))
+        let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+        cursor = &cursor[..doc_length];
+        Ok(Document::deserialize(&mut cursor)?)
     }
 }
 

@@ -5,12 +5,14 @@ that serves as an address in their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
+```
+
 
 # Implementations
 
 There is currently two implementations of the term dictionary.
 
-## Default implementation : *fstdict*
+## Default implementation : `fstdict`
 
 The default one relies heavily on the `fst` crate.
 It associate each terms `&[u8]` representation to a `u64`
@@ -18,7 +20,7 @@ that is in fact an address in a buffer. The value is then accessible
 via deserializing the value at this address.
 
 
-## Stream implementation : *streamdict*
+## Stream implementation : `streamdict`
 
 The `fstdict` is a tiny bit slow when streaming all of
 the terms.
@@ -46,9 +48,12 @@ followed by a streaming through at most `1024` elements in the
 term `stream`.
 */
 
-use schema::{Field, FieldType, Term};
+use schema::FieldType;
 use directory::ReadOnlySource;
 use postings::TermInfo;
+
+/// Position of the term in the sorted list of terms.
+pub type TermOrdinal = u64;
 
 pub use self::merger::TermMerger;
 
@@ -81,6 +86,27 @@ where
     /// Opens a `TermDictionary` given a data source.
     fn from_source(source: ReadOnlySource) -> Self;
 
+    /// Returns the ordinal associated to a given term.
+    fn term_ord<K: AsRef<[u8]>>(&self, term: K) -> Option<TermOrdinal>;
+
+    /// Returns the term associated to a given term ordinal.
+    ///
+    /// Term ordinals are defined as the position of the term in
+    /// the sorted list of terms.
+    ///
+    /// Returns true iff the term has been found.
+    ///
+    /// Regardless of whether the term is found or not,
+    /// the buffer may be modified.
+    fn ord_to_term(&self, ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool;
+
+    /// Returns the number of terms in the dictionary.
+    fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo;
+
+    /// Returns the number of terms in the dictionary.
+    /// Term ordinals range from 0 to `num_terms() - 1`.
+    fn num_terms(&self) -> usize;
+
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo>;
 
@@ -91,16 +117,6 @@ where
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     fn stream(&'a self) -> Self::Streamer {
         self.range().into_stream()
-    }
-
-    /// A stream of all the sorted terms in the given field.
-    fn stream_field(&'a self, field: Field) -> Self::Streamer {
-        let start_term = Term::from_field_text(field, "");
-        let stop_term = Term::from_field_text(Field(field.0 + 1), "");
-        self.range()
-            .ge(start_term.as_slice())
-            .lt(stop_term.as_slice())
-            .into_stream()
     }
 }
 
@@ -133,6 +149,7 @@ pub trait TermStreamer: Sized {
     fn advance(&mut self) -> bool;
 
     /// Accesses the current key.
+    ///
     /// `.key()` should return the key that was returned
     /// by the `.next()` method.
     ///
@@ -142,6 +159,12 @@ pub trait TermStreamer: Sized {
     ///
     /// Before any call to `.next()`, `.key()` returns an empty array.
     fn key(&self) -> &[u8];
+
+    /// Returns the `TermOrdinal` of the given term.
+    ///
+    /// May panic if the called as `.advance()` as never
+    /// been called before.
+    fn term_ord(&self) -> TermOrdinal;
 
     /// Accesses the current value.
     ///
@@ -155,9 +178,9 @@ pub trait TermStreamer: Sized {
     fn value(&self) -> &TermInfo;
 
     /// Return the next `(key, value)` pair.
-    fn next(&mut self) -> Option<(Term<&[u8]>, &TermInfo)> {
+    fn next(&mut self) -> Option<(&[u8], &TermInfo)> {
         if self.advance() {
-            Some((Term::wrap(self.key()), self.value()))
+            Some((self.key(), self.value()))
         } else {
             None
         }
@@ -192,7 +215,7 @@ mod tests {
     use super::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerImpl};
     use directory::{Directory, RAMDirectory, ReadOnlySource};
     use std::path::PathBuf;
-    use schema::{Document, FieldType, SchemaBuilder, Term, TEXT};
+    use schema::{Document, FieldType, SchemaBuilder, TEXT};
     use core::Index;
     use std::str;
     use termdict::TermStreamer;
@@ -209,6 +232,41 @@ mod tests {
             positions_offset: val * 2u64,
             postings_offset: val * 3u64,
             positions_inner_offset: 5u8,
+        }
+    }
+
+    #[test]
+    fn test_term_ordinals() {
+        const COUNTRIES: [&'static str; 7] = [
+            "San Marino",
+            "Serbia",
+            "Slovakia",
+            "Slovenia",
+            "Spain",
+            "Sweden",
+            "Switzerland",
+        ];
+        let mut directory = RAMDirectory::create();
+        let path = PathBuf::from("TermDictionary");
+        {
+            let write = directory.open_write(&path).unwrap();
+            let field_type = FieldType::Str(TEXT);
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(write, field_type).unwrap();
+            for term in COUNTRIES.iter() {
+                term_dictionary_builder
+                    .insert(term.as_bytes(), &make_term_info(0u64))
+                    .unwrap();
+            }
+            term_dictionary_builder.finish().unwrap();
+        }
+        let source = directory.open_read(&path).unwrap();
+        let term_dict: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
+        for (term_ord, term) in COUNTRIES.iter().enumerate() {
+            assert_eq!(term_dict.term_ord(term).unwrap(), term_ord as u64);
+            let mut bytes = vec![];
+            assert!(term_dict.ord_to_term(term_ord as u64, &mut bytes));
+            assert_eq!(bytes, term.as_bytes());
         }
     }
 
@@ -246,7 +304,7 @@ mod tests {
         {
             {
                 let (k, v) = stream.next().unwrap();
-                assert_eq!(k.as_slice(), "abcd".as_bytes());
+                assert_eq!(k, "abcd".as_bytes());
                 assert_eq!(v.doc_freq, 346u32);
             }
             assert_eq!(stream.key(), "abcd".as_bytes());
@@ -294,8 +352,8 @@ mod tests {
         let mut term_it = field_searcher.terms();
         let mut term_string = String::new();
         while term_it.advance() {
-            let term = Term::from_bytes(term_it.key());
-            term_string.push_str(term.text());
+            //let term = Term::from_bytes(term_it.key());
+            term_string.push_str(unsafe { str::from_utf8_unchecked(term_it.key()) });
         }
         assert_eq!(&*term_string, "abcdef");
     }
@@ -435,6 +493,30 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_empty_string() {
+        let field_type = FieldType::Str(TEXT);
+        let buffer: Vec<u8> = {
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            term_dictionary_builder
+                .insert(&[], &make_term_info(1 as u64))
+                .unwrap();
+            term_dictionary_builder
+                .insert(&[1u8], &make_term_info(2 as u64))
+                .unwrap();
+            term_dictionary_builder.finish().unwrap()
+        };
+        let source = ReadOnlySource::from(buffer);
+        let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
+        let mut stream = term_dictionary.stream();
+        assert!(stream.advance());
+        assert!(stream.key().is_empty());
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[1u8]);
+        assert!(!stream.advance());
     }
 
     #[test]

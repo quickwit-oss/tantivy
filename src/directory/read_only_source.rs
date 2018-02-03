@@ -4,7 +4,7 @@ use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
 use std::slice;
 use std::io::{self, Read};
-use stable_deref_trait::StableDeref;
+use stable_deref_trait::{CloneStableDeref, StableDeref};
 
 /// Read object that represents files in tantivy.
 ///
@@ -20,6 +20,7 @@ pub enum ReadOnlySource {
 }
 
 unsafe impl StableDeref for ReadOnlySource {}
+unsafe impl CloneStableDeref for ReadOnlySource {}
 
 impl Deref for ReadOnlySource {
     type Target = [u8];

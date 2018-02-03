@@ -1,5 +1,6 @@
 use std::iter;
 use std::mem;
+use postings::UnorderedTermId;
 use super::heap::{BytesRef, Heap, HeapAllocable};
 
 mod murmurhash2 {
@@ -101,7 +102,7 @@ impl KeyValue {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 ///
-pub struct HashMap<'a> {
+pub struct TermHashMap<'a> {
     table: Box<[KeyValue]>,
     heap: &'a Heap,
     mask: usize,
@@ -116,7 +117,11 @@ struct QuadraticProbing {
 
 impl QuadraticProbing {
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
-        QuadraticProbing { hash, i: 0, mask }
+        QuadraticProbing {
+            hash,
+            i: 0,
+            mask,
+        }
     }
 
     #[inline]
@@ -126,11 +131,11 @@ impl QuadraticProbing {
     }
 }
 
-impl<'a> HashMap<'a> {
-    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> HashMap<'a> {
+impl<'a> TermHashMap<'a> {
+    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> TermHashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
-        HashMap {
+        TermHashMap {
             table: table.into_boxed_slice(),
             heap,
             mask: table_size - 1,
@@ -161,14 +166,18 @@ impl<'a> HashMap<'a> {
         };
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32)> + 'b {
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32, UnorderedTermId)> + 'b {
         self.occupied.iter().cloned().map(move |bucket: usize| {
             let kv = self.table[bucket];
-            self.get_key_value(kv.key_value_addr)
+            let (key, offset) = self.get_key_value(kv.key_value_addr);
+            (key, offset, bucket as UnorderedTermId)
         })
     }
 
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> &mut V {
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(
+        &mut self,
+        key: S,
+    ) -> (UnorderedTermId, &mut V) {
         let key_bytes: &[u8] = key.as_ref();
         let hash = murmurhash2::murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
@@ -180,11 +189,11 @@ impl<'a> HashMap<'a> {
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
                 self.set_bucket(hash, key_bytes_ref, bucket);
-                return val;
+                return (bucket, val);
             } else if kv.hash == hash {
                 let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    return self.heap.get_mut_ref(expull_addr);
+                    return (bucket, self.heap.get_mut_ref(expull_addr));
                 }
             }
         }
@@ -225,33 +234,33 @@ mod tests {
     #[test]
     fn test_hash_map() {
         let heap = Heap::with_capacity(2_000_000);
-        let mut hash_map: HashMap = HashMap::new(18, &heap);
+        let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc");
+            let v: &mut TestValue = hash_map.get_or_create("abc").1;
             assert_eq!(v.val, 0u32);
             v.val = 3u32;
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd");
+            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
             assert_eq!(v.val, 0u32);
             v.val = 4u32;
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc");
+            let v: &mut TestValue = hash_map.get_or_create("abc").1;
             assert_eq!(v.val, 3u32);
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd");
+            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
             assert_eq!(v.val, 4u32);
         }
         let mut iter_values = hash_map.iter();
         {
-            let (_, addr) = iter_values.next().unwrap();
+            let (_, addr, _) = iter_values.next().unwrap();
             let val: &TestValue = heap.get_ref(addr);
             assert_eq!(val.val, 3u32);
         }
         {
-            let (_, addr) = iter_values.next().unwrap();
+            let (_, addr, _) = iter_values.next().unwrap();
             let val: &TestValue = heap.get_ref(addr);
             assert_eq!(val.val, 4u32);
         }

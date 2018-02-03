@@ -10,6 +10,7 @@ use fastfield::{FastFieldSerializer, FastFieldsWriter};
 use schema::FieldType;
 use std::mem;
 use common::CompositeFile;
+use std::collections::HashMap;
 use owning_ref::OwningRef;
 
 /// Trait for accessing a fastfield.
@@ -50,6 +51,7 @@ pub trait FastFieldReader: Sized {
 }
 
 /// `FastFieldReader` for unsigned 64-bits integers.
+#[derive(Clone)]
 pub struct U64FastFieldReader {
     bit_unpacker: BitUnpacker<OwningRef<ReadOnlySource, [u8]>>,
     min_value: u64,
@@ -86,6 +88,7 @@ impl FastFieldReader for U64FastFieldReader {
     fn is_enabled(field_type: &FieldType) -> bool {
         match *field_type {
             FieldType::U64(ref integer_options) => integer_options.is_fast(),
+            FieldType::HierarchicalFacet => true,
             _ => false,
         }
     }
@@ -145,7 +148,9 @@ impl From<Vec<u64>> for U64FastFieldReader {
                     fast_field_writer.add_val(val);
                 }
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
 

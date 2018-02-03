@@ -1,6 +1,7 @@
 use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Visitor;
+use schema::Facet;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -12,6 +13,8 @@ pub enum Value {
     U64(u64),
     /// Signed 64-bits Integer `i64`
     I64(i64),
+    /// Hierarchical Facet
+    Facet(Facet),
 }
 
 impl Serialize for Value {
@@ -23,6 +26,7 @@ impl Serialize for Value {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
+            Value::Facet(ref facet) => facet.serialize(serializer),
         }
     }
 }
@@ -121,14 +125,22 @@ impl<'a> From<&'a str> for Value {
     }
 }
 
+impl<'a> From<Facet> for Value {
+    fn from(facet: Facet) -> Value {
+        Value::Facet(facet)
+    }
+}
+
 mod binary_serialize {
     use common::BinarySerializable;
     use std::io::{self, Read, Write};
     use super::Value;
+    use schema::Facet;
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
     const I64_CODE: u8 = 2;
+    const HIERARCHICAL_FACET_CODE: u8 = 3;
 
     impl BinarySerializable for Value {
         fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -144,6 +156,10 @@ mod binary_serialize {
                 Value::I64(ref val) => {
                     I64_CODE.serialize(writer)?;
                     val.serialize(writer)
+                }
+                Value::Facet(ref facet) => {
+                    HIERARCHICAL_FACET_CODE.serialize(writer)?;
+                    facet.serialize(writer)
                 }
             }
         }
@@ -162,6 +178,7 @@ mod binary_serialize {
                     let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
                 }
+                HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {:?}", type_code),

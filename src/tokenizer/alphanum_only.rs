@@ -6,32 +6,28 @@ use super::{Token, TokenFilter, TokenStream};
 pub struct AlphaNumOnlyFilter;
 
 pub struct AlphaNumOnlyFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     tail: TailTokenStream,
 }
 
-
 impl<TailTokenStream> AlphaNumOnlyFilterStream<TailTokenStream>
-    where TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn predicate(&self, token: &Token) -> bool {
         token.text.chars().all(|c| c.is_ascii_alphanumeric())
     }
 
-    fn wrap(
-        tail: TailTokenStream,
-    ) -> AlphaNumOnlyFilterStream<TailTokenStream> {
-        AlphaNumOnlyFilterStream {
-            tail
-        }
+    fn wrap(tail: TailTokenStream) -> AlphaNumOnlyFilterStream<TailTokenStream> {
+        AlphaNumOnlyFilterStream { tail }
     }
 }
 
-
 impl<TailTokenStream> TokenFilter<TailTokenStream> for AlphaNumOnlyFilter
-    where
-        TailTokenStream: TokenStream,
+where
+    TailTokenStream: TokenStream,
 {
     type ResultTokenStream = AlphaNumOnlyFilterStream<TailTokenStream>;
 
@@ -41,8 +37,8 @@ impl<TailTokenStream> TokenFilter<TailTokenStream> for AlphaNumOnlyFilter
 }
 
 impl<TailTokenStream> TokenStream for AlphaNumOnlyFilterStream<TailTokenStream>
-    where
-        TailTokenStream: TokenStream
+where
+    TailTokenStream: TokenStream,
 {
     fn token(&self) -> &Token {
         self.tail.token()

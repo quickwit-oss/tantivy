@@ -1,5 +1,8 @@
 use super::*;
 use itertools::Itertools;
+use common::VInt;
+use std::io::{self, Read, Write};
+use common::BinarySerializable;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -11,9 +14,15 @@ use itertools::Itertools;
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Document {
     field_values: Vec<FieldValue>,
+}
+
+impl From<Vec<FieldValue>> for Document {
+    fn from(field_values: Vec<FieldValue>) -> Self {
+        Document { field_values }
+    }
 }
 
 impl PartialEq for Document {
@@ -43,6 +52,23 @@ impl Document {
     /// Returns true iff the document contains no fields.
     pub fn is_empty(&self) -> bool {
         self.field_values.is_empty()
+    }
+
+    /// Retain only the field that are matching the
+    /// predicate given in argument.
+    pub fn filter_fields<P: Fn(Field) -> bool>(&mut self, predicate: P) {
+        self.field_values
+            .retain(|field_value| predicate(field_value.field()));
+    }
+
+    /// Adding a facet to the document.
+    pub fn add_facet<F>(&mut self, field: Field, path: F)
+    where
+        Facet: From<F>,
+    {
+        let facet = Facet::from(path);
+        let value = Value::Facet(facet);
+        self.add(FieldValue::new(field, value));
     }
 
     /// Add a text field.
@@ -104,11 +130,22 @@ impl Document {
     }
 }
 
-impl From<Vec<FieldValue>> for Document {
-    fn from(field_values: Vec<FieldValue>) -> Document {
-        Document {
-            field_values: field_values,
+impl BinarySerializable for Document {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let field_values = self.field_values();
+        VInt(field_values.len() as u64).serialize(writer)?;
+        for field_value in field_values {
+            field_value.serialize(writer)?;
         }
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let num_field_values = VInt::deserialize(reader)?.val() as usize;
+        let field_values = (0..num_field_values)
+            .map(|_| FieldValue::deserialize(reader))
+            .collect::<io::Result<Vec<FieldValue>>>()?;
+        Ok(Document::from(field_values))
     }
 }
 

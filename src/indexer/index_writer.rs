@@ -23,7 +23,6 @@ use indexer::SegmentWriter;
 use postings::DocSet;
 use schema::IndexRecordOption;
 use schema::Document;
-use schema::Schema;
 use schema::Term;
 use std::mem;
 use std::mem::swap;
@@ -106,7 +105,7 @@ pub fn open_index_writer(
     heap_size_in_bytes_per_thread: usize,
     directory_lock: DirectoryLock,
 ) -> Result<IndexWriter> {
-    if heap_size_in_bytes_per_thread <= HEAP_SIZE_LIMIT as usize {
+    if heap_size_in_bytes_per_thread < HEAP_SIZE_LIMIT as usize {
         panic!(format!(
             "The heap size per thread needs to be at least {}.",
             HEAP_SIZE_LIMIT
@@ -250,17 +249,17 @@ fn index_documents(
     heap: &mut Heap,
     table_size: usize,
     segment: &Segment,
-    schema: &Schema,
     generation: usize,
     document_iterator: &mut Iterator<Item = AddOperation>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     heap.clear();
+    let schema = segment.schema();
     let segment_id = segment.id();
-    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
-        segment_writer.add_document(&doc, schema)?;
+        segment_writer.add_document(doc, &schema)?;
         // There is two possible conditions to close the segment.
         // One is the memory arena dedicated to the segment is
         // getting full.
@@ -368,7 +367,6 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
-        let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
         let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
@@ -409,7 +407,6 @@ impl IndexWriter {
                         &mut heap,
                         table_size,
                         &segment,
-                        &schema,
                         generation,
                         &mut document_iterator,
                         &mut segment_updater,
@@ -701,32 +698,21 @@ mod tests {
 
         let num_docs_containing = |s: &str| {
             let searcher = index.searcher();
-            let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+            let term = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term)
         };
 
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(3, 40_000_000).unwrap();
-            {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"a"));
             index_writer.rollback().unwrap();
 
             assert_eq!(index_writer.commit_opstamp(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
-
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "b");
-                index_writer.add_document(doc);
-            }
-            {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "c");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"b"));
+                index_writer.add_document(doc!(text_field=>"c"));
             }
             assert_eq!(index_writer.commit().unwrap(), 2u64);
             index.load_searchers().unwrap();

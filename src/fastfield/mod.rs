@@ -28,6 +28,8 @@ mod writer;
 mod serializer;
 mod error;
 mod delete;
+mod facet_reader;
+mod multivalued;
 
 pub use self::delete::write_delete_bitset;
 pub use self::delete::DeleteBitSet;
@@ -36,6 +38,8 @@ pub use self::reader::{I64FastFieldReader, U64FastFieldReader};
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
 pub use self::error::{FastFieldNotAvailableError, Result};
+pub use self::facet_reader::FacetReader;
+pub use self::multivalued::MultiValueIntFastFieldReader;
 
 #[cfg(test)]
 mod tests {
@@ -46,6 +50,7 @@ mod tests {
     use schema::Document;
     use schema::{Schema, SchemaBuilder};
     use schema::FAST;
+    use std::collections::HashMap;
     use test::Bencher;
     use test;
     use fastfield::FastFieldReader;
@@ -90,12 +95,14 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, *FIELD, 13u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 2u64);
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 35 as usize);
+            assert_eq!(source.len(), 36 as usize);
         }
         {
             let composite_file = CompositeFile::open(&source).unwrap();
@@ -124,12 +131,14 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, *FIELD, 1_002u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 1_501u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 215u64);
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 60 as usize);
+            assert_eq!(source.len(), 61 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -159,12 +168,14 @@ mod tests {
             for _ in 0..10_000 {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, 100_000u64);
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 33 as usize);
+            assert_eq!(source.len(), 34 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -194,12 +205,14 @@ mod tests {
                     5_000_000_000_000_000_000u64 + i,
                 );
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 80041 as usize);
+            assert_eq!(source.len(), 80042 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -233,12 +246,14 @@ mod tests {
                 doc.add_i64(i64_field, i);
                 fast_field_writers.add_document(&doc);
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
         {
-            assert_eq!(source.len(), 17708 as usize);
+            assert_eq!(source.len(), 17709 as usize);
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
@@ -272,7 +287,9 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
 
@@ -306,7 +323,9 @@ mod tests {
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
@@ -361,7 +380,9 @@ mod tests {
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
@@ -393,7 +414,9 @@ mod tests {
             for x in &permutation {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
-            fast_field_writers.serialize(&mut serializer).unwrap();
+            fast_field_writers
+                .serialize(&mut serializer, &HashMap::new())
+                .unwrap();
             serializer.close().unwrap();
         }
         let source = directory.open_read(&path).unwrap();

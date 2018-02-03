@@ -34,8 +34,6 @@ extern crate log;
 #[macro_use]
 extern crate error_chain;
 
-extern crate regex;
-extern crate tempfile;
 extern crate atomicwrites;
 extern crate bit_set;
 extern crate byteorder;
@@ -49,11 +47,13 @@ extern crate itertools;
 extern crate lz4;
 extern crate num_cpus;
 extern crate owning_ref;
+extern crate regex;
 extern crate rust_stemmers;
 extern crate serde;
 extern crate serde_json;
 extern crate stable_deref_trait;
 extern crate tempdir;
+extern crate tempfile;
 extern crate time;
 extern crate uuid;
 

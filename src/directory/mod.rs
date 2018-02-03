@@ -116,9 +116,6 @@ mod tests {
             assert!(directory.open_read(*TEST_PATH).is_err());
             let _w = directory.open_write(*TEST_PATH).unwrap();
             assert!(directory.exists(*TEST_PATH));
-            if let Err(e) = directory.open_read(*TEST_PATH) {
-                println!("{:?}", e);
-            }
             assert!(directory.open_read(*TEST_PATH).is_ok());
             assert!(directory.delete(*TEST_PATH).is_ok());
         }

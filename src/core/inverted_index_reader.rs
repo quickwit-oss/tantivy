@@ -49,7 +49,7 @@ impl InvertedIndexReader {
 
     /// Returns the term info associated with the term.
     pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
-        self.termdict.get(term.as_slice())
+        self.termdict.get(term.value_bytes())
     }
 
     /// Return the term dictionary datastructure.
@@ -144,9 +144,8 @@ impl InvertedIndexReader {
 
     /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> u32 {
-        match self.get_term_info(term) {
-            Some(term_info) => term_info.doc_freq,
-            None => 0,
-        }
+        self.get_term_info(term)
+            .map(|term_info| term_info.doc_freq)
+            .unwrap_or(0u32)
     }
 }

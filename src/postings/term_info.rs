@@ -23,6 +23,12 @@ pub struct TermInfo {
     pub positions_inner_offset: u8,
 }
 
+impl TermInfo {
+    /// Size required to encode the `TermInfo`.
+    // TODO  make this smaller when positions are unused for instance.
+    pub(crate) const SIZE_IN_BYTES: usize = 4 + 8 + 8 + 1;
+}
+
 impl BinarySerializable for TermInfo {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         self.doc_freq.serialize(writer)?;
