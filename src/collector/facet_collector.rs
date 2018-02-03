@@ -217,7 +217,7 @@ fn skip<'a, I: Iterator<Item = &'a Facet>>(
 ) -> SkipResult {
     loop {
         match collapse_it.peek() {
-            Some(facet_bytes) => match facet_bytes.encoded_bytes().cmp(&target) {
+            Some(facet_bytes) => match facet_bytes.encoded_bytes().cmp(target) {
                 Ordering::Less => {}
                 Ordering::Greater => {
                     return SkipResult::OverStep;
@@ -274,7 +274,7 @@ impl FacetCollector {
                 "Tried to add a facet which is a descendant of an already added facet."
             );
             assert!(
-                !facet.is_prefix_of(&old_facet),
+                !facet.is_prefix_of(old_facet),
                 "Tried to add a facet which is an ancestor of an already added facet."
             );
         }
@@ -305,7 +305,8 @@ impl FacetCollector {
                         let depth = facet_depth(facet_streamer.key());
                         if depth <= collapse_depth {
                             continue 'outer;
-                        } else if depth == collapse_depth + 1 {
+                        }
+                        if depth == collapse_depth + 1 {
                             collapsed_id = self.current_collapse_facet_ords.len();
                             self.current_collapse_facet_ords
                                 .push(facet_streamer.term_ord());
@@ -428,6 +429,8 @@ pub struct FacetCounts {
 }
 
 impl FacetCounts {
+
+    #[allow(needless_lifetimes)] //< compiler fails if we remove the lifetime
     pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item = (&'a Facet, u64)>
     where
         Facet: From<T>,
@@ -455,7 +458,7 @@ impl FacetCounts {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
-        for (ref facet, count) in (&mut it).take(k) {
+        for (facet, count) in (&mut it).take(k) {
             heap.push(Hit { count, facet });
         }
 

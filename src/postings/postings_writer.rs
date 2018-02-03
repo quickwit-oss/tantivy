@@ -171,7 +171,7 @@ pub trait PostingsWriter {
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
-    fn index_text<'a>(
+    fn index_text(
         &mut self,
         term_index: &mut TermHashMap,
         doc_id: DocId,

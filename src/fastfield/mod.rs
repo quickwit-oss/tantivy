@@ -96,7 +96,7 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, *FIELD, 14u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 2u64);
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -132,7 +132,7 @@ mod tests {
             add_single_field_doc(&mut fast_field_writers, *FIELD, 1_501u64);
             add_single_field_doc(&mut fast_field_writers, *FIELD, 215u64);
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -169,7 +169,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, 100_000u64);
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -206,7 +206,7 @@ mod tests {
                 );
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -247,7 +247,7 @@ mod tests {
                 fast_field_writers.add_document(&doc);
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -288,7 +288,7 @@ mod tests {
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -324,7 +324,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -381,7 +381,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -415,7 +415,7 @@ mod tests {
                 add_single_field_doc(&mut fast_field_writers, *FIELD, *x);
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }

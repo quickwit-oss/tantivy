@@ -7,8 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
 use common::BinarySerializable;
 
-const SLASH_BYTE: u8 = '/' as u8;
-const ESCAPE_BYTE: u8 = '\\' as u8;
+const SLASH_BYTE: u8 = b'/';
+const ESCAPE_BYTE: u8 = b'\\';
 
 /// BYTE used as a level separation in the binary
 /// representation of facets.
@@ -63,7 +63,7 @@ impl Facet {
     /// It is conceptually, if one of the steps of this path
     /// contains a `/` or a `\`, it should be escaped
     /// using an anti-slash `/`.
-    pub fn from_text<'a, T>(path: &'a T) -> Facet
+    pub fn from_text<T>(path: &T) -> Facet
     where
         T: ?Sized + AsRef<str>,
     {
@@ -97,6 +97,7 @@ impl Facet {
     }
 
     /// Returns `true` iff other is a subfacet of `self`.
+    #[allow(collapsible_if)]
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
         let self_bytes: &[u8] = self.encoded_bytes();
         let other_bytes: &[u8] = other.encoded_bytes();

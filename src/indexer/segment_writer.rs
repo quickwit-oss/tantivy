@@ -142,12 +142,13 @@ impl<'a> SegmentWriter<'a> {
                 FieldType::HierarchicalFacet => {
                     let facets: Vec<&[u8]> = field_values
                         .iter()
-                        .flat_map(|field_value| match field_value.value() {
-                            &Value::Facet(ref facet) => Some(facet.encoded_bytes()),
-                            _ => {
-                                panic!("Expected hierarchical facet");
-                            }
-                        })
+                        .flat_map(|field_value|
+                            match *field_value.value() {
+                                Value::Facet(ref facet) => Some(facet.encoded_bytes()),
+                                _ => {
+                                    panic!("Expected hierarchical facet");
+                                }
+                            })
                         .collect();
                     let mut term = unsafe { Term::with_capacity(100) };
                     term.set_field(field);
@@ -155,8 +156,8 @@ impl<'a> SegmentWriter<'a> {
                         let mut unordered_term_id_opt = None;
                         let fake_str = unsafe { str::from_utf8_unchecked(facet_bytes) };
                         FacetTokenizer
-                            .token_stream(&fake_str)
-                            .process(&mut |ref token| {
+                            .token_stream(fake_str)
+                            .process(&mut |token| {
                                 term.set_text(&token.text);
                                 let unordered_term_id =
                                     self.multifield_postings.subscribe(doc_id, &term);
@@ -259,8 +260,8 @@ fn write(
     mut serializer: SegmentSerializer,
 ) -> Result<()> {
     let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer())?;
-    fast_field_writers.serialize(serializer.get_fast_field_serializer(), term_ord_map)?;
-    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer(), HashMap::new())?;
+    fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
+    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer(), &HashMap::new())?;
     serializer.close()?;
 
     Ok(())

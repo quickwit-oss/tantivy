@@ -46,7 +46,7 @@ impl StoreWriter {
     /// The document id is implicitely the number of times
     /// this method has been called.
     ///
-    pub fn store<'a>(&mut self, stored_document: &Document) -> io::Result<()> {
+    pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
         stored_document.serialize(&mut self.intermediary_buffer)?;
         let doc_num_bytes = self.intermediary_buffer.len();
