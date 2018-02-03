@@ -1,5 +1,6 @@
 use Score;
 use DocId;
+use postings::SkipResult;
 use fastfield::U64FastFieldReader;
 use postings::DocSet;
 use query::Scorer;
@@ -38,6 +39,10 @@ where
 
     fn size_hint(&self) -> u32 {
         self.postings.size_hint()
+    }
+
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        self.postings.skip_next(target)
     }
 }
 

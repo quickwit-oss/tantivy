@@ -28,7 +28,7 @@ pub use self::scorer::EmptyScorer;
 pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
+
 pub use self::all_query::{AllQuery, AllWeight, AllScorer};
 pub use self::range_query::{RangeQuery, RangeWeight};
 pub use self::scorer::ConstScorer;
-

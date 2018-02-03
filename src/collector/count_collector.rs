@@ -20,7 +20,6 @@ impl CountCollector {
     }
 }
 
-
 impl Collector for CountCollector {
     fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         Ok(())

@@ -35,7 +35,9 @@ impl FastFieldSerializer {
     pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FastFieldSerializer { composite_write: composite_write })
+        Ok(FastFieldSerializer {
+            composite_write: composite_write,
+        })
     }
 
     /// Start serializing a new u64 fast field
@@ -54,11 +56,11 @@ impl FastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-        idx: usize) -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
+        idx: usize,
+    ) -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastSingleFieldSerializer::open(field_write, min_value, max_value)
     }
-
 
     /// Closes the serializer
     ///

@@ -38,10 +38,15 @@ impl MultiValueIntFastFieldWriter {
     }
 
     /// Push the fast fields value to the `FastFieldWriter`.
-    pub fn serialize(&self, serializer: &mut FastFieldSerializer, mapping: &HashMap<UnorderedTermId, usize>) -> io::Result<()> {
+    pub fn serialize(
+        &self,
+        serializer: &mut FastFieldSerializer,
+        mapping: &HashMap<UnorderedTermId, usize>,
+    ) -> io::Result<()> {
         {
             // writing the offset index
-            let mut doc_index_serializer = serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
+            let mut doc_index_serializer =
+                serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
             for &offset in &self.doc_index {
                 doc_index_serializer.add_val(offset)?;
             }
@@ -50,13 +55,13 @@ impl MultiValueIntFastFieldWriter {
         }
         {
             // writing the values themselves.
-            let mut value_serializer = serializer.new_u64_fast_field_with_idx(self.field, 0u64, mapping.len() as u64, 1)?;
+            let mut value_serializer =
+                serializer.new_u64_fast_field_with_idx(self.field, 0u64, mapping.len() as u64, 1)?;
             for val in &self.vals {
                 value_serializer.add_val(*mapping.get(val).expect("Missing term ordinal") as u64)?;
             }
             value_serializer.close_field()?;
         }
         Ok(())
-
     }
 }

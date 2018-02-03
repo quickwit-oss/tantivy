@@ -9,7 +9,6 @@ use DocId;
 use std::any::Any;
 use core::Searcher;
 
-
 /// Query that matches all of the documents.
 ///
 /// All of the document get the score 1f32.
@@ -34,11 +33,10 @@ impl Weight for AllWeight {
         Ok(box AllScorer {
             started: false,
             doc: 0u32,
-            max_doc: reader.max_doc()
+            max_doc: reader.max_doc(),
         })
     }
 }
-
 
 /// Scorer associated to the `AllQuery` query.
 pub struct AllScorer {
@@ -51,8 +49,7 @@ impl DocSet for AllScorer {
     fn advance(&mut self) -> bool {
         if self.started {
             self.doc += 1u32;
-        }
-        else {
+        } else {
             self.started = true;
         }
         self.doc < self.max_doc

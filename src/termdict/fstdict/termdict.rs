@@ -6,7 +6,7 @@ use common::BinarySerializable;
 use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
-use super::{TermStreamerImpl, TermStreamerBuilderImpl};
+use super::{TermStreamerBuilderImpl, TermStreamerImpl};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -62,7 +62,7 @@ where
 
     fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
         let key = key_ref.as_ref();
-        self.insert_key(key.as_ref())?;
+        self.insert_key(key)?;
         self.insert_value(value)?;
         Ok(())
     }
@@ -95,7 +95,6 @@ pub struct TermDictionaryImpl {
     values_mmap: ReadOnlySource,
 }
 
-
 impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
 
@@ -105,9 +104,8 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let total_len = source.len();
         let length_offset = total_len - 4;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
-        let footer_size = u32::deserialize(&mut split_len_buffer).expect(
-            "Deserializing 4 bytes should always work",
-        ) as usize;
+        let footer_size = u32::deserialize(&mut split_len_buffer)
+            .expect("Deserializing 4 bytes should always work") as usize;
         let split_len = length_offset - footer_size;
         let fst_source = source.slice(0, split_len);
         let values_source = source.slice(split_len, length_offset);
@@ -128,20 +126,18 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let mut node = fst.root();
         while ord != 0 || !node.is_final() {
             if let Some(transition) = node.transitions()
-                .take_while(|transition| {
-                    transition.out.value() <= ord
-                })
-                .last() {
+                .take_while(|transition| transition.out.value() <= ord)
+                .last()
+            {
                 ord -= transition.out.value();
                 bytes.push(transition.inp);
                 let new_node_addr = transition.addr;
                 node = fst.node(new_node_addr);
-            }
-            else {
+            } else {
                 return false;
             }
         }
-        return true;
+        true
     }
 
     fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {

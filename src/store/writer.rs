@@ -1,6 +1,6 @@
 use directory::WritePtr;
 use DocId;
-use common::{VInt, BinarySerializable};
+use common::{BinarySerializable, VInt};
 use std::io::{self, Write};
 use super::StoreReader;
 use lz4;
@@ -46,7 +46,7 @@ impl StoreWriter {
     /// The document id is implicitely the number of times
     /// this method has been called.
     ///
-    pub fn store<'a>(&mut self, stored_document: &Document) -> io::Result<()> {
+    pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
         stored_document.serialize(&mut self.intermediary_buffer)?;
         let doc_num_bytes = self.intermediary_buffer.len();
@@ -66,10 +66,8 @@ impl StoreWriter {
     pub fn stack(&mut self, store_reader: &StoreReader) -> io::Result<()> {
         if !self.current_block.is_empty() {
             self.write_and_compress_block()?;
-            self.offset_index_writer.insert(
-                self.doc,
-                &(self.writer.written_bytes() as u64),
-            )?;
+            self.offset_index_writer
+                .insert(self.doc, &(self.writer.written_bytes() as u64))?;
         }
         let doc_offset = self.doc;
         let start_offset = self.writer.written_bytes() as u64;
@@ -81,9 +79,8 @@ impl StoreWriter {
         // its start doc id and its start file offset.
         for (next_doc_id, block_addr) in store_reader.block_index() {
             self.doc = doc_offset + next_doc_id;
-            self.offset_index_writer.insert(
-                self.doc,
-                &(start_offset + block_addr))?;
+            self.offset_index_writer
+                .insert(self.doc, &(start_offset + block_addr))?;
         }
         Ok(())
     }

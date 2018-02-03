@@ -1,6 +1,5 @@
 use std::ops::BitOr;
 
-
 /// Express whether a field is single-value or multi-valued.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Cardinality {
@@ -10,15 +9,14 @@ pub enum Cardinality {
     /// The document can have any number of values associated to the document.
     /// This is more memory and CPU expensive than the SingleValue solution.
     #[serde(rename = "multi")]
-    MultiValues
+    MultiValues,
 }
 
 /// Define how an int field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntOptions {
     indexed: bool,
-    #[serde(skip_serializing_if="Option::is_none")]
-    fast: Option<Cardinality>,
+    #[serde(skip_serializing_if = "Option::is_none")] fast: Option<Cardinality>,
     stored: bool,
 }
 
@@ -86,7 +84,6 @@ impl Default for IntOptions {
     }
 }
 
-
 /// Shortcut for a u64 fast field.
 ///
 /// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
@@ -113,7 +110,6 @@ pub const INT_STORED: IntOptions = IntOptions {
     stored: true,
     fast: None,
 };
-
 
 impl BitOr for IntOptions {
     type Output = IntOptions;

@@ -1,7 +1,7 @@
 use std::iter;
 use std::mem;
 use postings::UnorderedTermId;
-use super::heap::{Heap, HeapAllocable, BytesRef};
+use super::heap::{BytesRef, Heap, HeapAllocable};
 
 mod murmurhash2 {
 
@@ -10,7 +10,7 @@ mod murmurhash2 {
     #[inline(always)]
     pub fn murmurhash2(key: &[u8]) -> u32 {
         let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
-        let m: u32 = 0x5bd1e995;
+        let m: u32 = 0x5bd1_e995;
         let r = 24;
         let len = key.len() as u32;
 
@@ -31,18 +31,18 @@ mod murmurhash2 {
         let key_ptr_u8: *const u8 = key_ptr as *const u8;
         match remaining {
             3 => {
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(2) as u32 } << 16;
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(2)) } << 16;
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             2 => {
-                h ^= unsafe { *key_ptr_u8.wrapping_offset(1) as u32 } << 8;
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             1 => {
-                h ^= unsafe { *key_ptr_u8 as u32 };
+                h ^= unsafe { u32::from(*key_ptr_u8) };
                 h = h.wrapping_mul(m);
             }
             _ => {}
@@ -53,9 +53,6 @@ mod murmurhash2 {
     }
 }
 
-
-
-
 /// Split the thread memory budget into
 /// - the heap size
 /// - the hash table "table" itself.
@@ -63,14 +60,10 @@ mod murmurhash2 {
 /// Returns (the heap size in bytes, the hash table size in number of bits)
 pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     let table_size_limit: usize = per_thread_memory_budget / 3;
-    let compute_table_size = |num_bits: usize| {
-        (1 << num_bits) * mem::size_of::<KeyValue>()
-    };
+    let compute_table_size = |num_bits: usize| (1 << num_bits) * mem::size_of::<KeyValue>();
     let table_num_bits: usize = (1..)
         .into_iter()
-        .take_while(|num_bits: &usize| {
-            compute_table_size(*num_bits) < table_size_limit
-        })
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
         .expect(&format!(
             "Per thread memory is too small: {}",
@@ -80,7 +73,6 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
     let heap_size = per_thread_memory_budget - table_size;
     (heap_size, table_num_bits)
 }
-
 
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
@@ -101,7 +93,6 @@ impl KeyValue {
     }
 }
 
-
 /// Customized `HashMap` with string keys
 ///
 /// This `HashMap` takes String as keys. Keys are
@@ -117,7 +108,6 @@ pub struct TermHashMap<'a> {
     mask: usize,
     occupied: Vec<usize>,
 }
-
 
 struct QuadraticProbing {
     hash: usize,
@@ -140,7 +130,6 @@ impl QuadraticProbing {
         (self.hash + self.i * self.i) & self.mask
     }
 }
-
 
 impl<'a> TermHashMap<'a> {
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> TermHashMap<'a> {
@@ -178,18 +167,17 @@ impl<'a> TermHashMap<'a> {
     }
 
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32, UnorderedTermId)> + 'b {
-        self.occupied
-            .iter()
-            .cloned()
-            .map(move |bucket: usize| {
-                let kv = self.table[bucket];
-                let (key, offset) = self.get_key_value(kv.key_value_addr);
-                (key, offset, bucket as UnorderedTermId)
-            })
+        self.occupied.iter().cloned().map(move |bucket: usize| {
+            let kv = self.table[bucket];
+            let (key, offset) = self.get_key_value(kv.key_value_addr);
+            (key, offset, bucket as UnorderedTermId)
+        })
     }
 
-
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(&mut self, key: S) -> (UnorderedTermId, &mut V) {
+    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(
+        &mut self,
+        key: S,
+    ) -> (UnorderedTermId, &mut V) {
         let key_bytes: &[u8] = key.as_ref();
         let hash = murmurhash2::murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
@@ -212,7 +200,6 @@ impl<'a> TermHashMap<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -222,7 +209,6 @@ mod tests {
     use test::Bencher;
     use std::collections::HashSet;
     use super::split_memory;
-
 
     struct TestValue {
         val: u32,
@@ -244,7 +230,6 @@ mod tests {
         assert_eq!(split_memory(1_000_000), (737856, 15));
         assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
-
 
     #[test]
     fn test_hash_map() {
@@ -318,6 +303,5 @@ mod tests {
                 .unwrap()
         });
     }
-
 
 }
