@@ -13,7 +13,8 @@ pub use self::timer::TimerTree;
 pub use self::timer::OpenTimer;
 pub use self::vint::VInt;
 pub use self::counting_writer::CountingWriter;
-pub use self::bitset::{DocBitSet, TinySet};
+pub use self::bitset::BitSet;
+pub(crate) use self::bitset::TinySet;
 
 use std::io;
 

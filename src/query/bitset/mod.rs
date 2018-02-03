@@ -1,4 +1,4 @@
-use common::{DocBitSet, TinySet};
+use common::{BitSet, TinySet};
 use DocId;
 use postings::DocSet;
 use postings::SkipResult;
@@ -14,37 +14,25 @@ use std::cmp::Ordering;
 /// TODO: Consider implementing a `BitTreeSet` in order to advance faster
 /// when the bitset is sparse
 pub struct BitSetDocSet {
-    docs: DocBitSet,
-    cursor_bucket: usize, //< index associated to the current tiny bitset
+    docs: BitSet,
+    cursor_bucket: u32, //< index associated to the current tiny bitset
     cursor_tinybitset: TinySet,
     doc: u32,
 }
 
 impl BitSetDocSet {
-    #[inline(always)]
-    fn check_validity(&self) {
-        if cfg!(test) {
-            let original_bucket = self.docs.tiny_bitset(self.cursor_bucket);
-            debug_assert_eq!(
-                original_bucket.intersect(self.cursor_tinybitset),
-                self.cursor_tinybitset
-            );
-            debug_assert!(self.cursor_bucket >= self.doc() as usize / 64);
-        }
-    }
-
-    fn go_to_bucket(&mut self, bucket_addr: usize) {
+    fn go_to_bucket(&mut self, bucket_addr: u32) {
         self.cursor_bucket = bucket_addr;
-        self.cursor_tinybitset = self.docs.tiny_bitset(bucket_addr);
+        self.cursor_tinybitset = self.docs.tinyset(bucket_addr);
     }
 }
 
-impl From<DocBitSet> for BitSetDocSet {
-    fn from(docs: DocBitSet) -> BitSetDocSet {
-        let first_tiny_bitset = if docs.num_tiny_bitsets() == 0 {
+impl From<BitSet> for BitSetDocSet {
+    fn from(docs: BitSet) -> BitSetDocSet {
+        let first_tiny_bitset = if docs.max_value() == 0 {
             TinySet::empty()
         } else {
-            docs.tiny_bitset(0)
+            docs.tinyset(0)
         };
         BitSetDocSet {
             docs,
@@ -57,29 +45,26 @@ impl From<DocBitSet> for BitSetDocSet {
 
 impl DocSet for BitSetDocSet {
     fn advance(&mut self) -> bool {
-        self.check_validity();
-        loop {
-            if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
-                self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
-                return true;
-            } else {
-                if self.cursor_bucket < self.docs.num_tiny_bitsets() - 1 {
-                    let inc_bucket = self.cursor_bucket + 1;
-                    self.go_to_bucket(inc_bucket);
-                } else {
-                    return false;
-                }
-            }
+        if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
+            self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
+            return true;
         }
-    }
+        if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {
+                self.go_to_bucket(cursor_bucket);
+                let lower = self.cursor_tinybitset.pop_lowest().unwrap();
+                self.doc = (cursor_bucket * 64u32) | lower;
+                true
+        } else {
+            false
+        }
+}
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.check_validity();
         // skip is required to advance.
         if !self.advance() {
             return SkipResult::End;
         }
-        let target_bucket = (target / 64u32) as usize;
+        let target_bucket = target / 64u32;
 
         // Mask for all of the bits greater or equal
         // to our target document.
@@ -87,7 +72,7 @@ impl DocSet for BitSetDocSet {
             Ordering::Greater => {
                 self.go_to_bucket(target_bucket);
                 let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
-                self.cursor_tinybitset.intersect_update(greater_filter);
+                self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
                 if !self.advance() {
                     SkipResult::End
                 } else {
@@ -150,12 +135,13 @@ impl DocSet for BitSetDocSet {
 #[cfg(test)]
 mod tests {
     use DocId;
-    use common::DocBitSet;
+    use common::BitSet;
     use postings::{DocSet, SkipResult};
     use super::BitSetDocSet;
+    extern crate test;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
-        let mut docset = DocBitSet::with_maxdoc(max_doc);
+        let mut docset = BitSet::with_max_value(max_doc);
         for &doc in docs {
             docset.insert(doc);
         }
@@ -246,4 +232,37 @@ mod tests {
         }
     }
 
+
+    #[bench]
+    fn bench_bitset_1pct_insert(b: &mut test::Bencher) {
+        use tests;
+        let els = tests::sample(1_000_000, 0.01f32);
+        b.iter(|| {
+            let mut bitset = BitSet::with_max_value(1_000_000);
+            for el in els.iter().cloned() { bitset.insert(el); }
+        });
+    }
+
+    #[bench]
+    fn bench_bitset_1pct_clone(b: &mut test::Bencher) {
+        use tests;
+        let els = tests::sample(1_000_000, 0.01f32);
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in els { bitset.insert(el); }
+        b.iter(|| { bitset.clone() });
+    }
+
+    #[bench]
+    fn bench_bitset_1pct_clone_iterate(b: &mut test::Bencher) {
+        use tests;
+        use DocSet;
+        let els = tests::sample(1_000_000, 0.01f32);
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in els { bitset.insert(el); }
+        b.iter(|| {
+            let mut docset = BitSetDocSet::from(bitset.clone());
+            while docset.advance() {}
+        });
+    }
 }
+

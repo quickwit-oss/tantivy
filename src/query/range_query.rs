@@ -2,65 +2,93 @@ use schema::{Field, IndexRecordOption, Term};
 use query::{Query, Scorer, Weight};
 use termdict::{TermDictionary, TermStreamer, TermStreamerBuilder};
 use core::SegmentReader;
-use common::DocBitSet;
+use common::BitSet;
 use Result;
 use std::any::Any;
 use core::Searcher;
 use query::BitSetDocSet;
 use query::ConstScorer;
+use std::collections::Bound;
+use std::collections::range::RangeArgument;
 
-#[derive(Clone, Debug)]
-enum Boundary {
-    Included(Vec<u8>),
-    Excluded(Vec<u8>),
-    Unbounded,
+
+fn map_bound<TFrom, Transform: Fn(TFrom)->Vec<u8> >(bound: Bound<TFrom>, transform: &Transform) -> Bound<Vec<u8>> {
+    use self::Bound::*;
+    match bound {
+        Excluded(from_val) => Excluded(transform(from_val)),
+        Included(from_val) => Included(transform(from_val)),
+        Unbounded => Unbounded
+    }
 }
 
-#[derive(Clone, Debug)]
-pub struct TermRange {
+#[derive(Debug)]
+pub struct RangeQuery {
     field: Field,
-    left_bound: Boundary,
-    right_bound: Boundary,
+    left_bound: Bound<Vec<u8>>,
+    right_bound: Bound<Vec<u8>>,
 }
 
-impl TermRange {
-    fn for_field(field: Field) -> TermRange {
-        TermRange {
+impl RangeQuery {
+    pub fn new_i64<TRangeArgument: RangeArgument<i64>>(field: Field, range: TRangeArgument) -> RangeQuery {
+        let make_term_val = |val: &i64| {
+            Term::from_field_i64(field, *val).value_bytes().to_owned()
+        };
+        RangeQuery {
             field,
-            left_bound: Boundary::Unbounded,
-            right_bound: Boundary::Unbounded,
+            left_bound: map_bound(range.start(), &make_term_val),
+            right_bound: map_bound(range.end(), &make_term_val)
         }
     }
 
-    fn left_included(mut self, left: Term) -> TermRange {
-        assert_eq!(left.field(), self.field);
-        self.left_bound = Boundary::Included(left.value_bytes().to_owned());
+    pub fn new_u64<TRangeArgument: RangeArgument<u64>>(field: Field, range: TRangeArgument) -> RangeQuery {
+        let make_term_val = |val: &u64| {
+            Term::from_field_u64(field, *val).value_bytes().to_owned()
+        };
+        RangeQuery {
+            field,
+            left_bound: map_bound(range.start(), &make_term_val),
+            right_bound: map_bound(range.end(), &make_term_val)
+        }
+    }
+
+    pub fn new_str<'b, TRangeArgument: RangeArgument<&'b str>>(field: Field, range: TRangeArgument) -> RangeQuery {
+        let make_term_val = |val: &&str| {
+            val.as_bytes().to_vec()
+        };
+        RangeQuery {
+            field,
+            left_bound: map_bound(range.start(), &make_term_val),
+            right_bound: map_bound(range.end(), &make_term_val)
+        }
+    }
+}
+
+impl Query for RangeQuery {
+    fn as_any(&self) -> &Any {
         self
     }
 
-    fn left_excluded(mut self, left: Term) -> TermRange {
-        assert_eq!(left.field(), self.field);
-        self.left_bound = Boundary::Excluded(left.value_bytes().to_owned());
-        self
+    fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
+        Ok(box RangeWeight {
+            field: self.field,
+            left_bound: self.left_bound.clone(),
+            right_bound: self.right_bound.clone()
+        })
     }
+}
 
-    fn right_included(mut self, right: Term) -> TermRange {
-        assert_eq!(right.field(), self.field);
-        self.right_bound = Boundary::Included(right.value_bytes().to_owned());
-        self
-    }
+pub struct RangeWeight {
+    field: Field,
+    left_bound: Bound<Vec<u8>>,
+    right_bound: Bound<Vec<u8>>,
+}
 
-    fn right_excluded(mut self, right: Term) -> TermRange {
-        assert_eq!(right.field(), self.field);
-        self.right_bound = Boundary::Excluded(right.value_bytes().to_owned());
-        self
-    }
-
-    fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
-    where
-        T: TermDictionary<'a> + 'a,
+impl RangeWeight {
+    pub fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
+        where
+            T: TermDictionary<'a> + 'a,
     {
-        use self::Boundary::*;
+        use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
         term_stream_builder = match &self.left_bound {
             &Included(ref term_val) => term_stream_builder.ge(term_val),
@@ -76,41 +104,14 @@ impl TermRange {
     }
 }
 
-#[derive(Debug)]
-pub struct RangeQuery {
-    range_definition: TermRange,
-}
-
-impl RangeQuery {
-    fn new(range_definition: TermRange) -> RangeQuery {
-        RangeQuery { range_definition }
-    }
-}
-
-impl Query for RangeQuery {
-    fn as_any(&self) -> &Any {
-        self
-    }
-
-    fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
-        Ok(box RangeWeight {
-            range_definition: self.range_definition.clone(),
-        })
-    }
-}
-
-pub struct RangeWeight {
-    range_definition: TermRange,
-}
-
 impl Weight for RangeWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let max_doc = reader.max_doc();
-        let mut doc_bitset = DocBitSet::with_maxdoc(max_doc);
+        let mut doc_bitset = BitSet::with_max_value(max_doc);
 
-        let inverted_index = reader.inverted_index(self.range_definition.field);
+        let inverted_index = reader.inverted_index(self.field);
         let term_dict = inverted_index.terms();
-        let mut term_range = self.range_definition.term_range(term_dict);
+        let mut term_range = self.term_range(term_dict);
         while term_range.advance() {
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
@@ -131,6 +132,10 @@ mod tests {
 
     use Index;
     use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
+    use collector::CountCollector;
+    use std::collections::Bound;
+    use query::Query;
+    use super::RangeQuery;
 
     #[test]
     fn test_range_query() {
@@ -159,14 +164,8 @@ mod tests {
         }
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        use collector::CountCollector;
-        use schema::Term;
-        use query::Query;
-        use super::{RangeQuery, TermRange};
-
-        let count_multiples = |range: TermRange| {
+        let count_multiples = |range_query: RangeQuery| {
             let mut count_collector = CountCollector::default();
-            let range_query = RangeQuery::new(range);
             range_query
                 .search(&*searcher, &mut count_collector)
                 .unwrap();
@@ -174,34 +173,20 @@ mod tests {
         };
 
         assert_eq!(
-            count_multiples(
-                TermRange::for_field(int_field)
-                    .left_included(Term::from_field_i64(int_field, 10))
-                    .right_excluded(Term::from_field_i64(int_field, 11))
-            ),
+            count_multiples(RangeQuery::new_i64(int_field, 10..11)),
             9
         );
         assert_eq!(
-            count_multiples(
-                TermRange::for_field(int_field)
-                    .left_included(Term::from_field_i64(int_field, 10))
-                    .right_included(Term::from_field_i64(int_field, 11))
-            ),
+            count_multiples(RangeQuery::new_i64(int_field, (Bound::Included(10), Bound::Included(11)) )),
             18
         );
         assert_eq!(
-            count_multiples(
-                TermRange::for_field(int_field)
-                    .left_excluded(Term::from_field_i64(int_field, 9))
-                    .right_included(Term::from_field_i64(int_field, 10))
-            ),
+            count_multiples(RangeQuery::new_i64(int_field, (Bound::Excluded(9), Bound::Included(10)))),
             9
         );
         assert_eq!(
-            count_multiples(
-                TermRange::for_field(int_field).left_excluded(Term::from_field_i64(int_field, 9))
-            ),
-            90
+            count_multiples(RangeQuery::new_i64(int_field, 9..)),
+            91
         );
     }
 

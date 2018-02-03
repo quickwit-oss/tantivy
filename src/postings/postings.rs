@@ -30,15 +30,15 @@ impl<TPostings: Postings> Postings for Box<TPostings> {
         unboxed.positions()
     }
 }
-
-impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
-    fn term_freq(&self) -> u32 {
-        let unref: &TPostings = *self;
-        unref.term_freq()
-    }
-
-    fn positions(&self) -> &[u32] {
-        let unref: &TPostings = *self;
-        unref.positions()
-    }
-}
+//
+//impl<'a, TPostings: Postings> Postings for &'a mut TPostings {
+//    fn term_freq(&self) -> u32 {
+//        let unref: &TPostings = *self;
+//        unref.term_freq()
+//    }
+//
+//    fn positions(&self) -> &[u32] {
+//        let unref: &TPostings = *self;
+//        unref.positions()
+//    }
+//}

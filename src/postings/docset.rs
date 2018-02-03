@@ -2,7 +2,7 @@ use DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
-use common::DocBitSet;
+use common::BitSet;
 
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
@@ -95,13 +95,11 @@ pub trait DocSet {
     /// length of the docset.
     fn size_hint(&self) -> u32;
 
-    fn to_doc_bitset(&mut self, max_doc: DocId) -> DocBitSet {
-        let mut docs = DocBitSet::with_maxdoc(max_doc);
+    /// Appends all docs to a `bitset`.
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
         while self.advance() {
-            let doc = self.doc();
-            docs.insert(doc);
+            bitset.insert(self.doc());
         }
-        docs
     }
 }
 
@@ -125,26 +123,9 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         let unboxed: &TDocSet = self.borrow();
         unboxed.size_hint()
     }
-}
 
-impl<'a, TDocSet: DocSet> DocSet for &'a mut TDocSet {
-    fn advance(&mut self) -> bool {
-        let unref: &mut TDocSet = *self;
-        unref.advance()
-    }
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        let unref: &mut TDocSet = *self;
-        unref.skip_next(target)
-    }
-
-    fn doc(&self) -> DocId {
-        let unref: &TDocSet = *self;
-        unref.doc()
-    }
-
-    fn size_hint(&self) -> u32 {
-        let unref: &TDocSet = *self;
-        unref.size_hint()
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.append_to_bitset(bitset);
     }
 }

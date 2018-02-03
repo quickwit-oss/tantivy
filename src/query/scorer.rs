@@ -3,7 +3,7 @@ use DocId;
 use Score;
 use collector::Collector;
 use postings::SkipResult;
-use common::DocBitSet;
+use common::BitSet;
 use std::ops::{Deref, DerefMut};
 
 /// Scored set of documents matching a query within a specific segment.
@@ -101,8 +101,8 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.size_hint()
     }
 
-    fn to_doc_bitset(&mut self, max_doc: DocId) -> DocBitSet {
-        self.docset.to_doc_bitset(max_doc)
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        self.docset.append_to_bitset(bitset);
     }
 }
 
