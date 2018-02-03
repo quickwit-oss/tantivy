@@ -23,10 +23,10 @@ use tempdir::TempDir;
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
 ///
-fn open_mmap(full_path: &PathBuf) -> result::Result<Option<MmapReadOnly>, OpenReadError> {
-    let file = File::open(&full_path).map_err(|e| {
+fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadError> {
+    let file = File::open(full_path).map_err(|e| {
         if e.kind() == io::ErrorKind::NotFound {
-            OpenReadError::FileDoesNotExist(full_path.clone())
+            OpenReadError::FileDoesNotExist(full_path.to_owned())
         } else {
             OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
         }
@@ -88,8 +88,8 @@ impl MmapCache {
         }
     }
 
-    fn get_mmap(&mut self, full_path: PathBuf) -> Result<Option<MmapReadOnly>, OpenReadError> {
-        Ok(match self.cache.entry(full_path.clone()) {
+    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<MmapReadOnly>, OpenReadError> {
+        Ok(match self.cache.entry(full_path.to_owned()) {
             HashMapEntry::Occupied(occupied_entry) => {
                 let mmap = occupied_entry.get();
                 self.counters.hit += 1;
@@ -97,7 +97,7 @@ impl MmapCache {
             }
             HashMapEntry::Vacant(vacant_entry) => {
                 self.counters.miss += 1;
-                if let Some(mmap) = open_mmap(&full_path)? {
+                if let Some(mmap) = open_mmap(full_path)? {
                     vacant_entry.insert(mmap.clone());
                     Some(mmap)
                 } else {
@@ -252,7 +252,7 @@ impl Directory for MmapDirectory {
         })?;
 
         Ok(mmap_cache
-            .get_mmap(full_path)?
+            .get_mmap(&full_path)?
             .map(ReadOnlySource::Mmap)
             .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())))
     }

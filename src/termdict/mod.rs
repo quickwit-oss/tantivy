@@ -48,7 +48,7 @@ followed by a streaming through at most `1024` elements in the
 term `stream`.
 */
 
-use schema::{Field, FieldType, Term};
+use schema::FieldType;
 use directory::ReadOnlySource;
 use postings::TermInfo;
 
@@ -117,16 +117,6 @@ where
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     fn stream(&'a self) -> Self::Streamer {
         self.range().into_stream()
-    }
-
-    /// A stream of all the sorted terms in the given field.
-    fn stream_field(&'a self, field: Field) -> Self::Streamer {
-        let start_term = Term::from_field_text(field, "");
-        let stop_term = Term::from_field_text(Field(field.0 + 1), "");
-        self.range()
-            .ge(start_term.as_slice())
-            .lt(stop_term.as_slice())
-            .into_stream()
     }
 }
 

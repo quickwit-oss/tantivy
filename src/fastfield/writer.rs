@@ -105,7 +105,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: HashMap<Field, HashMap<UnorderedTermId, usize>>,
+        mapping: &HashMap<Field, HashMap<UnorderedTermId, usize>>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;

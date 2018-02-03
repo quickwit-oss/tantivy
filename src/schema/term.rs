@@ -151,7 +151,7 @@ where
     }
 
     /// Returns the underlying `&[u8]`
-    pub fn as_slice(&self) -> &[u8] {
+    pub(crate) fn as_slice(&self) -> &[u8] {
         self.0.as_ref()
     }
 }

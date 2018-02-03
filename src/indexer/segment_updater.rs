@@ -69,7 +69,7 @@ pub fn save_metas(
         segments: segment_metas,
         schema,
         opstamp,
-        payload: payload.clone(),
+        payload,
     };
     let mut buffer = serde_json::to_vec_pretty(&metas)?;
     write!(&mut buffer, "\n")?;

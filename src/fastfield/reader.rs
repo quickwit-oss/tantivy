@@ -149,7 +149,7 @@ impl From<Vec<u64>> for U64FastFieldReader {
                 }
             }
             fast_field_writers
-                .serialize(&mut serializer, HashMap::new())
+                .serialize(&mut serializer, &HashMap::new())
                 .unwrap();
             serializer.close().unwrap();
         }

@@ -23,7 +23,6 @@ use indexer::SegmentWriter;
 use postings::DocSet;
 use schema::IndexRecordOption;
 use schema::Document;
-use schema::Schema;
 use schema::Term;
 use std::mem;
 use std::mem::swap;
@@ -250,17 +249,17 @@ fn index_documents(
     heap: &mut Heap,
     table_size: usize,
     segment: &Segment,
-    schema: &Schema,
     generation: usize,
     document_iterator: &mut Iterator<Item = AddOperation>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     heap.clear();
+    let schema = segment.schema();
     let segment_id = segment.id();
-    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
-        segment_writer.add_document(doc, schema)?;
+        segment_writer.add_document(doc, &schema)?;
         // There is two possible conditions to close the segment.
         // One is the memory arena dedicated to the segment is
         // getting full.
@@ -368,7 +367,6 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
-        let schema = self.index.schema();
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
         let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
@@ -409,7 +407,6 @@ impl IndexWriter {
                         &mut heap,
                         table_size,
                         &segment,
-                        &schema,
                         generation,
                         &mut document_iterator,
                         &mut segment_updater,
