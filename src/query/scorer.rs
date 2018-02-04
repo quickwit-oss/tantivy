@@ -62,12 +62,21 @@ impl Scorer for EmptyScorer {
     }
 }
 
+
+/// Wraps a `DocSet` and simply returns a constant `Scorer`.
+/// The `ConstScorer` is useful if you have a `DocSet` where
+/// you needed a scorer.
+///
+/// The `ConstScorer`'s constant score can be set
+/// by calling `.set_score(...)`.
 pub struct ConstScorer<TDocSet: DocSet> {
     docset: TDocSet,
     score: Score,
 }
 
 impl<TDocSet: DocSet> ConstScorer<TDocSet> {
+
+    /// Creates a new `ConstScorer`.
     pub fn new(docset: TDocSet) -> ConstScorer<TDocSet> {
         ConstScorer {
             docset,
@@ -75,6 +84,7 @@ impl<TDocSet: DocSet> ConstScorer<TDocSet> {
         }
     }
 
+    /// Sets the constant score to a different value.
     pub fn set_score(&mut self, score: Score) {
         self.score = score;
     }

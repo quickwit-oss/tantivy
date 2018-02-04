@@ -21,6 +21,65 @@ fn map_bound<TFrom, Transform: Fn(TFrom)->Vec<u8> >(bound: Bound<TFrom>, transfo
     }
 }
 
+
+
+/// `RangeQuery` match all documents that have at least one term within a defined range.
+///
+/// Matched document will all get a constant `Score` of one.
+///
+/// # Implementation
+///
+/// The current implement will iterate over the terms within the range
+/// and append all of the document cross into a `BitSet`.
+///
+/// # Example
+///
+/// ```rust
+///
+/// # #[macro_use]
+/// # extern crate tantivy;
+/// # use tantivy::Index;
+/// # use tantivy::schema::{SchemaBuilder, INT_INDEXED};
+/// # use tantivy::collector::CountCollector;
+/// # use tantivy::query::Query;
+/// # use tantivy::Result;
+/// # use tantivy::query::RangeQuery;
+/// #
+/// # fn run() -> Result<()> {
+/// #     let mut schema_builder = SchemaBuilder::new();
+/// #     let year_field = schema_builder.add_u64_field("year", INT_INDEXED);
+/// #     let schema = schema_builder.build();
+/// #
+/// #     let index = Index::create_in_ram(schema);
+/// #     {
+/// #         let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
+/// #         for year in 1950u64..2017u64 {
+/// #             let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
+/// #             for _ in 0..num_docs_within_year {
+/// #                 index_writer.add_document(doc!(year_field => year));
+/// #             }
+/// #         }
+/// #         index_writer.commit().unwrap();
+/// #     }
+/// #   index.load_searchers()?;
+/// let searcher = index.searcher();
+///
+/// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
+///
+/// // ... or `1960..=1969` if inclusive range is enabled.
+/// let mut count_collector = CountCollector::default();
+/// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+///
+/// let num_60s_books = count_collector.count();
+///
+/// #     assert_eq!(num_of_book_published_in_the_60s, 2285);
+/// #     Ok(())
+/// # }
+/// #
+/// # fn main() {
+/// #   run().unwrap()
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct RangeQuery {
     field: Field,
@@ -29,6 +88,8 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
+
+    /// Create a new `RangeQuery` over a `i64` field.
     pub fn new_i64<TRangeArgument: RangeArgument<i64>>(field: Field, range: TRangeArgument) -> RangeQuery {
         let make_term_val = |val: &i64| {
             Term::from_field_i64(field, *val).value_bytes().to_owned()
@@ -40,6 +101,7 @@ impl RangeQuery {
         }
     }
 
+    /// Create a new `RangeQuery` over a `u64` field.
     pub fn new_u64<TRangeArgument: RangeArgument<u64>>(field: Field, range: TRangeArgument) -> RangeQuery {
         let make_term_val = |val: &u64| {
             Term::from_field_u64(field, *val).value_bytes().to_owned()
@@ -51,6 +113,7 @@ impl RangeQuery {
         }
     }
 
+    /// Create a new `RangeQuery` over a `Str` field.
     pub fn new_str<'b, TRangeArgument: RangeArgument<&'b str>>(field: Field, range: TRangeArgument) -> RangeQuery {
         let make_term_val = |val: &&str| {
             val.as_bytes().to_vec()
@@ -84,7 +147,7 @@ pub struct RangeWeight {
 }
 
 impl RangeWeight {
-    pub fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
+    fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
         where
             T: TermDictionary<'a> + 'a,
     {
@@ -135,7 +198,43 @@ mod tests {
     use collector::CountCollector;
     use std::collections::Bound;
     use query::Query;
+    use Result;
     use super::RangeQuery;
+
+    #[test]
+    fn test_range_query_simple() {
+
+        fn run() -> Result<()> {
+            let mut schema_builder = SchemaBuilder::new();
+            let year_field= schema_builder.add_u64_field("year", INT_INDEXED);
+            let schema = schema_builder.build();
+
+            let index = Index::create_in_ram(schema);
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
+                for year in 1950u64..2017u64 {
+                    let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
+                    for _ in 0..num_docs_within_year {
+                        index_writer.add_document(doc!(year_field => year));
+                    }
+                }
+                index_writer.commit().unwrap();
+            }
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+
+            let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
+
+            // ... or `1960..=1969` if inclusive range is enabled.
+            let mut count_collector = CountCollector::default();
+            docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+            assert_eq!(count_collector.count(), 2285);
+            Ok(())
+        }
+
+        run().unwrap();
+
+    }
 
     #[test]
     fn test_range_query() {
