@@ -128,7 +128,7 @@ impl DocSet for BitSetDocSet {
     /// but we don't have access to any better
     /// value.
     fn size_hint(&self) -> u32 {
-        self.docs.size_hint()
+        self.docs.len()
     }
 }
 
@@ -236,7 +236,7 @@ mod tests {
     #[bench]
     fn bench_bitset_1pct_insert(b: &mut test::Bencher) {
         use tests;
-        let els = tests::sample(1_000_000, 0.01f32);
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         b.iter(|| {
             let mut bitset = BitSet::with_max_value(1_000_000);
             for el in els.iter().cloned() { bitset.insert(el); }
@@ -246,7 +246,7 @@ mod tests {
     #[bench]
     fn bench_bitset_1pct_clone(b: &mut test::Bencher) {
         use tests;
-        let els = tests::sample(1_000_000, 0.01f32);
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
         for el in els { bitset.insert(el); }
         b.iter(|| { bitset.clone() });
@@ -256,7 +256,7 @@ mod tests {
     fn bench_bitset_1pct_clone_iterate(b: &mut test::Bencher) {
         use tests;
         use DocSet;
-        let els = tests::sample(1_000_000, 0.01f32);
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
         for el in els { bitset.insert(el); }
         b.iter(|| {

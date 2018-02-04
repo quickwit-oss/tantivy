@@ -52,16 +52,28 @@ impl TinySet {
     /// Creates a new `TinySet` containing only one element
     /// within `[0; 64[`
     #[inline(always)]
-    pub fn singleton(val: u32) -> TinySet {
-        let mut tiny_set = TinySet::empty();
-        tiny_set.insert(val);
-        tiny_set
+    pub fn singleton(el: u32) -> TinySet {
+        TinySet(1u64 << (el as u64))
     }
 
     /// Insert a new element within [0..64[
     #[inline(always)]
-    pub fn insert(&mut self, el: u32) {
-        self.0 |= 1u64 << (el as u64);
+    pub fn insert(self, el: u32) -> TinySet {
+        self.union(TinySet::singleton(el))
+    }
+
+    /// Insert a new element within [0..64[
+    #[inline(always)]
+    pub fn insert_mut(&mut self, el: u32) -> bool {
+        let old = *self;
+        *self = old.insert(el);
+        old != *self
+    }
+
+    /// Returns the union of two tinysets
+    #[inline(always)]
+    pub fn union(self, other: TinySet) -> TinySet {
+        TinySet(self.0 | other.0)
     }
 
     /// Returns true iff the `TinySet` is empty.
@@ -114,7 +126,7 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    size_hint: usize, //< Technically it should be u32, but we
+    len: u32, //< Technically it should be u32, but we
     // count multiple inserts.
     // `usize` guards us from overflow.
     max_value: u32,
@@ -133,7 +145,7 @@ impl BitSet {
         let tinybisets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
         BitSet {
             tinysets: tinybisets,
-            size_hint: 0,
+            len: 0,
             max_value
         }
     }
@@ -145,22 +157,21 @@ impl BitSet {
         }
     }
 
-    /// Returns an estimate of the number of elements in the bitset.
-    pub fn size_hint(&self) -> u32 {
-        if self.max_value as usize > self.size_hint {
-            self.size_hint as u32
-        } else {
-            self.max_value
-        }
+    /// Returns the number of elements in the `BitSet`.
+    pub fn len(&self) -> u32 {
+        self.len
     }
 
     /// Inserts an element in the `BitSet`
     pub fn insert(&mut self, el: u32) {
         // we do not check saturated els.
-        self.size_hint = self.size_hint.saturating_add(1);
         let bucket = (el / 64u32) as usize;
-        self.tinysets[bucket]
-            .insert(el % 64u32);
+        self.len +=
+            if self.tinysets[bucket].insert_mut(el % 64u32) {
+                1u32
+            } else {
+                0u32
+            };
     }
 
     /// Returns true iff the elements is in the `BitSet`.
@@ -208,29 +219,26 @@ mod tests {
     fn test_tiny_set() {
         assert!(TinySet::empty().is_empty());
         {
-            let mut u = TinySet::empty();
-            u.insert(1u32);
+            let mut u = TinySet::empty().insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = TinySet::empty();
-            u.insert(1u32);
-            u.insert(1u32);
+            let mut u = TinySet::empty()
+                .insert(1u32)
+                .insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = TinySet::empty();
-            u.insert(2u32);
+            let mut u = TinySet::empty().insert(2u32);
             assert_eq!(u.pop_lowest(), Some(2u32));
-            u.insert(1u32);
+            u.insert_mut(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none());
         }
         {
-            let mut u = TinySet::empty();
-            u.insert(63u32);
+            let mut u = TinySet::empty().insert(63u32);
             assert_eq!(u.pop_lowest(), Some(63u32));
             assert!(u.pop_lowest().is_none());
         }
@@ -289,11 +297,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_bitset_len() {
+        let mut bitset = BitSet::with_max_value(1_000);
+        assert_eq!(bitset.len(), 0u32);
+        bitset.insert(3u32);
+        assert_eq!(bitset.len(), 1u32);
+        bitset.insert(103u32);
+        assert_eq!(bitset.len(), 2u32);
+        bitset.insert(3u32);
+        assert_eq!(bitset.len(), 2u32);
+        bitset.insert(103u32);
+        assert_eq!(bitset.len(), 2u32);
+        bitset.insert(104u32);
+        assert_eq!(bitset.len(), 3u32);
+    }
 
     #[test]
     fn test_bitset_clear() {
         let mut bitset = BitSet::with_max_value(1_000);
         let els = tests::sample(1_000, 0.01f32);
+        for &el in &els {
+            bitset.insert(el);
+        }
         assert!(els.iter().all(|el| bitset.contains(*el)));
         bitset.clear();
         for el in 0u32..1000u32 {
@@ -311,10 +337,10 @@ mod tests {
 
     #[bench]
     fn bench_tinyset_sum(b: &mut test::Bencher) {
-        let mut tiny_set = TinySet::empty();
-        tiny_set.insert(10u32);
-        tiny_set.insert(14u32);
-        tiny_set.insert(21u32);
+        let tiny_set = TinySet::empty()
+            .insert(10u32)
+            .insert(14u32)
+            .insert(21u32);
         b.iter(|| {
             assert_eq!(
                 test::black_box(tiny_set).into_iter().sum::<u32>(),

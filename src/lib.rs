@@ -286,6 +286,7 @@ mod tests {
     use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
+    use rand::distributions::{Range, IndependentSample};
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
@@ -295,6 +296,16 @@ mod tests {
             .take(n)
             .collect()
     }
+
+    pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, 4];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        let between = Range::new(0u32, max_value);
+        (0..n_elems)
+            .map(|_| between.ind_sample(&mut rng))
+            .collect::<Vec<u32>>()
+    }
+
 
     pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
         generate_array_with_seed(n, ratio, 4)
