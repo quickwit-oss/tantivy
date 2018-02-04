@@ -72,7 +72,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom)->Vec<u8> >(bound: Bound<TFrom>, transfo
 ///
 /// let num_60s_books = count_collector.count();
 ///
-/// #     assert_eq!(num_of_book_published_in_the_60s, 2285);
+/// #     assert_eq!(num_60s_books, 2285);
 /// #     Ok(())
 /// # }
 /// #

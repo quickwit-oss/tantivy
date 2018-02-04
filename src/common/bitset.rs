@@ -126,7 +126,7 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: u32, //< Technically it should be u32, but we
+    len: usize, //< Technically it should be u32, but we
     // count multiple inserts.
     // `usize` guards us from overflow.
     max_value: u32,
@@ -158,19 +158,20 @@ impl BitSet {
     }
 
     /// Returns the number of elements in the `BitSet`.
-    pub fn len(&self) -> u32 {
+    pub fn len(&self) -> usize {
         self.len
     }
 
     /// Inserts an element in the `BitSet`
     pub fn insert(&mut self, el: u32) {
         // we do not check saturated els.
-        let bucket = (el / 64u32) as usize;
+        let higher = el / 64u32;
+        let lower = el % 64u32;
         self.len +=
-            if self.tinysets[bucket].insert_mut(el % 64u32) {
-                1u32
+            if self.tinysets[higher as usize].insert_mut(lower) {
+                1
             } else {
-                0u32
+                0
             };
     }
 
@@ -214,6 +215,10 @@ mod tests {
     use std::collections::HashSet;
     use super::BitSet;
     use super::TinySet;
+    use tests::generate_nonunique_unsorted;
+    use std::collections::BTreeSet;
+    use query::BitSetDocSet;
+    use DocSet;
 
     #[test]
     fn test_tiny_set() {
@@ -270,6 +275,28 @@ mod tests {
         test_against_hashset(&[62u32, 63u32], 64);
     }
 
+
+    #[test]
+    fn test_bitset_large() {
+        let arr = generate_nonunique_unsorted(1_000_000, 50_000);
+        let mut btreeset: BTreeSet<u32> = BTreeSet::new();
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in arr {
+            btreeset.insert(el);
+            bitset.insert(el);
+        }
+        for i in 0..1_000_000 {
+            assert_eq!(btreeset.contains(&i), bitset.contains(i));
+        }
+        assert_eq!(btreeset.len(), bitset.len());
+        let mut bitset_docset = BitSetDocSet::from(bitset);
+        for el in btreeset.into_iter() {
+            bitset_docset.advance();
+            assert_eq!(bitset_docset.doc(), el);
+        }
+        assert!(!bitset_docset.advance());
+    }
+
     #[test]
     fn test_bitset_num_buckets() {
         use super::num_buckets;
@@ -300,17 +327,17 @@ mod tests {
     #[test]
     fn test_bitset_len() {
         let mut bitset = BitSet::with_max_value(1_000);
-        assert_eq!(bitset.len(), 0u32);
+        assert_eq!(bitset.len(), 0);
         bitset.insert(3u32);
-        assert_eq!(bitset.len(), 1u32);
+        assert_eq!(bitset.len(), 1);
         bitset.insert(103u32);
-        assert_eq!(bitset.len(), 2u32);
+        assert_eq!(bitset.len(), 2);
         bitset.insert(3u32);
-        assert_eq!(bitset.len(), 2u32);
+        assert_eq!(bitset.len(), 2);
         bitset.insert(103u32);
-        assert_eq!(bitset.len(), 2u32);
+        assert_eq!(bitset.len(), 2);
         bitset.insert(104u32);
-        assert_eq!(bitset.len(), 3u32);
+        assert_eq!(bitset.len(), 3);
     }
 
     #[test]

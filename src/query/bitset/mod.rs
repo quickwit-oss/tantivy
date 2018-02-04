@@ -128,7 +128,7 @@ impl DocSet for BitSetDocSet {
     /// but we don't have access to any better
     /// value.
     fn size_hint(&self) -> u32 {
-        self.docs.len()
+        self.docs.len() as u32
     }
 }
 
