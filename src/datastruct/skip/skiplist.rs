@@ -58,6 +58,9 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     //
     // If there is no such element anymore,
     // returns None.
+    //
+    // If the element exists, it will be returned
+    // at the next call to `.next()`.
     fn seek(&mut self, key: u64) -> Option<(u64, T)> {
         let mut result: Option<(u64, T)> = None;
         loop {
@@ -110,7 +113,6 @@ impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
             .into_iter()
             .map(|el| el.0)
             .collect();
-
         let num_layers = offsets.len();
         let layers_data: &[u8] = data;
         let data_layer: Layer<'a, T> = if num_layers == 0 {

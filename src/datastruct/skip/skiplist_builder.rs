@@ -3,10 +3,13 @@ use common::{VInt, BinarySerializable};
 use std::marker::PhantomData;
 use std::io;
 
+fn is_power(n: usize) -> bool {
+    (n > 0) && (n & (n - 1) == 0)
+}
+
 struct LayerBuilder<T: BinarySerializable> {
-    period: usize,
+    period_mask: usize,
     buffer: Vec<u8>,
-    remaining: usize,
     len: usize,
     _phantom_: PhantomData<T>,
 }
@@ -22,27 +25,27 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     }
 
     fn with_period(period: usize) -> LayerBuilder<T> {
+        assert!(is_power(period), "The period has to be a power of 2.");
         LayerBuilder {
-            period,
+            period_mask: (period - 1),
             buffer: Vec::new(),
-            remaining: period,
             len: 0,
             _phantom_: PhantomData,
         }
     }
 
     fn insert(&mut self, key: u64, value: &T) -> io::Result<Option<(u64, u64)>> {
-        self.remaining -= 1;
+        // self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u64;
         VInt(key).serialize(&mut self.buffer)?;
         value.serialize(&mut self.buffer)?;
-        Ok(if self.remaining == 0 {
-            self.remaining = self.period;
-            Some((key, offset))
+        let emit_skip_info = (self.period_mask & self.len) == 0;
+        if emit_skip_info {
+            Ok(Some((key, offset)))
         } else {
-            None
-        })
+            Ok(None)
+        }
     }
 }
 

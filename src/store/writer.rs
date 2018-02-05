@@ -34,7 +34,7 @@ impl StoreWriter {
     pub fn new(writer: WritePtr) -> StoreWriter {
         StoreWriter {
             doc: 0,
-            offset_index_writer: SkipListBuilder::new(3),
+            offset_index_writer: SkipListBuilder::new(4),
             writer: CountingWriter::wrap(writer),
             intermediary_buffer: Vec::new(),
             current_block: Vec::new(),
