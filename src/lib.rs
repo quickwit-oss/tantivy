@@ -4,6 +4,7 @@
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
 #![feature(conservative_impl_trait)]
+#![feature(collections_range)]
 #![feature(integer_atomics)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(iterator_step_by))]
@@ -17,10 +18,105 @@
 //! Tantivy is a search engine library.
 //! Think `Lucene`, but in Rust.
 //!
+//! ```rust
+
+//! # extern crate tempdir;
+//! #
+//! #[macro_use]
+//! extern crate tantivy;
+//!
+//! // ...
+//!
+//! # use std::path::Path;
+//! # use tempdir::TempDir;
+//! # use tantivy::Index;
+//! # use tantivy::schema::*;
+//! # use tantivy::collector::TopCollector;
+//! # use tantivy::query::QueryParser;
+//! #
+//! # fn main() {
+//! #     // Let's create a temporary directory for the
+//! #     // sake of this example
+//! #     if let Ok(dir) = TempDir::new("tantivy_example_dir") {
+//! #         run_example(dir.path()).unwrap();
+//! #         dir.close().unwrap();
+//! #     }
+//! # }
+//! #
+//! # fn run_example(index_path: &Path) -> tantivy::Result<()> {
+//! // First we need to define a schema ...
+//!
+//! // `TEXT` means the field should be tokenized and indexed,
+//! // along with its term frequency and term positions.
+//! //
+//! // `STORED` means that the field will also be saved
+//! // in a compressed, row-oriented key-value store.
+//! // This store is useful to reconstruct the
+//! // documents that were selected during the search phase.
+//! let mut schema_builder = SchemaBuilder::default();
+//! let title = schema_builder.add_text_field("title", TEXT | STORED);
+//! let body = schema_builder.add_text_field("body", TEXT);
+//! let schema = schema_builder.build();
+//!
+//! // Indexing documents
+//!
+//! let index = Index::create(index_path, schema.clone())?;
+//!
+//! // Here we use a buffer of 100MB that will be split
+//! // between indexing threads.
+//! let mut index_writer = index.writer(100_000_000)?;
+//!
+//! // Let's index one documents!
+//! index_writer.add_document(doc!(
+//!     title => "The Old Man and the Sea",
+//!     body => "He was an old man who fished alone in a skiff in \
+//!             the Gulf Stream and he had gone eighty-four days \
+//!             now without taking a fish."
+//! ));
+//!
+//! // We need to call .commit() explicitly to force the
+//! // index_writer to finish processing the documents in the queue,
+//! // flush the current index to the disk, and advertise
+//! // the existence of new documents.
+//! index_writer.commit()?;
+//!
+//! // # Searching
+//!
+//! index.load_searchers()?;
+//!
+//! let searcher = index.searcher();
+//!
+//! let query_parser = QueryParser::for_index(&index, vec![title, body]);
+//!
+//! // QueryParser may fail if the query is not in the right
+//! // format. For user facing applications, this can be a problem.
+//! // A ticket has been opened regarding this problem.
+//! let query = query_parser.parse_query("sea whale")?;
+//!
+//! let mut top_collector = TopCollector::with_limit(10);
+//! searcher.search(&*query, &mut top_collector)?;
+//!
+//! // Our top collector now contains the 10
+//! // most relevant doc ids...
+//! let doc_addresses = top_collector.docs();
+//! for doc_address in doc_addresses {
+//!     let retrieved_doc = searcher.doc(&doc_address)?;
+//!     println!("{}", schema.to_json(&retrieved_doc));
+//! }
+//!
+//! # Ok(())
+//! # }
+//! ```
+//!
+//!
+//!
 //! A good place for you to get started is to check out
 //! the example code (
 //! [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) /
 //! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
+
+
+
 
 #[macro_use]
 extern crate lazy_static;
@@ -190,6 +286,7 @@ mod tests {
     use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
+    use rand::distributions::{Range, IndependentSample};
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
@@ -199,6 +296,16 @@ mod tests {
             .take(n)
             .collect()
     }
+
+    pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
+        let seed: &[u32; 4] = &[1, 2, 3, 4];
+        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        let between = Range::new(0u32, max_value);
+        (0..n_elems)
+            .map(|_| between.ind_sample(&mut rng))
+            .collect::<Vec<u32>>()
+    }
+
 
     pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
         generate_array_with_seed(n, ratio, 4)

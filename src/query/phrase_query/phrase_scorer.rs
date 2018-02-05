@@ -35,7 +35,7 @@ impl DocSet for PostingsWithOffset {
         self.segment_postings.doc()
     }
 
-    fn size_hint(&self) -> usize {
+    fn size_hint(&self) -> u32 {
         self.segment_postings.size_hint()
     }
 
@@ -122,7 +122,7 @@ impl DocSet for PhraseScorer {
         self.intersection_docset.doc()
     }
 
-    fn size_hint(&self) -> usize {
+    fn size_hint(&self) -> u32 {
         self.intersection_docset.size_hint()
     }
 }

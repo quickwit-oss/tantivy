@@ -86,6 +86,10 @@ where
     /// Opens a `TermDictionary` given a data source.
     fn from_source(source: ReadOnlySource) -> Self;
 
+    /// Returns the number of terms in the dictionary.
+    /// Term ordinals range from 0 to `num_terms() - 1`.
+    fn num_terms(&self) -> usize;
+
     /// Returns the ordinal associated to a given term.
     fn term_ord<K: AsRef<[u8]>>(&self, term: K) -> Option<TermOrdinal>;
 
@@ -102,10 +106,6 @@ where
 
     /// Returns the number of terms in the dictionary.
     fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo;
-
-    /// Returns the number of terms in the dictionary.
-    /// Term ordinals range from 0 to `num_terms() - 1`.
-    fn num_terms(&self) -> usize;
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo>;

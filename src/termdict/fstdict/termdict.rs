@@ -54,7 +54,7 @@ where
     fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
-            fst_builder: fst_builder,
+            fst_builder,
             data: Vec::new(),
             term_ord: 0,
         })
@@ -111,13 +111,17 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let values_source = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
-            fst_index: fst_index,
+            fst_index,
             values_mmap: values_source,
         }
     }
 
     fn num_terms(&self) -> usize {
         self.values_mmap.len() / TermInfo::SIZE_IN_BYTES
+    }
+
+    fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
+        self.fst_index.get(key)
     }
 
     fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool {
@@ -138,10 +142,6 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
             }
         }
         true
-    }
-
-    fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
-        self.fst_index.get(key)
     }
 
     fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo {

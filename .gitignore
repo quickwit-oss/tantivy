@@ -1,3 +1,4 @@
+*.swp
 target
 target/debug
 .vscode

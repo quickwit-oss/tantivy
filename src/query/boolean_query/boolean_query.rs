@@ -8,7 +8,6 @@ use schema::Term;
 use query::TermQuery;
 use schema::IndexRecordOption;
 use query::Occur;
-use query::OccurFilter;
 
 /// The boolean query combines a set of queries
 ///
@@ -39,14 +38,9 @@ impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
-            .map(|&(ref _occur, ref subquery)| subquery.weight(searcher))
+            .map(|&(ref occur, ref subquery)| Ok((*occur, subquery.weight(searcher)?)))
             .collect::<Result<_>>()?;
-        let occurs: Vec<Occur> = self.subqueries
-            .iter()
-            .map(|&(ref occur, ref _subquery)| *occur)
-            .collect();
-        let filter = OccurFilter::new(&occurs);
-        Ok(box BooleanWeight::new(sub_weights, filter))
+        Ok(box BooleanWeight::new(sub_weights))
     }
 }
 

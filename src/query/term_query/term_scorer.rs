@@ -37,7 +37,7 @@ where
         self.postings.doc()
     }
 
-    fn size_hint(&self) -> usize {
+    fn size_hint(&self) -> u32 {
         self.postings.size_hint()
     }
 

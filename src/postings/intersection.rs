@@ -31,7 +31,8 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
 }
 
 impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
-    fn size_hint(&self) -> usize {
+    /// Returns the minimum `.size_hint()` of the intersected docsets.
+    fn size_hint(&self) -> u32 {
         self.docsets
             .iter()
             .map(|docset| docset.size_hint())

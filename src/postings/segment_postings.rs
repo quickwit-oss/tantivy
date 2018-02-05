@@ -1,5 +1,6 @@
 use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
+use common::BitSet;
 use postings::{DocSet, HasLen, Postings, SkipResult};
 use std::cmp;
 use fst::Streamer;
@@ -235,8 +236,8 @@ impl DocSet for SegmentPostings {
         }
     }
 
-    fn size_hint(&self) -> usize {
-        self.len()
+    fn size_hint(&self) -> u32 {
+        self.len() as u32
     }
 
     /// Return the current document's `DocId`.
@@ -248,6 +249,21 @@ impl DocSet for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling .doc()."
         );
         docs[self.cur]
+    }
+
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        // finish the current block
+        if self.advance() {
+            for &doc in &self.block_cursor.docs()[self.cur..] {
+                bitset.insert(doc);
+            }
+            // ... iterate through the remaining blocks.
+            while self.block_cursor.advance() {
+                for &doc in self.block_cursor.docs() {
+                    bitset.insert(doc);
+                }
+            }
+        }
     }
 }
 
