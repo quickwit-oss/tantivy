@@ -1,5 +1,5 @@
 use std::io::Write;
-use common::BinarySerializable;
+use common::{VInt, BinarySerializable};
 use std::marker::PhantomData;
 use std::io;
 
@@ -35,7 +35,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.remaining -= 1;
         self.len += 1;
         let offset = self.written_size() as u64;
-        key.serialize(&mut self.buffer)?;
+        VInt(key).serialize(&mut self.buffer)?;
         value.serialize(&mut self.buffer)?;
         Ok(if self.remaining == 0 {
             self.remaining = self.period;
@@ -85,12 +85,11 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
     }
 
     pub fn write<W: Write>(self, output: &mut W) -> io::Result<()> {
-        let mut layer_sizes: Vec<u64> = Vec::new();
         let mut size: u64 = self.data_layer.buffer.len() as u64;
-        layer_sizes.push(size);
+        let mut layer_sizes = vec![VInt(size)];
         for layer in self.skip_layers.iter().rev() {
             size += layer.buffer.len() as u64;
-            layer_sizes.push(size);
+            layer_sizes.push(VInt(size));
         }
         layer_sizes.serialize(output)?;
         self.data_layer.write(output)?;

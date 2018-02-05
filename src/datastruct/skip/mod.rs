@@ -9,7 +9,7 @@ pub use self::skiplist::SkipList;
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    use super::{SkipList, SkipListBuilder};
 
     #[test]
     fn test_skiplist() {

@@ -1,4 +1,4 @@
-use common::BinarySerializable;
+use common::{BinarySerializable, VInt};
 use std::marker::PhantomData;
 use std::cmp::max;
 
@@ -7,7 +7,7 @@ static EMPTY: [u8; 0] = [];
 struct Layer<'a, T> {
     data: &'a [u8],
     cursor: &'a [u8],
-    next_id: u64,
+    next_id: Option<u64>,
     _phantom_: PhantomData<T>,
 }
 
@@ -15,13 +15,12 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     type Item = (u64, T);
 
     fn next(&mut self) -> Option<(u64, T)> {
-        if self.next_id == u64::max_value() {
-            None
-        } else {
+        if let Some(cur_id) = self.next_id {
             let cur_val = T::deserialize(&mut self.cursor).unwrap();
-            let cur_id = self.next_id;
-            self.next_id = u64::deserialize(&mut self.cursor).unwrap_or(u64::max_value());
+            self.next_id = VInt::deserialize_u64(&mut self.cursor).ok();
             Some((cur_id, cur_val))
+        } else {
+            None
         }
     }
 }
@@ -29,7 +28,7 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
 impl<'a, T: BinarySerializable> From<&'a [u8]> for Layer<'a, T> {
     fn from(data: &'a [u8]) -> Layer<'a, T> {
         let mut cursor = data;
-        let next_id = u64::deserialize(&mut cursor).unwrap_or(u64::max_value());
+        let next_id = VInt::deserialize_u64(&mut cursor).ok();
         Layer {
             data,
             cursor,
@@ -44,14 +43,14 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
         Layer {
             data: &EMPTY,
             cursor: &EMPTY,
-            next_id: u64::max_value(),
+            next_id: None,
             _phantom_: PhantomData,
         }
     }
 
     fn seek_offset(&mut self, offset: usize) {
         self.cursor = &self.data[offset..];
-        self.next_id = u64::deserialize(&mut self.cursor).unwrap_or(u64::max_value());
+        self.next_id = VInt::deserialize_u64(&mut self.cursor).ok();
     }
 
     // Returns the last element (key, val)
@@ -60,18 +59,18 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     // If there is no such element anymore,
     // returns None.
     fn seek(&mut self, key: u64) -> Option<(u64, T)> {
-        let mut val = None;
-        while self.next_id < key {
-            match self.next() {
-                None => {
-                    break;
-                }
-                v => {
-                    val = v;
+        let mut result: Option<(u64, T)> = None;
+        loop {
+            if let Some(next_id) = self.next_id {
+                if next_id < key {
+                    if let Some(v) = self.next() {
+                        result = Some(v);
+                        continue;
+                    }
                 }
             }
+            return result;
         }
-        return val;
     }
 }
 
@@ -106,7 +105,12 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
 
 impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
     fn from(mut data: &'a [u8]) -> SkipList<'a, T> {
-        let offsets: Vec<u64> = Vec::deserialize(&mut data).unwrap();
+        let offsets: Vec<u64> = Vec::<VInt>::deserialize(&mut data)
+            .unwrap()
+            .into_iter()
+            .map(|el| el.0)
+            .collect();
+
         let num_layers = offsets.len();
         let layers_data: &[u8] = data;
         let data_layer: Layer<'a, T> = if num_layers == 0 {
