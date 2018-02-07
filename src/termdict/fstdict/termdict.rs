@@ -6,7 +6,7 @@ use common::BinarySerializable;
 use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
-use super::{TermStreamerBuilderImpl, TermStreamerImpl, TermInfoStoreWriter};
+use super::{TermStreamerBuilderImpl, TermStreamerImpl, TermInfoStoreWriter, TermInfoStore};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -91,7 +91,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
 /// See [`TermDictionary`](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl {
     fst_index: fst::Map,
-    values_mmap: ReadOnlySource,
+    term_info_store: TermInfoStore,
 }
 
 impl<'a> TermDictionary<'a> for TermDictionaryImpl {
@@ -111,12 +111,12 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
             fst_index,
-            values_mmap: values_source,
+            term_info_store: TermInfoStore::open(values_source),
         }
     }
 
     fn num_terms(&self) -> usize {
-        self.values_mmap.len() / TermInfo::SIZE_IN_BYTES
+        self.term_info_store.num_terms()
     }
 
     fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
@@ -144,11 +144,7 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     }
 
     fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo {
-        let buffer = self.values_mmap.as_slice();
-        let offset = term_ord as usize * TermInfo::SIZE_IN_BYTES;
-        let mut cursor = &buffer[offset..];
-        TermInfo::deserialize(&mut cursor)
-            .expect("The fst is corrupted. Failed to deserialize a value.")
+        self.term_info_store.get(term_ord)
     }
 
     fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
