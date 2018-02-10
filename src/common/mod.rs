@@ -15,10 +15,9 @@ pub use self::vint::VInt;
 pub use self::counting_writer::CountingWriter;
 pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
+pub use byteorder::LittleEndian as Endianness;
 
 use std::io;
-
-
 
 /// Computes the number of bits that will be used for bitpacking.
 ///
@@ -106,7 +105,7 @@ pub fn u64_to_i64(val: u64) -> i64 {
 #[cfg(test)]
 mod test {
 
-    use super::{i64_to_u64, u64_to_i64};
+    use super::{compute_num_bits, i64_to_u64, u64_to_i64};
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);
@@ -123,4 +122,18 @@ mod test {
             test_i64_converter_helper(i);
         }
     }
+
+
+    #[test]
+    fn test_compute_num_bits() {
+        assert_eq!(compute_num_bits(1), 1u8);
+        assert_eq!(compute_num_bits(0), 0u8);
+        assert_eq!(compute_num_bits(2), 2u8);
+        assert_eq!(compute_num_bits(3), 2u8);
+        assert_eq!(compute_num_bits(4), 3u8);
+        assert_eq!(compute_num_bits(255), 8u8);
+        assert_eq!(compute_num_bits(256), 9u8);
+        assert_eq!(compute_num_bits(5_000_000_000), 33u8);
+    }
 }
+

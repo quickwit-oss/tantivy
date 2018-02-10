@@ -3,6 +3,7 @@ use fst;
 use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
+use common::CountingWriter;
 use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
@@ -69,9 +70,13 @@ where
 
     fn finish(mut self) -> io::Result<W> {
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
-        let footer_size = self.term_info_store_writer.serialize(&mut file)? as u64;
-        (footer_size as u64).serialize(&mut file)?;
-        file.flush()?;
+        {
+            let mut counting_writer = CountingWriter::wrap(&mut file);
+            self.term_info_store_writer.serialize(&mut counting_writer)?;
+            let footer_size = counting_writer.written_bytes();
+            (footer_size as u64).serialize(&mut counting_writer)?;
+            counting_writer.flush()?;
+        }
         Ok(file)
     }
 }

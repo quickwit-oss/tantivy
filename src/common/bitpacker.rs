@@ -1,36 +1,34 @@
 use std::io::Write;
 use std::io;
-use common::compute_num_bits;
 use common::serialize::BinarySerializable;
 use std::mem;
 use std::ops::Deref;
 
 
-pub struct BitPacker {
+pub(crate) struct BitPacker {
     mini_buffer: u64,
-    mini_buffer_written: usize,
-    num_bits: usize,
+    mini_buffer_written: usize
 }
 
 impl BitPacker {
-    pub fn new(num_bits: usize) -> BitPacker {
+    pub fn new() -> BitPacker {
         BitPacker {
             mini_buffer: 0u64,
-            mini_buffer_written: 0,
-            num_bits,
+            mini_buffer_written: 0
         }
     }
 
-    pub fn write<TWrite: Write>(&mut self, val: u64, output: &mut TWrite) -> io::Result<()> {
+    pub fn write<TWrite: Write>(&mut self, val: u64, num_bits: u8, output: &mut TWrite) -> io::Result<()> {
         let val_u64 = val as u64;
-        if self.mini_buffer_written + self.num_bits > 64 {
+        let num_bits = num_bits as usize;
+        if self.mini_buffer_written + num_bits > 64 {
             self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
             self.mini_buffer.serialize(output)?;
             self.mini_buffer = val_u64.wrapping_shr((64 - self.mini_buffer_written) as u32);
-            self.mini_buffer_written = self.mini_buffer_written + (self.num_bits as usize) - 64;
+            self.mini_buffer_written = self.mini_buffer_written + num_bits - 64;
         } else {
             self.mini_buffer |= val_u64 << self.mini_buffer_written;
-            self.mini_buffer_written += self.num_bits;
+            self.mini_buffer_written += num_bits;
             if self.mini_buffer_written == 64 {
                 self.mini_buffer.serialize(output)?;
                 self.mini_buffer_written = 0;
@@ -40,7 +38,7 @@ impl BitPacker {
         Ok(())
     }
 
-    pub(crate) fn flush<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
+    pub fn flush<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
             let num_bytes = (self.mini_buffer_written + 7) / 8;
             let arr: [u8; 8] = unsafe { mem::transmute::<u64, [u8; 8]>(self.mini_buffer) };
@@ -60,8 +58,8 @@ impl BitPacker {
 
 #[derive(Clone)]
 pub struct BitUnpacker<Data>
-where
-    Data: Deref<Target = [u8]>,
+    where
+        Data: Deref<Target=[u8]>,
 {
     num_bits: usize,
     mask: u64,
@@ -69,17 +67,18 @@ where
 }
 
 impl<Data> BitUnpacker<Data>
-where
-    Data: Deref<Target = [u8]>,
+    where
+        Data: Deref<Target=[u8]>,
 {
-    pub fn new(data: Data, num_bits: usize) -> BitUnpacker<Data> {
-        let mask: u64 = if num_bits == 64 {
-            !0u64
-        } else {
-            (1u64 << num_bits) - 1u64
-        };
+    pub fn new(data: Data, num_bits: u8) -> BitUnpacker<Data> {
+        let mask: u64 =
+            if num_bits == 64 {
+                !0u64
+            } else {
+                (1u64 << num_bits) - 1u64
+            };
         BitUnpacker {
-            num_bits,
+            num_bits: num_bits as usize,
             mask,
             data,
         }
@@ -117,7 +116,7 @@ where
                 }
                 unsafe { *(buffer[..].as_ptr() as *const u64) }
             };
-            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+            let val_shifted = val_unshifted_unmasked >> (bit_shift as u64);
             (val_shifted & mask)
         }
     }
@@ -147,37 +146,26 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{compute_num_bits, BitPacker, BitUnpacker};
+    use super::{BitPacker, BitUnpacker};
 
-    #[test]
-    fn test_compute_num_bits() {
-        assert_eq!(compute_num_bits(1), 1u8);
-        assert_eq!(compute_num_bits(0), 0u8);
-        assert_eq!(compute_num_bits(2), 2u8);
-        assert_eq!(compute_num_bits(3), 2u8);
-        assert_eq!(compute_num_bits(4), 3u8);
-        assert_eq!(compute_num_bits(255), 8u8);
-        assert_eq!(compute_num_bits(256), 9u8);
-        assert_eq!(compute_num_bits(5_000_000_000), 33u8);
-    }
 
-    fn create_fastfield_bitpacker(len: usize, num_bits: usize) -> (BitUnpacker<Vec<u8>>, Vec<u64>) {
+    fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker<Vec<u8>>, Vec<u64>) {
         let mut data = Vec::new();
-        let mut bitpacker = BitPacker::new(num_bits);
-        let max_val: u64 = (1 << num_bits) - 1;
+        let mut bitpacker = BitPacker::new();
+        let max_val: u64 = (1u64 << num_bits as u64) - 1u64;
         let vals: Vec<u64> = (0u64..len as u64)
             .map(|i| if max_val == 0 { 0 } else { i % max_val })
             .collect();
         for &val in &vals {
-            bitpacker.write(val, &mut data).unwrap();
+            bitpacker.write(val, num_bits,&mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), (num_bits * len + 7) / 8 + 7);
+        assert_eq!(data.len(), ((num_bits as usize)* len + 7) / 8 + 7);
         let bitunpacker = BitUnpacker::new(data, num_bits);
         (bitunpacker, vals)
     }
 
-    fn test_bitpacker_util(len: usize, num_bits: usize) {
+    fn test_bitpacker_util(len: usize, num_bits: u8) {
         let (bitunpacker, vals) = create_fastfield_bitpacker(len, num_bits);
         for (i, val) in vals.iter().enumerate() {
             assert_eq!(bitunpacker.get(i), *val);

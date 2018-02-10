@@ -1,7 +1,8 @@
 use common::BinarySerializable;
 use directory::WritePtr;
 use schema::Field;
-use common::bitpacker::{compute_num_bits, BitPacker};
+use common::bitpacker::BitPacker;
+use common::compute_num_bits;
 use common::CountingWriter;
 use common::CompositeWrite;
 use std::io::{self, Write};
@@ -74,6 +75,7 @@ pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
     bit_packer: BitPacker,
     write: &'a mut W,
     min_value: u64,
+    num_bits: u8,
 }
 
 impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
@@ -86,18 +88,19 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
         let amplitude = max_value - min_value;
         amplitude.serialize(write)?;
         let num_bits = compute_num_bits(amplitude);
-        let bit_packer = BitPacker::new(num_bits as usize);
+        let bit_packer = BitPacker::new();
         Ok(FastSingleFieldSerializer {
-            write: write,
-            bit_packer: bit_packer,
-            min_value: min_value,
+            write,
+            bit_packer,
+            min_value,
+            num_bits
         })
     }
 
     /// Pushes a new value to the currently open u64 fast field.
     pub fn add_val(&mut self, val: u64) -> io::Result<()> {
         let val_to_write: u64 = val - self.min_value;
-        self.bit_packer.write(val_to_write, &mut self.write)?;
+        self.bit_packer.write(val_to_write, self.num_bits,&mut self.write)?;
         Ok(())
     }
 

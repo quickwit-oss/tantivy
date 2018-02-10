@@ -1,5 +1,5 @@
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use byteorder::LittleEndian as Endianness;
+use common::Endianness;
 use std::fmt;
 use std::io::Write;
 use std::io::Read;
