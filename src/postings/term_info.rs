@@ -1,4 +1,4 @@
-use common::BinarySerializable;
+use common::{BinarySerializable, FixedSize};
 use std::io;
 
 /// `TermInfo` contains all of the information
@@ -23,10 +23,13 @@ pub struct TermInfo {
     pub positions_inner_offset: u8,
 }
 
-impl TermInfo {
-    /// Size required to encode the `TermInfo`.
-    // TODO  make this smaller when positions are unused for instance.
-    pub(crate) const SIZE_IN_BYTES: usize = 4 + 8 + 8 + 1;
+impl FixedSize for TermInfo {
+    /// Size required for the binary serialization of `TermInfo`.
+    /// This is large, but in practise, all `TermInfo` but the first one
+    /// of the block are bitpacked.
+    ///
+    /// See `TermInfoStore`.
+    const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2*u64::SIZE_IN_BYTES + u8::SIZE_IN_BYTES;
 }
 
 impl BinarySerializable for TermInfo {
@@ -48,5 +51,17 @@ impl BinarySerializable for TermInfo {
             positions_offset,
             positions_inner_offset,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::TermInfo;
+    use common::test::fixed_size_test;
+
+    #[test]
+    fn test_fixed_size() {
+        fixed_size_test::<TermInfo>();
     }
 }

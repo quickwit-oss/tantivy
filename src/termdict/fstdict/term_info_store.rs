@@ -2,7 +2,7 @@ use std::io;
 use std::cmp;
 use std::io::{Read, Write};
 use postings::TermInfo;
-use common::BinarySerializable;
+use common::{BinarySerializable, FixedSize};
 use common::compute_num_bits;
 use common::Endianness;
 use common::bitpacker::BitPacker;
@@ -12,7 +12,6 @@ use byteorder::ByteOrder;
 
 
 const BLOCK_LEN: usize = 256;
-const BLOCK_META_SIZE: usize = 8 + 4 + 8 + 8 + 4;
 
 
 #[derive(Debug, Eq, PartialEq, Default)]
@@ -47,6 +46,10 @@ impl BinarySerializable for TermInfoBlockMeta {
             positions_offset_nbits: buffer[2]
         })
     }
+}
+
+impl FixedSize for TermInfoBlockMeta {
+    const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3 * u8::SIZE_IN_BYTES;
 }
 
 impl TermInfoBlockMeta {
@@ -113,7 +116,7 @@ impl TermInfoStore {
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
         let block_id = (term_ord as usize) / BLOCK_LEN;
         let buffer = self.block_meta_source.as_slice();
-        let mut block_data: &[u8] = &buffer[block_id * BLOCK_META_SIZE..];
+        let mut block_data: &[u8] = &buffer[block_id * TermInfoBlockMeta::SIZE_IN_BYTES..];
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data).expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
@@ -236,19 +239,16 @@ mod tests {
     use super::extract_bits;
     use common::bitpacker::BitPacker;
     use common::BinarySerializable;
-    use super::BLOCK_META_SIZE;
     use super::TermInfoBlockMeta;
     use super::{TermInfoStore, TermInfoStoreWriter};
     use directory::ReadOnlySource;
     use postings::TermInfo;
     use common::compute_num_bits;
+    use common;
 
     #[test]
     fn test_term_info_block() {
-        let mut buffer: Vec<u8> = Vec::new();
-        let term_info_meta_block = TermInfoBlockMeta::default();
-        term_info_meta_block.serialize(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), BLOCK_META_SIZE);
+        common::test::fixed_size_test::<TermInfoBlockMeta>();
     }
 
     #[test]

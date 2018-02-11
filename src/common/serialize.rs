@@ -6,9 +6,19 @@ use std::io::Read;
 use std::io;
 use common::VInt;
 
+/// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {
+    /// Serialize
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()>;
+    /// Deserialize
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self>;
+}
+
+
+/// `FixedSize` marks a `BinarySerializable` as
+/// always serializing to the same size.
+pub trait FixedSize: BinarySerializable {
+    const SIZE_IN_BYTES: usize;
 }
 
 impl BinarySerializable for () {
@@ -18,6 +28,10 @@ impl BinarySerializable for () {
     fn deserialize<R: Read>(_: &mut R) -> io::Result<Self> {
         Ok(())
     }
+}
+
+impl FixedSize for () {
+    const SIZE_IN_BYTES: usize = 0;
 }
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
@@ -59,6 +73,10 @@ impl BinarySerializable for u32 {
     }
 }
 
+impl FixedSize for u32 {
+    const SIZE_IN_BYTES: usize = 4;
+}
+
 impl BinarySerializable for u64 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u64::<Endianness>(*self)
@@ -66,6 +84,10 @@ impl BinarySerializable for u64 {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         reader.read_u64::<Endianness>()
     }
+}
+
+impl FixedSize for u64 {
+    const SIZE_IN_BYTES: usize = 8;
 }
 
 impl BinarySerializable for i64 {
@@ -77,6 +99,11 @@ impl BinarySerializable for i64 {
     }
 }
 
+impl FixedSize for i64 {
+    const SIZE_IN_BYTES: usize = 8;
+}
+
+
 impl BinarySerializable for u8 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u8(*self)
@@ -84,6 +111,10 @@ impl BinarySerializable for u8 {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<u8> {
         reader.read_u8()
     }
+}
+
+impl FixedSize for u8 {
+    const SIZE_IN_BYTES: usize = 1;
 }
 
 impl BinarySerializable for String {
@@ -103,64 +134,79 @@ impl BinarySerializable for String {
     }
 }
 
+
 #[cfg(test)]
-mod test {
+pub mod test {
 
     use common::VInt;
     use super::*;
 
-    fn serialize_test<T: BinarySerializable + Eq>(v: T, num_bytes: usize) {
+
+    pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
+        let mut buffer = Vec::new();
+        O::default().serialize(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
+    }
+
+
+    fn serialize_test<T: BinarySerializable + Eq>(v: T) -> usize {
         let mut buffer: Vec<u8> = Vec::new();
-        if num_bytes != 0 {
-            v.serialize(&mut buffer).unwrap();
-            assert_eq!(buffer.len(), num_bytes);
-        } else {
-            v.serialize(&mut buffer).unwrap();
-        }
+        v.serialize(&mut buffer).unwrap();
+        let num_bytes = buffer.len();
         let mut cursor = &buffer[..];
         let deser = T::deserialize(&mut cursor).unwrap();
         assert_eq!(deser, v);
+        num_bytes
     }
 
     #[test]
     fn test_serialize_u8() {
-        serialize_test(3u8, 1);
-        serialize_test(5u8, 1);
+        fixed_size_test::<u8>();
     }
 
     #[test]
     fn test_serialize_u32() {
-        serialize_test(3u32, 4);
-        serialize_test(5u32, 4);
-        serialize_test(u32::max_value(), 4);
+        fixed_size_test::<u32>();
+        assert_eq!(4, serialize_test(3u32));
+        assert_eq!(4, serialize_test(5u32));
+        assert_eq!(4, serialize_test(u32::max_value()));
+    }
+
+    #[test]
+    fn test_serialize_i64() {
+        fixed_size_test::<i64>();
+    }
+
+    #[test]
+    fn test_serialize_u64() {
+        fixed_size_test::<u64>();
     }
 
     #[test]
     fn test_serialize_string() {
-        serialize_test(String::from(""), 1);
-        serialize_test(String::from("ぽよぽよ"), 1 + 3 * 4);
-        serialize_test(String::from("富士さん見える。"), 1 + 3 * 8);
+        assert_eq!(serialize_test(String::from("")), 1);
+        assert_eq!(serialize_test(String::from("ぽよぽよ")), 1 + 3 * 4);
+        assert_eq!(serialize_test(String::from("富士さん見える。")), 1 + 3 * 8);
     }
 
     #[test]
     fn test_serialize_vec() {
-        let v: Vec<u8> = Vec::new();
-        serialize_test(v, 1);
-        serialize_test(vec![1u32, 3u32], 1 + 4 * 2);
+        assert_eq!(serialize_test(Vec::<u8>::new()), 1);
+        assert_eq!(serialize_test(vec![1u32, 3u32]), 1 + 4 * 2);
     }
 
     #[test]
     fn test_serialize_vint() {
         for i in 0..10_000 {
-            serialize_test(VInt(i as u64), 0);
+            serialize_test(VInt(i as u64));
         }
-        serialize_test(VInt(7u64), 1);
-        serialize_test(VInt(127u64), 1);
-        serialize_test(VInt(128u64), 2);
-        serialize_test(VInt(129u64), 2);
-        serialize_test(VInt(1234u64), 2);
-        serialize_test(VInt(16_383), 2);
-        serialize_test(VInt(16_384), 3);
-        serialize_test(VInt(u64::max_value()), 10);
+        assert_eq!(serialize_test(VInt(7u64)), 1);
+        assert_eq!(serialize_test(VInt(127u64)), 1);
+        assert_eq!(serialize_test(VInt(128u64)), 2);
+        assert_eq!(serialize_test(VInt(129u64)), 2);
+        assert_eq!(serialize_test(VInt(1234u64)), 2);
+        assert_eq!(serialize_test(VInt(16_383u64)), 2);
+        assert_eq!(serialize_test(VInt(16_384u64)), 3);
+        assert_eq!(serialize_test(VInt(u64::max_value())), 10);
     }
 }

@@ -7,7 +7,7 @@ pub mod bitpacker;
 mod bitset;
 
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
-pub use self::serialize::BinarySerializable;
+pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;
 pub use self::timer::OpenTimer;
@@ -43,7 +43,7 @@ use std::io;
 /// a very large range of values. Even in this case, it results
 /// in an extra cost of at most 12% compared to the optimal
 /// number of bits.
-pub fn compute_num_bits(n: u64) -> u8 {
+pub(crate) fn compute_num_bits(n: u64) -> u8 {
     let amplitude = (64u32 - n.leading_zeros()) as u8;
     if amplitude <= 64 - 8 {
         amplitude
@@ -53,8 +53,12 @@ pub fn compute_num_bits(n: u64) -> u8 {
 }
 
 
+pub(crate) fn is_power_of_2(n: usize) -> bool {
+    (n > 0) && (n & (n - 1) == 0)
+}
+
 /// Create a default io error given a string.
-pub fn make_io_err(msg: String) -> io::Error {
+pub(crate) fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
@@ -103,9 +107,10 @@ pub fn u64_to_i64(val: u64) -> i64 {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
 
     use super::{compute_num_bits, i64_to_u64, u64_to_i64};
+    pub use super::serialize::test::fixed_size_test;
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);

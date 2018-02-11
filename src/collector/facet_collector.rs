@@ -330,7 +330,7 @@ impl FacetCollector {
     fn finalize_segment(&mut self) {
         if self.ff_reader.is_some() {
             self.segment_counters.push(SegmentFacetCounter {
-                facet_reader: unsafe { self.ff_reader.take().unwrap().into_inner() },
+                facet_reader: self.ff_reader.take().unwrap().into_inner(),
                 facet_ords: mem::replace(&mut self.current_collapse_facet_ords, Vec::new()),
                 facet_counts: mem::replace(&mut self.current_segment_counts, Vec::new()),
             });

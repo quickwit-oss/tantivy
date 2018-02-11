@@ -5,7 +5,6 @@ that serves as an address in their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
-```
 
 
 # Implementations
