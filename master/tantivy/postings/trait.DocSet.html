@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `DocSet` trait in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, DocSet">
+
+    <title>tantivy::postings::DocSet - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Trait DocSet</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.advance">advance</a><a href="#tymethod.doc">doc</a><a href="#tymethod.size_hint">size_hint</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.skip_next">skip_next</a><a href="#method.fill_buffer">fill_buffer</a><a href="#method.next">next</a><a href="#method.append_to_bitset">append_to_bitset</a></div><a class="sidebar-title" href="#foreign-impls">Implementations on Foreign Types</a><div class="sidebar-links"><a href="#impl-DocSet">Box&lt;TDocSet&gt;</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>postings</a></p><script>window.sidebarCurrent = {name: 'DocSet', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>postings</a>::<wbr><a class="trait" href=''>DocSet</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#20-104' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait DocSet {
+    fn <a href='#tymethod.advance' class='fnname'>advance</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.doc' class='fnname'>doc</a>(&amp;self) -&gt; <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.size_hint' class='fnname'>size_hint</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
+
+    fn <a href='#method.skip_next' class='fnname'>skip_next</a>(&amp;mut self, target: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="enum" href="../../tantivy/postings/enum.SkipResult.html" title="enum tantivy::postings::SkipResult">SkipResult</a> { ... }
+<div class='item-spacer'></div>    fn <a href='#method.fill_buffer' class='fnname'>fill_buffer</a>(&amp;mut self, buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a> { ... }
+<div class='item-spacer'></div>    fn <a href='#method.next' class='fnname'>next</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>&gt; { ... }
+<div class='item-spacer'></div>    fn <a href='#method.append_to_bitset' class='fnname'>append_to_bitset</a>(&amp;mut self, bitset: &amp;mut BitSet) { ... }
+}</pre><div class='docblock'><p>Represents an iterable set of sorted doc ids.</p>
+</div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.advance' class='method'><span id='advance.v' class='invisible'><code>fn <a href='#tymethod.advance' class='fnname'>advance</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></h3><div class='docblock'><p>Goes to the next element.
+<code>.advance(...)</code> needs to be called a first time to point to the correct
+element.</p>
+</div><h3 id='tymethod.doc' class='method'><span id='doc.v' class='invisible'><code>fn <a href='#tymethod.doc' class='fnname'>doc</a>(&amp;self) -&gt; <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a></code></span></h3><div class='docblock'><p>Returns the current document</p>
+</div><h3 id='tymethod.size_hint' class='method'><span id='size_hint.v' class='invisible'><code>fn <a href='#tymethod.size_hint' class='fnname'>size_hint</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></h3><div class='docblock'><p>Returns a best-effort hint of the
+length of the docset.</p>
+</div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.skip_next' class='method'><span id='skip_next.v' class='invisible'><code>fn <a href='#method.skip_next' class='fnname'>skip_next</a>(&amp;mut self, target: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="enum" href="../../tantivy/postings/enum.SkipResult.html" title="enum tantivy::postings::SkipResult">SkipResult</a></code></span></h3><div class='docblock'><p>After skipping, position the iterator in such a way that <code>.doc()</code>
+will return a value greater than or equal to target.</p>
+<p>SkipResult expresses whether the <code>target value</code> was reached, overstepped,
+or if the <code>DocSet</code> was entirely consumed without finding any value
+greater or equal to the <code>target</code>.</p>
+<p>WARNING: Calling skip always advances the docset.
+More specifically, if the docset is already positionned on the target
+skipping will advance to the next position and return SkipResult::Overstep.</p>
+</div><h3 id='method.fill_buffer' class='method'><span id='fill_buffer.v' class='invisible'><code>fn <a href='#method.fill_buffer' class='fnname'>fill_buffer</a>(&amp;mut self, buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span></h3><div class='docblock'><p>Fills a given mutable buffer with the next doc ids from the
+<code>DocSet</code></p>
+<p>If that many <code>DocId</code>s are available, the method should
+fill the entire buffer and return the length of the buffer.</p>
+<p>If we reach the end of the <code>DocSet</code> before filling
+it entirely, then the buffer is filled up to this point, and
+return value is the number of elements that were filled.</p>
+<h1 id="warning" class="section-header"><a href="#warning">Warning</a></h1>
+<p>This method is only here for specific high-performance
+use case where batching. The normal way to
+go through the <code>DocId</code>'s is to call <code>.advance()</code>.</p>
+</div><h3 id='method.next' class='method'><span id='next.v' class='invisible'><code>fn <a href='#method.next' class='fnname'>next</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>&gt;</code></span></h3><div class='docblock'><p>Advances the cursor to the next document
+None is returned if the iterator has <code>DocSet</code>
+has already been entirely consumed.</p>
+</div><h3 id='method.append_to_bitset' class='method'><span id='append_to_bitset.v' class='invisible'><code>fn <a href='#method.append_to_bitset' class='fnname'>append_to_bitset</a>(&amp;mut self, bitset: &amp;mut BitSet)</code></span></h3><div class='docblock'><p>Appends all docs to a <code>bitset</code>.</p>
+</div></div>
+                <h2 id='foreign-impls' class='small-section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-DocSet' class='impl'><span class='in-band'><code>impl&lt;TDocSet:&nbsp;<a class="trait" href="../../tantivy/postings/trait.DocSet.html" title="trait tantivy::postings::DocSet">DocSet</a> + ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt; <a class="trait" href="../../tantivy/postings/trait.DocSet.html" title="trait tantivy::postings::DocSet">DocSet</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;TDocSet&gt;</code><a href='#impl-DocSet' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#106-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.advance' class="method"><span id='advance.v-1' class='invisible'><code>fn <a href='#method.advance' class='fnname'>advance</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#107-110' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.skip_next-1' class="method"><span id='skip_next.v-1' class='invisible'><code>fn <a href='#method.skip_next' class='fnname'>skip_next</a>(&amp;mut self, target: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="enum" href="../../tantivy/postings/enum.SkipResult.html" title="enum tantivy::postings::SkipResult">SkipResult</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#112-115' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.doc' class="method"><span id='doc.v-1' class='invisible'><code>fn <a href='#method.doc' class='fnname'>doc</a>(&amp;self) -&gt; <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#117-120' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.size_hint' class="method"><span id='size_hint.v-1' class='invisible'><code>fn <a href='#method.size_hint' class='fnname'>size_hint</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#122-125' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.append_to_bitset-1' class="method"><span id='append_to_bitset.v-1' class='invisible'><code>fn <a href='#method.append_to_bitset' class='fnname'>append_to_bitset</a>(&amp;mut self, bitset: &amp;mut BitSet)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#127-130' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.fill_buffer-1' class="method"><span id='fill_buffer.v-1' class='invisible'><code>fn <a href='../../tantivy/postings/trait.DocSet.html#method.fill_buffer' class='fnname'>fill_buffer</a>(&amp;mut self, buffer: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#69-78' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.next-1' class="method"><span id='next.v-1' class='invisible'><code>fn <a href='../../tantivy/postings/trait.DocSet.html#method.next' class='fnname'>next</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/docset.rs.html#86-92' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/scorer.rs.html#45-57' title='goto source code'>[src]</a></div><code>impl DocSet for <a class="struct" href="../../tantivy/query/struct.EmptyScorer.html" title="struct tantivy::query::EmptyScorer">EmptyScorer</a></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/scorer.rs.html#91-115' title='goto source code'>[src]</a></div><code>impl&lt;TDocSet:&nbsp;<a class="trait" href="../../tantivy/postings/trait.DocSet.html" title="trait tantivy::postings::DocSet">DocSet</a>&gt; DocSet for <a class="struct" href="../../tantivy/query/struct.ConstScorer.html" title="struct tantivy::query::ConstScorer">ConstScorer</a>&lt;TDocSet&gt;</code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/all_query.rs.html#48-65' title='goto source code'>[src]</a></div><code>impl DocSet for <a class="struct" href="../../tantivy/query/struct.AllScorer.html" title="struct tantivy::query::AllScorer">AllScorer</a></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/bitset/mod.rs.html#46-133' title='goto source code'>[src]</a></div><code>impl DocSet for <a class="struct" href="../../tantivy/query/struct.BitSetDocSet.html" title="struct tantivy::query::BitSetDocSet">BitSetDocSet</a></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/postings/segment_postings.rs.html#113-268' title='goto source code'>[src]</a></div><code>impl DocSet for <a class="struct" href="../../tantivy/postings/struct.SegmentPostings.html" title="struct tantivy::postings::SegmentPostings">SegmentPostings</a></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/postings/intersection.rs.html#33-85' title='goto source code'>[src]</a></div><code>impl&lt;TDocSet:&nbsp;<a class="trait" href="../../tantivy/postings/trait.DocSet.html" title="trait tantivy::postings::DocSet">DocSet</a>&gt; DocSet for <a class="struct" href="../../tantivy/postings/struct.IntersectionDocSet.html" title="struct tantivy::postings::IntersectionDocSet">IntersectionDocSet</a>&lt;TDocSet&gt;</code></li>
+</ul><script type="text/javascript" async
+                         src="../../implementors/tantivy/postings/trait.DocSet.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

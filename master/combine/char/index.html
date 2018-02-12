@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `char` mod in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, char">
+
+    <title>combine::char - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module char</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'char', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>combine</a>::<wbr><a class="mod" href=''>char</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/char.rs.html#1-419' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Module containing parsers specialized on character streams.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AlphaNum.html"
+                                  title='struct combine::char::AlphaNum'>AlphaNum</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.CrLf.html"
+                                  title='struct combine::char::CrLf'>CrLf</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Digit.html"
+                                  title='struct combine::char::Digit'>Digit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.HexDigit.html"
+                                  title='struct combine::char::HexDigit'>HexDigit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Letter.html"
+                                  title='struct combine::char::Letter'>Letter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Lower.html"
+                                  title='struct combine::char::Lower'>Lower</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Newline.html"
+                                  title='struct combine::char::Newline'>Newline</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.OctDigit.html"
+                                  title='struct combine::char::OctDigit'>OctDigit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Space.html"
+                                  title='struct combine::char::Space'>Space</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Spaces.html"
+                                  title='struct combine::char::Spaces'>Spaces</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Str.html"
+                                  title='struct combine::char::Str'>Str</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StrCmp.html"
+                                  title='struct combine::char::StrCmp'>StrCmp</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Tab.html"
+                                  title='struct combine::char::Tab'>Tab</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Upper.html"
+                                  title='struct combine::char::Upper'>Upper</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.alpha_num.html"
+                                  title='fn combine::char::alpha_num'>alpha_num</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses either an alphabet letter or digit according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_alphanumeric"><code>std::char::is_alphanumeric</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.char.html"
+                                  title='fn combine::char::char'>char</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a character and succeeds if the character is equal to <code>c</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.crlf.html"
+                                  title='fn combine::char::crlf'>crlf</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses carriage return and newline, returning the newline character.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.digit.html"
+                                  title='fn combine::char::digit'>digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a base-10 digit.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.hex_digit.html"
+                                  title='fn combine::char::hex_digit'>hex_digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a hexdecimal digit with uppercase and lowercase.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.letter.html"
+                                  title='fn combine::char::letter'>letter</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an alphabet letter according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_alphabetic"><code>std::char::is_alphabetic</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.lower.html"
+                                  title='fn combine::char::lower'>lower</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an lowercase letter according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_lowercase"><code>std::char::is_lowercase</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.newline.html"
+                                  title='fn combine::char::newline'>newline</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a newline character.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.oct_digit.html"
+                                  title='fn combine::char::oct_digit'>oct_digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an octal digit.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.space.html"
+                                  title='fn combine::char::space'>space</a></td>
+                           <td class='docblock-short'>
+                                <p>Parse a single whitespace according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_whitespace"><code>std::char::is_whitespace</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.spaces.html"
+                                  title='fn combine::char::spaces'>spaces</a></td>
+                           <td class='docblock-short'>
+                                <p>Skips over zero or more spaces according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_whitespace"><code>std::char::is_whitespace</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.string.html"
+                                  title='fn combine::char::string'>string</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses the string <code>s</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.string_cmp.html"
+                                  title='fn combine::char::string_cmp'>string_cmp</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses the string <code>s</code>, using <code>cmp</code> to compare each character.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tab.html"
+                                  title='fn combine::char::tab'>tab</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a tab character.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.upper.html"
+                                  title='fn combine::char::upper'>upper</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an uppercase letter according to <a href="https://doc.rust-lang.org/std/primitive.char.html#method.is_uppercase"><code>std::char::is_uppercase</code></a>.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

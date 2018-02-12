@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `termios` mod in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, termios">
+
+    <title>nix::sys::termios - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module termios</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a></p><script>window.sidebarCurrent = {name: 'termios', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a class="mod" href=''>termios</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/nix/sys/termios.rs.html#1-895' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>An interface for controlling asynchronous communication ports</p>
+<p>This interface provides a safe wrapper around the termios subsystem defined by POSIX. The
+underlying types are all implemented in libc for most platforms and either wrapped in safer
+types here or exported directly.</p>
+<p>If you are unfamiliar with the <code>termios</code> API, you should first read the
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/termios.h.html">API documentation</a> and
+then come back to understand how <code>nix</code> safely wraps it.</p>
+<p>It should be noted that this API incurs some runtime overhead above the base <code>libc</code> definitions.
+As this interface is not used with high-bandwidth information, this should be fine in most
+cases. The primary cost when using this API is that the <code>Termios</code> datatype here duplicates the
+standard fields of the underlying <code>termios</code> struct and uses safe type wrappers for those fields.
+This means that when crossing the FFI interface to the underlying C library, data is first
+copied into the underlying <code>termios</code> struct, then the operation is done, and the data is copied
+back (with additional sanity checking) into the safe wrapper types. The <code>termios</code> struct is
+relatively small across all platforms (on the order of 32-64 bytes).</p>
+<p>The following examples highlight some of the API use cases such that users coming from using C
+or reading the standard documentation will understand how to use the safe API exposed here.</p>
+<p>Example disabling processing of the end-of-file control character:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="ident">termios</span>.<span class="ident">control_chars</span>[<span class="ident">VEOF</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">=</span> <span class="ident">_POSIX_VDISABLE</span>;</pre>
+<p>The flags within <code>Termios</code> are defined as bitfields using the <code>bitflags</code> crate. This provides
+an interface for working with bitfields that is similar to working with the raw unsigned
+integer types but offers type safety because of the internal checking that values will always
+be a valid combination of the defined flags.</p>
+<p>An example showing some of the basic operations for interacting with the control flags:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="ident">termios</span>.<span class="ident">control_flags</span> <span class="op">&amp;</span> <span class="ident">CSIZE</span> <span class="op">==</span> <span class="ident">CS5</span>;
+<span class="ident">termios</span>.<span class="ident">control_flags</span> <span class="op">|=</span> <span class="ident">CS5</span>;</pre>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ControlFlags.html"
+                                  title='struct nix::sys::termios::ControlFlags'>ControlFlags</a></td>
+                           <td class='docblock-short'>
+                                <p>Flags for setting the control mode of a terminal</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.InputFlags.html"
+                                  title='struct nix::sys::termios::InputFlags'>InputFlags</a></td>
+                           <td class='docblock-short'>
+                                <p>Flags for configuring the input mode of a terminal</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.LocalFlags.html"
+                                  title='struct nix::sys::termios::LocalFlags'>LocalFlags</a></td>
+                           <td class='docblock-short'>
+                                <p>Flags for setting any local modes</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.OutputFlags.html"
+                                  title='struct nix::sys::termios::OutputFlags'>OutputFlags</a></td>
+                           <td class='docblock-short'>
+                                <p>Flags for configuring the output mode of a terminal</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Termios.html"
+                                  title='struct nix::sys::termios::Termios'>Termios</a></td>
+                           <td class='docblock-short'>
+                                <p>Stores settings for the termios API</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.BaudRate.html"
+                                  title='enum nix::sys::termios::BaudRate'>BaudRate</a></td>
+                           <td class='docblock-short'>
+                                <p>Baud rates supported by the system</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FlowArg.html"
+                                  title='enum nix::sys::termios::FlowArg'>FlowArg</a></td>
+                           <td class='docblock-short'>
+                                <p>Specify how transmission flow should be altered</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FlushArg.html"
+                                  title='enum nix::sys::termios::FlushArg'>FlushArg</a></td>
+                           <td class='docblock-short'>
+                                <p>Specify a combination of the input and output buffers to flush</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.SetArg.html"
+                                  title='enum nix::sys::termios::SetArg'>SetArg</a></td>
+                           <td class='docblock-short'>
+                                <p>Specify when a port configuration change should occur.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.SpecialCharacterIndices.html"
+                                  title='enum nix::sys::termios::SpecialCharacterIndices'>SpecialCharacterIndices</a></td>
+                           <td class='docblock-short'>
+                                <p>Indices into the <code>termios.c_cc</code> array for special characters.</p>
+
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.BRKINT.html"
+                                  title='constant nix::sys::termios::BRKINT'>BRKINT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.BS0.html"
+                                  title='constant nix::sys::termios::BS0'>BS0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.BS1.html"
+                                  title='constant nix::sys::termios::BS1'>BS1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.BSDLY.html"
+                                  title='constant nix::sys::termios::BSDLY'>BSDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CBAUD.html"
+                                  title='constant nix::sys::termios::CBAUD'>CBAUD</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CBAUDEX.html"
+                                  title='constant nix::sys::termios::CBAUDEX'>CBAUDEX</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CIBAUD.html"
+                                  title='constant nix::sys::termios::CIBAUD'>CIBAUD</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CLOCAL.html"
+                                  title='constant nix::sys::termios::CLOCAL'>CLOCAL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CMSPAR.html"
+                                  title='constant nix::sys::termios::CMSPAR'>CMSPAR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CR0.html"
+                                  title='constant nix::sys::termios::CR0'>CR0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CR1.html"
+                                  title='constant nix::sys::termios::CR1'>CR1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CR2.html"
+                                  title='constant nix::sys::termios::CR2'>CR2</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CR3.html"
+                                  title='constant nix::sys::termios::CR3'>CR3</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CRDLY.html"
+                                  title='constant nix::sys::termios::CRDLY'>CRDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CREAD.html"
+                                  title='constant nix::sys::termios::CREAD'>CREAD</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CRTSCTS.html"
+                                  title='constant nix::sys::termios::CRTSCTS'>CRTSCTS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CS5.html"
+                                  title='constant nix::sys::termios::CS5'>CS5</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CS6.html"
+                                  title='constant nix::sys::termios::CS6'>CS6</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CS7.html"
+                                  title='constant nix::sys::termios::CS7'>CS7</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CS8.html"
+                                  title='constant nix::sys::termios::CS8'>CS8</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CSIZE.html"
+                                  title='constant nix::sys::termios::CSIZE'>CSIZE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CSTOPB.html"
+                                  title='constant nix::sys::termios::CSTOPB'>CSTOPB</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHO.html"
+                                  title='constant nix::sys::termios::ECHO'>ECHO</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHOCTL.html"
+                                  title='constant nix::sys::termios::ECHOCTL'>ECHOCTL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHOE.html"
+                                  title='constant nix::sys::termios::ECHOE'>ECHOE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHOK.html"
+                                  title='constant nix::sys::termios::ECHOK'>ECHOK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHOKE.html"
+                                  title='constant nix::sys::termios::ECHOKE'>ECHOKE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHONL.html"
+                                  title='constant nix::sys::termios::ECHONL'>ECHONL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ECHOPRT.html"
+                                  title='constant nix::sys::termios::ECHOPRT'>ECHOPRT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.EXTPROC.html"
+                                  title='constant nix::sys::termios::EXTPROC'>EXTPROC</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FF0.html"
+                                  title='constant nix::sys::termios::FF0'>FF0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FF1.html"
+                                  title='constant nix::sys::termios::FF1'>FF1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FFDLY.html"
+                                  title='constant nix::sys::termios::FFDLY'>FFDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FLUSHO.html"
+                                  title='constant nix::sys::termios::FLUSHO'>FLUSHO</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.HUPCL.html"
+                                  title='constant nix::sys::termios::HUPCL'>HUPCL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ICANON.html"
+                                  title='constant nix::sys::termios::ICANON'>ICANON</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ICRNL.html"
+                                  title='constant nix::sys::termios::ICRNL'>ICRNL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IEXTEN.html"
+                                  title='constant nix::sys::termios::IEXTEN'>IEXTEN</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IGNBRK.html"
+                                  title='constant nix::sys::termios::IGNBRK'>IGNBRK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IGNCR.html"
+                                  title='constant nix::sys::termios::IGNCR'>IGNCR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IGNPAR.html"
+                                  title='constant nix::sys::termios::IGNPAR'>IGNPAR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IMAXBEL.html"
+                                  title='constant nix::sys::termios::IMAXBEL'>IMAXBEL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.INLCR.html"
+                                  title='constant nix::sys::termios::INLCR'>INLCR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.INPCK.html"
+                                  title='constant nix::sys::termios::INPCK'>INPCK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ISIG.html"
+                                  title='constant nix::sys::termios::ISIG'>ISIG</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ISTRIP.html"
+                                  title='constant nix::sys::termios::ISTRIP'>ISTRIP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IUTF8.html"
+                                  title='constant nix::sys::termios::IUTF8'>IUTF8</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IXANY.html"
+                                  title='constant nix::sys::termios::IXANY'>IXANY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IXOFF.html"
+                                  title='constant nix::sys::termios::IXOFF'>IXOFF</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.IXON.html"
+                                  title='constant nix::sys::termios::IXON'>IXON</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NCCS.html"
+                                  title='constant nix::sys::termios::NCCS'>NCCS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NL0.html"
+                                  title='constant nix::sys::termios::NL0'>NL0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NL1.html"
+                                  title='constant nix::sys::termios::NL1'>NL1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NLDLY.html"
+                                  title='constant nix::sys::termios::NLDLY'>NLDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NOFLSH.html"
+                                  title='constant nix::sys::termios::NOFLSH'>NOFLSH</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.OCRNL.html"
+                                  title='constant nix::sys::termios::OCRNL'>OCRNL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.OFDEL.html"
+                                  title='constant nix::sys::termios::OFDEL'>OFDEL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.OFILL.html"
+                                  title='constant nix::sys::termios::OFILL'>OFILL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.OLCUC.html"
+                                  title='constant nix::sys::termios::OLCUC'>OLCUC</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ONLCR.html"
+                                  title='constant nix::sys::termios::ONLCR'>ONLCR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ONLRET.html"
+                                  title='constant nix::sys::termios::ONLRET'>ONLRET</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ONOCR.html"
+                                  title='constant nix::sys::termios::ONOCR'>ONOCR</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.OPOST.html"
+                                  title='constant nix::sys::termios::OPOST'>OPOST</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PARENB.html"
+                                  title='constant nix::sys::termios::PARENB'>PARENB</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PARMRK.html"
+                                  title='constant nix::sys::termios::PARMRK'>PARMRK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PARODD.html"
+                                  title='constant nix::sys::termios::PARODD'>PARODD</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PENDIN.html"
+                                  title='constant nix::sys::termios::PENDIN'>PENDIN</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TAB0.html"
+                                  title='constant nix::sys::termios::TAB0'>TAB0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TAB1.html"
+                                  title='constant nix::sys::termios::TAB1'>TAB1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TAB2.html"
+                                  title='constant nix::sys::termios::TAB2'>TAB2</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TAB3.html"
+                                  title='constant nix::sys::termios::TAB3'>TAB3</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TABDLY.html"
+                                  title='constant nix::sys::termios::TABDLY'>TABDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TOSTOP.html"
+                                  title='constant nix::sys::termios::TOSTOP'>TOSTOP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.VT0.html"
+                                  title='constant nix::sys::termios::VT0'>VT0</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.VT1.html"
+                                  title='constant nix::sys::termios::VT1'>VT1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.VTDLY.html"
+                                  title='constant nix::sys::termios::VTDLY'>VTDLY</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.XTABS.html"
+                                  title='constant nix::sys::termios::XTABS'>XTABS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant._POSIX_VDISABLE.html"
+                                  title='constant nix::sys::termios::_POSIX_VDISABLE'>_POSIX_VDISABLE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfgetispeed.html"
+                                  title='fn nix::sys::termios::cfgetispeed'>cfgetispeed</a></td>
+                           <td class='docblock-short'>
+                                <p>Get input baud rate (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/cfgetispeed.html">cfgetispeed(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfgetospeed.html"
+                                  title='fn nix::sys::termios::cfgetospeed'>cfgetospeed</a></td>
+                           <td class='docblock-short'>
+                                <p>Get output baud rate (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/cfgetospeed.html">cfgetospeed(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfmakeraw.html"
+                                  title='fn nix::sys::termios::cfmakeraw'>cfmakeraw</a></td>
+                           <td class='docblock-short'>
+                                <p>Configures the port to something like the &quot;raw&quot; mode of the old Version 7 terminal driver (see
+<a href="http://man7.org/linux/man-pages/man3/termios.3.html">termios(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfsetispeed.html"
+                                  title='fn nix::sys::termios::cfsetispeed'>cfsetispeed</a></td>
+                           <td class='docblock-short'>
+                                <p>Set input baud rate (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/cfsetispeed.html">cfsetispeed(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfsetospeed.html"
+                                  title='fn nix::sys::termios::cfsetospeed'>cfsetospeed</a></td>
+                           <td class='docblock-short'>
+                                <p>Set output baud rate (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/cfsetospeed.html">cfsetospeed(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cfsetspeed.html"
+                                  title='fn nix::sys::termios::cfsetspeed'>cfsetspeed</a></td>
+                           <td class='docblock-short'>
+                                <p>Set both the input and output baud rates (see
+<a href="http://man7.org/linux/man-pages/man3/termios.3.html">termios(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcdrain.html"
+                                  title='fn nix::sys::termios::tcdrain'>tcdrain</a></td>
+                           <td class='docblock-short'>
+                                <p>Block until all output data is written (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcdrain.html">tcdrain(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcflow.html"
+                                  title='fn nix::sys::termios::tcflow'>tcflow</a></td>
+                           <td class='docblock-short'>
+                                <p>Suspend or resume the transmission or reception of data (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflow.html">tcflow(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcflush.html"
+                                  title='fn nix::sys::termios::tcflush'>tcflush</a></td>
+                           <td class='docblock-short'>
+                                <p>Discard data in the output or input queue (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflush.html">tcflush(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcgetattr.html"
+                                  title='fn nix::sys::termios::tcgetattr'>tcgetattr</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the configuration of a port
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcgetattr.html">tcgetattr(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcgetsid.html"
+                                  title='fn nix::sys::termios::tcgetsid'>tcgetsid</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the session controlled by the given terminal (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcgetsid.html">tcgetsid(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcsendbreak.html"
+                                  title='fn nix::sys::termios::tcsendbreak'>tcsendbreak</a></td>
+                           <td class='docblock-short'>
+                                <p>Send a break for a specific duration (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcsendbreak.html">tcsendbreak(3p)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcsetattr.html"
+                                  title='fn nix::sys::termios::tcsetattr'>tcsetattr</a></td>
+                           <td class='docblock-short'>
+                                <p>Set the configuration for a terminal (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/tcsetattr.html">tcsetattr(3p)</a>).</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

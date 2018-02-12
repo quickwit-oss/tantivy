@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FieldType` enum in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FieldType">
+
+    <title>tantivy::schema::FieldType - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Enum FieldType</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Str">Str</a><a href="#variant.U64">U64</a><a href="#variant.I64">I64</a><a href="#variant.HierarchicalFacet">HierarchicalFacet</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.is_indexed">is_indexed</a><a href="#method.get_index_record_option">get_index_record_option</a><a href="#method.value_from_json">value_from_json</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a><a href="#impl-Eq">Eq</a><a href="#impl-PartialEq">PartialEq</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>schema</a></p><script>window.sidebarCurrent = {name: 'FieldType', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>schema</a>::<wbr><a class="enum" href=''>FieldType</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#23-32' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum FieldType {
+    Str(<a class="struct" href="../../tantivy/schema/struct.TextOptions.html" title="struct tantivy::schema::TextOptions">TextOptions</a>),
+    U64(<a class="struct" href="../../tantivy/schema/struct.IntOptions.html" title="struct tantivy::schema::IntOptions">IntOptions</a>),
+    I64(<a class="struct" href="../../tantivy/schema/struct.IntOptions.html" title="struct tantivy::schema::IntOptions">IntOptions</a>),
+    HierarchicalFacet,
+}</pre><div class='docblock'><p>A <code>FieldType</code> describes the type (text, u64) of a field as well as
+how it should be handled by tantivy.</p>
+</div><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.Str" class="variant small-section-header"><a href="#variant.Str" class="anchor field"></a><span id='Str.v' class='invisible'><code>Str(<a class="struct" href="../../tantivy/schema/struct.TextOptions.html" title="struct tantivy::schema::TextOptions">TextOptions</a>)</code></span></span><div class='docblock'><p>String field type configuration</p>
+</div><span id="variant.U64" class="variant small-section-header"><a href="#variant.U64" class="anchor field"></a><span id='U64.v' class='invisible'><code>U64(<a class="struct" href="../../tantivy/schema/struct.IntOptions.html" title="struct tantivy::schema::IntOptions">IntOptions</a>)</code></span></span><div class='docblock'><p>Unsigned 64-bits integers field type configuration</p>
+</div><span id="variant.I64" class="variant small-section-header"><a href="#variant.I64" class="anchor field"></a><span id='I64.v' class='invisible'><code>I64(<a class="struct" href="../../tantivy/schema/struct.IntOptions.html" title="struct tantivy::schema::IntOptions">IntOptions</a>)</code></span></span><div class='docblock'><p>Signed 64-bits integers 64 field type configuration</p>
+</div><span id="variant.HierarchicalFacet" class="variant small-section-header"><a href="#variant.HierarchicalFacet" class="anchor field"></a><span id='HierarchicalFacet.v' class='invisible'><code>HierarchicalFacet</code></span></span><div class='docblock'><p>Hierachical Facet</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#34-111' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.is_indexed' class="method"><span id='is_indexed.v' class='invisible'><code>pub fn <a href='#method.is_indexed' class='fnname'>is_indexed</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#36-44' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>returns true iff the field is indexed.</p>
+</div><h4 id='method.get_index_record_option' class="method"><span id='get_index_record_option.v' class='invisible'><code>pub fn <a href='#method.get_index_record_option' class='fnname'>get_index_record_option</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../tantivy/schema/enum.IndexRecordOption.html" title="enum tantivy::schema::IndexRecordOption">IndexRecordOption</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#50-64' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Given a field configuration, return the maximal possible
+<code>IndexRecordOption</code> available.</p>
+<p>If the field is not indexed, then returns <code>None</code>.</p>
+</div><h4 id='method.value_from_json' class="method"><span id='value_from_json.v' class='invisible'><code>pub fn <a href='#method.value_from_json' class='fnname'>value_from_json</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;json: &amp;<a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">JsonValue</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../../tantivy/schema/enum.Value.html" title="enum tantivy::schema::Value">Value</a>, ValueParsingError&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#71-110' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a field value from json, given the target FieldType.</p>
+<p>Tantivy will not try to cast values.
+For instance, If the json value is the integer <code>3</code> and the
+target field is a <code>Str</code>, this method will return an Error.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Eq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> for <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code><a href='#impl-Eq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../tantivy/schema/enum.FieldType.html" title="enum tantivy::schema::FieldType">FieldType</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#22' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

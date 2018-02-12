@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `byte` mod in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, byte">
+
+    <title>combine::byte - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module byte</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'byte', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>combine</a>::<wbr><a class="mod" href=''>byte</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/byte.rs.html#1-541' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Module containing parsers specialized on byte streams.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="num/index.html"
+                                  title='mod combine::byte::num'>num</a></td>
+                           <td class='docblock-short'>
+                                <p>Parsers for decoding numbers in big-endian or little-endian order.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AlphaNum.html"
+                                  title='struct combine::byte::AlphaNum'>AlphaNum</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Bytes.html"
+                                  title='struct combine::byte::Bytes'>Bytes</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BytesCmp.html"
+                                  title='struct combine::byte::BytesCmp'>BytesCmp</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.CrLf.html"
+                                  title='struct combine::byte::CrLf'>CrLf</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Digit.html"
+                                  title='struct combine::byte::Digit'>Digit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.HexDigit.html"
+                                  title='struct combine::byte::HexDigit'>HexDigit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Letter.html"
+                                  title='struct combine::byte::Letter'>Letter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Lower.html"
+                                  title='struct combine::byte::Lower'>Lower</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Newline.html"
+                                  title='struct combine::byte::Newline'>Newline</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.OctDigit.html"
+                                  title='struct combine::byte::OctDigit'>OctDigit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Space.html"
+                                  title='struct combine::byte::Space'>Space</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Spaces.html"
+                                  title='struct combine::byte::Spaces'>Spaces</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Tab.html"
+                                  title='struct combine::byte::Tab'>Tab</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Upper.html"
+                                  title='struct combine::byte::Upper'>Upper</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.alpha_num.html"
+                                  title='fn combine::byte::alpha_num'>alpha_num</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses either an ASCII alphabet letter or digit (a–z, A–Z, 0–9).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.byte.html"
+                                  title='fn combine::byte::byte'>byte</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a byteacter and succeeds if the byteacter is equal to <code>c</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.bytes.html"
+                                  title='fn combine::byte::bytes'>bytes</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses the bytes <code>s</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.bytes_cmp.html"
+                                  title='fn combine::byte::bytes_cmp'>bytes_cmp</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses the bytes <code>s</code> using <code>cmp</code> to compare each token.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.crlf.html"
+                                  title='fn combine::byte::crlf'>crlf</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses carriage return and newline (<code>&amp;b&quot;\r\n&quot;</code>), returning the newline byteacter.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.digit.html"
+                                  title='fn combine::byte::digit'>digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a base-10 digit (0–9).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.hex_digit.html"
+                                  title='fn combine::byte::hex_digit'>hex_digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an ASCII hexdecimal digit (accepts both uppercase and lowercase).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.letter.html"
+                                  title='fn combine::byte::letter'>letter</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an ASCII alphabet letter (a–z, A–Z).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.lower.html"
+                                  title='fn combine::byte::lower'>lower</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an lowercase ASCII letter (a–z).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.newline.html"
+                                  title='fn combine::byte::newline'>newline</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a newline byteacter (<code>b'\n'</code>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.oct_digit.html"
+                                  title='fn combine::byte::oct_digit'>oct_digit</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an octal digit.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.space.html"
+                                  title='fn combine::byte::space'>space</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a <code>b' '</code>, <code>b'\t'</code>, <code>b'\n'</code> or <code>'b\'r'</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.spaces.html"
+                                  title='fn combine::byte::spaces'>spaces</a></td>
+                           <td class='docblock-short'>
+                                <p>Skips over <a href="fn.space.html"><code>space</code></a> zero or more times</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tab.html"
+                                  title='fn combine::byte::tab'>tab</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a tab byteacter (<code>b'\t'</code>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.upper.html"
+                                  title='fn combine::byte::upper'>upper</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses an uppercase ASCII letter (A–Z).</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

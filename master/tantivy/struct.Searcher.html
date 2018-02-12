@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Searcher` struct in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Searcher">
+
+    <title>tantivy::Searcher - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Struct Searcher</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.doc">doc</a><a href="#method.num_docs">num_docs</a><a href="#method.doc_freq">doc_freq</a><a href="#method.segment_readers">segment_readers</a><a href="#method.segment_reader">segment_reader</a><a href="#method.search">search</a><a href="#method.field">field</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-From%3CVec%3CSegmentReader%3E%3E">From&lt;Vec&lt;SegmentReader&gt;&gt;</a><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'Searcher', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>tantivy</a>::<wbr><a class="struct" href=''>Searcher</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/tantivy/core/searcher.rs.html#20-22' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Searcher { /* fields omitted */ }</pre><div class='docblock'><p>Holds a list of <code>SegmentReader</code>s ready for search.</p>
+<p>It guarantees that the <code>Segment</code> will not be removed before
+the destruction of the <code>Searcher</code>.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../tantivy/struct.Searcher.html" title="struct tantivy::Searcher">Searcher</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#24-75' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.doc' class="method"><span id='doc.v' class='invisible'><code>pub fn <a href='#method.doc' class='fnname'>doc</a>(&amp;self, doc_address: &amp;<a class="struct" href="../tantivy/struct.DocAddress.html" title="struct tantivy::DocAddress">DocAddress</a>) -&gt; <a class="type" href="../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="../tantivy/struct.Document.html" title="struct tantivy::Document">Document</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#29-33' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Fetches a document from tantivy's store given a <code>DocAddress</code>.</p>
+<p>The searcher uses the segment ordinal to route the
+the request to the right <code>Segment</code>.</p>
+</div><h4 id='method.num_docs' class="method"><span id='num_docs.v' class='invisible'><code>pub fn <a href='#method.num_docs' class='fnname'>num_docs</a>(&amp;self) -&gt; <a class="type" href="../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#36-41' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the overall number of documents in the index.</p>
+</div><h4 id='method.doc_freq' class="method"><span id='doc_freq.v' class='invisible'><code>pub fn <a href='#method.doc_freq' class='fnname'>doc_freq</a>(&amp;self, term: &amp;<a class="struct" href="../tantivy/struct.Term.html" title="struct tantivy::Term">Term</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#45-50' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the overall number of documents containing
+the given term.</p>
+</div><h4 id='method.segment_readers' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span></div><div class="content hidden"><h3 class="important">Important traits for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></h3><code class="content"><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span></code></div></div><span id='segment_readers.v' class='invisible'><code>pub fn <a href='#method.segment_readers' class='fnname'>segment_readers</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="struct" href="../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#53-55' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the list of segment readers</p>
+</div><h4 id='method.segment_reader' class="method"><span id='segment_reader.v' class='invisible'><code>pub fn <a href='#method.segment_reader' class='fnname'>segment_reader</a>(&amp;self, segment_ord: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; &amp;<a class="struct" href="../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#58-60' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the segment_reader associated with the given segment_ordinal</p>
+</div><h4 id='method.search' class="method"><span id='search.v' class='invisible'><code>pub fn <a href='#method.search' class='fnname'>search</a>&lt;C:&nbsp;<a class="trait" href="../tantivy/collector/trait.Collector.html" title="trait tantivy::collector::Collector">Collector</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;query: &amp;<a class="trait" href="../tantivy/query/trait.Query.html" title="trait tantivy::query::Query">Query</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;collector: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>C<br>) -&gt; <a class="type" href="../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="../tantivy/struct.TimerTree.html" title="struct tantivy::TimerTree">TimerTree</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#63-65' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Runs a query on the segment readers wrapped by the searcher</p>
+</div><h4 id='method.field' class="method"><span id='field.v' class='invisible'><code>pub fn <a href='#method.field' class='fnname'>field</a>(&amp;self, field: <a class="struct" href="../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>) -&gt; FieldSearcher</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#68-74' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the field searcher associated to a <code>Field</code>.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-From%3CVec%3CSegmentReader%3E%3E' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>&gt;&gt; for <a class="struct" href="../tantivy/struct.Searcher.html" title="struct tantivy::Searcher">Searcher</a></code><a href='#impl-From%3CVec%3CSegmentReader%3E%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#97-101' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from' class="method"><span id='from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(segment_readers: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>&gt;) -&gt; <a class="struct" href="../tantivy/struct.Searcher.html" title="struct tantivy::Searcher">Searcher</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#98-100' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the conversion.</p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../tantivy/struct.Searcher.html" title="struct tantivy::Searcher">Searcher</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#103-111' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/searcher.rs.html#104-110' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

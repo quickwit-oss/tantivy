@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/dtoa-0.4.2/src/lib.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>lib.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc source">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+</pre><pre class="rust ">
+<span class="comment">// Copyright 2016 Dtoa Developers</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
+<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// option. This file may not be copied, modified, or distributed</span>
+<span class="comment">// except according to those terms.</span>
+
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/dtoa/0.4.2&quot;</span>)]</span>
+
+<span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">mod</span> <span class="ident">diyfp</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">mod</span> <span class="ident">dtoa</span>;
+
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">io</span>, <span class="ident">mem</span>, <span class="ident">ops</span>, <span class="ident">ptr</span>, <span class="ident">slice</span>};
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>, <span class="ident">V</span>: <span class="ident">Floating</span><span class="op">&gt;</span>(<span class="ident">wr</span>: <span class="ident">W</span>, <span class="ident">value</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+    <span class="ident">value</span>.<span class="ident">write</span>(<span class="ident">wr</span>)
+}
+
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Floating</span> {
+    <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>;
+}
+
+<span class="kw">impl</span> <span class="ident">Floating</span> <span class="kw">for</span> <span class="ident">f32</span> {
+    <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">wr</span>: <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="macro">dtoa</span><span class="macro">!</span> {
+            <span class="ident">floating_type</span>: <span class="ident">f32</span>,
+            <span class="ident">significand_type</span>: <span class="ident">u32</span>,
+            <span class="ident">exponent_type</span>: <span class="ident">i32</span>,
+
+            <span class="ident">diy_significand_size</span>: <span class="number">32</span>,
+            <span class="ident">significand_size</span>: <span class="number">23</span>,
+            <span class="ident">exponent_bias</span>: <span class="number">0x7F</span>,
+            <span class="ident">mask_type</span>: <span class="ident">u32</span>,
+            <span class="ident">exponent_mask</span>: <span class="number">0x7F800000</span>,
+            <span class="ident">significand_mask</span>: <span class="number">0x007FFFFF</span>,
+            <span class="ident">hidden_bit</span>: <span class="number">0x00800000</span>,
+            <span class="ident">cached_powers_f</span>: <span class="ident">CACHED_POWERS_F_32</span>,
+            <span class="ident">cached_powers_e</span>: <span class="ident">CACHED_POWERS_E_32</span>,
+            <span class="ident">min_power</span>: (<span class="op">-</span><span class="number">36</span>),
+        };
+        <span class="kw">unsafe</span> { <span class="ident">dtoa</span>(<span class="ident">wr</span>, <span class="self">self</span>) }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Floating</span> <span class="kw">for</span> <span class="ident">f64</span> {
+    <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">wr</span>: <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="macro">dtoa</span><span class="macro">!</span> {
+            <span class="ident">floating_type</span>: <span class="ident">f64</span>,
+            <span class="ident">significand_type</span>: <span class="ident">u64</span>,
+            <span class="ident">exponent_type</span>: <span class="ident">isize</span>,
+
+            <span class="ident">diy_significand_size</span>: <span class="number">64</span>,
+            <span class="ident">significand_size</span>: <span class="number">52</span>,
+            <span class="ident">exponent_bias</span>: <span class="number">0x3FF</span>,
+            <span class="ident">mask_type</span>: <span class="ident">u64</span>,
+            <span class="ident">exponent_mask</span>: <span class="number">0x7FF0000000000000</span>,
+            <span class="ident">significand_mask</span>: <span class="number">0x000FFFFFFFFFFFFF</span>,
+            <span class="ident">hidden_bit</span>: <span class="number">0x0010000000000000</span>,
+            <span class="ident">cached_powers_f</span>: <span class="ident">CACHED_POWERS_F_64</span>,
+            <span class="ident">cached_powers_e</span>: <span class="ident">CACHED_POWERS_E_64</span>,
+            <span class="ident">min_power</span>: (<span class="op">-</span><span class="number">348</span>),
+        };
+        <span class="kw">unsafe</span> { <span class="ident">dtoa</span>(<span class="ident">wr</span>, <span class="self">self</span>) }
+    }
+}
+
+<span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span class="kw">const</span> <span class="ident">MAX_DECIMAL_PLACES</span>: <span class="ident">isize</span> <span class="op">=</span> <span class="number">324</span>;
+
+<span class="kw">static</span> <span class="ident">DEC_DIGITS_LUT</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>] <span class="op">=</span>
+    <span class="string">b&quot;0001020304050607080910111213141516171819\
+      2021222324252627282930313233343536373839\
+      4041424344454647484950515253545556575859\
+      6061626364656667686970717273747576777879\
+      8081828384858687888990919293949596979899&quot;</span>;
+
+<span class="comment">// 10^-36, 10^-28, ..., 10^52</span>
+<span class="kw">static</span> <span class="ident">CACHED_POWERS_F_32</span>: [<span class="ident">u32</span>; <span class="number">12</span>] <span class="op">=</span> [
+    <span class="number">0xaa242499</span>, <span class="number">0xfd87b5f3</span>, <span class="number">0xbce50865</span>, <span class="number">0x8cbccc09</span>,
+    <span class="number">0xd1b71759</span>, <span class="number">0x9c400000</span>, <span class="number">0xe8d4a510</span>, <span class="number">0xad78ebc6</span>,
+    <span class="number">0x813f3979</span>, <span class="number">0xc097ce7c</span>, <span class="number">0x8f7e32ce</span>, <span class="number">0xd5d238a5</span>,
+];
+
+<span class="kw">static</span> <span class="ident">CACHED_POWERS_E_32</span>: [<span class="ident">i16</span>; <span class="number">12</span>] <span class="op">=</span> [
+    <span class="op">-</span><span class="number">151</span>, <span class="op">-</span><span class="number">125</span>, <span class="op">-</span><span class="number">98</span>, <span class="op">-</span><span class="number">71</span>, <span class="op">-</span><span class="number">45</span>, <span class="op">-</span><span class="number">18</span>, <span class="number">8</span>, <span class="number">35</span>, <span class="number">62</span>, <span class="number">88</span>, <span class="number">115</span>, <span class="number">141</span>,
+];
+
+<span class="comment">// 10^-348, 10^-340, ..., 10^340</span>
+<span class="kw">static</span> <span class="ident">CACHED_POWERS_F_64</span>: [<span class="ident">u64</span>; <span class="number">87</span>] <span class="op">=</span> [
+    <span class="number">0xfa8fd5a0081c0288</span>, <span class="number">0xbaaee17fa23ebf76</span>,
+    <span class="number">0x8b16fb203055ac76</span>, <span class="number">0xcf42894a5dce35ea</span>,
+    <span class="number">0x9a6bb0aa55653b2d</span>, <span class="number">0xe61acf033d1a45df</span>,
+    <span class="number">0xab70fe17c79ac6ca</span>, <span class="number">0xff77b1fcbebcdc4f</span>,
+    <span class="number">0xbe5691ef416bd60c</span>, <span class="number">0x8dd01fad907ffc3c</span>,
+    <span class="number">0xd3515c2831559a83</span>, <span class="number">0x9d71ac8fada6c9b5</span>,
+    <span class="number">0xea9c227723ee8bcb</span>, <span class="number">0xaecc49914078536d</span>,
+    <span class="number">0x823c12795db6ce57</span>, <span class="number">0xc21094364dfb5637</span>,
+    <span class="number">0x9096ea6f3848984f</span>, <span class="number">0xd77485cb25823ac7</span>,
+    <span class="number">0xa086cfcd97bf97f4</span>, <span class="number">0xef340a98172aace5</span>,
+    <span class="number">0xb23867fb2a35b28e</span>, <span class="number">0x84c8d4dfd2c63f3b</span>,
+    <span class="number">0xc5dd44271ad3cdba</span>, <span class="number">0x936b9fcebb25c996</span>,
+    <span class="number">0xdbac6c247d62a584</span>, <span class="number">0xa3ab66580d5fdaf6</span>,
+    <span class="number">0xf3e2f893dec3f126</span>, <span class="number">0xb5b5ada8aaff80b8</span>,
+    <span class="number">0x87625f056c7c4a8b</span>, <span class="number">0xc9bcff6034c13053</span>,
+    <span class="number">0x964e858c91ba2655</span>, <span class="number">0xdff9772470297ebd</span>,
+    <span class="number">0xa6dfbd9fb8e5b88f</span>, <span class="number">0xf8a95fcf88747d94</span>,
+    <span class="number">0xb94470938fa89bcf</span>, <span class="number">0x8a08f0f8bf0f156b</span>,
+    <span class="number">0xcdb02555653131b6</span>, <span class="number">0x993fe2c6d07b7fac</span>,
+    <span class="number">0xe45c10c42a2b3b06</span>, <span class="number">0xaa242499697392d3</span>,
+    <span class="number">0xfd87b5f28300ca0e</span>, <span class="number">0xbce5086492111aeb</span>,
+    <span class="number">0x8cbccc096f5088cc</span>, <span class="number">0xd1b71758e219652c</span>,
+    <span class="number">0x9c40000000000000</span>, <span class="number">0xe8d4a51000000000</span>,
+    <span class="number">0xad78ebc5ac620000</span>, <span class="number">0x813f3978f8940984</span>,
+    <span class="number">0xc097ce7bc90715b3</span>, <span class="number">0x8f7e32ce7bea5c70</span>,
+    <span class="number">0xd5d238a4abe98068</span>, <span class="number">0x9f4f2726179a2245</span>,
+    <span class="number">0xed63a231d4c4fb27</span>, <span class="number">0xb0de65388cc8ada8</span>,
+    <span class="number">0x83c7088e1aab65db</span>, <span class="number">0xc45d1df942711d9a</span>,
+    <span class="number">0x924d692ca61be758</span>, <span class="number">0xda01ee641a708dea</span>,
+    <span class="number">0xa26da3999aef774a</span>, <span class="number">0xf209787bb47d6b85</span>,
+    <span class="number">0xb454e4a179dd1877</span>, <span class="number">0x865b86925b9bc5c2</span>,
+    <span class="number">0xc83553c5c8965d3d</span>, <span class="number">0x952ab45cfa97a0b3</span>,
+    <span class="number">0xde469fbd99a05fe3</span>, <span class="number">0xa59bc234db398c25</span>,
+    <span class="number">0xf6c69a72a3989f5c</span>, <span class="number">0xb7dcbf5354e9bece</span>,
+    <span class="number">0x88fcf317f22241e2</span>, <span class="number">0xcc20ce9bd35c78a5</span>,
+    <span class="number">0x98165af37b2153df</span>, <span class="number">0xe2a0b5dc971f303a</span>,
+    <span class="number">0xa8d9d1535ce3b396</span>, <span class="number">0xfb9b7cd9a4a7443c</span>,
+    <span class="number">0xbb764c4ca7a44410</span>, <span class="number">0x8bab8eefb6409c1a</span>,
+    <span class="number">0xd01fef10a657842c</span>, <span class="number">0x9b10a4e5e9913129</span>,
+    <span class="number">0xe7109bfba19c0c9d</span>, <span class="number">0xac2820d9623bf429</span>,
+    <span class="number">0x80444b5e7aa7cf85</span>, <span class="number">0xbf21e44003acdd2d</span>,
+    <span class="number">0x8e679c2f5e44ff8f</span>, <span class="number">0xd433179d9c8cb841</span>,
+    <span class="number">0x9e19db92b4e31ba9</span>, <span class="number">0xeb96bf6ebadf77d9</span>,
+    <span class="number">0xaf87023b9bf0ee6b</span>,
+];
+<span class="kw">static</span> <span class="ident">CACHED_POWERS_E_64</span>: [<span class="ident">i16</span>; <span class="number">87</span>] <span class="op">=</span> [
+    <span class="op">-</span><span class="number">1220</span>, <span class="op">-</span><span class="number">1193</span>, <span class="op">-</span><span class="number">1166</span>, <span class="op">-</span><span class="number">1140</span>, <span class="op">-</span><span class="number">1113</span>, <span class="op">-</span><span class="number">1087</span>, <span class="op">-</span><span class="number">1060</span>, <span class="op">-</span><span class="number">1034</span>, <span class="op">-</span><span class="number">1007</span>,  <span class="op">-</span><span class="number">980</span>,
+    <span class="op">-</span><span class="number">954</span>,   <span class="op">-</span><span class="number">927</span>,  <span class="op">-</span><span class="number">901</span>,  <span class="op">-</span><span class="number">874</span>,  <span class="op">-</span><span class="number">847</span>,  <span class="op">-</span><span class="number">821</span>,  <span class="op">-</span><span class="number">794</span>,  <span class="op">-</span><span class="number">768</span>,  <span class="op">-</span><span class="number">741</span>,  <span class="op">-</span><span class="number">715</span>,
+    <span class="op">-</span><span class="number">688</span>,   <span class="op">-</span><span class="number">661</span>,  <span class="op">-</span><span class="number">635</span>,  <span class="op">-</span><span class="number">608</span>,  <span class="op">-</span><span class="number">582</span>,  <span class="op">-</span><span class="number">555</span>,  <span class="op">-</span><span class="number">529</span>,  <span class="op">-</span><span class="number">502</span>,  <span class="op">-</span><span class="number">475</span>,  <span class="op">-</span><span class="number">449</span>,
+    <span class="op">-</span><span class="number">422</span>,   <span class="op">-</span><span class="number">396</span>,  <span class="op">-</span><span class="number">369</span>,  <span class="op">-</span><span class="number">343</span>,  <span class="op">-</span><span class="number">316</span>,  <span class="op">-</span><span class="number">289</span>,  <span class="op">-</span><span class="number">263</span>,  <span class="op">-</span><span class="number">236</span>,  <span class="op">-</span><span class="number">210</span>,  <span class="op">-</span><span class="number">183</span>,
+    <span class="op">-</span><span class="number">157</span>,   <span class="op">-</span><span class="number">130</span>,  <span class="op">-</span><span class="number">103</span>,   <span class="op">-</span><span class="number">77</span>,   <span class="op">-</span><span class="number">50</span>,   <span class="op">-</span><span class="number">24</span>,     <span class="number">3</span>,    <span class="number">30</span>,    <span class="number">56</span>,    <span class="number">83</span>,
+     <span class="number">109</span>,    <span class="number">136</span>,   <span class="number">162</span>,   <span class="number">189</span>,   <span class="number">216</span>,   <span class="number">242</span>,   <span class="number">269</span>,   <span class="number">295</span>,   <span class="number">322</span>,   <span class="number">348</span>,
+     <span class="number">375</span>,    <span class="number">402</span>,   <span class="number">428</span>,   <span class="number">455</span>,   <span class="number">481</span>,   <span class="number">508</span>,   <span class="number">534</span>,   <span class="number">561</span>,   <span class="number">588</span>,   <span class="number">614</span>,
+     <span class="number">641</span>,    <span class="number">667</span>,   <span class="number">694</span>,   <span class="number">720</span>,   <span class="number">747</span>,   <span class="number">774</span>,   <span class="number">800</span>,   <span class="number">827</span>,   <span class="number">853</span>,   <span class="number">880</span>,
+     <span class="number">907</span>,    <span class="number">933</span>,   <span class="number">960</span>,   <span class="number">986</span>,  <span class="number">1013</span>,  <span class="number">1039</span>,  <span class="number">1066</span>,
+];
+</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "dtoa";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `combinator` mod in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, combinator">
+
+    <title>combine::combinator - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module combinator</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'combinator', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>combine</a>::<wbr><a class="mod" href=''>combinator</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/combinator.rs.html#1-2741' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Module containing all specific parsers.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AndThen.html"
+                                  title='struct combine::combinator::AndThen'>AndThen</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Any.html"
+                                  title='struct combine::combinator::Any'>Any</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Between.html"
+                                  title='struct combine::combinator::Between'>Between</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Chainl1.html"
+                                  title='struct combine::combinator::Chainl1'>Chainl1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Chainr1.html"
+                                  title='struct combine::combinator::Chainr1'>Chainr1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Choice.html"
+                                  title='struct combine::combinator::Choice'>Choice</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Count.html"
+                                  title='struct combine::combinator::Count'>Count</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.CountMinMax.html"
+                                  title='struct combine::combinator::CountMinMax'>CountMinMax</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.EnvParser.html"
+                                  title='struct combine::combinator::EnvParser'>EnvParser</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Eof.html"
+                                  title='struct combine::combinator::Eof'>Eof</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Expected.html"
+                                  title='struct combine::combinator::Expected'>Expected</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FlatMap.html"
+                                  title='struct combine::combinator::FlatMap'>FlatMap</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FnParser.html"
+                                  title='struct combine::combinator::FnParser'>FnParser</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Iter.html"
+                                  title='struct combine::combinator::Iter'>Iter</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.LookAhead.html"
+                                  title='struct combine::combinator::LookAhead'>LookAhead</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Many.html"
+                                  title='struct combine::combinator::Many'>Many</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Many1.html"
+                                  title='struct combine::combinator::Many1'>Many1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Map.html"
+                                  title='struct combine::combinator::Map'>Map</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Message.html"
+                                  title='struct combine::combinator::Message'>Message</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.NoneOf.html"
+                                  title='struct combine::combinator::NoneOf'>NoneOf</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.OneOf.html"
+                                  title='struct combine::combinator::OneOf'>OneOf</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Optional.html"
+                                  title='struct combine::combinator::Optional'>Optional</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Or.html"
+                                  title='struct combine::combinator::Or'>Or</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Position.html"
+                                  title='struct combine::combinator::Position'>Position</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Recognize.html"
+                                  title='struct combine::combinator::Recognize'>Recognize</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Satisfy.html"
+                                  title='struct combine::combinator::Satisfy'>Satisfy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SatisfyMap.html"
+                                  title='struct combine::combinator::SatisfyMap'>SatisfyMap</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SepBy.html"
+                                  title='struct combine::combinator::SepBy'>SepBy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SepBy1.html"
+                                  title='struct combine::combinator::SepBy1'>SepBy1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SepEndBy.html"
+                                  title='struct combine::combinator::SepEndBy'>SepEndBy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SepEndBy1.html"
+                                  title='struct combine::combinator::SepEndBy1'>SepEndBy1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Skip.html"
+                                  title='struct combine::combinator::Skip'>Skip</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SkipMany.html"
+                                  title='struct combine::combinator::SkipMany'>SkipMany</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SkipMany1.html"
+                                  title='struct combine::combinator::SkipMany1'>SkipMany1</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Then.html"
+                                  title='struct combine::combinator::Then'>Then</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Token.html"
+                                  title='struct combine::combinator::Token'>Token</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Tokens.html"
+                                  title='struct combine::combinator::Tokens'>Tokens</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Try.html"
+                                  title='struct combine::combinator::Try'>Try</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Unexpected.html"
+                                  title='struct combine::combinator::Unexpected'>Unexpected</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Value.html"
+                                  title='struct combine::combinator::Value'>Value</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.With.html"
+                                  title='struct combine::combinator::With'>With</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.and_then.html"
+                                  title='fn combine::combinator::and_then'>and_then</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.and_then"><code>p.and_then(f)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.any.html"
+                                  title='fn combine::combinator::any'>any</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses any token.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.between.html"
+                                  title='fn combine::combinator::between'>between</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>open</code> followed by <code>parser</code> followed by <code>close</code>.
+Returns the value of <code>parser</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chainl1.html"
+                                  title='fn combine::combinator::chainl1'>chainl1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> 1 or more times separated by <code>op</code>. The value returned is the one produced by the
+left associative application of the function returned by the parser <code>op</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chainr1.html"
+                                  title='fn combine::combinator::chainr1'>chainr1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> one or more times separated by <code>op</code>. The value returned is the one produced by the
+right associative application of the function returned by <code>op</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.choice.html"
+                                  title='fn combine::combinator::choice'>choice</a></td>
+                           <td class='docblock-short'>
+                                <p>Takes an array of parsers and tries to apply them each in order.
+Fails if all the parsers fails or if an applied parser consumes input before failing.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.count.html"
+                                  title='fn combine::combinator::count'>count</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> from zero up to <code>count</code> times.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.count_min_max.html"
+                                  title='fn combine::combinator::count_min_max'>count_min_max</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> from <code>min</code> to <code>max</code> times (including <code>min</code> and <code>max</code>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.env_parser.html"
+                                  title='fn combine::combinator::env_parser'>env_parser</a></td>
+                           <td class='docblock-short'>
+                                <p>Constructs a parser out of an environment and a function which needs the given environment to
+do the parsing. This is commonly useful to allow multiple parsers to share some environment
+while still allowing the parsers to be written in separate functions.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.eof.html"
+                                  title='fn combine::combinator::eof'>eof</a></td>
+                           <td class='docblock-short'>
+                                <p>Succeeds only if the stream is at end of input, fails otherwise.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.expected.html"
+                                  title='fn combine::combinator::expected'>expected</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.expected"><code>p.expected(info)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.flat_map.html"
+                                  title='fn combine::combinator::flat_map'>flat_map</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.flat_map"><code>p.flat_map(f)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.look_ahead.html"
+                                  title='fn combine::combinator::look_ahead'>look_ahead</a></td>
+                           <td class='docblock-short'>
+                                <p><code>look_ahead(p)</code> acts as <code>p</code> but doesn't consume input on success.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.many.html"
+                                  title='fn combine::combinator::many'>many</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> zero or more times returning a collection with the values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.many1.html"
+                                  title='fn combine::combinator::many1'>many1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> one or more times returning a collection with the values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.map.html"
+                                  title='fn combine::combinator::map'>map</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.map"><code>p.map(f)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.message.html"
+                                  title='fn combine::combinator::message'>message</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.message"><code>p1.message(msg)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.none_of.html"
+                                  title='fn combine::combinator::none_of'>none_of</a></td>
+                           <td class='docblock-short'>
+                                <p>Extract one token and succeeds if it is not part of <code>tokens</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.not_followed_by.html"
+                                  title='fn combine::combinator::not_followed_by'>not_followed_by</a></td>
+                           <td class='docblock-short'>
+                                <p>Succeeds only if <code>parser</code> fails.
+Never consumes any input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.one_of.html"
+                                  title='fn combine::combinator::one_of'>one_of</a></td>
+                           <td class='docblock-short'>
+                                <p>Extract one token and succeeds if it is part of <code>tokens</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.optional.html"
+                                  title='fn combine::combinator::optional'>optional</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> and outputs <code>Some(value)</code> if it succeeds, <code>None</code> if it fails without
+consuming any input. Fails if <code>parser</code> fails after having consumed some input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.or.html"
+                                  title='fn combine::combinator::or'>or</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.or"><code>p1.or(p2)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parser.html"
+                                  title='fn combine::combinator::parser'>parser</a></td>
+                           <td class='docblock-short'>
+                                <p>Wraps a function, turning it into a parser.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.position.html"
+                                  title='fn combine::combinator::position'>position</a></td>
+                           <td class='docblock-short'>
+                                <p>Parser which just returns the current position in the stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.recognize.html"
+                                  title='fn combine::combinator::recognize'>recognize</a></td>
+                           <td class='docblock-short'>
+                                <p>Constructs a parser which returns the tokens parsed by <code>parser</code> accumulated in
+<code>F: FromIterator&lt;P::Input::Item&gt;</code> instead of <code>P::Output</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.satisfy.html"
+                                  title='fn combine::combinator::satisfy'>satisfy</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a token and succeeds depending on the result of <code>predicate</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.satisfy_map.html"
+                                  title='fn combine::combinator::satisfy_map'>satisfy_map</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a token and passes it to <code>predicate</code>. If <code>predicate</code> returns <code>Some</code> the parser succeeds
+and returns the value inside the <code>Option</code>. If <code>predicate</code> returns <code>None</code> the parser fails
+without consuming any input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sep_by.html"
+                                  title='fn combine::combinator::sep_by'>sep_by</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> zero or more time separated by <code>separator</code>, returning a collection with the
+values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sep_by1.html"
+                                  title='fn combine::combinator::sep_by1'>sep_by1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> one or more time separated by <code>separator</code>, returning a collection with the
+values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sep_end_by.html"
+                                  title='fn combine::combinator::sep_end_by'>sep_end_by</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> zero or more times separated and ended by <code>separator</code>, returning a collection
+with the values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sep_end_by1.html"
+                                  title='fn combine::combinator::sep_end_by1'>sep_end_by1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> one or more times separated and ended by <code>separator</code>, returning a collection
+with the values from <code>p</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.skip.html"
+                                  title='fn combine::combinator::skip'>skip</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.skip_count.html"
+                                  title='fn combine::combinator::skip_count'>skip_count</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> from zero up to <code>count</code> times skipping the output of <code>parser</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.skip_count_min_max.html"
+                                  title='fn combine::combinator::skip_count_min_max'>skip_count_min_max</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>parser</code> from <code>min</code> to <code>max</code> times (including <code>min</code> and <code>max</code>)
+skipping the output of <code>parser</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.skip_many.html"
+                                  title='fn combine::combinator::skip_many'>skip_many</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> zero or more times ignoring the result.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.skip_many1.html"
+                                  title='fn combine::combinator::skip_many1'>skip_many1</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses <code>p</code> one or more times ignoring the result.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.then.html"
+                                  title='fn combine::combinator::then'>then</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.then"><code>p.then(f)</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.token.html"
+                                  title='fn combine::combinator::token'>token</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses a character and succeeds if the character is equal to <code>c</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tokens.html"
+                                  title='fn combine::combinator::tokens'>tokens</a></td>
+                           <td class='docblock-short'>
+                                <p>Parses multiple tokens.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.try.html"
+                                  title='fn combine::combinator::try'>try</a></td>
+                           <td class='docblock-short'>
+                                <p><code>try(p)</code> behaves as <code>p</code> except it acts as if the parser hadn't consumed any input if <code>p</code> fails after
+consuming input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unexpected.html"
+                                  title='fn combine::combinator::unexpected'>unexpected</a></td>
+                           <td class='docblock-short'>
+                                <p>Always fails with <code>message</code> as an unexpected error.
+Never consumes any input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.value.html"
+                                  title='fn combine::combinator::value'>value</a></td>
+                           <td class='docblock-short'>
+                                <p>Always returns the value <code>v</code> without consuming any input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.with.html"
+                                  title='fn combine::combinator::with'>with</a></td>
+                           <td class='docblock-short'>
+                                <p>Equivalent to <a href="../primitives/trait.Parser.html#method.with"><code>p1.with(p2)</code></a>.</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.NotFollowedBy.html"
+                                  title='type combine::combinator::NotFollowedBy'>NotFollowedBy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.SkipCount.html"
+                                  title='type combine::combinator::SkipCount'>SkipCount</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.SkipCountMinMax.html"
+                                  title='type combine::combinator::SkipCountMinMax'>SkipCountMinMax</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

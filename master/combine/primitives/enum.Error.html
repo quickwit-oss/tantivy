@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Error` enum in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Error">
+
+    <title>combine::primitives::Error - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Enum Error</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Unexpected">Unexpected</a><a href="#variant.Expected">Expected</a><a href="#variant.Message">Message</a><a href="#variant.Other">Other</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.map_token">map_token</a><a href="#method.map_range">map_range</a><a href="#method.end_of_input">end_of_input</a><a href="#method.fmt_errors">fmt_errors</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-From%3CE%3E">From&lt;E&gt;</a><a href="#impl-Display">Display</a></div></div><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a></p><script>window.sidebarCurrent = {name: 'Error', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a>::<wbr><a class="enum" href=''>Error</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/primitives.rs.html#132-141' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum Error&lt;T, R&gt; {
+    Unexpected(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;),
+    Expected(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;),
+    Message(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;),
+    Other(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">StdError</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>&gt;),
+}</pre><div class='docblock'><p>Enum used to store information about an error that has occurred during parsing.</p>
+</div><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.Unexpected" class="variant small-section-header"><a href="#variant.Unexpected" class="anchor field"></a><span id='Unexpected.v' class='invisible'><code>Unexpected(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;)</code></span></span><div class='docblock'><p>Error indicating an unexpected token has been encountered in the stream</p>
+</div><span id="variant.Expected" class="variant small-section-header"><a href="#variant.Expected" class="anchor field"></a><span id='Expected.v' class='invisible'><code>Expected(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;)</code></span></span><div class='docblock'><p>Error indicating that the parser expected something else</p>
+</div><span id="variant.Message" class="variant small-section-header"><a href="#variant.Message" class="anchor field"></a><span id='Message.v' class='invisible'><code>Message(<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;T, R&gt;)</code></span></span><div class='docblock'><p>Generic message</p>
+</div><span id="variant.Other" class="variant small-section-header"><a href="#variant.Other" class="anchor field"></a><span id='Other.v' class='invisible'><code>Other(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">StdError</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>&gt;)</code></span></span><div class='docblock'><p>Variant for containing other types of errors</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;T, R&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#143-169' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.map_token' class="method"><span id='map_token.v' class='invisible'><code>pub fn <a href='#method.map_token' class='fnname'>map_token</a>&lt;F, U&gt;(self, f: F) -&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;U, R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(T) -&gt; U,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#144-155' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.map_range' class="method"><span id='map_range.v' class='invisible'><code>pub fn <a href='#method.map_range' class='fnname'>map_range</a>&lt;F, S&gt;(self, f: F) -&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(R) -&gt; S,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#157-168' title='goto source code'>[src]</a></span></h4>
+</div><h3 id='impl-1' class='impl'><span class='in-band'><code>impl&lt;T, R&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code><a href='#impl-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#191-265' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.end_of_input' class="method"><span id='end_of_input.v' class='invisible'><code>pub fn <a href='#method.end_of_input' class='fnname'>end_of_input</a>() -&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#193-195' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the <code>end_of_input</code> error.</p>
+</div><h4 id='method.fmt_errors' class="method"><span id='fmt_errors.v' class='invisible'><code>pub fn <a href='#method.fmt_errors' class='fnname'>fmt_errors</a>(errors: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#218-264' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats a slice of errors in a human readable way.</p>
+
+<pre class="rust rust-example-rendered">
+
+<span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r&quot;
+  ,123
+&quot;</span>;
+<span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">spaces</span>().<span class="ident">with</span>(<span class="ident">char</span>(<span class="string">&#39;.&#39;</span>).<span class="ident">or</span>(<span class="ident">char</span>(<span class="string">&#39;a&#39;</span>)).<span class="ident">or</span>(<span class="ident">digit</span>()))
+    .<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="ident">input</span>));
+<span class="kw">let</span> <span class="ident">m</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">result</span>.<span class="ident">unwrap_err</span>());
+<span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="string">r&quot;Parse error at line: 2, column: 3
+Unexpected `,`
+Expected `.`, `a` or `digit`
+&quot;</span>;
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">m</span>, <span class="ident">expected</span>);</pre>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>, R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#131' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#131' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>, R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#171-180' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, other: &amp;<a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#172-179' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, other: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Rhs) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#121' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-From%3CE%3E' class='impl'><span class='in-band'><code>impl&lt;E, T, R&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;E&gt; for <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">StdError</a> + 'static + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-From%3CE%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#182-189' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from' class="method"><span id='from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(e: E) -&gt; <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#186-188' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the conversion.</p>
+</div></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>, R:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;T, R&gt;</code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#606-615' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#607-614' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

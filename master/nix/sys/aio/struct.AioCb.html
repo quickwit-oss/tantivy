@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `AioCb` struct in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, AioCb">
+
+    <title>nix::sys::aio::AioCb - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct AioCb</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_fd">from_fd</a><a href="#method.from_mut_slice">from_mut_slice</a><a href="#method.from_boxed_slice">from_boxed_slice</a><a href="#method.from_slice">from_slice</a><a href="#method.set_sigev_notify">set_sigev_notify</a><a href="#method.cancel">cancel</a><a href="#method.error">error</a><a href="#method.fsync">fsync</a><a href="#method.read">read</a><a href="#method.aio_return">aio_return</a><a href="#method.write">write</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Drop">Drop</a></div></div><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>aio</a></p><script>window.sidebarCurrent = {name: 'AioCb', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>aio</a>::<wbr><a class="struct" href=''>AioCb</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/nix/sys/aio.rs.html#78-86' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct AioCb&lt;'a&gt; { /* fields omitted */ }</pre><div class='docblock'><p>The basic structure used by all aio functions.  Each <code>aiocb</code> represents one
+I/O request.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#88-266' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_fd' class="method"><span id='from_fd.v' class='invisible'><code>pub fn <a href='#method.from_fd' class='fnname'>from_fd</a>(fd: <a class="type" href="https://doc.rust-lang.org/nightly/std/sys/unix/ext/io/type.RawFd.html" title="type std::sys::unix::ext::io::RawFd">RawFd</a>, prio: <a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>, sigev_notify: <a class="enum" href="../../../nix/sys/signal/enum.SigevNotify.html" title="enum nix::sys::signal::SigevNotify">SigevNotify</a>) -&gt; <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#97-107' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs a new <code>AioCb</code> with no associated buffer.</p>
+<p>The resulting <code>AioCb</code> structure is suitable for use with <code>AioCb::fsync</code>.</p>
+<ul>
+<li><code>fd</code>  File descriptor.  Required for all aio functions.</li>
+<li><code>prio</code> If POSIX Prioritized IO is supported, then the operation will
+be prioritized at the process's priority level minus <code>prio</code></li>
+<li><code>sigev_notify</code> Determines how you will be notified of event
+completion.</li>
+</ul>
+</div><h4 id='method.from_mut_slice' class="method"><span id='from_mut_slice.v' class='invisible'><code>pub fn <a href='#method.from_mut_slice' class='fnname'>from_mut_slice</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;fd: <a class="type" href="https://doc.rust-lang.org/nightly/std/sys/unix/ext/io/type.RawFd.html" title="type std::sys::unix::ext::io::RawFd">RawFd</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;offs: <a class="type" href="../../../libc/unix/notbsd/linux/other/b64/type.off_t.html" title="type libc::unix::notbsd::linux::other::b64::off_t">off_t</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;buf: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;prio: <a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;sigev_notify: <a class="enum" href="../../../nix/sys/signal/enum.SigevNotify.html" title="enum nix::sys::signal::SigevNotify">SigevNotify</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;opcode: <a class="enum" href="../../../nix/sys/aio/enum.LioOpcode.html" title="enum nix::sys::aio::LioOpcode">LioOpcode</a><br>) -&gt; <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#120-132' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs a new <code>AioCb</code>.</p>
+<ul>
+<li><code>fd</code>  File descriptor.  Required for all aio functions.</li>
+<li><code>offs</code> File offset</li>
+<li><code>buf</code> A memory buffer</li>
+<li><code>prio</code> If POSIX Prioritized IO is supported, then the operation will
+be prioritized at the process's priority level minus <code>prio</code></li>
+<li><code>sigev_notify</code> Determines how you will be notified of event
+completion.</li>
+<li><code>opcode</code> This field is only used for <code>lio_listio</code>.  It determines
+which operation to use for this individual aiocb</li>
+</ul>
+</div><h4 id='method.from_boxed_slice' class="method"><span id='from_boxed_slice.v' class='invisible'><code>pub fn <a href='#method.from_boxed_slice' class='fnname'>from_boxed_slice</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;fd: <a class="type" href="https://doc.rust-lang.org/nightly/std/sys/unix/ext/io/type.RawFd.html" title="type std::sys::unix::ext::io::RawFd">RawFd</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;offs: <a class="type" href="../../../libc/unix/notbsd/linux/other/b64/type.off_t.html" title="type libc::unix::notbsd::linux::other::b64::off_t">off_t</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;buf: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/rc/struct.Rc.html" title="struct alloc::rc::Rc">Rc</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;prio: <a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;sigev_notify: <a class="enum" href="../../../nix/sys/signal/enum.SigevNotify.html" title="enum nix::sys::signal::SigevNotify">SigevNotify</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;opcode: <a class="enum" href="../../../nix/sys/aio/enum.LioOpcode.html" title="enum nix::sys::aio::LioOpcode">LioOpcode</a><br>) -&gt; <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#148-160' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs a new <code>AioCb</code>.</p>
+<p>Unlike <code>from_mut_slice</code>, this method returns a structure suitable for
+placement on the heap.</p>
+<ul>
+<li><code>fd</code>  File descriptor.  Required for all aio functions.</li>
+<li><code>offs</code> File offset</li>
+<li><code>buf</code> A shared memory buffer on the heap</li>
+<li><code>prio</code> If POSIX Prioritized IO is supported, then the operation will
+be prioritized at the process's priority level minus <code>prio</code></li>
+<li><code>sigev_notify</code> Determines how you will be notified of event
+completion.</li>
+<li><code>opcode</code> This field is only used for <code>lio_listio</code>.  It determines
+which operation to use for this individual aiocb</li>
+</ul>
+</div><h4 id='method.from_slice' class="method"><span id='from_slice.v' class='invisible'><code>pub fn <a href='#method.from_slice' class='fnname'>from_slice</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;fd: <a class="type" href="https://doc.rust-lang.org/nightly/std/sys/unix/ext/io/type.RawFd.html" title="type std::sys::unix::ext::io::RawFd">RawFd</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;offs: <a class="type" href="../../../libc/unix/notbsd/linux/other/b64/type.off_t.html" title="type libc::unix::notbsd::linux::other::b64::off_t">off_t</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;buf: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;prio: <a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;sigev_notify: <a class="enum" href="../../../nix/sys/signal/enum.SigevNotify.html" title="enum nix::sys::signal::SigevNotify">SigevNotify</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;opcode: <a class="enum" href="../../../nix/sys/aio/enum.LioOpcode.html" title="enum nix::sys::aio::LioOpcode">LioOpcode</a><br>) -&gt; <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#175-191' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Like <code>from_mut_slice</code>, but works on constant slices rather than
+mutable slices.</p>
+<p>An <code>AioCb</code> created this way cannot be used with <code>read</code>, and its
+<code>LioOpcode</code> cannot be set to <code>LIO_READ</code>.  This method is useful when
+writing a const buffer with <code>AioCb::write</code>, since from_mut_slice can't
+work with const buffers.</p>
+</div><h4 id='method.set_sigev_notify' class="method"><span id='set_sigev_notify.v' class='invisible'><code>pub fn <a href='#method.set_sigev_notify' class='fnname'>set_sigev_notify</a>(&amp;mut self, sigev_notify: <a class="enum" href="../../../nix/sys/signal/enum.SigevNotify.html" title="enum nix::sys::signal::SigevNotify">SigevNotify</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#207-209' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Update the notification settings for an existing <code>aiocb</code></p>
+</div><h4 id='method.cancel' class="method"><span id='cancel.v' class='invisible'><code>pub fn <a href='#method.cancel' class='fnname'>cancel</a>(&amp;mut self) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="enum" href="../../../nix/sys/aio/enum.AioCancelStat.html" title="enum nix::sys::aio::AioCancelStat">AioCancelStat</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#212-220' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Cancels an outstanding AIO request.</p>
+</div><h4 id='method.error' class="method"><span id='error.v' class='invisible'><code>pub fn <a href='#method.error' class='fnname'>error</a>(&amp;mut self) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#225-232' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Retrieve error status of an asynchronous operation.  If the request has
+not yet completed, returns <code>EINPROGRESS</code>.  Otherwise, returns <code>Ok</code> or
+any other error.</p>
+</div><h4 id='method.fsync' class="method"><span id='fsync.v' class='invisible'><code>pub fn <a href='#method.fsync' class='fnname'>fsync</a>(&amp;mut self, mode: <a class="enum" href="../../../nix/sys/aio/enum.AioFsyncMode.html" title="enum nix::sys::aio::AioFsyncMode">AioFsyncMode</a>) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#235-239' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>An asynchronous version of <code>fsync</code>.</p>
+</div><h4 id='method.read' class="method"><span id='read.v' class='invisible'><code>pub fn <a href='#method.read' class='fnname'>read</a>(&amp;mut self) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#242-247' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Asynchronously reads from a file descriptor into a buffer</p>
+</div><h4 id='method.aio_return' class="method"><span id='aio_return.v' class='invisible'><code>pub fn <a href='#method.aio_return' class='fnname'>aio_return</a>(&amp;mut self) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.isize.html">isize</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#253-257' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Retrieve return status of an asynchronous operation.  Should only be
+called once for each <code>AioCb</code>, after <code>AioCb::error</code> indicates that it has
+completed.  The result is the same as for <code>read</code>, <code>write</code>, of <code>fsync</code>.</p>
+</div><h4 id='method.write' class="method"><span id='write.v' class='invisible'><code>pub fn <a href='#method.write' class='fnname'>write</a>(&amp;mut self) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#260-264' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Asynchronously writes from a buffer to a file descriptor</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#317-331' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, fmt: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#318-330' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Drop' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html" title="trait core::ops::drop::Drop">Drop</a> for <a class="struct" href="../../../nix/sys/aio/struct.AioCb.html" title="struct nix::sys::aio::AioCb">AioCb</a>&lt;'a&gt;</code><a href='#impl-Drop' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#333-355' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class="method"><span id='drop.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/aio.rs.html#337-354' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>If the <code>AioCb</code> has no remaining state in the kernel, just drop it.
+Otherwise, collect its error and return values, so as not to leak
+resources.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

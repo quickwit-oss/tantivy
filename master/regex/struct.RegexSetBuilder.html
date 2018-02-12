@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `RegexSetBuilder` struct in crate `regex`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, RegexSetBuilder">
+
+    <title>regex::RegexSetBuilder - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct RegexSetBuilder</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.build">build</a><a href="#method.case_insensitive">case_insensitive</a><a href="#method.multi_line">multi_line</a><a href="#method.dot_matches_new_line">dot_matches_new_line</a><a href="#method.swap_greed">swap_greed</a><a href="#method.ignore_whitespace">ignore_whitespace</a><a href="#method.unicode">unicode</a><a href="#method.size_limit">size_limit</a><a href="#method.dfa_size_limit">dfa_size_limit</a></div></div><p class='location'><a href='index.html'>regex</a></p><script>window.sidebarCurrent = {name: 'RegexSetBuilder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>regex</a>::<wbr><a class="struct" href=''>RegexSetBuilder</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/regex/re_builder.rs.html#188' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct RegexSetBuilder(_);</pre><div class='docblock'><p>A configurable builder for a set of regular expressions.</p>
+<p>A builder can be used to configure how the regexes are built, for example,
+by setting the default flags (which can be overridden in the expression
+itself) or setting various limits.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#190-277' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>&lt;I, S&gt;(patterns: I) -&gt; <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html" title="trait core::convert::AsRef">AsRef</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>&lt;Item = S&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#195-202' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Create a new regular expression builder with the given pattern.</p>
+<p>If the pattern is invalid, then an error will be returned when
+<code>build</code> is called.</p>
+</div><h4 id='method.build' class="method"><span id='build.v' class='invisible'><code>pub fn <a href='#method.build' class='fnname'>build</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../regex/struct.RegexSet.html" title="struct regex::RegexSet">RegexSet</a>, <a class="enum" href="../regex/enum.Error.html" title="enum regex::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#205-210' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Consume the builder and compile the regular expressions into a set.</p>
+</div><h4 id='method.case_insensitive' class="method"><span id='case_insensitive.v' class='invisible'><code>pub fn <a href='#method.case_insensitive' class='fnname'>case_insensitive</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#213-216' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the case insensitive (<code>i</code>) flag.</p>
+</div><h4 id='method.multi_line' class="method"><span id='multi_line.v' class='invisible'><code>pub fn <a href='#method.multi_line' class='fnname'>multi_line</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#219-222' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the multi-line matching (<code>m</code>) flag.</p>
+</div><h4 id='method.dot_matches_new_line' class="method"><span id='dot_matches_new_line.v' class='invisible'><code>pub fn <a href='#method.dot_matches_new_line' class='fnname'>dot_matches_new_line</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#231-234' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the any character (<code>s</code>) flag, where in <code>.</code> matches
+anything when <code>s</code> is set and matches anything except for new line when
+it is not set (the default).</p>
+<p>N.B. &quot;matches anything&quot; means &quot;any byte&quot; for <code>regex::bytes::RegexSet</code>
+expressions and means &quot;any Unicode scalar value&quot; for <code>regex::RegexSet</code>
+expressions.</p>
+</div><h4 id='method.swap_greed' class="method"><span id='swap_greed.v' class='invisible'><code>pub fn <a href='#method.swap_greed' class='fnname'>swap_greed</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#237-240' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the greedy swap (<code>U</code>) flag.</p>
+</div><h4 id='method.ignore_whitespace' class="method"><span id='ignore_whitespace.v' class='invisible'><code>pub fn <a href='#method.ignore_whitespace' class='fnname'>ignore_whitespace</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#243-246' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the ignore whitespace (<code>x</code>) flag.</p>
+</div><h4 id='method.unicode' class="method"><span id='unicode.v' class='invisible'><code>pub fn <a href='#method.unicode' class='fnname'>unicode</a>(&amp;mut self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#249-252' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the value for the Unicode (<code>u</code>) flag.</p>
+</div><h4 id='method.size_limit' class="method"><span id='size_limit.v' class='invisible'><code>pub fn <a href='#method.size_limit' class='fnname'>size_limit</a>(&amp;mut self, limit: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#259-262' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the approximate size limit of the compiled regular expression.</p>
+<p>This roughly corresponds to the number of bytes occupied by a single
+compiled program. If the program exceeds this number, then a
+compilation error is returned.</p>
+</div><h4 id='method.dfa_size_limit' class="method"><span id='dfa_size_limit.v' class='invisible'><code>pub fn <a href='#method.dfa_size_limit' class='fnname'>dfa_size_limit</a>(&amp;mut self, limit: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; &amp;mut <a class="struct" href="../regex/struct.RegexSetBuilder.html" title="struct regex::RegexSetBuilder">RegexSetBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_builder.rs.html#273-276' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the approximate size of the cache used by the DFA.</p>
+<p>This roughly corresponds to the number of bytes that the DFA will
+use while searching.</p>
+<p>Note that this is a <em>per thread</em> limit. There is no way to set a global
+limit. In particular, if a regex is used from multiple threads
+simulanteously, then each thread may use up to the number of bytes
+specified here.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "regex";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

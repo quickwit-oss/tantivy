@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Impossible` struct in crate `serde`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Impossible">
+
+    <title>serde::ser::Impossible - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Impossible</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-SerializeSeq">SerializeSeq</a><a href="#impl-SerializeTuple">SerializeTuple</a><a href="#impl-SerializeTupleStruct">SerializeTupleStruct</a><a href="#impl-SerializeTupleVariant">SerializeTupleVariant</a><a href="#impl-SerializeMap">SerializeMap</a><a href="#impl-SerializeStruct">SerializeStruct</a><a href="#impl-SerializeStructVariant">SerializeStructVariant</a></div></div><p class='location'><a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a></p><script>window.sidebarCurrent = {name: 'Impossible', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="struct" href=''>Impossible</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde/ser/impossible.rs.html#71-75' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Impossible&lt;Ok, Error&gt; { /* fields omitted */ }</pre><div class='docblock'><p>Helper type for implementing a <code>Serializer</code> that does not support
+serializing one of the compound types.</p>
+<p>This type cannot be instantiated, but implements every one of the traits
+corresponding to the <a href="trait.Serializer.html"><code>Serializer</code></a> compound types: <a href="trait.SerializeSeq.html"><code>SerializeSeq</code></a>,
+<a href="trait.SerializeTuple.html"><code>SerializeTuple</code></a>, <a href="trait.SerializeTupleStruct.html"><code>SerializeTupleStruct</code></a>, <a href="trait.SerializeTupleVariant.html"><code>SerializeTupleVariant</code></a>,
+<a href="trait.SerializeMap.html"><code>SerializeMap</code></a>, <a href="trait.SerializeStruct.html"><code>SerializeStruct</code></a>, and <a href="trait.SerializeStructVariant.html"><code>SerializeStructVariant</code></a>.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">impl</span> <span class="ident">Serializer</span> <span class="kw">for</span> <span class="ident">MySerializer</span> {
+    <span class="kw">type</span> <span class="prelude-val">Ok</span> <span class="op">=</span> ();
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Error</span>;
+
+    <span class="kw">type</span> <span class="ident">SerializeSeq</span> <span class="op">=</span> <span class="ident">Impossible</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
+    <span class="comment">/* other associated types */</span>
+
+    <span class="doccomment">/// This data format does not support serializing sequences.</span>
+    <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>,
+                     <span class="ident">len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
+                     <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="comment">// Given Impossible cannot be instantiated, the only</span>
+        <span class="comment">// thing we can do here is to return an error.</span>
+        <span class="prelude-val">Err</span>(...)
+    }
+
+    <span class="comment">/* other Serializer methods */</span>
+}</pre>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-SerializeSeq' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeSeq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#79-97' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok' class="type"><span id='Ok.t' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeSeq.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeSeq.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_element' class="method"><span id='serialize_element.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeSeq.html#tymethod.serialize_element' class='fnname'>serialize_element</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#86-92' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a sequence element.</p>
+</div><h4 id='method.end' class="method"><span id='end.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeSeq.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#94-96' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a sequence.</p>
+</div></div><h3 id='impl-SerializeTuple' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeTuple.html" title="trait serde::ser::SerializeTuple">SerializeTuple</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeTuple' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#99-117' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-1' class="type"><span id='Ok.t-1' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTuple.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-1' class="type"><span id='Error.t-1' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTuple.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_element-1' class="method"><span id='serialize_element.v-1' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTuple.html#tymethod.serialize_element' class='fnname'>serialize_element</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#106-112' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a tuple element.</p>
+</div><h4 id='method.end-1' class="method"><span id='end.v-1' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTuple.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#114-116' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a tuple.</p>
+</div></div><h3 id='impl-SerializeTupleStruct' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeTupleStruct.html" title="trait serde::ser::SerializeTupleStruct">SerializeTupleStruct</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeTupleStruct' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#119-137' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-2' class="type"><span id='Ok.t-2' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-2' class="type"><span id='Error.t-2' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_field' class="method"><span id='serialize_field.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTupleStruct.html#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#126-132' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a tuple struct field.</p>
+</div><h4 id='method.end-2' class="method"><span id='end.v-2' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTupleStruct.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#134-136' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a tuple struct.</p>
+</div></div><h3 id='impl-SerializeTupleVariant' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeTupleVariant.html" title="trait serde::ser::SerializeTupleVariant">SerializeTupleVariant</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeTupleVariant' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#139-157' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-3' class="type"><span id='Ok.t-3' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTupleVariant.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-3' class="type"><span id='Error.t-3' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeTupleVariant.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_field-1' class="method"><span id='serialize_field.v-1' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTupleVariant.html#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#146-152' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a tuple variant field.</p>
+</div><h4 id='method.end-3' class="method"><span id='end.v-3' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeTupleVariant.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#154-156' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a tuple variant.</p>
+</div></div><h3 id='impl-SerializeMap' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeMap.html" title="trait serde::ser::SerializeMap">SerializeMap</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeMap' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#159-185' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-4' class="type"><span id='Ok.t-4' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeMap.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-4' class="type"><span id='Error.t-4' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeMap.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_key' class="method"><span id='serialize_key.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeMap.html#tymethod.serialize_key' class='fnname'>serialize_key</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, key: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#166-172' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a map key. <a href="../../serde/ser/trait.SerializeMap.html#tymethod.serialize_key">Read more</a></p>
+</div><h4 id='method.serialize_value' class="method"><span id='serialize_value.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeMap.html#tymethod.serialize_value' class='fnname'>serialize_value</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#174-180' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a map value. <a href="../../serde/ser/trait.SerializeMap.html#tymethod.serialize_value">Read more</a></p>
+</div><h4 id='method.end-4' class="method"><span id='end.v-4' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeMap.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#182-184' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a map.</p>
+</div><h4 id='method.serialize_entry' class="method"><span id='serialize_entry.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeMap.html#method.serialize_entry' class='fnname'>serialize_entry</a>&lt;K:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>, V:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;key: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>K, <br>&nbsp;&nbsp;&nbsp;&nbsp;value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>V<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeMap.html#associatedtype.Error" title="type serde::ser::SerializeMap::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;K: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/mod.rs.html#1726-1737' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a map entry consisting of a key and a value. <a href="../../serde/ser/trait.SerializeMap.html#method.serialize_entry">Read more</a></p>
+</div></div><h3 id='impl-SerializeStruct' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeStruct.html" title="trait serde::ser::SerializeStruct">SerializeStruct</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeStruct' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#187-206' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-5' class="type"><span id='Ok.t-5' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeStruct.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-5' class="type"><span id='Error.t-5' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeStruct.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_field-2' class="method"><span id='serialize_field.v-2' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStruct.html#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#194-201' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a struct field.</p>
+</div><h4 id='method.end-5' class="method"><span id='end.v-5' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStruct.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#203-205' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a struct.</p>
+</div><h4 id='method.skip_field' class="method"><span id='skip_field.v' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStruct.html#method.skip_field' class='fnname'>skip_field</a>(&amp;mut self, key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeStruct.html#associatedtype.Error" title="type serde::ser::SerializeStruct::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/mod.rs.html#1784-1787' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Indicate that a struct field has been skipped.</p>
+</div></div><h3 id='impl-SerializeStructVariant' class='impl'><span class='in-band'><code>impl&lt;Ok, Error&gt; <a class="trait" href="../../serde/ser/trait.SerializeStructVariant.html" title="trait serde::ser::SerializeStructVariant">SerializeStructVariant</a> for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span></code><a href='#impl-SerializeStructVariant' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#208-227' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Ok-6' class="type"><span id='Ok.t-6' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeStructVariant.html#associatedtype.Ok' class="type">Ok</a> = Ok</code></span></h4>
+<div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='associatedtype.Error-6' class="type"><span id='Error.t-6' class='invisible'><code>type <a href='../../serde/ser/trait.SerializeStructVariant.html#associatedtype.Error' class="type">Error</a> = Error</code></span></h4>
+<div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div><h4 id='method.serialize_field-3' class="method"><span id='serialize_field.v-3' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStructVariant.html#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#215-222' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize a struct variant field.</p>
+</div><h4 id='method.end-6' class="method"><span id='end.v-6' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStructVariant.html#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Ok, Error&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/impossible.rs.html#224-226' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Finish serializing a struct variant.</p>
+</div><h4 id='method.skip_field-1' class="method"><span id='skip_field.v-1' class='invisible'><code>fn <a href='../../serde/ser/trait.SerializeStructVariant.html#method.skip_field' class='fnname'>skip_field</a>(&amp;mut self, key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeStructVariant.html#associatedtype.Error" title="type serde::ser::SerializeStructVariant::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/ser/mod.rs.html#1836-1839' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Indicate that a struct variant field has been skipped.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

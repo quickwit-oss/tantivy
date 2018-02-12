@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ExprBuilder` struct in crate `regex_syntax`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ExprBuilder">
+
+    <title>regex_syntax::ExprBuilder - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct ExprBuilder</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.case_insensitive">case_insensitive</a><a href="#method.multi_line">multi_line</a><a href="#method.dot_matches_new_line">dot_matches_new_line</a><a href="#method.swap_greed">swap_greed</a><a href="#method.ignore_whitespace">ignore_whitespace</a><a href="#method.unicode">unicode</a><a href="#method.allow_bytes">allow_bytes</a><a href="#method.nest_limit">nest_limit</a><a href="#method.parse">parse</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='index.html'>regex_syntax</a></p><script>window.sidebarCurrent = {name: 'ExprBuilder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>regex_syntax</a>::<wbr><a class="struct" href=''>ExprBuilder</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/regex_syntax/lib.rs.html#310-313' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ExprBuilder { /* fields omitted */ }</pre><div class='docblock'><p>A builder for configuring regular expression parsing.</p>
+<p>This allows setting the default values of flags and other options, such
+as the maximum nesting depth.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#315-398' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#319-324' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Create a new builder for configuring expression parsing.</p>
+<p>Note that all flags are disabled by default.</p>
+</div><h4 id='method.case_insensitive' class="method"><span id='case_insensitive.v' class='invisible'><code>pub fn <a href='#method.case_insensitive' class='fnname'>case_insensitive</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#327-330' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the case insensitive (<code>i</code>) flag.</p>
+</div><h4 id='method.multi_line' class="method"><span id='multi_line.v' class='invisible'><code>pub fn <a href='#method.multi_line' class='fnname'>multi_line</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#333-336' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the multi-line matching (<code>m</code>) flag.</p>
+</div><h4 id='method.dot_matches_new_line' class="method"><span id='dot_matches_new_line.v' class='invisible'><code>pub fn <a href='#method.dot_matches_new_line' class='fnname'>dot_matches_new_line</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#339-342' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the any character (<code>s</code>) flag.</p>
+</div><h4 id='method.swap_greed' class="method"><span id='swap_greed.v' class='invisible'><code>pub fn <a href='#method.swap_greed' class='fnname'>swap_greed</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#345-348' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the greedy swap (<code>U</code>) flag.</p>
+</div><h4 id='method.ignore_whitespace' class="method"><span id='ignore_whitespace.v' class='invisible'><code>pub fn <a href='#method.ignore_whitespace' class='fnname'>ignore_whitespace</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#351-354' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the ignore whitespace (<code>x</code>) flag.</p>
+</div><h4 id='method.unicode' class="method"><span id='unicode.v' class='invisible'><code>pub fn <a href='#method.unicode' class='fnname'>unicode</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#359-366' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the default value for the Unicode (<code>u</code>) flag.</p>
+<p>If <code>yes</code> is false, then <code>allow_bytes</code> is set to true.</p>
+</div><h4 id='method.allow_bytes' class="method"><span id='allow_bytes.v' class='invisible'><code>pub fn <a href='#method.allow_bytes' class='fnname'>allow_bytes</a>(self, yes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#380-383' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Whether the parser allows matching arbitrary bytes or not.</p>
+<p>When the <code>u</code> flag is disabled (either with this builder or in the
+expression itself), the parser switches to interpreting the expression
+as matching arbitrary bytes instead of Unicode codepoints. For example,
+the expression <code>(?u:\xFF)</code> matches the <em>codepoint</em> <code>\xFF</code>, which
+corresponds to the UTF-8 byte sequence <code>\xCE\xBF</code>. Conversely,
+<code>(?-u:\xFF)</code> matches the <em>byte</em> <code>\xFF</code>, which is not valid UTF-8.</p>
+<p>When <code>allow_bytes</code> is disabled (the default), an expression like
+<code>(?-u:\xFF)</code> will cause the parser to return an error, since it would
+otherwise match invalid UTF-8. When enabled, it will be allowed.</p>
+</div><h4 id='method.nest_limit' class="method"><span id='nest_limit.v' class='invisible'><code>pub fn <a href='#method.nest_limit' class='fnname'>nest_limit</a>(self, limit: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#389-392' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Set the nesting limit for regular expression parsing.</p>
+<p>Regular expressions that nest more than this limit will result in a
+<code>StackExhausted</code> error.</p>
+</div><h4 id='method.parse' class="method"><span id='parse.v' class='invisible'><code>pub fn <a href='#method.parse' class='fnname'>parse</a>(self, s: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="type" href="../regex_syntax/type.Result.html" title="type regex_syntax::Result">Result</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#395-397' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parse a string as a regular expression using the current configuraiton.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#309' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#309' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../regex_syntax/struct.ExprBuilder.html" title="struct regex_syntax::ExprBuilder">ExprBuilder</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#309' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#309' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "regex_syntax";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

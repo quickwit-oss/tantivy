@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["ChiSquared","The chi-squared distribution `χ²(k)`, where `k` is the degrees of freedom."],["FisherF","The Fisher F distribution `F(m, n)`."],["Gamma","The Gamma distribution `Gamma(shape, scale)` distribution."],["StudentT","The Student t distribution, `t(nu)`, where `nu` is the degrees of freedom."]]});

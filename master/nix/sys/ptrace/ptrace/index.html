@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ptrace` mod in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ptrace">
+
+    <title>nix::sys::ptrace::ptrace - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
+    <script src="../../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module ptrace</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../../../index.html'>nix</a>::<wbr><a href='../../index.html'>sys</a>::<wbr><a href='../index.html'>ptrace</a></p><script>window.sidebarCurrent = {name: 'ptrace', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../../index.html'>nix</a>::<wbr><a href='../../index.html'>sys</a>::<wbr><a href='../index.html'>ptrace</a>::<wbr><a class="mod" href=''>ptrace</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../../src/nix/sys/ptrace.rs.html#6-61' title='goto source code'>[src]</a></span></h1>
+<h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_ATTACH.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_ATTACH'>PTRACE_ATTACH</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_CONT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_CONT'>PTRACE_CONT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_DETACH.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_DETACH'>PTRACE_DETACH</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_CLONE.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_CLONE'>PTRACE_EVENT_CLONE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_EXEC.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_EXEC'>PTRACE_EVENT_EXEC</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_EXIT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_EXIT'>PTRACE_EVENT_EXIT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_FORK.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_FORK'>PTRACE_EVENT_FORK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_SECCOMP.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_SECCOMP'>PTRACE_EVENT_SECCOMP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_STOP.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_STOP'>PTRACE_EVENT_STOP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_VFORK.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_VFORK'>PTRACE_EVENT_VFORK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_EVENT_VFORK_DONE.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_EVENT_VFORK_DONE'>PTRACE_EVENT_VFORK_DONE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETEVENTMSG.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETEVENTMSG'>PTRACE_GETEVENTMSG</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETFPREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETFPREGS'>PTRACE_GETFPREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETFPXREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETFPXREGS'>PTRACE_GETFPXREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETREGS'>PTRACE_GETREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETREGSET.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETREGSET'>PTRACE_GETREGSET</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_GETSIGINFO.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_GETSIGINFO'>PTRACE_GETSIGINFO</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_INTERRUPT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_INTERRUPT'>PTRACE_INTERRUPT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_KILL.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_KILL'>PTRACE_KILL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_LISTEN.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_LISTEN'>PTRACE_LISTEN</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACECLONE.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACECLONE'>PTRACE_O_TRACECLONE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACEEXEC.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACEEXEC'>PTRACE_O_TRACEEXEC</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACEEXIT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACEEXIT'>PTRACE_O_TRACEEXIT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACEFORK.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACEFORK'>PTRACE_O_TRACEFORK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACESECCOMP.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACESECCOMP'>PTRACE_O_TRACESECCOMP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACESYSGOOD.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACESYSGOOD'>PTRACE_O_TRACESYSGOOD</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACEVFORK.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACEVFORK'>PTRACE_O_TRACEVFORK</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_O_TRACEVFORKDONE.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_O_TRACEVFORKDONE'>PTRACE_O_TRACEVFORKDONE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_PEEKDATA.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_PEEKDATA'>PTRACE_PEEKDATA</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_PEEKSIGINFO.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_PEEKSIGINFO'>PTRACE_PEEKSIGINFO</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_PEEKTEXT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_PEEKTEXT'>PTRACE_PEEKTEXT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_PEEKUSER.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_PEEKUSER'>PTRACE_PEEKUSER</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_POKEDATA.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_POKEDATA'>PTRACE_POKEDATA</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_POKETEXT.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_POKETEXT'>PTRACE_POKETEXT</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_POKEUSER.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_POKEUSER'>PTRACE_POKEUSER</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SEIZE.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SEIZE'>PTRACE_SEIZE</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETFPREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETFPREGS'>PTRACE_SETFPREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETFPXREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETFPXREGS'>PTRACE_SETFPXREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETOPTIONS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETOPTIONS'>PTRACE_SETOPTIONS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETREGS.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETREGS'>PTRACE_SETREGS</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETREGSET.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETREGSET'>PTRACE_SETREGSET</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SETSIGINFO.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SETSIGINFO'>PTRACE_SETSIGINFO</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SINGLESTEP.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SINGLESTEP'>PTRACE_SINGLESTEP</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_SYSCALL.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_SYSCALL'>PTRACE_SYSCALL</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.PTRACE_TRACEME.html"
+                                  title='constant nix::sys::ptrace::ptrace::PTRACE_TRACEME'>PTRACE_TRACEME</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PtraceEvent.html"
+                                  title='type nix::sys::ptrace::ptrace::PtraceEvent'>PtraceEvent</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PtraceOptions.html"
+                                  title='type nix::sys::ptrace::ptrace::PtraceOptions'>PtraceOptions</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PtraceRequest.html"
+                                  title='type nix::sys::ptrace::ptrace::PtraceRequest'>PtraceRequest</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../../../main.js"></script>
+    <script defer src="../../../../search-index.js"></script>
+</body>
+</html>

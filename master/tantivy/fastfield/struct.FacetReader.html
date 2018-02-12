@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FacetReader` struct in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FacetReader">
+
+    <title>tantivy::fastfield::FacetReader - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Struct FacetReader</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.num_facets">num_facets</a><a href="#method.facet_dict">facet_dict</a><a href="#method.facet_from_ord">facet_from_ord</a><a href="#method.facet_ords">facet_ords</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a></p><script>window.sidebarCurrent = {name: 'FacetReader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a>::<wbr><a class="struct" href=''>FacetReader</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#20-23' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct FacetReader { /* fields omitted */ }</pre><div class='docblock'><p>The facet reader makes it possible to access the list of
+facets associated to a given document in a specific
+segment.</p>
+<p>Rather than manipulating <code>Facet</code> object directly, the API
+exposes those in the form of list of <code>Facet</code> ordinal.</p>
+<p>A segment ordinal can then be translated into a facet via
+<code>.facet_from_ord(...)</code>.</p>
+<p>Facet ordinals are defined as their position in the sorted
+list of facets. This ordinal is segment local and
+only makes sense for a given segment.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/fastfield/struct.FacetReader.html" title="struct tantivy::fastfield::FacetReader">FacetReader</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#25-68' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;term_ords: <a class="struct" href="../../tantivy/fastfield/struct.MultiValueIntFastFieldReader.html" title="struct tantivy::fastfield::MultiValueIntFastFieldReader">MultiValueIntFastFieldReader</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;term_dict: <a class="struct" href="../../tantivy/termdict/struct.TermDictionaryImpl.html" title="struct tantivy::termdict::TermDictionaryImpl">TermDictionaryImpl</a><br>) -&gt; <a class="struct" href="../../tantivy/fastfield/struct.FacetReader.html" title="struct tantivy::fastfield::FacetReader">FacetReader</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#33-41' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a new <code>FacetReader</code>.</p>
+<p>A facet reader just wraps :</p>
+<ul>
+<li>a <code>MultiValueIntFastFieldReader</code> that makes it possible to
+access the list of facet ords for a given document.</li>
+<li>a <code>TermDictionaryImpl</code> that helps associating a facet to
+an ordinal and vice versa.</li>
+</ul>
+</div><h4 id='method.num_facets' class="method"><span id='num_facets.v' class='invisible'><code>pub fn <a href='#method.num_facets' class='fnname'>num_facets</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#48-50' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the size of the sets of facets in the segment.
+This does not take in account the documents that may be marked
+as deleted.</p>
+<p><code>Facet</code> ordinals range from <code>0</code> to <code>num_facets() - 1</code>.</p>
+</div><h4 id='method.facet_dict' class="method"><span id='facet_dict.v' class='invisible'><code>pub fn <a href='#method.facet_dict' class='fnname'>facet_dict</a>(&amp;self) -&gt; &amp;<a class="struct" href="../../tantivy/termdict/struct.TermDictionaryImpl.html" title="struct tantivy::termdict::TermDictionaryImpl">TermDictionaryImpl</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#53-55' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Accessor for the facet term dictionary.</p>
+</div><h4 id='method.facet_from_ord' class="method"><span id='facet_from_ord.v' class='invisible'><code>pub fn <a href='#method.facet_from_ord' class='fnname'>facet_from_ord</a>(&amp;self, facet_ord: <a class="type" href="../../tantivy/termdict/type.TermOrdinal.html" title="type tantivy::termdict::TermOrdinal">TermOrdinal</a>, output: &amp;mut <a class="struct" href="../../tantivy/schema/struct.Facet.html" title="struct tantivy::schema::Facet">Facet</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#58-62' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Given a term ordinal returns the term associated to it.</p>
+</div><h4 id='method.facet_ords' class="method"><span id='facet_ords.v' class='invisible'><code>pub fn <a href='#method.facet_ords' class='fnname'>facet_ords</a>(&amp;mut self, doc: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#65-67' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the list of facet ordinals associated to a document.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

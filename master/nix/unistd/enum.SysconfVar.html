@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `SysconfVar` enum in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, SysconfVar">
+
+    <title>nix::unistd::SysconfVar - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Enum SysconfVar</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.AIO_LISTIO_MAX">AIO_LISTIO_MAX</a><a href="#variant.AIO_MAX">AIO_MAX</a><a href="#variant.AIO_PRIO_DELTA_MAX">AIO_PRIO_DELTA_MAX</a><a href="#variant.ARG_MAX">ARG_MAX</a><a href="#variant.ATEXIT_MAX">ATEXIT_MAX</a><a href="#variant.BC_BASE_MAX">BC_BASE_MAX</a><a href="#variant.BC_DIM_MAX">BC_DIM_MAX</a><a href="#variant.BC_SCALE_MAX">BC_SCALE_MAX</a><a href="#variant.BC_STRING_MAX">BC_STRING_MAX</a><a href="#variant.CHILD_MAX">CHILD_MAX</a><a href="#variant.COLL_WEIGHTS_MAX">COLL_WEIGHTS_MAX</a><a href="#variant.DELAYTIMER_MAX">DELAYTIMER_MAX</a><a href="#variant.EXPR_NEST_MAX">EXPR_NEST_MAX</a><a href="#variant.HOST_NAME_MAX">HOST_NAME_MAX</a><a href="#variant.IOV_MAX">IOV_MAX</a><a href="#variant.LINE_MAX">LINE_MAX</a><a href="#variant.LOGIN_NAME_MAX">LOGIN_NAME_MAX</a><a href="#variant.NGROUPS_MAX">NGROUPS_MAX</a><a href="#variant.GETGR_R_SIZE_MAX">GETGR_R_SIZE_MAX</a><a href="#variant.GETPW_R_SIZE_MAX">GETPW_R_SIZE_MAX</a><a href="#variant.MQ_OPEN_MAX">MQ_OPEN_MAX</a><a href="#variant.MQ_PRIO_MAX">MQ_PRIO_MAX</a><a href="#variant.OPEN_MAX">OPEN_MAX</a><a href="#variant._POSIX_ADVISORY_INFO">_POSIX_ADVISORY_INFO</a><a href="#variant._POSIX_BARRIERS">_POSIX_BARRIERS</a><a href="#variant._POSIX_ASYNCHRONOUS_IO">_POSIX_ASYNCHRONOUS_IO</a><a href="#variant._POSIX_CLOCK_SELECTION">_POSIX_CLOCK_SELECTION</a><a href="#variant._POSIX_CPUTIME">_POSIX_CPUTIME</a><a href="#variant._POSIX_FSYNC">_POSIX_FSYNC</a><a href="#variant._POSIX_IPV6">_POSIX_IPV6</a><a href="#variant._POSIX_JOB_CONTROL">_POSIX_JOB_CONTROL</a><a href="#variant._POSIX_MAPPED_FILES">_POSIX_MAPPED_FILES</a><a href="#variant._POSIX_MEMLOCK">_POSIX_MEMLOCK</a><a href="#variant._POSIX_MEMLOCK_RANGE">_POSIX_MEMLOCK_RANGE</a><a href="#variant._POSIX_MEMORY_PROTECTION">_POSIX_MEMORY_PROTECTION</a><a href="#variant._POSIX_MESSAGE_PASSING">_POSIX_MESSAGE_PASSING</a><a href="#variant._POSIX_MONOTONIC_CLOCK">_POSIX_MONOTONIC_CLOCK</a><a href="#variant._POSIX_PRIORITIZED_IO">_POSIX_PRIORITIZED_IO</a><a href="#variant._POSIX_PRIORITY_SCHEDULING">_POSIX_PRIORITY_SCHEDULING</a><a href="#variant._POSIX_RAW_SOCKETS">_POSIX_RAW_SOCKETS</a><a href="#variant._POSIX_READER_WRITER_LOCKS">_POSIX_READER_WRITER_LOCKS</a><a href="#variant._POSIX_REALTIME_SIGNALS">_POSIX_REALTIME_SIGNALS</a><a href="#variant._POSIX_REGEXP">_POSIX_REGEXP</a><a href="#variant._POSIX_SAVED_IDS">_POSIX_SAVED_IDS</a><a href="#variant._POSIX_SEMAPHORES">_POSIX_SEMAPHORES</a><a href="#variant._POSIX_SHARED_MEMORY_OBJECTS">_POSIX_SHARED_MEMORY_OBJECTS</a><a href="#variant._POSIX_SHELL">_POSIX_SHELL</a><a href="#variant._POSIX_SPAWN">_POSIX_SPAWN</a><a href="#variant._POSIX_SPIN_LOCKS">_POSIX_SPIN_LOCKS</a><a href="#variant._POSIX_SPORADIC_SERVER">_POSIX_SPORADIC_SERVER</a><a href="#variant._POSIX_SS_REPL_MAX">_POSIX_SS_REPL_MAX</a><a href="#variant._POSIX_SYNCHRONIZED_IO">_POSIX_SYNCHRONIZED_IO</a><a href="#variant._POSIX_THREAD_ATTR_STACKADDR">_POSIX_THREAD_ATTR_STACKADDR</a><a href="#variant._POSIX_THREAD_ATTR_STACKSIZE">_POSIX_THREAD_ATTR_STACKSIZE</a><a href="#variant._POSIX_THREAD_CPUTIME">_POSIX_THREAD_CPUTIME</a><a href="#variant._POSIX_THREAD_PRIO_INHERIT">_POSIX_THREAD_PRIO_INHERIT</a><a href="#variant._POSIX_THREAD_PRIO_PROTECT">_POSIX_THREAD_PRIO_PROTECT</a><a href="#variant._POSIX_THREAD_PRIORITY_SCHEDULING">_POSIX_THREAD_PRIORITY_SCHEDULING</a><a href="#variant._POSIX_THREAD_PROCESS_SHARED">_POSIX_THREAD_PROCESS_SHARED</a><a href="#variant._POSIX_THREAD_ROBUST_PRIO_INHERIT">_POSIX_THREAD_ROBUST_PRIO_INHERIT</a><a href="#variant._POSIX_THREAD_ROBUST_PRIO_PROTECT">_POSIX_THREAD_ROBUST_PRIO_PROTECT</a><a href="#variant._POSIX_THREAD_SAFE_FUNCTIONS">_POSIX_THREAD_SAFE_FUNCTIONS</a><a href="#variant._POSIX_THREAD_SPORADIC_SERVER">_POSIX_THREAD_SPORADIC_SERVER</a><a href="#variant._POSIX_THREADS">_POSIX_THREADS</a><a href="#variant._POSIX_TIMEOUTS">_POSIX_TIMEOUTS</a><a href="#variant._POSIX_TIMERS">_POSIX_TIMERS</a><a href="#variant._POSIX_TRACE">_POSIX_TRACE</a><a href="#variant._POSIX_TRACE_EVENT_FILTER">_POSIX_TRACE_EVENT_FILTER</a><a href="#variant._POSIX_TRACE_EVENT_NAME_MAX">_POSIX_TRACE_EVENT_NAME_MAX</a><a href="#variant._POSIX_TRACE_INHERIT">_POSIX_TRACE_INHERIT</a><a href="#variant._POSIX_TRACE_LOG">_POSIX_TRACE_LOG</a><a href="#variant._POSIX_TRACE_NAME_MAX">_POSIX_TRACE_NAME_MAX</a><a href="#variant._POSIX_TRACE_SYS_MAX">_POSIX_TRACE_SYS_MAX</a><a href="#variant._POSIX_TRACE_USER_EVENT_MAX">_POSIX_TRACE_USER_EVENT_MAX</a><a href="#variant._POSIX_TYPED_MEMORY_OBJECTS">_POSIX_TYPED_MEMORY_OBJECTS</a><a href="#variant._POSIX_VERSION">_POSIX_VERSION</a><a href="#variant._POSIX_V6_ILP32_OFF32">_POSIX_V6_ILP32_OFF32</a><a href="#variant._POSIX_V6_ILP32_OFFBIG">_POSIX_V6_ILP32_OFFBIG</a><a href="#variant._POSIX_V6_LP64_OFF64">_POSIX_V6_LP64_OFF64</a><a href="#variant._POSIX_V6_LPBIG_OFFBIG">_POSIX_V6_LPBIG_OFFBIG</a><a href="#variant._POSIX2_C_BIND">_POSIX2_C_BIND</a><a href="#variant._POSIX2_C_DEV">_POSIX2_C_DEV</a><a href="#variant._POSIX2_CHAR_TERM">_POSIX2_CHAR_TERM</a><a href="#variant._POSIX2_FORT_DEV">_POSIX2_FORT_DEV</a><a href="#variant._POSIX2_FORT_RUN">_POSIX2_FORT_RUN</a><a href="#variant._POSIX2_LOCALEDEF">_POSIX2_LOCALEDEF</a><a href="#variant._POSIX2_PBS">_POSIX2_PBS</a><a href="#variant._POSIX2_PBS_ACCOUNTING">_POSIX2_PBS_ACCOUNTING</a><a href="#variant._POSIX2_PBS_CHECKPOINT">_POSIX2_PBS_CHECKPOINT</a><a href="#variant._POSIX2_PBS_LOCATE">_POSIX2_PBS_LOCATE</a><a href="#variant._POSIX2_PBS_MESSAGE">_POSIX2_PBS_MESSAGE</a><a href="#variant._POSIX2_PBS_TRACK">_POSIX2_PBS_TRACK</a><a href="#variant._POSIX2_SW_DEV">_POSIX2_SW_DEV</a><a href="#variant._POSIX2_UPE">_POSIX2_UPE</a><a href="#variant._POSIX2_VERSION">_POSIX2_VERSION</a><a href="#variant.PAGE_SIZE">PAGE_SIZE</a><a href="#variant.PTHREAD_DESTRUCTOR_ITERATIONS">PTHREAD_DESTRUCTOR_ITERATIONS</a><a href="#variant.PTHREAD_KEYS_MAX">PTHREAD_KEYS_MAX</a><a href="#variant.PTHREAD_STACK_MIN">PTHREAD_STACK_MIN</a><a href="#variant.PTHREAD_THREADS_MAX">PTHREAD_THREADS_MAX</a><a href="#variant.RE_DUP_MAX">RE_DUP_MAX</a><a href="#variant.RTSIG_MAX">RTSIG_MAX</a><a href="#variant.SEM_NSEMS_MAX">SEM_NSEMS_MAX</a><a href="#variant.SEM_VALUE_MAX">SEM_VALUE_MAX</a><a href="#variant.SIGQUEUE_MAX">SIGQUEUE_MAX</a><a href="#variant.STREAM_MAX">STREAM_MAX</a><a href="#variant.SYMLOOP_MAX">SYMLOOP_MAX</a><a href="#variant.TIMER_MAX">TIMER_MAX</a><a href="#variant.TTY_NAME_MAX">TTY_NAME_MAX</a><a href="#variant.TZNAME_MAX">TZNAME_MAX</a><a href="#variant._XOPEN_CRYPT">_XOPEN_CRYPT</a><a href="#variant._XOPEN_ENH_I18N">_XOPEN_ENH_I18N</a><a href="#variant._XOPEN_LEGACY">_XOPEN_LEGACY</a><a href="#variant._XOPEN_REALTIME">_XOPEN_REALTIME</a><a href="#variant._XOPEN_REALTIME_THREADS">_XOPEN_REALTIME_THREADS</a><a href="#variant._XOPEN_SHM">_XOPEN_SHM</a><a href="#variant._XOPEN_STREAMS">_XOPEN_STREAMS</a><a href="#variant._XOPEN_UNIX">_XOPEN_UNIX</a><a href="#variant._XOPEN_VERSION">_XOPEN_VERSION</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Copy">Copy</a><a href="#impl-Debug">Debug</a><a href="#impl-Eq">Eq</a><a href="#impl-Hash">Hash</a><a href="#impl-PartialEq">PartialEq</a></div></div><p class='location'><a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a></p><script>window.sidebarCurrent = {name: 'SysconfVar', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a>::<wbr><a class="enum" href=''>SysconfVar</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/nix/unistd.rs.html#1180-1570' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'><div class="docblock attributes">#[repr(i32)]
+</div>pub enum SysconfVar {
+    AIO_LISTIO_MAX,
+    AIO_MAX,
+    AIO_PRIO_DELTA_MAX,
+    ARG_MAX,
+    ATEXIT_MAX,
+    BC_BASE_MAX,
+    BC_DIM_MAX,
+    BC_SCALE_MAX,
+    BC_STRING_MAX,
+    CHILD_MAX,
+    COLL_WEIGHTS_MAX,
+    DELAYTIMER_MAX,
+    EXPR_NEST_MAX,
+    HOST_NAME_MAX,
+    IOV_MAX,
+    LINE_MAX,
+    LOGIN_NAME_MAX,
+    NGROUPS_MAX,
+    GETGR_R_SIZE_MAX,
+    GETPW_R_SIZE_MAX,
+    MQ_OPEN_MAX,
+    MQ_PRIO_MAX,
+    OPEN_MAX,
+    _POSIX_ADVISORY_INFO,
+    _POSIX_BARRIERS,
+    _POSIX_ASYNCHRONOUS_IO,
+    _POSIX_CLOCK_SELECTION,
+    _POSIX_CPUTIME,
+    _POSIX_FSYNC,
+    _POSIX_IPV6,
+    _POSIX_JOB_CONTROL,
+    _POSIX_MAPPED_FILES,
+    _POSIX_MEMLOCK,
+    _POSIX_MEMLOCK_RANGE,
+    _POSIX_MEMORY_PROTECTION,
+    _POSIX_MESSAGE_PASSING,
+    _POSIX_MONOTONIC_CLOCK,
+    _POSIX_PRIORITIZED_IO,
+    _POSIX_PRIORITY_SCHEDULING,
+    _POSIX_RAW_SOCKETS,
+    _POSIX_READER_WRITER_LOCKS,
+    _POSIX_REALTIME_SIGNALS,
+    _POSIX_REGEXP,
+    _POSIX_SAVED_IDS,
+    _POSIX_SEMAPHORES,
+    _POSIX_SHARED_MEMORY_OBJECTS,
+    _POSIX_SHELL,
+    _POSIX_SPAWN,
+    _POSIX_SPIN_LOCKS,
+    _POSIX_SPORADIC_SERVER,
+    _POSIX_SS_REPL_MAX,
+    _POSIX_SYNCHRONIZED_IO,
+    _POSIX_THREAD_ATTR_STACKADDR,
+    _POSIX_THREAD_ATTR_STACKSIZE,
+    _POSIX_THREAD_CPUTIME,
+    _POSIX_THREAD_PRIO_INHERIT,
+    _POSIX_THREAD_PRIO_PROTECT,
+    _POSIX_THREAD_PRIORITY_SCHEDULING,
+    _POSIX_THREAD_PROCESS_SHARED,
+    _POSIX_THREAD_ROBUST_PRIO_INHERIT,
+    _POSIX_THREAD_ROBUST_PRIO_PROTECT,
+    _POSIX_THREAD_SAFE_FUNCTIONS,
+    _POSIX_THREAD_SPORADIC_SERVER,
+    _POSIX_THREADS,
+    _POSIX_TIMEOUTS,
+    _POSIX_TIMERS,
+    _POSIX_TRACE,
+    _POSIX_TRACE_EVENT_FILTER,
+    _POSIX_TRACE_EVENT_NAME_MAX,
+    _POSIX_TRACE_INHERIT,
+    _POSIX_TRACE_LOG,
+    _POSIX_TRACE_NAME_MAX,
+    _POSIX_TRACE_SYS_MAX,
+    _POSIX_TRACE_USER_EVENT_MAX,
+    _POSIX_TYPED_MEMORY_OBJECTS,
+    _POSIX_VERSION,
+    _POSIX_V6_ILP32_OFF32,
+    _POSIX_V6_ILP32_OFFBIG,
+    _POSIX_V6_LP64_OFF64,
+    _POSIX_V6_LPBIG_OFFBIG,
+    _POSIX2_C_BIND,
+    _POSIX2_C_DEV,
+    _POSIX2_CHAR_TERM,
+    _POSIX2_FORT_DEV,
+    _POSIX2_FORT_RUN,
+    _POSIX2_LOCALEDEF,
+    _POSIX2_PBS,
+    _POSIX2_PBS_ACCOUNTING,
+    _POSIX2_PBS_CHECKPOINT,
+    _POSIX2_PBS_LOCATE,
+    _POSIX2_PBS_MESSAGE,
+    _POSIX2_PBS_TRACK,
+    _POSIX2_SW_DEV,
+    _POSIX2_UPE,
+    _POSIX2_VERSION,
+    PAGE_SIZE,
+    PTHREAD_DESTRUCTOR_ITERATIONS,
+    PTHREAD_KEYS_MAX,
+    PTHREAD_STACK_MIN,
+    PTHREAD_THREADS_MAX,
+    RE_DUP_MAX,
+    RTSIG_MAX,
+    SEM_NSEMS_MAX,
+    SEM_VALUE_MAX,
+    SIGQUEUE_MAX,
+    STREAM_MAX,
+    SYMLOOP_MAX,
+    TIMER_MAX,
+    TTY_NAME_MAX,
+    TZNAME_MAX,
+    _XOPEN_CRYPT,
+    _XOPEN_ENH_I18N,
+    _XOPEN_LEGACY,
+    _XOPEN_REALTIME,
+    _XOPEN_REALTIME_THREADS,
+    _XOPEN_SHM,
+    _XOPEN_STREAMS,
+    _XOPEN_UNIX,
+    _XOPEN_VERSION,
+}</pre><div class='docblock'><p>Variable names for <code>sysconf</code></p>
+<p>Nix uses the same naming convention for these variables as the
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/utilities/getconf.html">getconf(1)</a> utility.
+That is, <code>SysconfVar</code> variables have the same name as the abstract variables
+shown in the <code>sysconf(3)</code> man page.  Usually, it's the same as the C
+variable name without the leading <code>_SC_</code>.</p>
+<p>All of these symbols are standardized by POSIX 1003.1-2008, but haven't been
+implemented by all platforms.</p>
+<h1 id="references" class="section-header"><a href="#references">References</a></h1>
+<ul>
+<li><a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html">sysconf(3)</a></li>
+<li><a href="http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/unistd.h.html">unistd.h</a></li>
+<li><a href="http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/limits.h.html">limits.h</a></li>
+</ul>
+</div><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.AIO_LISTIO_MAX" class="variant small-section-header"><a href="#variant.AIO_LISTIO_MAX" class="anchor field"></a><span id='AIO_LISTIO_MAX.v' class='invisible'><code>AIO_LISTIO_MAX</code></span></span><div class='docblock'><p>Maximum number of I/O operations in a single list I/O call supported by
+the implementation.</p>
+</div><span id="variant.AIO_MAX" class="variant small-section-header"><a href="#variant.AIO_MAX" class="anchor field"></a><span id='AIO_MAX.v' class='invisible'><code>AIO_MAX</code></span></span><div class='docblock'><p>Maximum number of outstanding asynchronous I/O operations supported by
+the implementation.</p>
+</div><span id="variant.AIO_PRIO_DELTA_MAX" class="variant small-section-header"><a href="#variant.AIO_PRIO_DELTA_MAX" class="anchor field"></a><span id='AIO_PRIO_DELTA_MAX.v' class='invisible'><code>AIO_PRIO_DELTA_MAX</code></span></span><div class='docblock'><p>The maximum amount by which a process can decrease its asynchronous I/O
+priority level from its own scheduling priority.</p>
+</div><span id="variant.ARG_MAX" class="variant small-section-header"><a href="#variant.ARG_MAX" class="anchor field"></a><span id='ARG_MAX.v' class='invisible'><code>ARG_MAX</code></span></span><div class='docblock'><p>Maximum length of argument to the exec functions including environment data.</p>
+</div><span id="variant.ATEXIT_MAX" class="variant small-section-header"><a href="#variant.ATEXIT_MAX" class="anchor field"></a><span id='ATEXIT_MAX.v' class='invisible'><code>ATEXIT_MAX</code></span></span><div class='docblock'><p>Maximum number of functions that may be registered with <code>atexit</code>.</p>
+</div><span id="variant.BC_BASE_MAX" class="variant small-section-header"><a href="#variant.BC_BASE_MAX" class="anchor field"></a><span id='BC_BASE_MAX.v' class='invisible'><code>BC_BASE_MAX</code></span></span><div class='docblock'><p>Maximum obase values allowed by the bc utility.</p>
+</div><span id="variant.BC_DIM_MAX" class="variant small-section-header"><a href="#variant.BC_DIM_MAX" class="anchor field"></a><span id='BC_DIM_MAX.v' class='invisible'><code>BC_DIM_MAX</code></span></span><div class='docblock'><p>Maximum number of elements permitted in an array by the bc utility.</p>
+</div><span id="variant.BC_SCALE_MAX" class="variant small-section-header"><a href="#variant.BC_SCALE_MAX" class="anchor field"></a><span id='BC_SCALE_MAX.v' class='invisible'><code>BC_SCALE_MAX</code></span></span><div class='docblock'><p>Maximum scale value allowed by the bc utility.</p>
+</div><span id="variant.BC_STRING_MAX" class="variant small-section-header"><a href="#variant.BC_STRING_MAX" class="anchor field"></a><span id='BC_STRING_MAX.v' class='invisible'><code>BC_STRING_MAX</code></span></span><div class='docblock'><p>Maximum length of a string constant accepted by the bc utility.</p>
+</div><span id="variant.CHILD_MAX" class="variant small-section-header"><a href="#variant.CHILD_MAX" class="anchor field"></a><span id='CHILD_MAX.v' class='invisible'><code>CHILD_MAX</code></span></span><div class='docblock'><p>Maximum number of simultaneous processes per real user ID.</p>
+</div><span id="variant.COLL_WEIGHTS_MAX" class="variant small-section-header"><a href="#variant.COLL_WEIGHTS_MAX" class="anchor field"></a><span id='COLL_WEIGHTS_MAX.v' class='invisible'><code>COLL_WEIGHTS_MAX</code></span></span><div class='docblock'><p>Maximum number of weights that can be assigned to an entry of the
+LC_COLLATE order keyword in the locale definition file</p>
+</div><span id="variant.DELAYTIMER_MAX" class="variant small-section-header"><a href="#variant.DELAYTIMER_MAX" class="anchor field"></a><span id='DELAYTIMER_MAX.v' class='invisible'><code>DELAYTIMER_MAX</code></span></span><div class='docblock'><p>Maximum number of timer expiration overruns.</p>
+</div><span id="variant.EXPR_NEST_MAX" class="variant small-section-header"><a href="#variant.EXPR_NEST_MAX" class="anchor field"></a><span id='EXPR_NEST_MAX.v' class='invisible'><code>EXPR_NEST_MAX</code></span></span><div class='docblock'><p>Maximum number of expressions that can be nested within parentheses by
+the expr utility.</p>
+</div><span id="variant.HOST_NAME_MAX" class="variant small-section-header"><a href="#variant.HOST_NAME_MAX" class="anchor field"></a><span id='HOST_NAME_MAX.v' class='invisible'><code>HOST_NAME_MAX</code></span></span><div class='docblock'><p>Maximum length of a host name (not including the terminating null) as
+returned from the <code>gethostname</code> function</p>
+</div><span id="variant.IOV_MAX" class="variant small-section-header"><a href="#variant.IOV_MAX" class="anchor field"></a><span id='IOV_MAX.v' class='invisible'><code>IOV_MAX</code></span></span><div class='docblock'><p>Maximum number of iovec structures that one process has available for
+use with <code>readv</code> or <code>writev</code>.</p>
+</div><span id="variant.LINE_MAX" class="variant small-section-header"><a href="#variant.LINE_MAX" class="anchor field"></a><span id='LINE_MAX.v' class='invisible'><code>LINE_MAX</code></span></span><div class='docblock'><p>Unless otherwise noted, the maximum length, in bytes, of a utility's
+input line (either standard input or another file), when the utility is
+described as processing text files. The length includes room for the
+trailing <newline>.</p>
+</div><span id="variant.LOGIN_NAME_MAX" class="variant small-section-header"><a href="#variant.LOGIN_NAME_MAX" class="anchor field"></a><span id='LOGIN_NAME_MAX.v' class='invisible'><code>LOGIN_NAME_MAX</code></span></span><div class='docblock'><p>Maximum length of a login name.</p>
+</div><span id="variant.NGROUPS_MAX" class="variant small-section-header"><a href="#variant.NGROUPS_MAX" class="anchor field"></a><span id='NGROUPS_MAX.v' class='invisible'><code>NGROUPS_MAX</code></span></span><div class='docblock'><p>Maximum number of simultaneous supplementary group IDs per process.</p>
+</div><span id="variant.GETGR_R_SIZE_MAX" class="variant small-section-header"><a href="#variant.GETGR_R_SIZE_MAX" class="anchor field"></a><span id='GETGR_R_SIZE_MAX.v' class='invisible'><code>GETGR_R_SIZE_MAX</code></span></span><div class='docblock'><p>Initial size of <code>getgrgid_r</code> and <code>getgrnam_r</code> data buffers</p>
+</div><span id="variant.GETPW_R_SIZE_MAX" class="variant small-section-header"><a href="#variant.GETPW_R_SIZE_MAX" class="anchor field"></a><span id='GETPW_R_SIZE_MAX.v' class='invisible'><code>GETPW_R_SIZE_MAX</code></span></span><div class='docblock'><p>Initial size of <code>getpwuid_r</code> and <code>getpwnam_r</code> data buffers</p>
+</div><span id="variant.MQ_OPEN_MAX" class="variant small-section-header"><a href="#variant.MQ_OPEN_MAX" class="anchor field"></a><span id='MQ_OPEN_MAX.v' class='invisible'><code>MQ_OPEN_MAX</code></span></span><div class='docblock'><p>The maximum number of open message queue descriptors a process may hold.</p>
+</div><span id="variant.MQ_PRIO_MAX" class="variant small-section-header"><a href="#variant.MQ_PRIO_MAX" class="anchor field"></a><span id='MQ_PRIO_MAX.v' class='invisible'><code>MQ_PRIO_MAX</code></span></span><div class='docblock'><p>The maximum number of message priorities supported by the implementation.</p>
+</div><span id="variant.OPEN_MAX" class="variant small-section-header"><a href="#variant.OPEN_MAX" class="anchor field"></a><span id='OPEN_MAX.v' class='invisible'><code>OPEN_MAX</code></span></span><div class='docblock'><p>A value one greater than the maximum value that the system may assign to
+a newly-created file descriptor.</p>
+</div><span id="variant._POSIX_ADVISORY_INFO" class="variant small-section-header"><a href="#variant._POSIX_ADVISORY_INFO" class="anchor field"></a><span id='_POSIX_ADVISORY_INFO.v' class='invisible'><code>_POSIX_ADVISORY_INFO</code></span></span><div class='docblock'><p>The implementation supports the Advisory Information option. </p>
+</div><span id="variant._POSIX_BARRIERS" class="variant small-section-header"><a href="#variant._POSIX_BARRIERS" class="anchor field"></a><span id='_POSIX_BARRIERS.v' class='invisible'><code>_POSIX_BARRIERS</code></span></span><div class='docblock'><p>The implementation supports barriers.</p>
+</div><span id="variant._POSIX_ASYNCHRONOUS_IO" class="variant small-section-header"><a href="#variant._POSIX_ASYNCHRONOUS_IO" class="anchor field"></a><span id='_POSIX_ASYNCHRONOUS_IO.v' class='invisible'><code>_POSIX_ASYNCHRONOUS_IO</code></span></span><div class='docblock'><p>The implementation supports asynchronous input and output.</p>
+</div><span id="variant._POSIX_CLOCK_SELECTION" class="variant small-section-header"><a href="#variant._POSIX_CLOCK_SELECTION" class="anchor field"></a><span id='_POSIX_CLOCK_SELECTION.v' class='invisible'><code>_POSIX_CLOCK_SELECTION</code></span></span><div class='docblock'><p>The implementation supports clock selection.</p>
+</div><span id="variant._POSIX_CPUTIME" class="variant small-section-header"><a href="#variant._POSIX_CPUTIME" class="anchor field"></a><span id='_POSIX_CPUTIME.v' class='invisible'><code>_POSIX_CPUTIME</code></span></span><div class='docblock'><p>The implementation supports the Process CPU-Time Clocks option.</p>
+</div><span id="variant._POSIX_FSYNC" class="variant small-section-header"><a href="#variant._POSIX_FSYNC" class="anchor field"></a><span id='_POSIX_FSYNC.v' class='invisible'><code>_POSIX_FSYNC</code></span></span><div class='docblock'><p>The implementation supports the File Synchronization option. </p>
+</div><span id="variant._POSIX_IPV6" class="variant small-section-header"><a href="#variant._POSIX_IPV6" class="anchor field"></a><span id='_POSIX_IPV6.v' class='invisible'><code>_POSIX_IPV6</code></span></span><div class='docblock'><p>The implementation supports the IPv6 option.</p>
+</div><span id="variant._POSIX_JOB_CONTROL" class="variant small-section-header"><a href="#variant._POSIX_JOB_CONTROL" class="anchor field"></a><span id='_POSIX_JOB_CONTROL.v' class='invisible'><code>_POSIX_JOB_CONTROL</code></span></span><div class='docblock'><p>The implementation supports job control.</p>
+</div><span id="variant._POSIX_MAPPED_FILES" class="variant small-section-header"><a href="#variant._POSIX_MAPPED_FILES" class="anchor field"></a><span id='_POSIX_MAPPED_FILES.v' class='invisible'><code>_POSIX_MAPPED_FILES</code></span></span><div class='docblock'><p>The implementation supports memory mapped Files.</p>
+</div><span id="variant._POSIX_MEMLOCK" class="variant small-section-header"><a href="#variant._POSIX_MEMLOCK" class="anchor field"></a><span id='_POSIX_MEMLOCK.v' class='invisible'><code>_POSIX_MEMLOCK</code></span></span><div class='docblock'><p>The implementation supports the Process Memory Locking option.</p>
+</div><span id="variant._POSIX_MEMLOCK_RANGE" class="variant small-section-header"><a href="#variant._POSIX_MEMLOCK_RANGE" class="anchor field"></a><span id='_POSIX_MEMLOCK_RANGE.v' class='invisible'><code>_POSIX_MEMLOCK_RANGE</code></span></span><div class='docblock'><p>The implementation supports the Range Memory Locking option.</p>
+</div><span id="variant._POSIX_MEMORY_PROTECTION" class="variant small-section-header"><a href="#variant._POSIX_MEMORY_PROTECTION" class="anchor field"></a><span id='_POSIX_MEMORY_PROTECTION.v' class='invisible'><code>_POSIX_MEMORY_PROTECTION</code></span></span><div class='docblock'><p>The implementation supports memory protection.</p>
+</div><span id="variant._POSIX_MESSAGE_PASSING" class="variant small-section-header"><a href="#variant._POSIX_MESSAGE_PASSING" class="anchor field"></a><span id='_POSIX_MESSAGE_PASSING.v' class='invisible'><code>_POSIX_MESSAGE_PASSING</code></span></span><div class='docblock'><p>The implementation supports the Message Passing option.</p>
+</div><span id="variant._POSIX_MONOTONIC_CLOCK" class="variant small-section-header"><a href="#variant._POSIX_MONOTONIC_CLOCK" class="anchor field"></a><span id='_POSIX_MONOTONIC_CLOCK.v' class='invisible'><code>_POSIX_MONOTONIC_CLOCK</code></span></span><div class='docblock'><p>The implementation supports the Monotonic Clock option.</p>
+</div><span id="variant._POSIX_PRIORITIZED_IO" class="variant small-section-header"><a href="#variant._POSIX_PRIORITIZED_IO" class="anchor field"></a><span id='_POSIX_PRIORITIZED_IO.v' class='invisible'><code>_POSIX_PRIORITIZED_IO</code></span></span><div class='docblock'><p>The implementation supports the Prioritized Input and Output option.</p>
+</div><span id="variant._POSIX_PRIORITY_SCHEDULING" class="variant small-section-header"><a href="#variant._POSIX_PRIORITY_SCHEDULING" class="anchor field"></a><span id='_POSIX_PRIORITY_SCHEDULING.v' class='invisible'><code>_POSIX_PRIORITY_SCHEDULING</code></span></span><div class='docblock'><p>The implementation supports the Process Scheduling option.</p>
+</div><span id="variant._POSIX_RAW_SOCKETS" class="variant small-section-header"><a href="#variant._POSIX_RAW_SOCKETS" class="anchor field"></a><span id='_POSIX_RAW_SOCKETS.v' class='invisible'><code>_POSIX_RAW_SOCKETS</code></span></span><div class='docblock'><p>The implementation supports the Raw Sockets option.</p>
+</div><span id="variant._POSIX_READER_WRITER_LOCKS" class="variant small-section-header"><a href="#variant._POSIX_READER_WRITER_LOCKS" class="anchor field"></a><span id='_POSIX_READER_WRITER_LOCKS.v' class='invisible'><code>_POSIX_READER_WRITER_LOCKS</code></span></span><div class='docblock'><p>The implementation supports read-write locks.</p>
+</div><span id="variant._POSIX_REALTIME_SIGNALS" class="variant small-section-header"><a href="#variant._POSIX_REALTIME_SIGNALS" class="anchor field"></a><span id='_POSIX_REALTIME_SIGNALS.v' class='invisible'><code>_POSIX_REALTIME_SIGNALS</code></span></span><div class='docblock'><p>The implementation supports realtime signals.</p>
+</div><span id="variant._POSIX_REGEXP" class="variant small-section-header"><a href="#variant._POSIX_REGEXP" class="anchor field"></a><span id='_POSIX_REGEXP.v' class='invisible'><code>_POSIX_REGEXP</code></span></span><div class='docblock'><p>The implementation supports the Regular Expression Handling option.</p>
+</div><span id="variant._POSIX_SAVED_IDS" class="variant small-section-header"><a href="#variant._POSIX_SAVED_IDS" class="anchor field"></a><span id='_POSIX_SAVED_IDS.v' class='invisible'><code>_POSIX_SAVED_IDS</code></span></span><div class='docblock'><p>Each process has a saved set-user-ID and a saved set-group-ID.</p>
+</div><span id="variant._POSIX_SEMAPHORES" class="variant small-section-header"><a href="#variant._POSIX_SEMAPHORES" class="anchor field"></a><span id='_POSIX_SEMAPHORES.v' class='invisible'><code>_POSIX_SEMAPHORES</code></span></span><div class='docblock'><p>The implementation supports semaphores.</p>
+</div><span id="variant._POSIX_SHARED_MEMORY_OBJECTS" class="variant small-section-header"><a href="#variant._POSIX_SHARED_MEMORY_OBJECTS" class="anchor field"></a><span id='_POSIX_SHARED_MEMORY_OBJECTS.v' class='invisible'><code>_POSIX_SHARED_MEMORY_OBJECTS</code></span></span><div class='docblock'><p>The implementation supports the Shared Memory Objects option.</p>
+</div><span id="variant._POSIX_SHELL" class="variant small-section-header"><a href="#variant._POSIX_SHELL" class="anchor field"></a><span id='_POSIX_SHELL.v' class='invisible'><code>_POSIX_SHELL</code></span></span><div class='docblock'><p>The implementation supports the POSIX shell.</p>
+</div><span id="variant._POSIX_SPAWN" class="variant small-section-header"><a href="#variant._POSIX_SPAWN" class="anchor field"></a><span id='_POSIX_SPAWN.v' class='invisible'><code>_POSIX_SPAWN</code></span></span><div class='docblock'><p>The implementation supports the Spawn option.</p>
+</div><span id="variant._POSIX_SPIN_LOCKS" class="variant small-section-header"><a href="#variant._POSIX_SPIN_LOCKS" class="anchor field"></a><span id='_POSIX_SPIN_LOCKS.v' class='invisible'><code>_POSIX_SPIN_LOCKS</code></span></span><div class='docblock'><p>The implementation supports spin locks.</p>
+</div><span id="variant._POSIX_SPORADIC_SERVER" class="variant small-section-header"><a href="#variant._POSIX_SPORADIC_SERVER" class="anchor field"></a><span id='_POSIX_SPORADIC_SERVER.v' class='invisible'><code>_POSIX_SPORADIC_SERVER</code></span></span><div class='docblock'><p>The implementation supports the Process Sporadic Server option.</p>
+</div><span id="variant._POSIX_SS_REPL_MAX" class="variant small-section-header"><a href="#variant._POSIX_SS_REPL_MAX" class="anchor field"></a><span id='_POSIX_SS_REPL_MAX.v' class='invisible'><code>_POSIX_SS_REPL_MAX</code></span></span><span id="variant._POSIX_SYNCHRONIZED_IO" class="variant small-section-header"><a href="#variant._POSIX_SYNCHRONIZED_IO" class="anchor field"></a><span id='_POSIX_SYNCHRONIZED_IO.v' class='invisible'><code>_POSIX_SYNCHRONIZED_IO</code></span></span><div class='docblock'><p>The implementation supports the Synchronized Input and Output option.</p>
+</div><span id="variant._POSIX_THREAD_ATTR_STACKADDR" class="variant small-section-header"><a href="#variant._POSIX_THREAD_ATTR_STACKADDR" class="anchor field"></a><span id='_POSIX_THREAD_ATTR_STACKADDR.v' class='invisible'><code>_POSIX_THREAD_ATTR_STACKADDR</code></span></span><div class='docblock'><p>The implementation supports the Thread Stack Address Attribute option.</p>
+</div><span id="variant._POSIX_THREAD_ATTR_STACKSIZE" class="variant small-section-header"><a href="#variant._POSIX_THREAD_ATTR_STACKSIZE" class="anchor field"></a><span id='_POSIX_THREAD_ATTR_STACKSIZE.v' class='invisible'><code>_POSIX_THREAD_ATTR_STACKSIZE</code></span></span><div class='docblock'><p>The implementation supports the Thread Stack Size Attribute option.</p>
+</div><span id="variant._POSIX_THREAD_CPUTIME" class="variant small-section-header"><a href="#variant._POSIX_THREAD_CPUTIME" class="anchor field"></a><span id='_POSIX_THREAD_CPUTIME.v' class='invisible'><code>_POSIX_THREAD_CPUTIME</code></span></span><div class='docblock'><p>The implementation supports the Thread CPU-Time Clocks option.</p>
+</div><span id="variant._POSIX_THREAD_PRIO_INHERIT" class="variant small-section-header"><a href="#variant._POSIX_THREAD_PRIO_INHERIT" class="anchor field"></a><span id='_POSIX_THREAD_PRIO_INHERIT.v' class='invisible'><code>_POSIX_THREAD_PRIO_INHERIT</code></span></span><div class='docblock'><p>The implementation supports the Non-Robust Mutex Priority Inheritance
+option.</p>
+</div><span id="variant._POSIX_THREAD_PRIO_PROTECT" class="variant small-section-header"><a href="#variant._POSIX_THREAD_PRIO_PROTECT" class="anchor field"></a><span id='_POSIX_THREAD_PRIO_PROTECT.v' class='invisible'><code>_POSIX_THREAD_PRIO_PROTECT</code></span></span><div class='docblock'><p>The implementation supports the Non-Robust Mutex Priority Protection option.</p>
+</div><span id="variant._POSIX_THREAD_PRIORITY_SCHEDULING" class="variant small-section-header"><a href="#variant._POSIX_THREAD_PRIORITY_SCHEDULING" class="anchor field"></a><span id='_POSIX_THREAD_PRIORITY_SCHEDULING.v' class='invisible'><code>_POSIX_THREAD_PRIORITY_SCHEDULING</code></span></span><div class='docblock'><p>The implementation supports the Thread Execution Scheduling option.</p>
+</div><span id="variant._POSIX_THREAD_PROCESS_SHARED" class="variant small-section-header"><a href="#variant._POSIX_THREAD_PROCESS_SHARED" class="anchor field"></a><span id='_POSIX_THREAD_PROCESS_SHARED.v' class='invisible'><code>_POSIX_THREAD_PROCESS_SHARED</code></span></span><div class='docblock'><p>The implementation supports the Thread Process-Shared Synchronization
+option.</p>
+</div><span id="variant._POSIX_THREAD_ROBUST_PRIO_INHERIT" class="variant small-section-header"><a href="#variant._POSIX_THREAD_ROBUST_PRIO_INHERIT" class="anchor field"></a><span id='_POSIX_THREAD_ROBUST_PRIO_INHERIT.v' class='invisible'><code>_POSIX_THREAD_ROBUST_PRIO_INHERIT</code></span></span><div class='docblock'><p>The implementation supports the Robust Mutex Priority Inheritance option.</p>
+</div><span id="variant._POSIX_THREAD_ROBUST_PRIO_PROTECT" class="variant small-section-header"><a href="#variant._POSIX_THREAD_ROBUST_PRIO_PROTECT" class="anchor field"></a><span id='_POSIX_THREAD_ROBUST_PRIO_PROTECT.v' class='invisible'><code>_POSIX_THREAD_ROBUST_PRIO_PROTECT</code></span></span><div class='docblock'><p>The implementation supports the Robust Mutex Priority Protection option.</p>
+</div><span id="variant._POSIX_THREAD_SAFE_FUNCTIONS" class="variant small-section-header"><a href="#variant._POSIX_THREAD_SAFE_FUNCTIONS" class="anchor field"></a><span id='_POSIX_THREAD_SAFE_FUNCTIONS.v' class='invisible'><code>_POSIX_THREAD_SAFE_FUNCTIONS</code></span></span><div class='docblock'><p>The implementation supports thread-safe functions.</p>
+</div><span id="variant._POSIX_THREAD_SPORADIC_SERVER" class="variant small-section-header"><a href="#variant._POSIX_THREAD_SPORADIC_SERVER" class="anchor field"></a><span id='_POSIX_THREAD_SPORADIC_SERVER.v' class='invisible'><code>_POSIX_THREAD_SPORADIC_SERVER</code></span></span><div class='docblock'><p>The implementation supports the Thread Sporadic Server option.</p>
+</div><span id="variant._POSIX_THREADS" class="variant small-section-header"><a href="#variant._POSIX_THREADS" class="anchor field"></a><span id='_POSIX_THREADS.v' class='invisible'><code>_POSIX_THREADS</code></span></span><div class='docblock'><p>The implementation supports threads.</p>
+</div><span id="variant._POSIX_TIMEOUTS" class="variant small-section-header"><a href="#variant._POSIX_TIMEOUTS" class="anchor field"></a><span id='_POSIX_TIMEOUTS.v' class='invisible'><code>_POSIX_TIMEOUTS</code></span></span><div class='docblock'><p>The implementation supports timeouts.</p>
+</div><span id="variant._POSIX_TIMERS" class="variant small-section-header"><a href="#variant._POSIX_TIMERS" class="anchor field"></a><span id='_POSIX_TIMERS.v' class='invisible'><code>_POSIX_TIMERS</code></span></span><div class='docblock'><p>The implementation supports timers. </p>
+</div><span id="variant._POSIX_TRACE" class="variant small-section-header"><a href="#variant._POSIX_TRACE" class="anchor field"></a><span id='_POSIX_TRACE.v' class='invisible'><code>_POSIX_TRACE</code></span></span><div class='docblock'><p>The implementation supports the Trace option.</p>
+</div><span id="variant._POSIX_TRACE_EVENT_FILTER" class="variant small-section-header"><a href="#variant._POSIX_TRACE_EVENT_FILTER" class="anchor field"></a><span id='_POSIX_TRACE_EVENT_FILTER.v' class='invisible'><code>_POSIX_TRACE_EVENT_FILTER</code></span></span><div class='docblock'><p>The implementation supports the Trace Event Filter option.</p>
+</div><span id="variant._POSIX_TRACE_EVENT_NAME_MAX" class="variant small-section-header"><a href="#variant._POSIX_TRACE_EVENT_NAME_MAX" class="anchor field"></a><span id='_POSIX_TRACE_EVENT_NAME_MAX.v' class='invisible'><code>_POSIX_TRACE_EVENT_NAME_MAX</code></span></span><span id="variant._POSIX_TRACE_INHERIT" class="variant small-section-header"><a href="#variant._POSIX_TRACE_INHERIT" class="anchor field"></a><span id='_POSIX_TRACE_INHERIT.v' class='invisible'><code>_POSIX_TRACE_INHERIT</code></span></span><div class='docblock'><p>The implementation supports the Trace Inherit option.</p>
+</div><span id="variant._POSIX_TRACE_LOG" class="variant small-section-header"><a href="#variant._POSIX_TRACE_LOG" class="anchor field"></a><span id='_POSIX_TRACE_LOG.v' class='invisible'><code>_POSIX_TRACE_LOG</code></span></span><div class='docblock'><p>The implementation supports the Trace Log option.</p>
+</div><span id="variant._POSIX_TRACE_NAME_MAX" class="variant small-section-header"><a href="#variant._POSIX_TRACE_NAME_MAX" class="anchor field"></a><span id='_POSIX_TRACE_NAME_MAX.v' class='invisible'><code>_POSIX_TRACE_NAME_MAX</code></span></span><span id="variant._POSIX_TRACE_SYS_MAX" class="variant small-section-header"><a href="#variant._POSIX_TRACE_SYS_MAX" class="anchor field"></a><span id='_POSIX_TRACE_SYS_MAX.v' class='invisible'><code>_POSIX_TRACE_SYS_MAX</code></span></span><span id="variant._POSIX_TRACE_USER_EVENT_MAX" class="variant small-section-header"><a href="#variant._POSIX_TRACE_USER_EVENT_MAX" class="anchor field"></a><span id='_POSIX_TRACE_USER_EVENT_MAX.v' class='invisible'><code>_POSIX_TRACE_USER_EVENT_MAX</code></span></span><span id="variant._POSIX_TYPED_MEMORY_OBJECTS" class="variant small-section-header"><a href="#variant._POSIX_TYPED_MEMORY_OBJECTS" class="anchor field"></a><span id='_POSIX_TYPED_MEMORY_OBJECTS.v' class='invisible'><code>_POSIX_TYPED_MEMORY_OBJECTS</code></span></span><div class='docblock'><p>The implementation supports the Typed Memory Objects option.</p>
+</div><span id="variant._POSIX_VERSION" class="variant small-section-header"><a href="#variant._POSIX_VERSION" class="anchor field"></a><span id='_POSIX_VERSION.v' class='invisible'><code>_POSIX_VERSION</code></span></span><div class='docblock'><p>Integer value indicating version of this standard (C-language binding)
+to which the implementation conforms. For implementations conforming to
+POSIX.1-2008, the value shall be 200809L.</p>
+</div><span id="variant._POSIX_V6_ILP32_OFF32" class="variant small-section-header"><a href="#variant._POSIX_V6_ILP32_OFF32" class="anchor field"></a><span id='_POSIX_V6_ILP32_OFF32.v' class='invisible'><code>_POSIX_V6_ILP32_OFF32</code></span></span><div class='docblock'><p>The implementation provides a C-language compilation environment with
+32-bit <code>int</code>, <code>long</code>, <code>pointer</code>, and <code>off_t</code> types.</p>
+</div><span id="variant._POSIX_V6_ILP32_OFFBIG" class="variant small-section-header"><a href="#variant._POSIX_V6_ILP32_OFFBIG" class="anchor field"></a><span id='_POSIX_V6_ILP32_OFFBIG.v' class='invisible'><code>_POSIX_V6_ILP32_OFFBIG</code></span></span><div class='docblock'><p>The implementation provides a C-language compilation environment with
+32-bit <code>int</code>, <code>long</code>, and pointer types and an <code>off_t</code> type using at
+least 64 bits.</p>
+</div><span id="variant._POSIX_V6_LP64_OFF64" class="variant small-section-header"><a href="#variant._POSIX_V6_LP64_OFF64" class="anchor field"></a><span id='_POSIX_V6_LP64_OFF64.v' class='invisible'><code>_POSIX_V6_LP64_OFF64</code></span></span><div class='docblock'><p>The implementation provides a C-language compilation environment with
+32-bit <code>int</code> and 64-bit <code>long</code>, <code>pointer</code>, and <code>off_t</code> types.</p>
+</div><span id="variant._POSIX_V6_LPBIG_OFFBIG" class="variant small-section-header"><a href="#variant._POSIX_V6_LPBIG_OFFBIG" class="anchor field"></a><span id='_POSIX_V6_LPBIG_OFFBIG.v' class='invisible'><code>_POSIX_V6_LPBIG_OFFBIG</code></span></span><div class='docblock'><p>The implementation provides a C-language compilation environment with an
+<code>int</code> type using at least 32 bits and <code>long</code>, pointer, and <code>off_t</code> types
+using at least 64 bits.</p>
+</div><span id="variant._POSIX2_C_BIND" class="variant small-section-header"><a href="#variant._POSIX2_C_BIND" class="anchor field"></a><span id='_POSIX2_C_BIND.v' class='invisible'><code>_POSIX2_C_BIND</code></span></span><div class='docblock'><p>The implementation supports the C-Language Binding option.</p>
+</div><span id="variant._POSIX2_C_DEV" class="variant small-section-header"><a href="#variant._POSIX2_C_DEV" class="anchor field"></a><span id='_POSIX2_C_DEV.v' class='invisible'><code>_POSIX2_C_DEV</code></span></span><div class='docblock'><p>The implementation supports the C-Language Development Utilities option.</p>
+</div><span id="variant._POSIX2_CHAR_TERM" class="variant small-section-header"><a href="#variant._POSIX2_CHAR_TERM" class="anchor field"></a><span id='_POSIX2_CHAR_TERM.v' class='invisible'><code>_POSIX2_CHAR_TERM</code></span></span><div class='docblock'><p>The implementation supports the Terminal Characteristics option.</p>
+</div><span id="variant._POSIX2_FORT_DEV" class="variant small-section-header"><a href="#variant._POSIX2_FORT_DEV" class="anchor field"></a><span id='_POSIX2_FORT_DEV.v' class='invisible'><code>_POSIX2_FORT_DEV</code></span></span><div class='docblock'><p>The implementation supports the FORTRAN Development Utilities option.</p>
+</div><span id="variant._POSIX2_FORT_RUN" class="variant small-section-header"><a href="#variant._POSIX2_FORT_RUN" class="anchor field"></a><span id='_POSIX2_FORT_RUN.v' class='invisible'><code>_POSIX2_FORT_RUN</code></span></span><div class='docblock'><p>The implementation supports the FORTRAN Runtime Utilities option.</p>
+</div><span id="variant._POSIX2_LOCALEDEF" class="variant small-section-header"><a href="#variant._POSIX2_LOCALEDEF" class="anchor field"></a><span id='_POSIX2_LOCALEDEF.v' class='invisible'><code>_POSIX2_LOCALEDEF</code></span></span><div class='docblock'><p>The implementation supports the creation of locales by the localedef
+utility.</p>
+</div><span id="variant._POSIX2_PBS" class="variant small-section-header"><a href="#variant._POSIX2_PBS" class="anchor field"></a><span id='_POSIX2_PBS.v' class='invisible'><code>_POSIX2_PBS</code></span></span><div class='docblock'><p>The implementation supports the Batch Environment Services and Utilities
+option.</p>
+</div><span id="variant._POSIX2_PBS_ACCOUNTING" class="variant small-section-header"><a href="#variant._POSIX2_PBS_ACCOUNTING" class="anchor field"></a><span id='_POSIX2_PBS_ACCOUNTING.v' class='invisible'><code>_POSIX2_PBS_ACCOUNTING</code></span></span><div class='docblock'><p>The implementation supports the Batch Accounting option.</p>
+</div><span id="variant._POSIX2_PBS_CHECKPOINT" class="variant small-section-header"><a href="#variant._POSIX2_PBS_CHECKPOINT" class="anchor field"></a><span id='_POSIX2_PBS_CHECKPOINT.v' class='invisible'><code>_POSIX2_PBS_CHECKPOINT</code></span></span><div class='docblock'><p>The implementation supports the Batch Checkpoint/Restart option.</p>
+</div><span id="variant._POSIX2_PBS_LOCATE" class="variant small-section-header"><a href="#variant._POSIX2_PBS_LOCATE" class="anchor field"></a><span id='_POSIX2_PBS_LOCATE.v' class='invisible'><code>_POSIX2_PBS_LOCATE</code></span></span><div class='docblock'><p>The implementation supports the Locate Batch Job Request option.</p>
+</div><span id="variant._POSIX2_PBS_MESSAGE" class="variant small-section-header"><a href="#variant._POSIX2_PBS_MESSAGE" class="anchor field"></a><span id='_POSIX2_PBS_MESSAGE.v' class='invisible'><code>_POSIX2_PBS_MESSAGE</code></span></span><div class='docblock'><p>The implementation supports the Batch Job Message Request option.</p>
+</div><span id="variant._POSIX2_PBS_TRACK" class="variant small-section-header"><a href="#variant._POSIX2_PBS_TRACK" class="anchor field"></a><span id='_POSIX2_PBS_TRACK.v' class='invisible'><code>_POSIX2_PBS_TRACK</code></span></span><div class='docblock'><p>The implementation supports the Track Batch Job Request option.</p>
+</div><span id="variant._POSIX2_SW_DEV" class="variant small-section-header"><a href="#variant._POSIX2_SW_DEV" class="anchor field"></a><span id='_POSIX2_SW_DEV.v' class='invisible'><code>_POSIX2_SW_DEV</code></span></span><div class='docblock'><p>The implementation supports the Software Development Utilities option.</p>
+</div><span id="variant._POSIX2_UPE" class="variant small-section-header"><a href="#variant._POSIX2_UPE" class="anchor field"></a><span id='_POSIX2_UPE.v' class='invisible'><code>_POSIX2_UPE</code></span></span><div class='docblock'><p>The implementation supports the User Portability Utilities option.</p>
+</div><span id="variant._POSIX2_VERSION" class="variant small-section-header"><a href="#variant._POSIX2_VERSION" class="anchor field"></a><span id='_POSIX2_VERSION.v' class='invisible'><code>_POSIX2_VERSION</code></span></span><div class='docblock'><p>Integer value indicating version of the Shell and Utilities volume of
+POSIX.1 to which the implementation conforms.</p>
+</div><span id="variant.PAGE_SIZE" class="variant small-section-header"><a href="#variant.PAGE_SIZE" class="anchor field"></a><span id='PAGE_SIZE.v' class='invisible'><code>PAGE_SIZE</code></span></span><div class='docblock'><p>The size of a system page in bytes.</p>
+<p>POSIX also defines an alias named <code>PAGESIZE</code>, but Rust does not allow two
+enum constants to have the same value, so nix omits <code>PAGESIZE</code>.</p>
+</div><span id="variant.PTHREAD_DESTRUCTOR_ITERATIONS" class="variant small-section-header"><a href="#variant.PTHREAD_DESTRUCTOR_ITERATIONS" class="anchor field"></a><span id='PTHREAD_DESTRUCTOR_ITERATIONS.v' class='invisible'><code>PTHREAD_DESTRUCTOR_ITERATIONS</code></span></span><span id="variant.PTHREAD_KEYS_MAX" class="variant small-section-header"><a href="#variant.PTHREAD_KEYS_MAX" class="anchor field"></a><span id='PTHREAD_KEYS_MAX.v' class='invisible'><code>PTHREAD_KEYS_MAX</code></span></span><span id="variant.PTHREAD_STACK_MIN" class="variant small-section-header"><a href="#variant.PTHREAD_STACK_MIN" class="anchor field"></a><span id='PTHREAD_STACK_MIN.v' class='invisible'><code>PTHREAD_STACK_MIN</code></span></span><span id="variant.PTHREAD_THREADS_MAX" class="variant small-section-header"><a href="#variant.PTHREAD_THREADS_MAX" class="anchor field"></a><span id='PTHREAD_THREADS_MAX.v' class='invisible'><code>PTHREAD_THREADS_MAX</code></span></span><span id="variant.RE_DUP_MAX" class="variant small-section-header"><a href="#variant.RE_DUP_MAX" class="anchor field"></a><span id='RE_DUP_MAX.v' class='invisible'><code>RE_DUP_MAX</code></span></span><span id="variant.RTSIG_MAX" class="variant small-section-header"><a href="#variant.RTSIG_MAX" class="anchor field"></a><span id='RTSIG_MAX.v' class='invisible'><code>RTSIG_MAX</code></span></span><span id="variant.SEM_NSEMS_MAX" class="variant small-section-header"><a href="#variant.SEM_NSEMS_MAX" class="anchor field"></a><span id='SEM_NSEMS_MAX.v' class='invisible'><code>SEM_NSEMS_MAX</code></span></span><span id="variant.SEM_VALUE_MAX" class="variant small-section-header"><a href="#variant.SEM_VALUE_MAX" class="anchor field"></a><span id='SEM_VALUE_MAX.v' class='invisible'><code>SEM_VALUE_MAX</code></span></span><span id="variant.SIGQUEUE_MAX" class="variant small-section-header"><a href="#variant.SIGQUEUE_MAX" class="anchor field"></a><span id='SIGQUEUE_MAX.v' class='invisible'><code>SIGQUEUE_MAX</code></span></span><span id="variant.STREAM_MAX" class="variant small-section-header"><a href="#variant.STREAM_MAX" class="anchor field"></a><span id='STREAM_MAX.v' class='invisible'><code>STREAM_MAX</code></span></span><span id="variant.SYMLOOP_MAX" class="variant small-section-header"><a href="#variant.SYMLOOP_MAX" class="anchor field"></a><span id='SYMLOOP_MAX.v' class='invisible'><code>SYMLOOP_MAX</code></span></span><span id="variant.TIMER_MAX" class="variant small-section-header"><a href="#variant.TIMER_MAX" class="anchor field"></a><span id='TIMER_MAX.v' class='invisible'><code>TIMER_MAX</code></span></span><span id="variant.TTY_NAME_MAX" class="variant small-section-header"><a href="#variant.TTY_NAME_MAX" class="anchor field"></a><span id='TTY_NAME_MAX.v' class='invisible'><code>TTY_NAME_MAX</code></span></span><span id="variant.TZNAME_MAX" class="variant small-section-header"><a href="#variant.TZNAME_MAX" class="anchor field"></a><span id='TZNAME_MAX.v' class='invisible'><code>TZNAME_MAX</code></span></span><span id="variant._XOPEN_CRYPT" class="variant small-section-header"><a href="#variant._XOPEN_CRYPT" class="anchor field"></a><span id='_XOPEN_CRYPT.v' class='invisible'><code>_XOPEN_CRYPT</code></span></span><div class='docblock'><p>The implementation supports the X/Open Encryption Option Group.</p>
+</div><span id="variant._XOPEN_ENH_I18N" class="variant small-section-header"><a href="#variant._XOPEN_ENH_I18N" class="anchor field"></a><span id='_XOPEN_ENH_I18N.v' class='invisible'><code>_XOPEN_ENH_I18N</code></span></span><div class='docblock'><p>The implementation supports the Issue 4, Version 2 Enhanced
+Internationalization Option Group.</p>
+</div><span id="variant._XOPEN_LEGACY" class="variant small-section-header"><a href="#variant._XOPEN_LEGACY" class="anchor field"></a><span id='_XOPEN_LEGACY.v' class='invisible'><code>_XOPEN_LEGACY</code></span></span><span id="variant._XOPEN_REALTIME" class="variant small-section-header"><a href="#variant._XOPEN_REALTIME" class="anchor field"></a><span id='_XOPEN_REALTIME.v' class='invisible'><code>_XOPEN_REALTIME</code></span></span><div class='docblock'><p>The implementation supports the X/Open Realtime Option Group.</p>
+</div><span id="variant._XOPEN_REALTIME_THREADS" class="variant small-section-header"><a href="#variant._XOPEN_REALTIME_THREADS" class="anchor field"></a><span id='_XOPEN_REALTIME_THREADS.v' class='invisible'><code>_XOPEN_REALTIME_THREADS</code></span></span><div class='docblock'><p>The implementation supports the X/Open Realtime Threads Option Group.</p>
+</div><span id="variant._XOPEN_SHM" class="variant small-section-header"><a href="#variant._XOPEN_SHM" class="anchor field"></a><span id='_XOPEN_SHM.v' class='invisible'><code>_XOPEN_SHM</code></span></span><div class='docblock'><p>The implementation supports the Issue 4, Version 2 Shared Memory Option
+Group.</p>
+</div><span id="variant._XOPEN_STREAMS" class="variant small-section-header"><a href="#variant._XOPEN_STREAMS" class="anchor field"></a><span id='_XOPEN_STREAMS.v' class='invisible'><code>_XOPEN_STREAMS</code></span></span><div class='docblock'><p>The implementation supports the XSI STREAMS Option Group.</p>
+</div><span id="variant._XOPEN_UNIX" class="variant small-section-header"><a href="#variant._XOPEN_UNIX" class="anchor field"></a><span id='_XOPEN_UNIX.v' class='invisible'><code>_XOPEN_UNIX</code></span></span><div class='docblock'><p>The implementation supports the XSI option</p>
+</div><span id="variant._XOPEN_VERSION" class="variant small-section-header"><a href="#variant._XOPEN_VERSION" class="anchor field"></a><span id='_XOPEN_VERSION.v' class='invisible'><code>_XOPEN_VERSION</code></span></span><div class='docblock'><p>Integer value indicating version of the X/Open Portability Guide to
+which the implementation conforms.</p>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Eq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-Eq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Hash' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html" title="trait core::hash::Hash">Hash</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-Hash' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.hash' class="method"><span id='hash.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#tymethod.hash' class='fnname'>hash</a>&lt;__H:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hasher.html" title="trait core::hash::Hasher">Hasher</a>&gt;(&amp;self, __arg_0: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>__H)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Feeds this value into the given [<code>Hasher</code>]. <a href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#tymethod.hash">Read more</a></p>
+</div><h4 id='method.hash_slice' class="method"><span id='hash_slice.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#method.hash_slice' class='fnname'>hash_slice</a>&lt;H&gt;(data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[Self]</a>, state: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>H) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;H: <a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hasher.html" title="trait core::hash::Hasher">Hasher</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.3.0'>1.3.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/hash/mod.rs.html#202-208' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Feeds a slice of this type into the given [<code>Hasher</code>]. <a href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#method.hash_slice">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/nix/unistd.rs.html#1178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, other: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Rhs) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#121' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `bitflags` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, bitflags">
+
+    <title>bitflags - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate bitflags</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'bitflags', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>bitflags</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/bitflags/lib.rs.html#11-990' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A typesafe bitmask flag generator useful for sets of C-style bitmask flags.
+It can be used for creating typesafe wrappers around C APIs.</p>
+<p>The <code>bitflags!</code> macro generates a <code>struct</code> that manages a set of flags. The
+flags should only be defined for integer types, otherwise unexpected type
+errors may occur at compile time.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
+
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
+        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_ABC</span>     <span class="op">=</span> <span class="ident">FLAG_A</span>.<span class="ident">bits</span>
+                           <span class="op">|</span> <span class="ident">FLAG_B</span>.<span class="ident">bits</span>
+                           <span class="op">|</span> <span class="ident">FLAG_C</span>.<span class="ident">bits</span>;
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">e1</span> <span class="op">=</span> <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>;
+    <span class="kw">let</span> <span class="ident">e2</span> <span class="op">=</span> <span class="ident">FLAG_B</span> <span class="op">|</span> <span class="ident">FLAG_C</span>;
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">|</span> <span class="ident">e2</span>), <span class="ident">FLAG_ABC</span>);   <span class="comment">// union</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">&amp;</span> <span class="ident">e2</span>), <span class="ident">FLAG_C</span>);     <span class="comment">// intersection</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">-</span> <span class="ident">e2</span>), <span class="ident">FLAG_A</span>);     <span class="comment">// set difference</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">e2</span>, <span class="ident">FLAG_A</span>);           <span class="comment">// set complement</span>
+}</pre>
+<p>See <a href="./example_generated/struct.Flags.html"><code>example_generated::Flags</code></a> for documentation of code
+generated by the above <code>bitflags!</code> expansion.</p>
+<p>The generated <code>struct</code>s can also be extended with type and trait
+implementations:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
+
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
+        <span class="kw">const</span> <span class="ident">FLAG_A</span>   <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_B</span>   <span class="op">=</span> <span class="number">0b00000010</span>;
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Flags</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">bits</span> <span class="op">=</span> <span class="number">0</span>;  <span class="comment">// The `bits` field can be accessed from within the</span>
+                        <span class="comment">// same module where the `bitflags!` macro was invoked.</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Flags</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;hi!&quot;</span>)
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_B</span>;
+    <span class="ident">flags</span>.<span class="ident">clear</span>();
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">flags</span>.<span class="ident">is_empty</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">flags</span>), <span class="string">&quot;hi!&quot;</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_B</span>), <span class="string">&quot;FLAG_A | FLAG_B&quot;</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">FLAG_B</span>), <span class="string">&quot;FLAG_B&quot;</span>);
+}</pre>
+<h1 id="visibility" class="section-header"><a href="#visibility">Visibility</a></h1>
+<p>The generated struct and its associated flag constants are not exported
+out of the current module by default. A definition can be exported out of
+the current module by adding <code>pub</code> before <code>flags</code>:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
+
+<span class="kw">mod</span> <span class="ident">example</span> {
+    <span class="macro">bitflags</span><span class="macro">!</span> {
+        <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Flags1</span>: <span class="ident">u32</span> {
+            <span class="kw">const</span> <span class="ident">FLAG_A</span>   <span class="op">=</span> <span class="number">0b00000001</span>;
+        }
+    }
+    <span class="macro">bitflags</span><span class="macro">!</span> {
+        <span class="kw">struct</span> <span class="ident">Flags2</span>: <span class="ident">u32</span> {
+            <span class="kw">const</span> <span class="ident">FLAG_B</span>   <span class="op">=</span> <span class="number">0b00000010</span>;
+        }
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">flag1</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">FLAG_A</span>;
+    <span class="kw">let</span> <span class="ident">flag2</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">FLAG_B</span>; <span class="comment">// error: const `FLAG_B` is private</span>
+}</pre>
+<h1 id="attributes" class="section-header"><a href="#attributes">Attributes</a></h1>
+<p>Attributes can be attached to the generated <code>struct</code> by placing them
+before the <code>flags</code> keyword.</p>
+<h1 id="trait-implementations" class="section-header"><a href="#trait-implementations">Trait implementations</a></h1>
+<p>The <code>Copy</code>, <code>Clone</code>, <code>PartialEq</code>, <code>Eq</code>, <code>PartialOrd</code>, <code>Ord</code> and <code>Hash</code>
+traits automatically derived for the <code>struct</code> using the <code>derive</code> attribute.
+Additional traits can be derived by providing an explicit <code>derive</code>
+attribute on <code>flags</code>.</p>
+<p>The <code>Extend</code> and <code>FromIterator</code> traits are implemented for the <code>struct</code>,
+too: <code>Extend</code> adds the union of the instances of the <code>struct</code> iterated over,
+while <code>FromIterator</code> calculates the union.</p>
+<p>The <code>Binary</code>, <code>Debug</code>, <code>LowerExp</code>, <code>Octal</code> and <code>UpperExp</code> trait is also
+implemented by displaying the bits value of the internal struct.</p>
+<h2 id="operators" class="section-header"><a href="#operators">Operators</a></h2>
+<p>The following operator traits are implemented for the generated <code>struct</code>:</p>
+<ul>
+<li><code>BitOr</code> and <code>BitOrAssign</code>: union</li>
+<li><code>BitAnd</code> and <code>BitAndAssign</code>: intersection</li>
+<li><code>BitXor</code> and <code>BitXorAssign</code>: toggle</li>
+<li><code>Sub</code> and <code>SubAssign</code>: set difference</li>
+<li><code>Not</code>: set complement</li>
+</ul>
+<h1 id="methods-1" class="section-header"><a href="#methods-1">Methods</a></h1>
+<p>The following methods are defined for the generated <code>struct</code>:</p>
+<ul>
+<li><code>empty</code>: an empty set of flags</li>
+<li><code>all</code>: the set of all flags</li>
+<li><code>bits</code>: the raw value of the flags currently stored</li>
+<li><code>from_bits</code>: convert from underlying bit representation, unless that
+representation contains bits that do not correspond to a flag</li>
+<li><code>from_bits_truncate</code>: convert from underlying bit representation, dropping
+any bits that do not correspond to flags</li>
+<li><code>is_empty</code>: <code>true</code> if no flags are currently stored</li>
+<li><code>is_all</code>: <code>true</code> if all flags are currently set</li>
+<li><code>intersects</code>: <code>true</code> if there are flags common to both <code>self</code> and <code>other</code></li>
+<li><code>contains</code>: <code>true</code> all of the flags in <code>other</code> are contained within <code>self</code></li>
+<li><code>insert</code>: inserts the specified flags in-place</li>
+<li><code>remove</code>: removes the specified flags in-place</li>
+<li><code>toggle</code>: the specified flags will be inserted if not present, and removed
+if they are.</li>
+</ul>
+<h2 id="default" class="section-header"><a href="#default">Default</a></h2>
+<p>The <code>Default</code> trait is not automatically implemented for the generated struct.</p>
+<p>If your default value is equal to <code>0</code> (which is the same value as calling <code>empty()</code>
+on the generated struct), you can simply derive <code>Default</code>:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
+
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="comment">// Results in default value with bits: 0</span>
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
+    <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
+        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">derived_default</span>: <span class="ident">Flags</span> <span class="op">=</span> <span class="ident">Default</span>::<span class="ident">default</span>();
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">derived_default</span>.<span class="ident">bits</span>(), <span class="number">0</span>);
+}</pre>
+<p>If your default value is not equal to <code>0</code> you need to implement <code>Default</code> yourself:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
+
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
+        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
+    }
+}
+
+<span class="comment">// explicit `Default` implementation</span>
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Flags</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Flags</span> {
+        <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">implemented_default</span>: <span class="ident">Flags</span> <span class="op">=</span> <span class="ident">Default</span>::<span class="ident">default</span>();
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">implemented_default</span>, (<span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>));
+}</pre>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="example_generated/index.html"
+                                  title='mod bitflags::example_generated'>example_generated</a></td>
+                           <td class='docblock-short'>
+                                <p>This module shows an example of code generated by the macro. <strong>IT MUST NOT BE USED OUTSIDE THIS
+CRATE</strong>.</p>
+
+                           </td>
+                       </tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.bitflags.html"
+                                  title='macro bitflags::bitflags'>bitflags</a></td>
+                           <td class='docblock-short'>
+                                <p>The macro used to generate the flag structure.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "bitflags";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

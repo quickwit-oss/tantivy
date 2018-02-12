@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Container` struct in crate `serde_derive_internals`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Container">
+
+    <title>serde_derive_internals::ast::Container - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Container</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.ident">ident</a><a href="#structfield.attrs">attrs</a><a href="#structfield.body">body</a><a href="#structfield.generics">generics</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_ast">from_ast</a></div></div><p class='location'><a href='../index.html'>serde_derive_internals</a>::<wbr><a href='index.html'>ast</a></p><script>window.sidebarCurrent = {name: 'Container', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>serde_derive_internals</a>::<wbr><a href='index.html'>ast</a>::<wbr><a class="struct" href=''>Container</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde_derive_internals/ast.rs.html#14-19' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Container&lt;'a&gt; {
+    pub ident: <a class="struct" href="../../syn/ident/struct.Ident.html" title="struct syn::ident::Ident">Ident</a>,
+    pub attrs: <a class="struct" href="../../serde_derive_internals/attr/struct.Container.html" title="struct serde_derive_internals::attr::Container">Container</a>,
+    pub body: <a class="enum" href="../../serde_derive_internals/ast/enum.Body.html" title="enum serde_derive_internals::ast::Body">Body</a>&lt;'a&gt;,
+    pub generics: &amp;'a <a class="struct" href="../../syn/generics/struct.Generics.html" title="struct syn::generics::Generics">Generics</a>,
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.ident" class="structfield small-section-header">
+                           <a href="#structfield.ident" class="anchor field"></a>
+                           <span id="ident.v" class='invisible'>
+                           <code>ident: <a class="struct" href="../../syn/ident/struct.Ident.html" title="struct syn::ident::Ident">Ident</a></code>
+                           </span></span><span id="structfield.attrs" class="structfield small-section-header">
+                           <a href="#structfield.attrs" class="anchor field"></a>
+                           <span id="attrs.v" class='invisible'>
+                           <code>attrs: <a class="struct" href="../../serde_derive_internals/attr/struct.Container.html" title="struct serde_derive_internals::attr::Container">Container</a></code>
+                           </span></span><span id="structfield.body" class="structfield small-section-header">
+                           <a href="#structfield.body" class="anchor field"></a>
+                           <span id="body.v" class='invisible'>
+                           <code>body: <a class="enum" href="../../serde_derive_internals/ast/enum.Body.html" title="enum serde_derive_internals::ast::Body">Body</a>&lt;'a&gt;</code>
+                           </span></span><span id="structfield.generics" class="structfield small-section-header">
+                           <a href="#structfield.generics" class="anchor field"></a>
+                           <span id="generics.v" class='invisible'>
+                           <code>generics: &amp;'a <a class="struct" href="../../syn/generics/struct.Generics.html" title="struct syn::generics::Generics">Generics</a></code>
+                           </span></span>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../serde_derive_internals/ast/struct.Container.html" title="struct serde_derive_internals::ast::Container">Container</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_derive_internals/ast.rs.html#47-82' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_ast' class="method"><span id='from_ast.v' class='invisible'><code>pub fn <a href='#method.from_ast' class='fnname'>from_ast</a>(cx: &amp;<a class="struct" href="../../serde_derive_internals/struct.Ctxt.html" title="struct serde_derive_internals::Ctxt">Ctxt</a>, item: &amp;'a <a class="struct" href="../../syn/derive/struct.DeriveInput.html" title="struct syn::derive::DeriveInput">DeriveInput</a>) -&gt; <a class="struct" href="../../serde_derive_internals/ast/struct.Container.html" title="struct serde_derive_internals::ast::Container">Container</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_derive_internals/ast.rs.html#48-81' title='goto source code'>[src]</a></span></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde_derive_internals";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

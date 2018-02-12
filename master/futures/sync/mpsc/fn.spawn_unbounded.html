@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `spawn_unbounded` fn in crate `futures`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, spawn_unbounded">
+
+    <title>futures::sync::mpsc::spawn_unbounded - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc fn">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'><a href='../../index.html'>futures</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>mpsc</a></p><script>window.sidebarCurrent = {name: 'spawn_unbounded', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>futures</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>mpsc</a>::<wbr><a class="fn" href=''>spawn_unbounded</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/futures/sync/mpsc/mod.rs.html#1047-1061' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn spawn_unbounded&lt;S, E&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;stream: S, <br>&nbsp;&nbsp;&nbsp;&nbsp;executor: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>E<br>) -&gt; <a class="struct" href="../../../futures/sync/mpsc/struct.SpawnHandle.html" title="struct futures::sync::mpsc::SpawnHandle">SpawnHandle</a>&lt;S::<a class="type" href="../../../futures/stream/trait.Stream.html#associatedtype.Item" title="type futures::stream::Stream::Item">Item</a>, S::<a class="type" href="../../../futures/stream/trait.Stream.html#associatedtype.Error" title="type futures::stream::Stream::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="../../../futures/stream/trait.Stream.html" title="trait futures::stream::Stream">Stream</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../../futures/future/trait.Executor.html" title="trait futures::future::Executor">Executor</a>&lt;<a class="struct" href="../../../futures/sync/mpsc/struct.Execute.html" title="struct futures::sync::mpsc::Execute">Execute</a>&lt;S&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Spawns a <code>stream</code> onto the instance of <code>Executor</code> provided, <code>executor</code>,
+returning a handle representing the remote stream, with unbounded buffering.</p>
+<p>The <code>stream</code> will be canceled if the <code>SpawnHandle</code> is dropped.</p>
+<p>The <code>SpawnHandle</code> returned is a stream that is a proxy for <code>stream</code> itself.
+When <code>stream</code> has additional items available, then the <code>SpawnHandle</code>
+will have those same items available.</p>
+<p>An unbounded buffer is used, which means that values will be buffered as
+fast as <code>stream</code> can produce them, without any backpressure. Therefore, if
+<code>stream</code> is an infinite stream, it can use an unbounded amount of memory, and
+potentially hog CPU resources.</p>
+<h1 id="panics" class="section-header"><a href="#panics">Panics</a></h1>
+<p>This function will panic if <code>executor</code> is unable spawn a <code>Future</code> containing
+the entirety of the <code>stream</code>.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "futures";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `itertools` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, itertools">
+
+    <title>itertools - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate itertools</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'itertools', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>itertools</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/itertools/lib.rs.html#1-1687' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Itertools — extra iterator adaptors, functions and macros.</p>
+<p>To use the iterator methods in this crate, import the <a href="./trait.Itertools.html"><code>Itertools</code> trait</a>:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;</pre>
+<p>To enable the macros in this crate, use the <code>#[macro_use]</code> attribute:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">itertools</span>;</pre>
+<h2 id="license" class="section-header"><a href="#license">License</a></h2>
+<p>Dual-licensed to be compatible with the Rust project.</p>
+<p>Licensed under the Apache License, Version 2.0
+http://www.apache.org/licenses/LICENSE-2.0 or the MIT license
+http://opensource.org/licenses/MIT, at your
+option. This file may not be copied, modified, or distributed
+except according to those terms.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use <a class="mod" href="../itertools/structs/index.html" title="mod itertools::structs">structs</a>::*;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="structs/index.html"
+                                  title='mod itertools::structs'>structs</a></td>
+                           <td class='docblock-short'>
+                                <p>The concrete iterator types.</p>
+
+                           </td>
+                       </tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.iproduct.html"
+                                  title='macro itertools::iproduct'>iproduct</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator over the “cartesian product” of iterators.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.izip.html"
+                                  title='macro itertools::izip'>izip</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator running multiple iterators in lockstep.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Diff.html"
+                                  title='enum itertools::Diff'>Diff</a></td>
+                           <td class='docblock-short'>
+                                <p>A type returned by the <a href="./fn.diff_with.html"><code>diff_with</code></a> function.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Either.html"
+                                  title='enum itertools::Either'>Either</a></td>
+                           <td class='docblock-short'>
+                                <p>The enum <code>Either</code> with variants <code>Left</code> and <code>Right</code> is a general purpose
+sum type with two cases.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.EitherOrBoth.html"
+                                  title='enum itertools::EitherOrBoth'>EitherOrBoth</a></td>
+                           <td class='docblock-short'>
+                                <p>A value yielded by <code>ZipLongest</code>.
+Contains one or two values, depending on which of the input iterators are exhausted.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FoldWhile.html"
+                                  title='enum itertools::FoldWhile'>FoldWhile</a></td>
+                           <td class='docblock-short'>
+                                <p>An enum used for controlling the execution of <code>.fold_while()</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.MinMaxResult.html"
+                                  title='enum itertools::MinMaxResult'>MinMaxResult</a></td>
+                           <td class='docblock-short'>
+                                <p><code>MinMaxResult</code> is an enum returned by <code>minmax</code>. See <code>Itertools::minmax()</code> for
+more detail.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Position.html"
+                                  title='enum itertools::Position'>Position</a></td>
+                           <td class='docblock-short'>
+                                <p>A value yielded by <code>WithPosition</code>.
+Indicates the position of this element in the iterator results.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Itertools.html"
+                                  title='trait itertools::Itertools'>Itertools</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait <code>Itertools</code>: extra iterator adaptors and methods for iterators.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.PeekingNext.html"
+                                  title='trait itertools::PeekingNext'>PeekingNext</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator that allows peeking at an element before deciding to accept it.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.all.html"
+                                  title='fn itertools::all'>all</a></td>
+                           <td class='docblock-short'>
+                                <p>Test whether the predicate holds for all elements in the iterable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.any.html"
+                                  title='fn itertools::any'>any</a></td>
+                           <td class='docblock-short'>
+                                <p>Test whether the predicate holds for any elements in the iterable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.assert_equal.html"
+                                  title='fn itertools::assert_equal'>assert_equal</a></td>
+                           <td class='docblock-short'>
+                                <p>Assert that two iterators produce equal sequences, with the same
+semantics as <em>equal(a, b)</em>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chain.html"
+                                  title='fn itertools::chain'>chain</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that first iterates <code>i</code> and then <code>j</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cloned.html"
+                                  title='fn itertools::cloned'>cloned</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that clones each element from &amp;T to T</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cons_tuples.html"
+                                  title='fn itertools::cons_tuples'>cons_tuples</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that maps for example iterators of
+<code>((A, B), C)</code> to <code>(A, B, C)</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.diff_with.html"
+                                  title='fn itertools::diff_with'>diff_with</a></td>
+                           <td class='docblock-short'>
+                                <p>Compares every element yielded by both <code>i</code> and <code>j</code> with the given function in lock-step and
+returns a <code>Diff</code> which describes how <code>j</code> differs from <code>i</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.enumerate.html"
+                                  title='fn itertools::enumerate'>enumerate</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterate <code>iterable</code> with a running index.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.equal.html"
+                                  title='fn itertools::equal'>equal</a></td>
+                           <td class='docblock-short'>
+                                <p>Return <code>true</code> if both iterators produce equal sequences
+(elements pairwise equal and sequences of the same length),
+<code>false</code> otherwise.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fold.html"
+                                  title='fn itertools::fold'>fold</a></td>
+                           <td class='docblock-short'>
+                                <p>Perform a fold operation over the iterable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.interleave.html"
+                                  title='fn itertools::interleave'>interleave</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that interleaves elements in <code>i</code> and <code>j</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.iterate.html"
+                                  title='fn itertools::iterate'>iterate</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a new iterator that infinitely applies function to value and yields results.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.join.html"
+                                  title='fn itertools::join'>join</a></td>
+                           <td class='docblock-short'>
+                                <p>Combine all iterator elements into one String, seperated by <code>sep</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.kmerge.html"
+                                  title='fn itertools::kmerge'>kmerge</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that merges elements of the contained iterators using
+the ordering function.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.kmerge_by.html"
+                                  title='fn itertools::kmerge_by'>kmerge_by</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that merges elements of the contained iterators.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.max.html"
+                                  title='fn itertools::max'>max</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the maximum value of the iterable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.merge.html"
+                                  title='fn itertools::merge'>merge</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that merges elements in <code>i</code> and <code>j</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.min.html"
+                                  title='fn itertools::min'>min</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the minimum value of the iterable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.multipeek.html"
+                                  title='fn itertools::multipeek'>multipeek</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator adaptor that allows the user to peek at multiple <code>.next()</code>
+values without advancing the base iterator.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.multizip.html"
+                                  title='fn itertools::multizip'>multizip</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator that generalizes <em>.zip()</em> and allows running multiple iterators in lockstep.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.partition.html"
+                                  title='fn itertools::partition'>partition</a></td>
+                           <td class='docblock-short'>
+                                <p>Partition a sequence using predicate <code>pred</code> so that elements
+that map to <code>true</code> are placed before elements which map to <code>false</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.put_back.html"
+                                  title='fn itertools::put_back'>put_back</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator where you can put back a single item</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.put_back_n.html"
+                                  title='fn itertools::put_back_n'>put_back_n</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator where you can put back multiple values to the front
+of the iteration.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.rciter.html"
+                                  title='fn itertools::rciter'>rciter</a></td>
+                           <td class='docblock-short'>
+                                <p>Return an iterator inside a <code>Rc&lt;RefCell&lt;_&gt;&gt;</code> wrapper.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.repeat_call.html"
+                                  title='fn itertools::repeat_call'>repeat_call</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator source that produces elements indefinitely by calling
+a given closure.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.repeat_n.html"
+                                  title='fn itertools::repeat_n'>repeat_n</a></td>
+                           <td class='docblock-short'>
+                                <p>Create an iterator that produces <code>n</code> repetitions of <code>element</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.rev.html"
+                                  title='fn itertools::rev'>rev</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterate <code>iterable</code> in reverse.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sorted.html"
+                                  title='fn itertools::sorted'>sorted</a></td>
+                           <td class='docblock-short'>
+                                <p>Collect all the iterable's elements into a sorted vector in ascending order.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unfold.html"
+                                  title='fn itertools::unfold'>unfold</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a new unfold source with the specified closure as the &quot;iterator
+function&quot; and an initial state to eventually pass to the closure</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.zip.html"
+                                  title='fn itertools::zip'>zip</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterate <code>i</code> and <code>j</code> in lock step.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.zip_eq.html"
+                                  title='fn itertools::zip_eq'>zip_eq</a></td>
+                           <td class='docblock-short'>
+                                <p>Iterate <code>i</code> and <code>j</code> in lock step.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "itertools";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

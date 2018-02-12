@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `OsRng` struct in crate `rand`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, OsRng">
+
+    <title>rand::OsRng - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a>
+        <p class='location'>Struct OsRng</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Rng">Rng</a><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='index.html'>rand</a></p><script>window.sidebarCurrent = {name: 'OsRng', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>rand</a>::<wbr><a class="struct" href=''>OsRng</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/rand/os.rs.html#35' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct OsRng(_);</pre><div class='docblock'><p>A random number generator that retrieves randomness straight from
+the operating system. Platform sources:</p>
+<ul>
+<li>Unix-like systems (Linux, Android, Mac OSX): read directly from
+<code>/dev/urandom</code>, or from <code>getrandom(2)</code> system call if available.</li>
+<li>OpenBSD: calls <code>getentropy(2)</code></li>
+<li>FreeBSD: uses the <code>kern.arandom</code> <code>sysctl(2)</code> mib</li>
+<li>Windows: calls <code>RtlGenRandom</code>, exported from <code>advapi32.dll</code> as
+<code>SystemFunction036</code>.</li>
+<li>iOS: calls SecRandomCopyBytes as /dev/(u)random is sandboxed.</li>
+<li>PNaCl: calls into the <code>nacl-irt-random-0.1</code> IRT interface.</li>
+</ul>
+<p>This usually does not block. On some systems (e.g. FreeBSD, OpenBSD,
+Max OS X, and modern Linux) this may block very early in the init
+process, if the CSPRNG has not been seeded yet.[1]</p>
+<p>[1] See <a href="https://www.python.org/dev/peps/pep-0524/">https://www.python.org/dev/peps/pep-0524/</a> for a more
+in-depth discussion.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../rand/os/struct.OsRng.html" title="struct rand::os::OsRng">OsRng</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#37-42' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../rand/os/struct.OsRng.html" title="struct rand::os::OsRng">OsRng</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#39-41' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Create a new <code>OsRng</code>.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Rng' class='impl'><span class='in-band'><code>impl <a class="trait" href="../rand/trait.Rng.html" title="trait rand::Rng">Rng</a> for <a class="struct" href="../rand/os/struct.OsRng.html" title="struct rand::os::OsRng">OsRng</a></code><a href='#impl-Rng' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#44-48' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.next_u32' class="method"><span id='next_u32.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#tymethod.next_u32' class='fnname'>next_u32</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#45' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the next random u32. <a href="../rand/trait.Rng.html#tymethod.next_u32">Read more</a></p>
+</div><h4 id='method.next_u64' class="method"><span id='next_u64.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.next_u64' class='fnname'>next_u64</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#46' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the next random u64. <a href="../rand/trait.Rng.html#method.next_u64">Read more</a></p>
+</div><h4 id='method.fill_bytes' class="method"><span id='fill_bytes.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.fill_bytes' class='fnname'>fill_bytes</a>(&amp;mut self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#47' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Fill <code>dest</code> with random data. <a href="../rand/trait.Rng.html#method.fill_bytes">Read more</a></p>
+</div><h4 id='method.next_f32' class="method"><span id='next_f32.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.next_f32' class='fnname'>next_f32</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f32.html">f32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#383-389' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the next random f32 selected from the half-open interval <code>[0, 1)</code>. <a href="../rand/trait.Rng.html#method.next_f32">Read more</a></p>
+</div><h4 id='method.next_f64' class="method"><span id='next_f64.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.next_f64' class='fnname'>next_f64</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#401-407' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return the next random f64 selected from the half-open interval <code>[0, 1)</code>. <a href="../rand/trait.Rng.html#method.next_f64">Read more</a></p>
+</div><h4 id='method.gen' class="method"><span id='gen.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.gen' class='fnname'>gen</a>&lt;T&gt;(&amp;mut self) -&gt; T <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../rand/trait.Rand.html" title="trait rand::Rand">Rand</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#473-475' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return a random value of a <code>Rand</code> type. <a href="../rand/trait.Rng.html#method.gen">Read more</a></p>
+</div><h4 id='method.gen_iter' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../rand/struct.Generator.html" title="struct rand::Generator">Generator</a>&lt;'a, T, R&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../rand/struct.Generator.html" title="struct rand::Generator">Generator</a>&lt;'a, T, R&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'a, T, R&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../rand/struct.Generator.html" title="struct rand::Generator">Generator</a>&lt;'a, T, R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../rand/trait.Rng.html" title="trait rand::Rng">Rng</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../rand/trait.Rand.html" title="trait rand::Rand">Rand</a>,&nbsp;</span></span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = T;</span></code></div></div><span id='gen_iter.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.gen_iter' class='fnname'>gen_iter</a>&lt;T&gt;(&amp;'a mut self) -&gt; <a class="struct" href="../rand/struct.Generator.html" title="struct rand::Generator">Generator</a>&lt;'a, T, Self&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../rand/trait.Rand.html" title="trait rand::Rand">Rand</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#491-493' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return an iterator that will yield an infinite number of randomly generated items. <a href="../rand/trait.Rng.html#method.gen_iter">Read more</a></p>
+</div><h4 id='method.gen_range' class="method"><span id='gen_range.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.gen_range' class='fnname'>gen_range</a>&lt;T&gt;(&amp;mut self, low: T, high: T) -&gt; T <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../rand/distributions/range/trait.SampleRange.html" title="trait rand::distributions::range::SampleRange">SampleRange</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html" title="trait core::cmp::PartialOrd">PartialOrd</a>&lt;T&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#518-521' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Generate a random value in the range [<code>low</code>, <code>high</code>). <a href="../rand/trait.Rng.html#method.gen_range">Read more</a></p>
+</div><h4 id='method.gen_weighted_bool' class="method"><span id='gen_weighted_bool.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.gen_weighted_bool' class='fnname'>gen_weighted_bool</a>(&amp;mut self, n: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#533-535' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return a bool with a 1 in n chance of true <a href="../rand/trait.Rng.html#method.gen_weighted_bool">Read more</a></p>
+</div><h4 id='method.gen_ascii_chars' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../rand/struct.AsciiGenerator.html" title="struct rand::AsciiGenerator">AsciiGenerator</a>&lt;'a, R&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../rand/struct.AsciiGenerator.html" title="struct rand::AsciiGenerator">AsciiGenerator</a>&lt;'a, R&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'a, R&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../rand/struct.AsciiGenerator.html" title="struct rand::AsciiGenerator">AsciiGenerator</a>&lt;'a, R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../rand/trait.Rng.html" title="trait rand::Rng">Rng</a>,&nbsp;</span></span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.char.html">char</a>;</span></code></div></div><span id='gen_ascii_chars.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.gen_ascii_chars' class='fnname'>gen_ascii_chars</a>(&amp;'a mut self) -&gt; <a class="struct" href="../rand/struct.AsciiGenerator.html" title="struct rand::AsciiGenerator">AsciiGenerator</a>&lt;'a, Self&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#547-549' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return an iterator of random characters from the set A-Z,a-z,0-9. <a href="../rand/trait.Rng.html#method.gen_ascii_chars">Read more</a></p>
+</div><h4 id='method.choose' class="method"><span id='choose.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.choose' class='fnname'>choose</a>&lt;T&gt;(&amp;mut self, values: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [T]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'a </a>T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#565-571' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return a random element from <code>values</code>. <a href="../rand/trait.Rng.html#method.choose">Read more</a></p>
+</div><h4 id='method.choose_mut' class="method"><span id='choose_mut.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.choose_mut' class='fnname'>choose_mut</a>&lt;T&gt;(&amp;mut self, values: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [T]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'a mut </a>T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#576-583' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return a mutable pointer to a random element from <code>values</code>. <a href="../rand/trait.Rng.html#method.choose_mut">Read more</a></p>
+</div><h4 id='method.shuffle' class="method"><span id='shuffle.v' class='invisible'><code>fn <a href='../rand/trait.Rng.html#method.shuffle' class='fnname'>shuffle</a>&lt;T&gt;(&amp;mut self, values: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [T]</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/lib.rs.html#602-610' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Shuffle a mutable slice in place. <a href="../rand/trait.Rng.html#method.shuffle">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../rand/os/struct.OsRng.html" title="struct rand::os::OsRng">OsRng</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#50-54' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Error.html" title="struct core::fmt::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/rand/os.rs.html#51-53' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "rand";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

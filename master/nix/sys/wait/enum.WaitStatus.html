@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `WaitStatus` enum in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, WaitStatus">
+
+    <title>nix::sys::wait::WaitStatus - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Enum WaitStatus</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Exited">Exited</a><a href="#variant.Signaled">Signaled</a><a href="#variant.Stopped">Stopped</a><a href="#variant.PtraceEvent">PtraceEvent</a><a href="#variant.PtraceSyscall">PtraceSyscall</a><a href="#variant.Continued">Continued</a><a href="#variant.StillAlive">StillAlive</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Eq">Eq</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-Clone">Clone</a><a href="#impl-Copy">Copy</a><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>wait</a></p><script>window.sidebarCurrent = {name: 'WaitStatus', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>wait</a>::<wbr><a class="enum" href=''>WaitStatus</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/nix/sys/wait.rs.html#53-94' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum WaitStatus {
+    Exited(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i8.html">i8</a>),
+    Signaled(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>,&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>),
+    Stopped(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>),
+    PtraceEvent(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>,&nbsp;<a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>),
+    PtraceSyscall(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>),
+    Continued(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>),
+    StillAlive,
+}</pre><div class='docblock'><p>Possible return values from <code>wait()</code> or <code>waitpid()</code>.</p>
+<p>Each status (other than <code>StillAlive</code>) describes a state transition
+in a child process <code>Pid</code>, such as the process exiting or stopping,
+plus additional data about the transition if any.</p>
+<p>Note that there are two Linux-specific enum variants, <code>PtraceEvent</code>
+and <code>PtraceSyscall</code>. Portable code should avoid exhaustively
+matching on <code>WaitStatus</code>.</p>
+</div><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.Exited" class="variant small-section-header"><a href="#variant.Exited" class="anchor field"></a><span id='Exited.v' class='invisible'><code>Exited(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i8.html">i8</a>)</code></span></span><div class='docblock'><p>The process exited normally (as with <code>exit()</code> or returning from
+<code>main</code>) with the given exit code. This case matches the C macro
+<code>WIFEXITED(status)</code>; the second field is <code>WEXITSTATUS(status)</code>.</p>
+</div><span id="variant.Signaled" class="variant small-section-header"><a href="#variant.Signaled" class="anchor field"></a><span id='Signaled.v' class='invisible'><code>Signaled(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>,&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)</code></span></span><div class='docblock'><p>The process was killed by the given signal. The third field
+indicates whether the signal generated a core dump. This case
+matches the C macro <code>WIFSIGNALED(status)</code>; the last two fields
+correspond to <code>WTERMSIG(status)</code> and <code>WCOREDUMP(status)</code>.</p>
+</div><span id="variant.Stopped" class="variant small-section-header"><a href="#variant.Stopped" class="anchor field"></a><span id='Stopped.v' class='invisible'><code>Stopped(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>)</code></span></span><div class='docblock'><p>The process is alive, but was stopped by the given signal. This
+is only reported if <code>WaitPidFlag::WUNTRACED</code> was passed. This
+case matches the C macro <code>WIFSTOPPED(status)</code>; the second field
+is <code>WSTOPSIG(status)</code>.</p>
+</div><span id="variant.PtraceEvent" class="variant small-section-header"><a href="#variant.PtraceEvent" class="anchor field"></a><span id='PtraceEvent.v' class='invisible'><code>PtraceEvent(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>,&nbsp;<a class="enum" href="../../../nix/sys/signal/enum.Signal.html" title="enum nix::sys::signal::Signal">Signal</a>,&nbsp;<a class="type" href="../../../libc/type.c_int.html" title="type libc::c_int">c_int</a>)</code></span></span><div class='docblock'><p>The traced process was stopped by a <code>PTRACE_EVENT_*</code> event. See
+<a href="../ptrace/index.html"><code>nix::sys::ptrace</code></a> and <a href="http://man7.org/linux/man-pages/man2/ptrace.2.html"><code>ptrace</code>(2)</a> for more information. All
+currently-defined events use <code>SIGTRAP</code> as the signal; the third
+field is the <code>PTRACE_EVENT_*</code> value of the event.</p>
+</div><span id="variant.PtraceSyscall" class="variant small-section-header"><a href="#variant.PtraceSyscall" class="anchor field"></a><span id='PtraceSyscall.v' class='invisible'><code>PtraceSyscall(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>)</code></span></span><div class='docblock'><p>The traced process was stopped by execution of a system call,
+and <code>PTRACE_O_TRACESYSGOOD</code> is in effect. See <a href="http://man7.org/linux/man-pages/man2/ptrace.2.html"><code>ptrace</code>(2)</a> for
+more information.</p>
+</div><span id="variant.Continued" class="variant small-section-header"><a href="#variant.Continued" class="anchor field"></a><span id='Continued.v' class='invisible'><code>Continued(<a class="struct" href="../../../nix/unistd/struct.Pid.html" title="struct nix::unistd::Pid">Pid</a>)</code></span></span><div class='docblock'><p>The process was previously stopped but has resumed execution
+after receiving a <code>SIGCONT</code> signal. This is only reported if
+<code>WaitPidFlag::WCONTINUED</code> was passed. This case matches the C
+macro <code>WIFCONTINUED(status)</code>.</p>
+</div><span id="variant.StillAlive" class="variant small-section-header"><a href="#variant.StillAlive" class="anchor field"></a><span id='StillAlive.v' class='invisible'><code>StillAlive</code></span></span><div class='docblock'><p>There are currently no state changes to report in any awaited
+child process. This is only returned if <code>WaitPidFlag::WNOHANG</code>
+was used (otherwise <code>wait()</code> or <code>waitpid()</code> would block until
+there was something to report).</p>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Eq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> for <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code><a href='#impl-Eq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../../../nix/sys/wait/enum.WaitStatus.html" title="enum nix::sys::wait::WaitStatus">WaitStatus</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/wait.rs.html#52' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

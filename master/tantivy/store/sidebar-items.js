@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["StoreReader","Reads document off tantivy's `Store`"],["StoreWriter","Write tantivy's `Store`"]]});

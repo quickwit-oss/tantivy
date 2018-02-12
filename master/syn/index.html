@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `syn` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, syn">
+
+    <title>syn - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate syn</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'syn', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>syn</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/syn/lib.rs.html#1-211' title='goto source code'>[src]</a></span></h1>
+<h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="parse/index.html"
+                                  title='mod syn::parse'>parse</a></td>
+                           <td class='docblock-short'>
+                                <p>This module contains a set of exported nom parsers which can be used to
+parse custom grammars when used alongside the <code>synom</code> crate.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="visit/index.html"
+                                  title='mod syn::visit'>visit</a></td>
+                           <td class='docblock-short'>
+                                <p>AST walker. Each overridden visit method has full control over what
+happens with its node, it can do its own traversal of the node's children,
+call <code>visit::walk_*</code> to apply the default traversal algorithm, or prevent
+deeper traversal by doing nothing.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AngleBracketedParameterData.html"
+                                  title='struct syn::AngleBracketedParameterData'>AngleBracketedParameterData</a></td>
+                           <td class='docblock-short'>
+                                <p>A path like <code>Foo&lt;'a, T&gt;</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Attribute.html"
+                                  title='struct syn::Attribute'>Attribute</a></td>
+                           <td class='docblock-short'>
+                                <p>Doc-comments are promoted to attributes that have <code>is_sugared_doc</code> = true</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BareFnArg.html"
+                                  title='struct syn::BareFnArg'>BareFnArg</a></td>
+                           <td class='docblock-short'>
+                                <p>An argument in a function type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BareFnTy.html"
+                                  title='struct syn::BareFnTy'>BareFnTy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ByteStrLit.html"
+                                  title='struct syn::ByteStrLit'>ByteStrLit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Delimited.html"
+                                  title='struct syn::Delimited'>Delimited</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.DeriveInput.html"
+                                  title='struct syn::DeriveInput'>DeriveInput</a></td>
+                           <td class='docblock-short'>
+                                <p>Struct or enum sent to a <code>proc_macro_derive</code> macro.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Field.html"
+                                  title='struct syn::Field'>Field</a></td>
+                           <td class='docblock-short'>
+                                <p>A field of a struct or enum variant.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FloatLit.html"
+                                  title='struct syn::FloatLit'>FloatLit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Generics.html"
+                                  title='struct syn::Generics'>Generics</a></td>
+                           <td class='docblock-short'>
+                                <p>Represents lifetimes and type parameters attached to a declaration
+of a function, enum, trait, etc.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Ident.html"
+                                  title='struct syn::Ident'>Ident</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ImplGenerics.html"
+                                  title='struct syn::ImplGenerics'>ImplGenerics</a></td>
+                           <td class='docblock-short'>
+                                <p>Returned by <code>Generics::split_for_impl</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IntLit.html"
+                                  title='struct syn::IntLit'>IntLit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Lifetime.html"
+                                  title='struct syn::Lifetime'>Lifetime</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.LifetimeDef.html"
+                                  title='struct syn::LifetimeDef'>LifetimeDef</a></td>
+                           <td class='docblock-short'>
+                                <p>A lifetime definition, e.g. <code>'a: 'b+'c+'d</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Mac.html"
+                                  title='struct syn::Mac'>Mac</a></td>
+                           <td class='docblock-short'>
+                                <p>Represents a macro invocation. The Path indicates which macro
+is being invoked, and the vector of token-trees contains the source
+of the macro invocation.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.MutTy.html"
+                                  title='struct syn::MutTy'>MutTy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ParenthesizedParameterData.html"
+                                  title='struct syn::ParenthesizedParameterData'>ParenthesizedParameterData</a></td>
+                           <td class='docblock-short'>
+                                <p>A path like <code>Foo(A,B) -&gt; C</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Path.html"
+                                  title='struct syn::Path'>Path</a></td>
+                           <td class='docblock-short'>
+                                <p>A &quot;Path&quot; is essentially Rust's notion of a name.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.PathSegment.html"
+                                  title='struct syn::PathSegment'>PathSegment</a></td>
+                           <td class='docblock-short'>
+                                <p>A segment of a path: an identifier, an optional lifetime, and a set of types.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.PolyTraitRef.html"
+                                  title='struct syn::PolyTraitRef'>PolyTraitRef</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.QSelf.html"
+                                  title='struct syn::QSelf'>QSelf</a></td>
+                           <td class='docblock-short'>
+                                <p>The explicit Self type in a &quot;qualified path&quot;. The actual
+path, including the trait and the associated item, is stored
+separately. <code>position</code> represents the index of the associated
+item qualified with this Self type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StrLit.html"
+                                  title='struct syn::StrLit'>StrLit</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Turbofish.html"
+                                  title='struct syn::Turbofish'>Turbofish</a></td>
+                           <td class='docblock-short'>
+                                <p>Returned by <code>TyGenerics::as_turbofish</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TyGenerics.html"
+                                  title='struct syn::TyGenerics'>TyGenerics</a></td>
+                           <td class='docblock-short'>
+                                <p>Returned by <code>Generics::split_for_impl</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TyParam.html"
+                                  title='struct syn::TyParam'>TyParam</a></td>
+                           <td class='docblock-short'>
+                                <p>A generic type parameter, e.g. <code>T: Into&lt;String&gt;</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TypeBinding.html"
+                                  title='struct syn::TypeBinding'>TypeBinding</a></td>
+                           <td class='docblock-short'>
+                                <p>Bind a type to an associated type: <code>A=Foo</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Variant.html"
+                                  title='struct syn::Variant'>Variant</a></td>
+                           <td class='docblock-short'>
+                                <p>An enum variant.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.WhereBoundPredicate.html"
+                                  title='struct syn::WhereBoundPredicate'>WhereBoundPredicate</a></td>
+                           <td class='docblock-short'>
+                                <p>A type bound.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.WhereClause.html"
+                                  title='struct syn::WhereClause'>WhereClause</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>where</code> clause in a definition</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.WhereEqPredicate.html"
+                                  title='struct syn::WhereEqPredicate'>WhereEqPredicate</a></td>
+                           <td class='docblock-short'>
+                                <p>An equality predicate (unsupported).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.WhereRegionPredicate.html"
+                                  title='struct syn::WhereRegionPredicate'>WhereRegionPredicate</a></td>
+                           <td class='docblock-short'>
+                                <p>A lifetime predicate.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Abi.html"
+                                  title='enum syn::Abi'>Abi</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.AttrStyle.html"
+                                  title='enum syn::AttrStyle'>AttrStyle</a></td>
+                           <td class='docblock-short'>
+                                <p>Distinguishes between Attributes that decorate items and Attributes that
+are contained as statements within items. These two cases need to be
+distinguished for pretty-printing.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.BinOp.html"
+                                  title='enum syn::BinOp'>BinOp</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.BinOpToken.html"
+                                  title='enum syn::BinOpToken'>BinOpToken</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Body.html"
+                                  title='enum syn::Body'>Body</a></td>
+                           <td class='docblock-short'>
+                                <p>Body of a derived struct or enum.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.ConstExpr.html"
+                                  title='enum syn::ConstExpr'>ConstExpr</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.DelimToken.html"
+                                  title='enum syn::DelimToken'>DelimToken</a></td>
+                           <td class='docblock-short'>
+                                <p>A delimiter token</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FloatTy.html"
+                                  title='enum syn::FloatTy'>FloatTy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FunctionRetTy.html"
+                                  title='enum syn::FunctionRetTy'>FunctionRetTy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.IntTy.html"
+                                  title='enum syn::IntTy'>IntTy</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Lit.html"
+                                  title='enum syn::Lit'>Lit</a></td>
+                           <td class='docblock-short'>
+                                <p>Literal kind.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.MetaItem.html"
+                                  title='enum syn::MetaItem'>MetaItem</a></td>
+                           <td class='docblock-short'>
+                                <p>A compile-time attribute item.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Mutability.html"
+                                  title='enum syn::Mutability'>Mutability</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.NestedMetaItem.html"
+                                  title='enum syn::NestedMetaItem'>NestedMetaItem</a></td>
+                           <td class='docblock-short'>
+                                <p>Possible values inside of compile-time attribute lists.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.PathParameters.html"
+                                  title='enum syn::PathParameters'>PathParameters</a></td>
+                           <td class='docblock-short'>
+                                <p>Parameters of a path segment.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.StrStyle.html"
+                                  title='enum syn::StrStyle'>StrStyle</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Token.html"
+                                  title='enum syn::Token'>Token</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.TokenTree.html"
+                                  title='enum syn::TokenTree'>TokenTree</a></td>
+                           <td class='docblock-short'>
+                                <p>When the main rust parser encounters a syntax-extension invocation, it
+parses the arguments to the invocation as a token-tree. This is a very
+loose structure, such that all sorts of different AST-fragments can
+be passed to syntax extensions using a uniform type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.TraitBoundModifier.html"
+                                  title='enum syn::TraitBoundModifier'>TraitBoundModifier</a></td>
+                           <td class='docblock-short'>
+                                <p>A modifier on a bound, currently this is only used for <code>?Sized</code>, where the
+modifier is <code>Maybe</code>. Negative bounds should also be handled here.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Ty.html"
+                                  title='enum syn::Ty'>Ty</a></td>
+                           <td class='docblock-short'>
+                                <p>The different kinds of types recognized by the compiler</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.TyParamBound.html"
+                                  title='enum syn::TyParamBound'>TyParamBound</a></td>
+                           <td class='docblock-short'>
+                                <p>The AST represents all type param bounds as types.
+<code>typeck::collect::compute_bounds</code> matches these against
+the &quot;special&quot; built-in traits (see <code>middle::lang_items</code>) and
+detects Copy, Send and Sync.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.UnOp.html"
+                                  title='enum syn::UnOp'>UnOp</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Unsafety.html"
+                                  title='enum syn::Unsafety'>Unsafety</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.VariantData.html"
+                                  title='enum syn::VariantData'>VariantData</a></td>
+                           <td class='docblock-short'>
+                                <p>Data stored within an enum variant or struct.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Visibility.html"
+                                  title='enum syn::Visibility'>Visibility</a></td>
+                           <td class='docblock-short'>
+                                <p>Visibility level of an item.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.WherePredicate.html"
+                                  title='enum syn::WherePredicate'>WherePredicate</a></td>
+                           <td class='docblock-short'>
+                                <p>A single predicate in a <code>where</code> clause</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_derive_input.html"
+                                  title='fn syn::parse_derive_input'>parse_derive_input</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_ident.html"
+                                  title='fn syn::parse_ident'>parse_ident</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_outer_attr.html"
+                                  title='fn syn::parse_outer_attr'>parse_outer_attr</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_path.html"
+                                  title='fn syn::parse_path'>parse_path</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_token_trees.html"
+                                  title='fn syn::parse_token_trees'>parse_token_trees</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_ty_param_bound.html"
+                                  title='fn syn::parse_ty_param_bound'>parse_ty_param_bound</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_type.html"
+                                  title='fn syn::parse_type'>parse_type</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.parse_where_clause.html"
+                                  title='fn syn::parse_where_clause'>parse_where_clause</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "syn";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

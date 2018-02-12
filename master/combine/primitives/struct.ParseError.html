@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ParseError` struct in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ParseError">
+
+    <title>combine::primitives::ParseError - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct ParseError</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.position">position</a><a href="#structfield.errors">errors</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.empty">empty</a><a href="#method.from_errors">from_errors</a><a href="#method.end_of_input">end_of_input</a><a href="#method.add_message">add_message</a><a href="#method.add_error">add_error</a><a href="#method.set_expected">set_expected</a><a href="#method.merge">merge</a><a href="#method.translate_position">translate_position</a><a href="#method.translate_position">translate_position</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-StdError">StdError</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-Debug">Debug</a><a href="#impl-Display">Display</a></div></div><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a></p><script>window.sidebarCurrent = {name: 'ParseError', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a>::<wbr><a class="struct" href=''>ParseError</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/primitives.rs.html#423-431' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ParseError&lt;S:&nbsp;<a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt; {
+    pub position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>,
+    pub errors: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;&gt;,
+}</pre><div class='docblock'><p>Struct which hold information about an error that occurred at a specific position.
+Can hold multiple instances of <code>Error</code> if more that one error occurred in the same position.</p>
+</div><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.position" class="structfield small-section-header">
+                           <a href="#structfield.position" class="anchor field"></a>
+                           <span id="position.v" class='invisible'>
+                           <code>position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a></code>
+                           </span></span><div class='docblock'><p>The position where the error occurred</p>
+</div><span id="structfield.errors" class="structfield small-section-header">
+                           <a href="#structfield.errors" class="anchor field"></a>
+                           <span id="errors.v" class='invisible'>
+                           <code>errors: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;&gt;</code>
+                           </span></span><div class='docblock'><p>A vector containing specific information on what errors occurred at <code>position</code>. Usually
+a fully formed message contains one <code>Unexpected</code> error and one or more <code>Expected</code> errors.
+<code>Message</code> and <code>Other</code> may also appear (<code>combine</code> never generates these errors on its own)
+and may warrant custom handling.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#433-506' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;error: <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;<br>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#435-437' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs a new <code>ParseError</code> which occurred at <code>position</code>.</p>
+</div><h4 id='method.empty' class="method"><span id='empty.v' class='invisible'><code>pub fn <a href='#method.empty' class='fnname'>empty</a>(position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#440-442' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs an error with no other information than the position it occurred at.</p>
+</div><h4 id='method.from_errors' class="method"><span id='from_errors.v' class='invisible'><code>pub fn <a href='#method.from_errors' class='fnname'>from_errors</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;errors: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;&gt;<br>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#445-453' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs a <code>ParseError</code> with multiple causes.</p>
+</div><h4 id='method.end_of_input' class="method"><span id='end_of_input.v' class='invisible'><code>pub fn <a href='#method.end_of_input' class='fnname'>end_of_input</a>(position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#457-459' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Constructs an end of input error. Should be returned by parsers which encounter end of
+input unexpectedly.</p>
+</div><h4 id='method.add_message' class="method"><span id='add_message.v' class='invisible'><code>pub fn <a href='#method.add_message' class='fnname'>add_message</a>&lt;M&gt;(&amp;mut self, message: M) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;M: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#463-468' title='goto source code'>[src]</a></span></h4>
+<div class='stability'><div class='stab deprecated'>Deprecated since 2.3.0<p>: Use <code>add_error(Error::Message())</code> instead</p>
+</div></div><div class='docblock'><p>Adds a <code>Message</code> error, taking care not to add duplicated errors.</p>
+</div><h4 id='method.add_error' class="method"><span id='add_error.v' class='invisible'><code>pub fn <a href='#method.add_error' class='fnname'>add_error</a>(&amp;mut self, error: <a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#472-477' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Adds an error if <code>error</code> does not exist in this <code>ParseError</code> already (as determined byte
+<code>PartialEq</code>).</p>
+</div><h4 id='method.set_expected' class="method"><span id='set_expected.v' class='invisible'><code>pub fn <a href='#method.set_expected' class='fnname'>set_expected</a>(&amp;mut self, info: <a class="enum" href="../../combine/primitives/enum.Info.html" title="enum combine::primitives::Info">Info</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#480-487' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Remvoes all <code>Expected</code> errors in <code>self</code> and adds <code>info</code> instead.</p>
+</div><h4 id='method.merge' class="method"><span id='merge.v' class='invisible'><code>pub fn <a href='#method.merge' class='fnname'>merge</a>(self, other: <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#492-505' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Merges two <code>ParseError</code>s. If they exist at the same position the errors of <code>other</code> are
+added to <code>self</code> (using <code>add_error</code> to skip duplicates). If they are not at the same
+position the error furthest ahead are returned, ignoring the other <code>ParseError</code>.</p>
+</div></div><h3 id='impl-1' class='impl'><span class='in-band'><code>impl&lt;'s&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;&amp;'s <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</code><a href='#impl-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#508-525' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.translate_position' class="method"><span id='translate_position.v' class='invisible'><code>pub fn <a href='#method.translate_position' class='fnname'>translate_position</a>(self, initial_string: &amp;'s <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;&amp;'s <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#521-524' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Converts the pointer-based position into an indexed position.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="string">&quot;b&quot;</span>;
+<span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">token</span>(<span class="string">&#39;a&#39;</span>).<span class="ident">parse</span>(<span class="ident">text</span>).<span class="ident">unwrap_err</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>, <span class="ident">text</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">translate_position</span>(<span class="ident">text</span>).<span class="ident">position</span>, <span class="number">0</span>);</pre>
+</div></div><h3 id='impl-2' class='impl'><span class='in-band'><code>impl&lt;'s, T:&nbsp;'s&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'s [T]</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>,&nbsp;</span></code><a href='#impl-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#527-547' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.translate_position-1' class="method"><span id='translate_position.v-1' class='invisible'><code>pub fn <a href='#method.translate_position-1' class='fnname'>translate_position</a>(self, initial_string: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'s [T]</a>) -&gt; <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'s [T]</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#543-546' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Converts the pointer-based position into an indexed position.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="string">b&quot;b&quot;</span>;
+<span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">token</span>(<span class="string">b&#39;a&#39;</span>).<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[..]).<span class="ident">unwrap_err</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>, <span class="ident">text</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">translate_position</span>(<span class="ident">text</span>).<span class="ident">position</span>, <span class="number">0</span>);</pre>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-StdError' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">StdError</a> for <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html" title="trait core::any::Any">Any</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html" title="trait core::any::Any">Any</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html" title="trait core::any::Any">Any</a>,&nbsp;</span></code><a href='#impl-StdError' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#549-559' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.description' class="method"><span id='description.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description' class='fnname'>description</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#556-558' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>A short description of the error. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description">Read more</a></p>
+</div><h4 id='method.cause' class="method"><span id='cause.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause' class='fnname'>cause</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/std/error.rs.html#154' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The lower-level cause of this error, if any. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>,&nbsp;</span></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#561-569' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, other: &amp;<a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt;) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#566-568' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, other: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Rhs) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#121' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,&nbsp;</span></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#571-586' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#578-585' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,&nbsp;</span></code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#588-599' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#595-598' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

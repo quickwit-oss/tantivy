@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `IgnoredAny` struct in crate `serde`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, IgnoredAny">
+
+    <title>serde::de::IgnoredAny - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct IgnoredAny</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Copy">Copy</a><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a><a href="#impl-Default">Default</a><a href="#impl-Visitor%3C%27de%3E">Visitor&lt;&#39;de&gt;</a><a href="#impl-Deserialize%3C%27de%3E">Deserialize&lt;&#39;de&gt;</a></div></div><p class='location'><a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'IgnoredAny', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="struct" href=''>IgnoredAny</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#107' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct IgnoredAny;</pre><div class='docblock'><p>An efficient way of discarding data from a deserializer.</p>
+<p>Think of this like <code>serde_json::Value</code> in that it can be deserialized from
+any type, except that it does not store any information about the data that
+gets deserialized.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
+
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">DeserializeSeed</span>, <span class="ident">Deserializer</span>, <span class="ident">Visitor</span>, <span class="ident">SeqAccess</span>, <span class="ident">IgnoredAny</span>};
+
+<span class="doccomment">/// A seed that can be used to deserialize only the `n`th element of a sequence</span>
+<span class="doccomment">/// while efficiently discarding elements of any type before or after index `n`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For example to deserialize only the element at index 3:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// NthElement::new(3).deserialize(deserializer)</span>
+<span class="doccomment">/// ```</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NthElement</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">n</span>: <span class="ident">usize</span>,
+    <span class="ident">marker</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">NthElement</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">n</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">NthElement</span> {
+            <span class="ident">n</span>: <span class="ident">n</span>,
+            <span class="ident">marker</span>: <span class="ident">PhantomData</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">NthElement</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+{
+    <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">T</span>;
+
+    <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;a sequence in which we care about element {}&quot;</span>, <span class="self">self</span>.<span class="ident">n</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+    {
+        <span class="comment">// Skip over the first `n` elements.</span>
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">n</span> {
+            <span class="comment">// It is an error if the sequence ends before we get to element `n`.</span>
+            <span class="kw">if</span> <span class="ident">seq</span>.<span class="ident">next_element</span>::<span class="op">&lt;</span><span class="ident">IgnoredAny</span><span class="op">&gt;</span>()<span class="question-mark">?</span>.<span class="ident">is_none</span>() {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">i</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
+            }
+        }
+
+        <span class="comment">// Deserialize the one we care about.</span>
+        <span class="kw">let</span> <span class="ident">nth</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">nth</span>) <span class="op">=&gt;</span> <span class="ident">nth</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="self">self</span>.<span class="ident">n</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
+            }
+        };
+
+        <span class="comment">// Skip over any remaining elements in the sequence after `n`.</span>
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">IgnoredAny</span>) <span class="op">=</span> <span class="ident">seq</span>.<span class="ident">next_element</span>()<span class="question-mark">?</span> {
+            <span class="comment">// ignore</span>
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="ident">nth</span>)
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">DeserializeSeed</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">NthElement</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+{
+    <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">T</span>;
+
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+    {
+        <span class="ident">deserializer</span>.<span class="ident">deserialize_seq</span>(<span class="self">self</span>)
+    }
+}
+
+<span class="comment">// Deserialize only the sequence element at index 3 from this deserializer.</span>
+<span class="comment">// The element at index 3 is required to be a string. Elements before and</span>
+<span class="comment">// after index 3 are allowed to be of any type.</span>
+<span class="kw">let</span> <span class="ident">s</span>: <span class="ident">String</span> <span class="op">=</span> <span class="ident">NthElement</span>::<span class="ident">new</span>(<span class="number">3</span>).<span class="ident">deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;</pre>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Default' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a> for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Default' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.default' class="method"><span id='default.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default' class='fnname'>default</a>() -&gt; <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#106' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the &quot;default value&quot; for a type. <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Read more</a></p>
+</div></div><h3 id='impl-Visitor%3C%27de%3E' class='impl'><span class='in-band'><code>impl&lt;'de&gt; <a class="trait" href="../../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt; for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Visitor%3C%27de%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#109-205' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Value' class="type"><span id='Value.t' class='invisible'><code>type <a href='../../serde/de/trait.Visitor.html#associatedtype.Value' class="type">Value</a> = <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code></span></h4>
+<div class='docblock'><p>The value produced by this visitor.</p>
+</div><h4 id='method.expecting' class="method"><span id='expecting.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#tymethod.expecting' class='fnname'>expecting</a>(&amp;self, formatter: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Format a message stating what data this Visitor expects to receive. <a href="../../serde/de/trait.Visitor.html#tymethod.expecting">Read more</a></p>
+</div><h4 id='method.visit_bool' class="method"><span id='visit_bool.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_bool' class='fnname'>visit_bool</a>&lt;E&gt;(self, x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#117-120' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a boolean. <a href="../../serde/de/trait.Visitor.html#method.visit_bool">Read more</a></p>
+</div><h4 id='method.visit_i64' class="method"><span id='visit_i64.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_i64' class='fnname'>visit_i64</a>&lt;E&gt;(self, x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#123-126' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>i64</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_i64">Read more</a></p>
+</div><h4 id='method.visit_u64' class="method"><span id='visit_u64.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_u64' class='fnname'>visit_u64</a>&lt;E&gt;(self, x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#129-132' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a <code>u64</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_u64">Read more</a></p>
+</div><h4 id='method.visit_f64' class="method"><span id='visit_f64.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_f64' class='fnname'>visit_f64</a>&lt;E&gt;(self, x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#135-138' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>f64</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_f64">Read more</a></p>
+</div><h4 id='method.visit_str' class="method"><span id='visit_str.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_str' class='fnname'>visit_str</a>&lt;E&gt;(self, s: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#141-147' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a string. The lifetime of the string is ephemeral and it may be destroyed after this method returns. <a href="../../serde/de/trait.Visitor.html#method.visit_str">Read more</a></p>
+</div><h4 id='method.visit_none' class="method"><span id='visit_none.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_none' class='fnname'>visit_none</a>&lt;E&gt;(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#150-152' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an optional that is absent. <a href="../../serde/de/trait.Visitor.html#method.visit_none">Read more</a></p>
+</div><h4 id='method.visit_some' class="method"><span id='visit_some.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_some' class='fnname'>visit_some</a>&lt;D&gt;(self, deserializer: D) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, D::<a class="type" href="../../serde/trait.Deserializer.html#associatedtype.Error" title="type serde::Deserializer::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;D: <a class="trait" href="../../serde/trait.Deserializer.html" title="trait serde::Deserializer">Deserializer</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#155-160' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an optional that is present. <a href="../../serde/de/trait.Visitor.html#method.visit_some">Read more</a></p>
+</div><h4 id='method.visit_newtype_struct' class="method"><span id='visit_newtype_struct.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_newtype_struct' class='fnname'>visit_newtype_struct</a>&lt;D&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;deserializer: D<br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, D::<a class="type" href="../../serde/trait.Deserializer.html#associatedtype.Error" title="type serde::Deserializer::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;D: <a class="trait" href="../../serde/trait.Deserializer.html" title="trait serde::Deserializer">Deserializer</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#163-168' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a newtype struct. <a href="../../serde/de/trait.Visitor.html#method.visit_newtype_struct">Read more</a></p>
+</div><h4 id='method.visit_unit' class="method"><span id='visit_unit.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_unit' class='fnname'>visit_unit</a>&lt;E&gt;(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#171-173' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a unit <code>()</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_unit">Read more</a></p>
+</div><h4 id='method.visit_seq' class="method"><span id='visit_seq.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_seq' class='fnname'>visit_seq</a>&lt;A&gt;(self, seq: A) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, A::<a class="type" href="../../serde/de/trait.SeqAccess.html#associatedtype.Error" title="type serde::de::SeqAccess::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../serde/de/trait.SeqAccess.html" title="trait serde::de::SeqAccess">SeqAccess</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#176-184' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a sequence of elements. <a href="../../serde/de/trait.Visitor.html#method.visit_seq">Read more</a></p>
+</div><h4 id='method.visit_map' class="method"><span id='visit_map.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_map' class='fnname'>visit_map</a>&lt;A&gt;(self, map: A) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, A::<a class="type" href="../../serde/de/trait.MapAccess.html#associatedtype.Error" title="type serde::de::MapAccess::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../serde/de/trait.MapAccess.html" title="trait serde::de::MapAccess">MapAccess</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#187-195' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a key-value map. <a href="../../serde/de/trait.Visitor.html#method.visit_map">Read more</a></p>
+</div><h4 id='method.visit_bytes' class="method"><span id='visit_bytes.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_bytes' class='fnname'>visit_bytes</a>&lt;E&gt;(self, bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#198-204' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a byte array. The lifetime of the byte array is ephemeral and it may be destroyed after this method returns. <a href="../../serde/de/trait.Visitor.html#method.visit_bytes">Read more</a></p>
+</div><h4 id='method.visit_i8' class="method"><span id='visit_i8.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_i8' class='fnname'>visit_i8</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i8.html">i8</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1191-1196' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>i8</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_i8">Read more</a></p>
+</div><h4 id='method.visit_i16' class="method"><span id='visit_i16.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_i16' class='fnname'>visit_i16</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i16.html">i16</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1203-1208' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>i16</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_i16">Read more</a></p>
+</div><h4 id='method.visit_i32' class="method"><span id='visit_i32.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_i32' class='fnname'>visit_i32</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1215-1220' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>i32</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_i32">Read more</a></p>
+</div><h4 id='method.visit_u8' class="method"><span id='visit_u8.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_u8' class='fnname'>visit_u8</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1237-1242' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a <code>u8</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_u8">Read more</a></p>
+</div><h4 id='method.visit_u16' class="method"><span id='visit_u16.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_u16' class='fnname'>visit_u16</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1249-1254' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a <code>u16</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_u16">Read more</a></p>
+</div><h4 id='method.visit_u32' class="method"><span id='visit_u32.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_u32' class='fnname'>visit_u32</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1261-1266' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a <code>u32</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_u32">Read more</a></p>
+</div><h4 id='method.visit_f32' class="method"><span id='visit_f32.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_f32' class='fnname'>visit_f32</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f32.html">f32</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1283-1288' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an <code>f32</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_f32">Read more</a></p>
+</div><h4 id='method.visit_char' class="method"><span id='visit_char.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_char' class='fnname'>visit_char</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.char.html">char</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1307-1312' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a <code>char</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_char">Read more</a></p>
+</div><h4 id='method.visit_borrowed_str' class="method"><span id='visit_borrowed_str.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_borrowed_str' class='fnname'>visit_borrowed_str</a>&lt;E&gt;(self, v: &amp;'de <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1342-1347' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a string that lives at least as long as the <code>Deserializer</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_borrowed_str">Read more</a></p>
+</div><h4 id='method.visit_string' class="method"><span id='visit_string.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_string' class='fnname'>visit_string</a>&lt;E&gt;(self, v: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1366-1371' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a string and ownership of the string is being given to the <code>Visitor</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_string">Read more</a></p>
+</div><h4 id='method.visit_borrowed_bytes' class="method"><span id='visit_borrowed_bytes.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_borrowed_bytes' class='fnname'>visit_borrowed_bytes</a>&lt;E&gt;(self, v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'de [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1401-1406' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a byte array that lives at least as long as the <code>Deserializer</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_borrowed_bytes">Read more</a></p>
+</div><h4 id='method.visit_byte_buf' class="method"><span id='visit_byte_buf.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_byte_buf' class='fnname'>visit_byte_buf</a>&lt;E&gt;(self, v: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1425-1430' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains a byte array and ownership of the byte array is being given to the <code>Visitor</code>. <a href="../../serde/de/trait.Visitor.html#method.visit_byte_buf">Read more</a></p>
+</div><h4 id='method.visit_enum' class="method"><span id='visit_enum.v' class='invisible'><code>fn <a href='../../serde/de/trait.Visitor.html#method.visit_enum' class='fnname'>visit_enum</a>&lt;A&gt;(self, data: A) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, A::<a class="type" href="../../serde/de/trait.EnumAccess.html#associatedtype.Error" title="type serde::de::EnumAccess::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../serde/de/trait.EnumAccess.html" title="trait serde::de::EnumAccess">EnumAccess</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1502-1508' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The input contains an enum. <a href="../../serde/de/trait.Visitor.html#method.visit_enum">Read more</a></p>
+</div></div><h3 id='impl-Deserialize%3C%27de%3E' class='impl'><span class='in-band'><code>impl&lt;'de&gt; <a class="trait" href="../../serde/trait.Deserialize.html" title="trait serde::Deserialize">Deserialize</a>&lt;'de&gt; for <a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a></code><a href='#impl-Deserialize%3C%27de%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#207-215' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.deserialize' class="method"><span id='deserialize.v' class='invisible'><code>fn <a href='../../serde/trait.Deserialize.html#tymethod.deserialize' class='fnname'>deserialize</a>&lt;D&gt;(deserializer: D) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../serde/de/struct.IgnoredAny.html" title="struct serde::de::IgnoredAny">IgnoredAny</a>, D::<a class="type" href="../../serde/trait.Deserializer.html#associatedtype.Error" title="type serde::Deserializer::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;D: <a class="trait" href="../../serde/trait.Deserializer.html" title="trait serde::Deserializer">Deserializer</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/ignored_any.rs.html#209-214' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Deserialize this value from the given Serde deserializer. <a href="../../serde/trait.Deserialize.html#tymethod.deserialize">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

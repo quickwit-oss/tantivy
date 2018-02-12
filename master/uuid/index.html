@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `uuid` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, uuid">
+
+    <title>uuid - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../uuid/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'>Crate uuid</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'uuid', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>uuid</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/uuid/lib.rs.html#11-1383' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Generate and parse UUIDs</p>
+<p>Provides support for Universally Unique Identifiers (UUIDs). A UUID is a
+unique 128-bit number, stored as 16 octets.  UUIDs are used to  assign
+unique identifiers to entities without requiring a central allocating
+authority.</p>
+<p>They are particularly useful in distributed systems, though can be used in
+disparate areas, such as databases and network protocols.  Typically a UUID
+is displayed in a readable string form as a sequence of hexadecimal digits,
+separated into groups by hyphens.</p>
+<p>The uniqueness property is not strictly guaranteed, however for all
+practical purposes, it can be assumed that an unintentional collision would
+be extremely unlikely.</p>
+<h1 id="dependencies" class="section-header"><a href="#dependencies">Dependencies</a></h1>
+<p>This crate by default has no dependencies and is <code>#![no_std]</code> compatible.
+The following Cargo features, however, can be used to enable various pieces
+of functionality.</p>
+<ul>
+<li><code>use_std</code> - adds in functionality available when linking to the standard
+library, currently this is only the <code>impl Error for ParseError</code>.</li>
+<li><code>v1</code> - adds the <code>Uuid::new_v1</code> function and the ability to create a V1
+using a <code>UUIDV1Context</code> and a timestamp from <code>time::timespec</code></li>
+<li><code>v3</code> - adds the <code>Uuid::new_v3</code> function and the ability to create a V3
+UUID based on the MD5 hash of some data.</li>
+<li><code>v4</code> - adds the <code>Uuid::new_v4</code> function and the ability to randomly
+generate a <code>Uuid</code>.</li>
+<li><code>v5</code> - adds the <code>Uuid::new_v5</code> function and the ability to create a V5
+UUID based on the SHA1 hash of some data.</li>
+<li><code>rustc-serialize</code> - adds the ability to serialize and deserialize a <code>Uuid</code>
+using the <code>rustc-serialize</code> crate.</li>
+<li><code>serde</code> - adds the ability to serialize and deserialize a <code>Uuid</code> using the
+<code>serde</code> crate.</li>
+</ul>
+<p>By default, <code>uuid</code> can be depended on with:</p>
+<pre><code class="language-toml">[dependencies]
+uuid = &quot;0.4&quot;
+</code></pre>
+<p>To activate various features, use syntax like:</p>
+<pre><code class="language-toml">[dependencies]
+uuid = { version = &quot;0.4&quot;, features = [&quot;serde&quot;, &quot;v4&quot;] }
+</code></pre>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>To parse a UUID given in the simple format and print it as a urn:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">my_uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">parse_str</span>(<span class="string">&quot;936DA01F9ABD4d9d80C702AF85C822A8&quot;</span>).<span class="ident">unwrap</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">my_uuid</span>.<span class="ident">urn</span>());
+}</pre>
+<p>To create a new random (V4) UUID and print it out in hexadecimal form:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="comment">// Note that this requires the `v4` feature enabled in the uuid crate.</span>
+
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">my_uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">new_v4</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">my_uuid</span>);
+}</pre>
+<h1 id="strings" class="section-header"><a href="#strings">Strings</a></h1>
+<p>Examples of string representations:</p>
+<ul>
+<li>simple: <code>936DA01F9ABD4d9d80C702AF85C822A8</code></li>
+<li>hyphenated: <code>550e8400-e29b-41d4-a716-446655440000</code></li>
+<li>urn: <code>urn:uuid:F9168C5E-CEB2-4faa-B6BF-329BF39FA1E4</code></li>
+</ul>
+<h1 id="references" class="section-header"><a href="#references">References</a></h1>
+<ul>
+<li><a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">Wikipedia: Universally Unique Identifier</a></li>
+<li><a href="http://tools.ietf.org/html/rfc4122">RFC4122: A Universally Unique IDentifier (UUID) URN Namespace</a></li>
+</ul>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Hyphenated.html"
+                                  title='struct uuid::Hyphenated'>Hyphenated</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor for formatting a <code>Uuid</code> as a hyphenated string.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Simple.html"
+                                  title='struct uuid::Simple'>Simple</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor for formatting a <code>Uuid</code> as a simple string.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Urn.html"
+                                  title='struct uuid::Urn'>Urn</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor for formatting a <code>Uuid</code> as a URN string.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Uuid.html"
+                                  title='struct uuid::Uuid'>Uuid</a></td>
+                           <td class='docblock-short'>
+                                <p>A Universally Unique Identifier (UUID).</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.ParseError.html"
+                                  title='enum uuid::ParseError'>ParseError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error details for string parsing failures.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.UuidVariant.html"
+                                  title='enum uuid::UuidVariant'>UuidVariant</a></td>
+                           <td class='docblock-short'>
+                                <p>The reserved variants of UUIDs.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.UuidVersion.html"
+                                  title='enum uuid::UuidVersion'>UuidVersion</a></td>
+                           <td class='docblock-short'>
+                                <p>The version of the UUID, denoting the generating algorithm.</p>
+
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NAMESPACE_DNS.html"
+                                  title='constant uuid::NAMESPACE_DNS'>NAMESPACE_DNS</a></td>
+                           <td class='docblock-short'>
+                                <p>A UUID of the namespace of fully-qualified domain names</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NAMESPACE_OID.html"
+                                  title='constant uuid::NAMESPACE_OID'>NAMESPACE_OID</a></td>
+                           <td class='docblock-short'>
+                                <p>A UUID of the namespace of ISO OIDs</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NAMESPACE_URL.html"
+                                  title='constant uuid::NAMESPACE_URL'>NAMESPACE_URL</a></td>
+                           <td class='docblock-short'>
+                                <p>A UUID of the namespace of URLs</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.NAMESPACE_X500.html"
+                                  title='constant uuid::NAMESPACE_X500'>NAMESPACE_X500</a></td>
+                           <td class='docblock-short'>
+                                <p>A UUID of the namespace of X.500 DNs (in DER or a text output format)</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.UuidBytes.html"
+                                  title='type uuid::UuidBytes'>UuidBytes</a></td>
+                           <td class='docblock-short'>
+                                <p>A 128-bit (16 byte) buffer containing the ID.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "uuid";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `unistd` mod in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, unistd">
+
+    <title>nix::unistd - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module unistd</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>nix</a></p><script>window.sidebarCurrent = {name: 'unistd', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>nix</a>::<wbr><a class="mod" href=''>unistd</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/nix/unistd.rs.html#1-1655' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Safe wrappers around functions found in libc &quot;unistd.h&quot; header</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Gid.html"
+                                  title='struct nix::unistd::Gid'>Gid</a></td>
+                           <td class='docblock-short'>
+                                <p>Group identifier</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Pid.html"
+                                  title='struct nix::unistd::Pid'>Pid</a></td>
+                           <td class='docblock-short'>
+                                <p>Process identifier</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Uid.html"
+                                  title='struct nix::unistd::Uid'>Uid</a></td>
+                           <td class='docblock-short'>
+                                <p>User identifier</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.ForkResult.html"
+                                  title='enum nix::unistd::ForkResult'>ForkResult</a></td>
+                           <td class='docblock-short'>
+                                <p>Represents the successful result of calling <code>fork</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.PathconfVar.html"
+                                  title='enum nix::unistd::PathconfVar'>PathconfVar</a></td>
+                           <td class='docblock-short'>
+                                <p>Variable names for <code>pathconf</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.SysconfVar.html"
+                                  title='enum nix::unistd::SysconfVar'>SysconfVar</a></td>
+                           <td class='docblock-short'>
+                                <p>Variable names for <code>sysconf</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Whence.html"
+                                  title='enum nix::unistd::Whence'>Whence</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.ROOT.html"
+                                  title='constant nix::unistd::ROOT'>ROOT</a></td>
+                           <td class='docblock-short'>
+                                <p>Constant for UID = 0</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chdir.html"
+                                  title='fn nix::unistd::chdir'>chdir</a></td>
+                           <td class='docblock-short'>
+                                <p>Change the current working directory of the calling process (see
+<a href="http://man7.org/linux/man-pages/man2/chdir.2.html">chdir(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chown.html"
+                                  title='fn nix::unistd::chown'>chown</a></td>
+                           <td class='docblock-short'>
+                                <p>Change the ownership of the file at <code>path</code> to be owned by the specified
+<code>owner</code> (user) and <code>group</code> (see
+<a href="http://man7.org/linux/man-pages/man2/lchown.2.html">chown(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.chroot.html"
+                                  title='fn nix::unistd::chroot'>chroot</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.close.html"
+                                  title='fn nix::unistd::close'>close</a></td>
+                           <td class='docblock-short'>
+                                <p>Close a raw file descriptor</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.daemon.html"
+                                  title='fn nix::unistd::daemon'>daemon</a></td>
+                           <td class='docblock-short'>
+                                <p>Daemonize this process by detaching from the controlling terminal (see
+<a href="http://man7.org/linux/man-pages/man3/daemon.3.html">daemon(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.dup.html"
+                                  title='fn nix::unistd::dup'>dup</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a copy of the specified file descriptor (see
+<a href="http://man7.org/linux/man-pages/man2/dup.2.html">dup(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.dup2.html"
+                                  title='fn nix::unistd::dup2'>dup2</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a copy of the specified file descriptor using the specified fd (see
+<a href="http://man7.org/linux/man-pages/man2/dup.2.html">dup(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.dup3.html"
+                                  title='fn nix::unistd::dup3'>dup3</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a new copy of the specified file descriptor using the specified fd
+and flags (see <a href="http://man7.org/linux/man-pages/man2/dup.2.html">dup(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.execv.html"
+                                  title='fn nix::unistd::execv'>execv</a></td>
+                           <td class='docblock-short'>
+                                <p>Replace the current process image with a new one (see
+<a href="http://man7.org/linux/man-pages/man3/exec.3.html">exec(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.execve.html"
+                                  title='fn nix::unistd::execve'>execve</a></td>
+                           <td class='docblock-short'>
+                                <p>Replace the current process image with a new one (see
+<a href="http://man7.org/linux/man-pages/man2/execve.2.html">execve(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.execvp.html"
+                                  title='fn nix::unistd::execvp'>execvp</a></td>
+                           <td class='docblock-short'>
+                                <p>Replace the current process image with a new one and replicate shell <code>PATH</code>
+searching behavior (see
+<a href="http://man7.org/linux/man-pages/man3/exec.3.html">exec(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fchdir.html"
+                                  title='fn nix::unistd::fchdir'>fchdir</a></td>
+                           <td class='docblock-short'>
+                                <p>Change the current working directory of the process to the one
+given as an open file descriptor (see
+<a href="http://man7.org/linux/man-pages/man2/fchdir.2.html">fchdir(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fdatasync.html"
+                                  title='fn nix::unistd::fdatasync'>fdatasync</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fork.html"
+                                  title='fn nix::unistd::fork'>fork</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a new child process duplicating the parent process (<a href="http://man7.org/linux/man-pages/man2/fork.2.html">see
+fork(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fpathconf.html"
+                                  title='fn nix::unistd::fpathconf'>fpathconf</a></td>
+                           <td class='docblock-short'>
+                                <p>Like <code>pathconf</code>, but works with file descriptors instead of paths (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/pathconf.html">fpathconf(2)</a>)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.fsync.html"
+                                  title='fn nix::unistd::fsync'>fsync</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.ftruncate.html"
+                                  title='fn nix::unistd::ftruncate'>ftruncate</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getcwd.html"
+                                  title='fn nix::unistd::getcwd'>getcwd</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns the current directory as a PathBuf</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getegid.html"
+                                  title='fn nix::unistd::getegid'>getegid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.geteuid.html"
+                                  title='fn nix::unistd::geteuid'>geteuid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getgid.html"
+                                  title='fn nix::unistd::getgid'>getgid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.gethostname.html"
+                                  title='fn nix::unistd::gethostname'>gethostname</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the host name and store it in the provided buffer, returning a pointer
+the CStr in that buffer on success (see
+<a href="http://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getpgid.html"
+                                  title='fn nix::unistd::getpgid'>getpgid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getpgrp.html"
+                                  title='fn nix::unistd::getpgrp'>getpgrp</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the group id of the calling process (see
+<a href="http://man7.org/linux/man-pages/man3/getpgrp.3p.html">getpgrp(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getpid.html"
+                                  title='fn nix::unistd::getpid'>getpid</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the pid of this process (see
+<a href="http://man7.org/linux/man-pages/man2/getpid.2.html">getpid(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getppid.html"
+                                  title='fn nix::unistd::getppid'>getppid</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the pid of this processes' parent (see
+<a href="http://man7.org/linux/man-pages/man2/getpid.2.html">getpid(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.gettid.html"
+                                  title='fn nix::unistd::gettid'>gettid</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the caller's thread ID (see
+<a href="http://man7.org/linux/man-pages/man2/gettid.2.html">gettid(2)</a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.getuid.html"
+                                  title='fn nix::unistd::getuid'>getuid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.isatty.html"
+                                  title='fn nix::unistd::isatty'>isatty</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.lseek.html"
+                                  title='fn nix::unistd::lseek'>lseek</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.lseek64.html"
+                                  title='fn nix::unistd::lseek64'>lseek64</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.mkdir.html"
+                                  title='fn nix::unistd::mkdir'>mkdir</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates new directory <code>path</code> with access rights <code>mode</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.mkstemp.html"
+                                  title='fn nix::unistd::mkstemp'>mkstemp</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a regular file which persists even after process termination</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pathconf.html"
+                                  title='fn nix::unistd::pathconf'>pathconf</a></td>
+                           <td class='docblock-short'>
+                                <p>Get path-dependent configurable system variables (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/pathconf.html">pathconf(2)</a>)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pause.html"
+                                  title='fn nix::unistd::pause'>pause</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pipe.html"
+                                  title='fn nix::unistd::pipe'>pipe</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pipe2.html"
+                                  title='fn nix::unistd::pipe2'>pipe2</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pivot_root.html"
+                                  title='fn nix::unistd::pivot_root'>pivot_root</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.read.html"
+                                  title='fn nix::unistd::read'>read</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setgid.html"
+                                  title='fn nix::unistd::setgid'>setgid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sethostname.html"
+                                  title='fn nix::unistd::sethostname'>sethostname</a></td>
+                           <td class='docblock-short'>
+                                <p>Set the system host name (see
+<a href="http://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setpgid.html"
+                                  title='fn nix::unistd::setpgid'>setpgid</a></td>
+                           <td class='docblock-short'>
+                                <p>Set a process group ID (see
+<a href="http://man7.org/linux/man-pages/man2/setpgid.2.html">setpgid(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setresgid.html"
+                                  title='fn nix::unistd::setresgid'>setresgid</a></td>
+                           <td class='docblock-short'>
+                                <p>Sets the real, effective, and saved gid.
+(<a href="http://man7.org/linux/man-pages/man2/setresuid.2.html">see setresuid(2)</a>)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setresuid.html"
+                                  title='fn nix::unistd::setresuid'>setresuid</a></td>
+                           <td class='docblock-short'>
+                                <p>Sets the real, effective, and saved uid.
+(<a href="http://man7.org/linux/man-pages/man2/setresuid.2.html">see setresuid(2)</a>)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setsid.html"
+                                  title='fn nix::unistd::setsid'>setsid</a></td>
+                           <td class='docblock-short'>
+                                <p>Create new session and set process group id (see
+<a href="http://man7.org/linux/man-pages/man2/setsid.2.html">setsid(2)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.setuid.html"
+                                  title='fn nix::unistd::setuid'>setuid</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sleep.html"
+                                  title='fn nix::unistd::sleep'>sleep</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.sysconf.html"
+                                  title='fn nix::unistd::sysconf'>sysconf</a></td>
+                           <td class='docblock-short'>
+                                <p>Get configurable system variables (see
+<a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html">sysconf(3)</a>)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcgetpgrp.html"
+                                  title='fn nix::unistd::tcgetpgrp'>tcgetpgrp</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the terminal foreground process group (see
+<a href="http://man7.org/linux/man-pages/man3/tcgetpgrp.3.html">tcgetpgrp(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.tcsetpgrp.html"
+                                  title='fn nix::unistd::tcsetpgrp'>tcsetpgrp</a></td>
+                           <td class='docblock-short'>
+                                <p>Set the terminal foreground process group (see
+<a href="http://man7.org/linux/man-pages/man3/tcgetpgrp.3.html">tcgetpgrp(3)</a>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unlink.html"
+                                  title='fn nix::unistd::unlink'>unlink</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.write.html"
+                                  title='fn nix::unistd::write'>write</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

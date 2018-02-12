@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `tantivy` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, tantivy">
+
+    <title>tantivy - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Crate tantivy</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'tantivy', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>tantivy</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/tantivy/lib.rs.html#1-883' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><h1 id="tantivy" class="section-header"><a href="#tantivy"><code>tantivy</code></a></h1>
+<p>Tantivy is a search engine library.
+Think <code>Lucene</code>, but in Rust.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tantivy</span>;
+
+<span class="comment">// ...</span>
+
+<span class="comment">// First we need to define a schema ...</span>
+
+<span class="comment">// `TEXT` means the field should be tokenized and indexed,</span>
+<span class="comment">// along with its term frequency and term positions.</span>
+<span class="comment">//</span>
+<span class="comment">// `STORED` means that the field will also be saved</span>
+<span class="comment">// in a compressed, row-oriented key-value store.</span>
+<span class="comment">// This store is useful to reconstruct the</span>
+<span class="comment">// documents that were selected during the search phase.</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+<span class="kw">let</span> <span class="ident">title</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">TEXT</span> <span class="op">|</span> <span class="ident">STORED</span>);
+<span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;body&quot;</span>, <span class="ident">TEXT</span>);
+<span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+
+<span class="comment">// Indexing documents</span>
+
+<span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create</span>(<span class="ident">index_path</span>, <span class="ident">schema</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+
+<span class="comment">// Here we use a buffer of 100MB that will be split</span>
+<span class="comment">// between indexing threads.</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">100_000_000</span>)<span class="question-mark">?</span>;
+
+<span class="comment">// Let&#39;s index one documents!</span>
+<span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+    <span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">&quot;The Old Man and the Sea&quot;</span>,
+    <span class="ident">body</span> <span class="op">=&gt;</span> <span class="string">&quot;He was an old man who fished alone in a skiff in \
+            the Gulf Stream and he had gone eighty-four days \
+            now without taking a fish.&quot;</span>
+));
+
+<span class="comment">// We need to call .commit() explicitly to force the</span>
+<span class="comment">// index_writer to finish processing the documents in the queue,</span>
+<span class="comment">// flush the current index to the disk, and advertise</span>
+<span class="comment">// the existence of new documents.</span>
+<span class="ident">index_writer</span>.<span class="ident">commit</span>()<span class="question-mark">?</span>;
+
+<span class="comment">// # Searching</span>
+
+<span class="ident">index</span>.<span class="ident">load_searchers</span>()<span class="question-mark">?</span>;
+
+<span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+
+<span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>, <span class="ident">body</span>]);
+
+<span class="comment">// QueryParser may fail if the query is not in the right</span>
+<span class="comment">// format. For user facing applications, this can be a problem.</span>
+<span class="comment">// A ticket has been opened regarding this problem.</span>
+<span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;sea whale&quot;</span>)<span class="question-mark">?</span>;
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">10</span>);
+<span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">top_collector</span>)<span class="question-mark">?</span>;
+
+<span class="comment">// Our top collector now contains the 10</span>
+<span class="comment">// most relevant doc ids...</span>
+<span class="kw">let</span> <span class="ident">doc_addresses</span> <span class="op">=</span> <span class="ident">top_collector</span>.<span class="ident">docs</span>();
+<span class="kw">for</span> <span class="ident">doc_address</span> <span class="kw">in</span> <span class="ident">doc_addresses</span> {
+    <span class="kw">let</span> <span class="ident">retrieved_doc</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="ident">doc_address</span>)<span class="question-mark">?</span>;
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">schema</span>.<span class="ident">to_json</span>(<span class="kw-2">&amp;</span><span class="ident">retrieved_doc</span>));
+}
+</pre>
+<p>A good place for you to get started is to check out
+the example code (
+<a href="http://fulmicoton.com/tantivy-examples/simple_search.html">literate programming</a> /
+<a href="https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs">source code</a>)</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="collector/index.html"
+                                  title='mod tantivy::collector'>collector</a></td>
+                           <td class='docblock-short'>
+                                <p>Defines how the documents matching a search query should be processed.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="directory/index.html"
+                                  title='mod tantivy::directory'>directory</a></td>
+                           <td class='docblock-short'>
+                                <p>WORM directory abstraction.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="fastfield/index.html"
+                                  title='mod tantivy::fastfield'>fastfield</a></td>
+                           <td class='docblock-short'>
+                                <p>Column oriented field storage for tantivy.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="merge_policy/index.html"
+                                  title='mod tantivy::merge_policy'>merge_policy</a></td>
+                           <td class='docblock-short'>
+                                <p>Defines tantivy's merging strategy</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="postings/index.html"
+                                  title='mod tantivy::postings'>postings</a></td>
+                           <td class='docblock-short'>
+                                <p>Postings module (also called inverted index)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="query/index.html"
+                                  title='mod tantivy::query'>query</a></td>
+                           <td class='docblock-short'>
+                                <p>Query</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="schema/index.html"
+                                  title='mod tantivy::schema'>schema</a></td>
+                           <td class='docblock-short'>
+                                <p>Schema definition for tantivy's indices.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="store/index.html"
+                                  title='mod tantivy::store'>store</a></td>
+                           <td class='docblock-short'>
+                                <p>Compressed/slow/row-oriented storage for documents.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="termdict/index.html"
+                                  title='mod tantivy::termdict'>termdict</a></td>
+                           <td class='docblock-short'>
+                                <p>The term dictionary is one of the key datastructure of
+tantivy. It associates sorted <code>terms</code> to a <code>TermInfo</code> struct
+that serves as an address in their respective posting list.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="tokenizer/index.html"
+                                  title='mod tantivy::tokenizer'>tokenizer</a></td>
+                           <td class='docblock-short'>
+                                <p>Tokenizer are in charge of chopping text into a stream of tokens
+ready for indexing.</p>
+
+                           </td>
+                       </tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.doc.html"
+                                  title='macro tantivy::doc'>doc</a></td>
+                           <td class='docblock-short'>
+                                <p><code>doc!</code> is a shortcut that helps building <code>Document</code>
+objects.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.DocAddress.html"
+                                  title='struct tantivy::DocAddress'>DocAddress</a></td>
+                           <td class='docblock-short'>
+                                <p><code>DocAddress</code> contains all the necessary information
+to identify a document given a <code>Searcher</code> object.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Document.html"
+                                  title='struct tantivy::Document'>Document</a></td>
+                           <td class='docblock-short'>
+                                <p>Tantivy's Document is the object that can
+be indexed and then searched for.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Error.html"
+                                  title='struct tantivy::Error'>Error</a></td>
+                           <td class='docblock-short'>
+                                <p>The Error type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Index.html"
+                                  title='struct tantivy::Index'>Index</a></td>
+                           <td class='docblock-short'>
+                                <p>Search Index</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IndexWriter.html"
+                                  title='struct tantivy::IndexWriter'>IndexWriter</a></td>
+                           <td class='docblock-short'>
+                                <p><code>IndexWriter</code> is the user entry-point to add document to an index.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.InvertedIndexReader.html"
+                                  title='struct tantivy::InvertedIndexReader'>InvertedIndexReader</a></td>
+                           <td class='docblock-short'>
+                                <p>The inverted index reader is in charge of accessing
+the inverted index associated to a specific field.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Searcher.html"
+                                  title='struct tantivy::Searcher'>Searcher</a></td>
+                           <td class='docblock-short'>
+                                <p>Holds a list of <code>SegmentReader</code>s ready for search.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Segment.html"
+                                  title='struct tantivy::Segment'>Segment</a></td>
+                           <td class='docblock-short'>
+                                <p>A segment is a piece of the index.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SegmentId.html"
+                                  title='struct tantivy::SegmentId'>SegmentId</a></td>
+                           <td class='docblock-short'>
+                                <p>Uuid identifying a segment.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SegmentMeta.html"
+                                  title='struct tantivy::SegmentMeta'>SegmentMeta</a></td>
+                           <td class='docblock-short'>
+                                <p><code>SegmentMeta</code> contains simple meta information about a segment.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SegmentReader.html"
+                                  title='struct tantivy::SegmentReader'>SegmentReader</a></td>
+                           <td class='docblock-short'>
+                                <p>Entry point to access all of the datastructures of the <code>Segment</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Term.html"
+                                  title='struct tantivy::Term'>Term</a></td>
+                           <td class='docblock-short'>
+                                <p>Term represents the value that the token can take.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TimerTree.html"
+                                  title='struct tantivy::TimerTree'>TimerTree</a></td>
+                           <td class='docblock-short'>
+                                <p>Timer tree</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.ErrorKind.html"
+                                  title='enum tantivy::ErrorKind'>ErrorKind</a></td>
+                           <td class='docblock-short'>
+                                <p>The kind of an error.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.SegmentComponent.html"
+                                  title='enum tantivy::SegmentComponent'>SegmentComponent</a></td>
+                           <td class='docblock-short'>
+                                <p>Enum describing each component of a tantivy segment.
+Each component is stored in its own file,
+using the pattern <code>segment_uuid</code>.<code>component_extension</code>,
+except the delete component that takes an <code>segment_uuid</code>.<code>delete_opstamp</code>.<code>component_extension</code></p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Directory.html"
+                                  title='trait tantivy::Directory'>Directory</a></td>
+                           <td class='docblock-short'>
+                                <p>Write-once read many (WORM) abstraction for where
+tantivy's data should be stored.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.DocSet.html"
+                                  title='trait tantivy::DocSet'>DocSet</a></td>
+                           <td class='docblock-short'>
+                                <p>Represents an iterable set of sorted doc ids.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Postings.html"
+                                  title='trait tantivy::Postings'>Postings</a></td>
+                           <td class='docblock-short'>
+                                <p>Postings (also called inverted list)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.ResultExt.html"
+                                  title='trait tantivy::ResultExt'>ResultExt</a></td>
+                           <td class='docblock-short'>
+                                <p>Additional methods for <code>Result</code>, for easy interaction with this crate.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.i64_to_u64.html"
+                                  title='fn tantivy::i64_to_u64'>i64_to_u64</a></td>
+                           <td class='docblock-short'>
+                                <p>Maps a <code>i64</code> to <code>u64</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.u64_to_i64.html"
+                                  title='fn tantivy::u64_to_i64'>u64_to_i64</a></td>
+                           <td class='docblock-short'>
+                                <p>Reverse the mapping given by <a href="./fn.i64_to_u64.html"><code>i64_to_u64</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.version.html"
+                                  title='fn tantivy::version'>version</a></td>
+                           <td class='docblock-short'>
+                                <p>Expose the current version of tantivy, as well
+whether it was compiled with the simd compression.</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.DocId.html"
+                                  title='type tantivy::DocId'>DocId</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>u32</code> identifying a document within a segment.
+Documents have their <code>DocId</code> assigned incrementally,
+as they are added in the segment.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.Result.html"
+                                  title='type tantivy::Result'>Result</a></td>
+                           <td class='docblock-short'>
+                                <p>Tantivy result.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.Score.html"
+                                  title='type tantivy::Score'>Score</a></td>
+                           <td class='docblock-short'>
+                                <p>A f32 that represents the relevance of the document to the query</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.SegmentLocalId.html"
+                                  title='type tantivy::SegmentLocalId'>SegmentLocalId</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>SegmentLocalId</code> identifies a segment.
+It only makes sense for a given searcher.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

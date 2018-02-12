@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Error` struct in crate `serde_json`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Error">
+
+    <title>serde_json::error::Error - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Error</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.line">line</a><a href="#method.column">column</a><a href="#method.classify">classify</a><a href="#method.is_io">is_io</a><a href="#method.is_syntax">is_syntax</a><a href="#method.is_data">is_data</a><a href="#method.is_eof">is_eof</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-From%3CError%3E">From&lt;Error&gt;</a><a href="#impl-Error">Error</a><a href="#impl-Display">Display</a><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>error</a></p><script>window.sidebarCurrent = {name: 'Error', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>error</a>::<wbr><a class="struct" href=''>Error</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde_json/error.rs.html#21-26' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Error { /* fields omitted */ }</pre><div class='docblock'><p>This type represents all possible errors that can occur when serializing or
+deserializing JSON data.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#31-114' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.line' class="method"><span id='line.v' class='invisible'><code>pub fn <a href='#method.line' class='fnname'>line</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#36-38' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>One-based line number at which the error was detected.</p>
+<p>Characters in the first line of the input (before the first newline
+character) are in line 1.</p>
+</div><h4 id='method.column' class="method"><span id='column.v' class='invisible'><code>pub fn <a href='#method.column' class='fnname'>column</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#47-49' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>One-based column number at which the error was detected.</p>
+<p>The first character in the input and any characters immediately
+following a newline character are in column 1.</p>
+<p>Note that errors may occur in column 0, for example if a read from an IO
+stream fails immediately following a previously read newline character.</p>
+</div><h4 id='method.classify' class="method"><span id='classify.v' class='invisible'><code>pub fn <a href='#method.classify' class='fnname'>classify</a>(&amp;self) -&gt; <a class="enum" href="../../serde_json/error/enum.Category.html" title="enum serde_json::error::Category">Category</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#57-83' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Categorizes the cause of this error.</p>
+<ul>
+<li><code>Category::Io</code> - failure to read or write bytes on an IO stream</li>
+<li><code>Category::Syntax</code> - input that is not syntactically valid JSON</li>
+<li><code>Category::Data</code> - input data that is semantically incorrect</li>
+<li><code>Category::Eof</code> - unexpected end of the input data</li>
+</ul>
+</div><h4 id='method.is_io' class="method"><span id='is_io.v' class='invisible'><code>pub fn <a href='#method.is_io' class='fnname'>is_io</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#87-89' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if this error was caused by a failure to read or write
+bytes on an IO stream.</p>
+</div><h4 id='method.is_syntax' class="method"><span id='is_syntax.v' class='invisible'><code>pub fn <a href='#method.is_syntax' class='fnname'>is_syntax</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#93-95' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if this error was caused by input that was not
+syntactically valid JSON.</p>
+</div><h4 id='method.is_data' class="method"><span id='is_data.v' class='invisible'><code>pub fn <a href='#method.is_data' class='fnname'>is_data</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#102-104' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if this error was caused by input data that was
+semantically incorrect.</p>
+<p>For example, JSON containing a number is semantically incorrect when the
+type being deserialized into holds a String.</p>
+</div><h4 id='method.is_eof' class="method"><span id='is_eof.v' class='invisible'><code>pub fn <a href='#method.is_eof' class='fnname'>is_eof</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#111-113' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if this error was caused by prematurely reaching the end of
+the input data.</p>
+<p>Callers that process streaming input may be interested in retrying the
+deserialization once more data is available.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-From%3CError%3E' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>&gt; for <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a></code><a href='#impl-From%3CError%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#140-179' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from' class="method"><span id='from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(j: <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#168-178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Convert a <code>serde_json::Error</code> into an <code>io::Error</code>.</p>
+<p>JSON syntax and data errors are turned into <code>InvalidData</code> IO errors.
+EOF errors are turned into <code>UnexpectedEof</code> IO errors.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+
+<span class="kw">enum</span> <span class="ident">MyError</span> {
+    <span class="ident">Io</span>(<span class="ident">io</span>::<span class="ident">Error</span>),
+    <span class="ident">Json</span>(<span class="ident">serde_json</span>::<span class="ident">Error</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">serde_json</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyError</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">serde_json</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="ident">MyError</span> {
+        <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">error</span>::<span class="ident">Category</span>;
+        <span class="kw">match</span> <span class="ident">err</span>.<span class="ident">classify</span>() {
+            <span class="ident">Category</span>::<span class="ident">Io</span> <span class="op">=&gt;</span> {
+                <span class="ident">MyError</span>::<span class="ident">Io</span>(<span class="ident">err</span>.<span class="ident">into</span>())
+            }
+            <span class="ident">Category</span>::<span class="ident">Syntax</span> <span class="op">|</span> <span class="ident">Category</span>::<span class="ident">Data</span> <span class="op">|</span> <span class="ident">Category</span>::<span class="ident">Eof</span> <span class="op">=&gt;</span> {
+                <span class="ident">MyError</span>::<span class="ident">Json</span>(<span class="ident">err</span>)
+            }
+        }
+    }
+}</pre>
+</div></div><h3 id='impl-Error' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a> for <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl-Error' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#337-354' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.description' class="method"><span id='description.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description' class='fnname'>description</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#338-346' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>A short description of the error. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description">Read more</a></p>
+</div><h4 id='method.cause' class="method"><span id='cause.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause' class='fnname'>cause</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#348-353' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The lower-level cause of this error, if any. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause">Read more</a></p>
+</div></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#356-360' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#357-359' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#380-384' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#381-383' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Error-1' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a> for <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl-Error-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#386-406' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.custom' class="method"><span id='custom.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#tymethod.custom' class='fnname'>custom</a>&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>&gt;(msg: T) -&gt; <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#387-397' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when there is general error when deserializing a type. <a href="../../serde/de/trait.Error.html#tymethod.custom">Read more</a></p>
+</div><h4 id='method.invalid_type' class="method"><span id='invalid_type.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.invalid_type' class='fnname'>invalid_type</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#399-405' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> receives a type different from what it was expecting. <a href="../../serde/de/trait.Error.html#method.invalid_type">Read more</a></p>
+</div><h4 id='method.invalid_value' class="method"><span id='invalid_value.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.invalid_value' class='fnname'>invalid_value</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#215-217' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> receives a value of the right type but that is wrong for some other reason. <a href="../../serde/de/trait.Error.html#method.invalid_value">Read more</a></p>
+</div><h4 id='method.invalid_length' class="method"><span id='invalid_length.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.invalid_length' class='fnname'>invalid_length</a>(len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#228-230' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when deserializing a sequence or map and the input data contains too many or too few elements. <a href="../../serde/de/trait.Error.html#method.invalid_length">Read more</a></p>
+</div><h4 id='method.unknown_variant' class="method"><span id='unknown_variant.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.unknown_variant' class='fnname'>unknown_variant</a>(variant: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#234-243' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> enum type received a variant with an unrecognized name. <a href="../../serde/de/trait.Error.html#method.unknown_variant">Read more</a></p>
+</div><h4 id='method.unknown_field' class="method"><span id='unknown_field.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.unknown_field' class='fnname'>unknown_field</a>(field: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#247-256' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> struct type received a field with an unrecognized name. <a href="../../serde/de/trait.Error.html#method.unknown_field">Read more</a></p>
+</div><h4 id='method.missing_field' class="method"><span id='missing_field.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.missing_field' class='fnname'>missing_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#261-263' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> struct type expected to receive a required field with a particular name but that field was not present in the input. <a href="../../serde/de/trait.Error.html#method.missing_field">Read more</a></p>
+</div><h4 id='method.duplicate_field' class="method"><span id='duplicate_field.v' class='invisible'><code>fn <a href='../../serde/de/trait.Error.html#method.duplicate_field' class='fnname'>duplicate_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#267-269' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Raised when a <code>Deserialize</code> struct type received more than one of the same field. <a href="../../serde/de/trait.Error.html#method.duplicate_field">Read more</a></p>
+</div></div><h3 id='impl-Error-2' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a> for <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code><a href='#impl-Error-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#408-420' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.custom-1' class="method"><span id='custom.v-1' class='invisible'><code>fn <a href='../../serde/ser/trait.Error.html#tymethod.custom' class='fnname'>custom</a>&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>&gt;(msg: T) -&gt; <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/error.rs.html#409-419' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Used when a [<code>Serialize</code>] implementation encounters any error while serializing a type. <a href="../../serde/ser/trait.Error.html#tymethod.custom">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde_json";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

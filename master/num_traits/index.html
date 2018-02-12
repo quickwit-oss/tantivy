@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `num_traits` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, num_traits">
+
+    <title>num_traits - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate num_traits</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'num_traits', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>num_traits</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/num_traits/lib.rs.html#11-88' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Numeric traits for generic mathematics</p>
+<p>This version of the crate only exists to re-export compatible
+items from num-traits 0.2.  Please consider updating!</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="bounds/index.html"
+                                  title='mod num_traits::bounds'>bounds</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="cast/index.html"
+                                  title='mod num_traits::cast'>cast</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="float/index.html"
+                                  title='mod num_traits::float'>float</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="identities/index.html"
+                                  title='mod num_traits::identities'>identities</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="int/index.html"
+                                  title='mod num_traits::int'>int</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="ops/index.html"
+                                  title='mod num_traits::ops'>ops</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="pow/index.html"
+                                  title='mod num_traits::pow'>pow</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="real/index.html"
+                                  title='mod num_traits::real'>real</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="sign/index.html"
+                                  title='mod num_traits::sign'>sign</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ParseFloatError.html"
+                                  title='struct num_traits::ParseFloatError'>ParseFloatError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FloatErrorKind.html"
+                                  title='enum num_traits::FloatErrorKind'>FloatErrorKind</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.AsPrimitive.html"
+                                  title='trait num_traits::AsPrimitive'>AsPrimitive</a></td>
+                           <td class='docblock-short'>
+                                <p>A generic interface for casting between machine scalars with the
+<code>as</code> operator, which admits narrowing and precision loss.
+Implementers of this trait AsPrimitive should behave like a primitive
+numeric type (e.g. a newtype around another primitive), and the
+intended conversion must never fail.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Bounded.html"
+                                  title='trait num_traits::Bounded'>Bounded</a></td>
+                           <td class='docblock-short'>
+                                <p>Numbers which have upper and lower bounds</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedAdd.html"
+                                  title='trait num_traits::CheckedAdd'>CheckedAdd</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs addition that returns <code>None</code> instead of wrapping around on
+overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedDiv.html"
+                                  title='trait num_traits::CheckedDiv'>CheckedDiv</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs division that returns <code>None</code> instead of panicking on division by zero and instead of
+wrapping around on underflow and overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedMul.html"
+                                  title='trait num_traits::CheckedMul'>CheckedMul</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs multiplication that returns <code>None</code> instead of wrapping around on underflow or
+overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedShl.html"
+                                  title='trait num_traits::CheckedShl'>CheckedShl</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs a left shift that returns <code>None</code> on overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedShr.html"
+                                  title='trait num_traits::CheckedShr'>CheckedShr</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs a right shift that returns <code>None</code> on overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.CheckedSub.html"
+                                  title='trait num_traits::CheckedSub'>CheckedSub</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs subtraction that returns <code>None</code> instead of wrapping around on underflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Float.html"
+                                  title='trait num_traits::Float'>Float</a></td>
+                           <td class='docblock-short'>
+                                <p>Generic trait for floating point numbers</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.FloatConst.html"
+                                  title='trait num_traits::FloatConst'>FloatConst</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.FromPrimitive.html"
+                                  title='trait num_traits::FromPrimitive'>FromPrimitive</a></td>
+                           <td class='docblock-short'>
+                                <p>A generic trait for converting a number to a value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Num.html"
+                                  title='trait num_traits::Num'>Num</a></td>
+                           <td class='docblock-short'>
+                                <p>The base trait for numeric types, covering <code>0</code> and <code>1</code> values,
+comparisons, basic numeric operations, and string conversion.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumAssign.html"
+                                  title='trait num_traits::NumAssign'>NumAssign</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for <code>Num</code> types which also implement assignment operators.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumAssignOps.html"
+                                  title='trait num_traits::NumAssignOps'>NumAssignOps</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for types implementing numeric assignment operators (like <code>+=</code>).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumAssignRef.html"
+                                  title='trait num_traits::NumAssignRef'>NumAssignRef</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for <code>NumAssign</code> types which also implement assignment operations
+taking the second operand by reference.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumCast.html"
+                                  title='trait num_traits::NumCast'>NumCast</a></td>
+                           <td class='docblock-short'>
+                                <p>An interface for casting between machine scalars.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumOps.html"
+                                  title='trait num_traits::NumOps'>NumOps</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for types implementing basic numeric operations</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.NumRef.html"
+                                  title='trait num_traits::NumRef'>NumRef</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for <code>Num</code> types which also implement numeric operations taking
+the second operand by reference.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.One.html"
+                                  title='trait num_traits::One'>One</a></td>
+                           <td class='docblock-short'>
+                                <p>Defines a multiplicative identity element for <code>Self</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.PrimInt.html"
+                                  title='trait num_traits::PrimInt'>PrimInt</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.RefNum.html"
+                                  title='trait num_traits::RefNum'>RefNum</a></td>
+                           <td class='docblock-short'>
+                                <p>The trait for references which implement numeric operations, taking the
+second operand either by value or by reference.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Saturating.html"
+                                  title='trait num_traits::Saturating'>Saturating</a></td>
+                           <td class='docblock-short'>
+                                <p>Saturating math operations</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Signed.html"
+                                  title='trait num_traits::Signed'>Signed</a></td>
+                           <td class='docblock-short'>
+                                <p>Useful functions for signed numbers (i.e. numbers that can be negative).</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.ToPrimitive.html"
+                                  title='trait num_traits::ToPrimitive'>ToPrimitive</a></td>
+                           <td class='docblock-short'>
+                                <p>A generic trait for converting a value to a number.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Unsigned.html"
+                                  title='trait num_traits::Unsigned'>Unsigned</a></td>
+                           <td class='docblock-short'>
+                                <p>A trait for values which cannot be negative</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.WrappingAdd.html"
+                                  title='trait num_traits::WrappingAdd'>WrappingAdd</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs addition that wraps around on overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.WrappingMul.html"
+                                  title='trait num_traits::WrappingMul'>WrappingMul</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs multiplication that wraps around on overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.WrappingSub.html"
+                                  title='trait num_traits::WrappingSub'>WrappingSub</a></td>
+                           <td class='docblock-short'>
+                                <p>Performs subtraction that wraps around on overflow.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Zero.html"
+                                  title='trait num_traits::Zero'>Zero</a></td>
+                           <td class='docblock-short'>
+                                <p>Defines an additive identity element for <code>Self</code>.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.abs.html"
+                                  title='fn num_traits::abs'>abs</a></td>
+                           <td class='docblock-short'>
+                                <p>Computes the absolute value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.abs_sub.html"
+                                  title='fn num_traits::abs_sub'>abs_sub</a></td>
+                           <td class='docblock-short'>
+                                <p>The positive difference of two numbers.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.cast.html"
+                                  title='fn num_traits::cast'>cast</a></td>
+                           <td class='docblock-short'>
+                                <p>Cast from one machine scalar to another.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.checked_pow.html"
+                                  title='fn num_traits::checked_pow'>checked_pow</a></td>
+                           <td class='docblock-short'>
+                                <p>Raises a value to the power of exp, returning <code>None</code> if an overflow occurred.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.clamp.html"
+                                  title='fn num_traits::clamp'>clamp</a></td>
+                           <td class='docblock-short'>
+                                <p>A value bounded by a minimum and a maximum</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.one.html"
+                                  title='fn num_traits::one'>one</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns the multiplicative identity, <code>1</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.pow.html"
+                                  title='fn num_traits::pow'>pow</a></td>
+                           <td class='docblock-short'>
+                                <p>Raises a value to the power of exp, using exponentiation by squaring.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.signum.html"
+                                  title='fn num_traits::signum'>signum</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns the sign of the number.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.zero.html"
+                                  title='fn num_traits::zero'>zero</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns the additive identity, <code>0</code>.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "num_traits";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

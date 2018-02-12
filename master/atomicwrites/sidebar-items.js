@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error","Represents an error raised by `AtomicFile.write`."],["OverwriteBehavior",""]],"fn":[["move_atomic","Move `src` to `dst`. An error will be returned if `dst` exists."],["replace_atomic","Move `src` to `dst`. If `dst` exists, it will be silently overwritten."]],"struct":[["AtomicFile",""]]});
