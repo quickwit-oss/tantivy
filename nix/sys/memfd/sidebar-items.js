@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["MFD_ALLOW_SEALING",""],["MFD_CLOEXEC",""]],"fn":[["memfd_create",""]],"struct":[["MemFdCreateFlag",""]]});

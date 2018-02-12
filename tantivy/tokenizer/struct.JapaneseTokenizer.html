@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `JapaneseTokenizer` struct in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, JapaneseTokenizer">
+
+    <title>tantivy::tokenizer::JapaneseTokenizer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Struct JapaneseTokenizer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Tokenizer%3C%27a%3E">Tokenizer&lt;&#39;a&gt;</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a></p><script>window.sidebarCurrent = {name: 'JapaneseTokenizer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a>::<wbr><a class="struct" href=''>JapaneseTokenizer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#6' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct JapaneseTokenizer;</pre><div class='docblock'><p>Simple japanese tokenizer based on the <code>tinysegmenter</code> crate.</p>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../../tantivy/tokenizer/struct.JapaneseTokenizer.html" title="struct tantivy::tokenizer::JapaneseTokenizer">JapaneseTokenizer</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#5' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../../tantivy/tokenizer/struct.JapaneseTokenizer.html" title="struct tantivy::tokenizer::JapaneseTokenizer">JapaneseTokenizer</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#5' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Tokenizer%3C%27a%3E' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../../tantivy/tokenizer/trait.Tokenizer.html" title="trait tantivy::tokenizer::Tokenizer">Tokenizer</a>&lt;'a&gt; for <a class="struct" href="../../tantivy/tokenizer/struct.JapaneseTokenizer.html" title="struct tantivy::tokenizer::JapaneseTokenizer">JapaneseTokenizer</a></code><a href='#impl-Tokenizer%3C%27a%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#20-44' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.TokenStreamImpl' class="type"><span id='TokenStreamImpl.t' class='invisible'><code>type <a href='../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a> = JapaneseTokenizerStream</code></span></h4>
+<div class='docblock'><p>Type associated to the resulting tokenstream tokenstream.</p>
+</div><h4 id='method.token_stream' class="method"><span id='token_stream.v' class='invisible'><code>fn <a href='../../tantivy/tokenizer/trait.Tokenizer.html#tymethod.token_stream' class='fnname'>token_stream</a>(&amp;self, text: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#23-43' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a token stream for a given <code>str</code>.</p>
+</div><h4 id='method.filter' class="method"><span id='filter.v' class='invisible'><code>fn <a href='../../tantivy/tokenizer/trait.Tokenizer.html#method.filter' class='fnname'>filter</a>&lt;NewFilter&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;new_filter: NewFilter<br>) -&gt; ChainTokenizer&lt;NewFilter, Self&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;NewFilter: <a class="trait" href="../../tantivy/tokenizer/trait.TokenFilter.html" title="trait tantivy::tokenizer::TokenFilter">TokenFilter</a>&lt;Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a>&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/tokenizer/tokenizer.rs.html#68-76' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Appends a token filter to the current tokenizer. <a href="../../tantivy/tokenizer/trait.Tokenizer.html#method.filter">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

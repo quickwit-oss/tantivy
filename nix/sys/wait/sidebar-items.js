@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["WCONTINUED",""],["WEXITED",""],["WNOHANG",""],["WNOWAIT",""],["WUNTRACED",""],["__WALL",""],["__WCLONE",""],["__WNOTHREAD",""]],"enum":[["WaitStatus","Possible return values from `wait()` or `waitpid()`."]],"fn":[["wait",""],["waitpid",""]],"struct":[["WaitPidFlag",""]]});

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `aho_corasick` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, aho_corasick">
+
+    <title>aho_corasick - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate aho_corasick</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'aho_corasick', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>aho_corasick</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/aho_corasick/lib.rs.html#1-925' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>An implementation of the
+<a href="https://en.wikipedia.org/wiki/Aho%E2%80%93Corasick_string_matching_algorithm">Aho-Corasick string search algorithm</a>.</p>
+<p>The Aho-Corasick algorithm is principally useful when you need to search many
+large texts for a fixed (possibly large) set of keywords. In particular, the
+Aho-Corasick algorithm preprocesses the set of keywords by constructing a
+finite state machine. The search phase is then a quick linear scan through the
+text. Each character in the search text causes a state transition in the
+automaton. Matches are reported when the automaton enters a match state.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>The main type exposed by this crate is <code>AcAutomaton</code>, which can be constructed
+from an iterator of pattern strings:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>};
+
+<span class="kw">let</span> <span class="ident">aut</span> <span class="op">=</span> <span class="ident">AcAutomaton</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;apple&quot;</span>, <span class="string">&quot;maple&quot;</span>]);
+
+<span class="comment">// AcAutomaton also implements `FromIterator`:</span>
+<span class="kw">let</span> <span class="ident">aut</span>: <span class="ident">AcAutomaton</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> [<span class="string">&quot;apple&quot;</span>, <span class="string">&quot;maple&quot;</span>].<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>();</pre>
+<p>Finding matches can be done with <code>find</code>:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>, <span class="ident">Match</span>};
+
+<span class="kw">let</span> <span class="ident">aut</span> <span class="op">=</span> <span class="ident">AcAutomaton</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;apple&quot;</span>, <span class="string">&quot;maple&quot;</span>]);
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">it</span> <span class="op">=</span> <span class="ident">aut</span>.<span class="ident">find</span>(<span class="string">&quot;I like maple apples.&quot;</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">it</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="ident">Match</span> {
+    <span class="ident">pati</span>: <span class="number">1</span>,
+    <span class="ident">start</span>: <span class="number">7</span>,
+    <span class="ident">end</span>: <span class="number">12</span>,
+}));
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">it</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="ident">Match</span> {
+    <span class="ident">pati</span>: <span class="number">0</span>,
+    <span class="ident">start</span>: <span class="number">13</span>,
+    <span class="ident">end</span>: <span class="number">18</span>,
+}));
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">it</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);</pre>
+<p>Use <code>find_overlapping</code> if you want to report all matches, even if they
+overlap with each other.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>, <span class="ident">Match</span>};
+
+<span class="kw">let</span> <span class="ident">aut</span> <span class="op">=</span> <span class="ident">AcAutomaton</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;abc&quot;</span>, <span class="string">&quot;a&quot;</span>]);
+<span class="kw">let</span> <span class="ident">matches</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">aut</span>.<span class="ident">find_overlapping</span>(<span class="string">&quot;abc&quot;</span>).<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">matches</span>, <span class="macro">vec</span><span class="macro">!</span>[
+    <span class="ident">Match</span> { <span class="ident">pati</span>: <span class="number">1</span>, <span class="ident">start</span>: <span class="number">0</span>, <span class="ident">end</span>: <span class="number">1</span>}, <span class="ident">Match</span> { <span class="ident">pati</span>: <span class="number">0</span>, <span class="ident">start</span>: <span class="number">0</span>, <span class="ident">end</span>: <span class="number">3</span> },
+]);
+
+<span class="comment">// Regular `find` will report only one match:</span>
+<span class="kw">let</span> <span class="ident">matches</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">aut</span>.<span class="ident">find</span>(<span class="string">&quot;abc&quot;</span>).<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">matches</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Match</span> { <span class="ident">pati</span>: <span class="number">1</span>, <span class="ident">start</span>: <span class="number">0</span>, <span class="ident">end</span>: <span class="number">1</span>}]);</pre>
+<p>Finally, there are also methods for finding matches on <em>streams</em>. Namely, the
+search text does not have to live in memory. It's useful to run this on files
+that can't fit into memory:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
+
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>};
+
+<span class="kw">let</span> <span class="ident">aut</span> <span class="op">=</span> <span class="ident">AcAutomaton</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;baz&quot;</span>]);
+<span class="kw">let</span> <span class="ident">rdr</span> <span class="op">=</span> <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;search.txt&quot;</span>).<span class="ident">unwrap</span>();
+<span class="kw">for</span> <span class="ident">m</span> <span class="kw">in</span> <span class="ident">aut</span>.<span class="ident">stream_find</span>(<span class="ident">rdr</span>) {
+    <span class="kw">let</span> <span class="ident">m</span> <span class="op">=</span> <span class="ident">m</span>.<span class="ident">unwrap</span>(); <span class="comment">// could be an IO error</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Pattern &#39;{}&#39; matched at: ({}, {})&quot;</span>,
+             <span class="ident">aut</span>.<span class="ident">pattern</span>(<span class="ident">m</span>.<span class="ident">pati</span>), <span class="ident">m</span>.<span class="ident">start</span>, <span class="ident">m</span>.<span class="ident">end</span>);
+}</pre>
+<p>There is also <code>stream_find_overlapping</code>, which is just like <code>find_overlapping</code>,
+but it operates on streams.</p>
+<p>Please see <code>dict-search.rs</code> in this crate's <code>examples</code> directory for a more
+complete example. It creates a large automaton from a dictionary and can do a
+streaming match over arbitrarily large data.</p>
+<h1 id="memory-usage" class="section-header"><a href="#memory-usage">Memory usage</a></h1>
+<p>A key aspect of an Aho-Corasick implementation is how the state transitions
+are represented. The easiest way to make the automaton fast is to store a
+sparse 256-slot map in each state. It maps an input byte to a state index.
+This makes the matching loop extremely fast, since it translates to a simple
+pointer read.</p>
+<p>The problem is that as the automaton accumulates more states, you end up paying
+a <code>256 * 4</code> (<code>4</code> is for the <code>u32</code> state index) byte penalty for every state
+regardless of how many transitions it has.</p>
+<p>To solve this, only states near the root of the automaton have this sparse
+map representation. States near the leaves of the automaton use a dense mapping
+that requires a linear scan.</p>
+<p>(The specific limit currently set is <code>3</code>, so that states with a depth less than
+or equal to <code>3</code> are less memory efficient. The result is that the memory usage
+of the automaton stops growing rapidly past ~60MB, even for automatons with
+thousands of patterns.)</p>
+<p>If you'd like to opt for the less-memory-efficient-but-faster version, then
+you can construct an <code>AcAutomaton</code> with a <code>Sparse</code> transition strategy:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>, <span class="ident">Match</span>, <span class="ident">Sparse</span>};
+
+<span class="kw">let</span> <span class="ident">aut</span> <span class="op">=</span> <span class="ident">AcAutomaton</span>::<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">Sparse</span><span class="op">&gt;</span>::<span class="ident">with_transitions</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;abc&quot;</span>, <span class="string">&quot;a&quot;</span>]);
+<span class="kw">let</span> <span class="ident">matches</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">aut</span>.<span class="ident">find</span>(<span class="string">&quot;abc&quot;</span>).<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">matches</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Match</span> { <span class="ident">pati</span>: <span class="number">1</span>, <span class="ident">start</span>: <span class="number">0</span>, <span class="ident">end</span>: <span class="number">1</span>}]);</pre>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AcAutomaton.html"
+                                  title='struct aho_corasick::AcAutomaton'>AcAutomaton</a></td>
+                           <td class='docblock-short'>
+                                <p>An Aho-Corasick finite automaton.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Dense.html"
+                                  title='struct aho_corasick::Dense'>Dense</a></td>
+                           <td class='docblock-short'>
+                                <p>State transitions that can be stored either sparsely or densely.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FullAcAutomaton.html"
+                                  title='struct aho_corasick::FullAcAutomaton'>FullAcAutomaton</a></td>
+                           <td class='docblock-short'>
+                                <p>A complete Aho-Corasick automaton.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Match.html"
+                                  title='struct aho_corasick::Match'>Match</a></td>
+                           <td class='docblock-short'>
+                                <p>Records a match in the search text.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Matches.html"
+                                  title='struct aho_corasick::Matches'>Matches</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator of non-overlapping matches for in-memory text.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.MatchesOverlapping.html"
+                                  title='struct aho_corasick::MatchesOverlapping'>MatchesOverlapping</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator of overlapping matches for in-memory text.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Sparse.html"
+                                  title='struct aho_corasick::Sparse'>Sparse</a></td>
+                           <td class='docblock-short'>
+                                <p>State transitions that are always sparse.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StreamMatches.html"
+                                  title='struct aho_corasick::StreamMatches'>StreamMatches</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator of non-overlapping matches for streaming text.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StreamMatchesOverlapping.html"
+                                  title='struct aho_corasick::StreamMatchesOverlapping'>StreamMatchesOverlapping</a></td>
+                           <td class='docblock-short'>
+                                <p>An iterator of overlapping matches for streaming text.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Automaton.html"
+                                  title='trait aho_corasick::Automaton'>Automaton</a></td>
+                           <td class='docblock-short'>
+                                <p>An abstraction over automatons and their corresponding iterators.
+The type parameter <code>P</code> is the type of the pattern that was used to
+construct this Automaton.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Transitions.html"
+                                  title='trait aho_corasick::Transitions'>Transitions</a></td>
+                           <td class='docblock-short'>
+                                <p>An abstraction over state transition strategies.</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.StateIdx.html"
+                                  title='type aho_corasick::StateIdx'>StateIdx</a></td>
+                           <td class='docblock-short'>
+                                <p>The integer type used for the state index.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "aho_corasick";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

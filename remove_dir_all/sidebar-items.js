@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["remove_dir_all","Removes a directory at this path, after removing all its contents. Use carefully!"]]});

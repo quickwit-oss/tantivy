@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["LogMergePolicy","`LogMergePolicy` tries tries to merge segments that have a similar number of documents."],["NoMergePolicy","Never merge segments."]],"trait":[["MergePolicy","The `MergePolicy` defines which segments should be merged."]],"type":[["DefaultMergePolicy","Alias for the default merge policy, which is the `LogMergePolicy`."]]});

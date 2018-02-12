@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Positioner` trait in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Positioner">
+
+    <title>combine::primitives::Positioner - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait Positioner</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.Position">Position</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.start">start</a><a href="#tymethod.update">update</a></div><a class="sidebar-title" href="#foreign-impls">Implementations on Foreign Types</a><div class="sidebar-links"><a href="#impl-Positioner">&amp;&#39;a T</a><a href="#impl-Positioner">[T]</a><a href="#impl-Positioner">str</a><a href="#impl-Positioner">char</a><a href="#impl-Positioner">u8</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a></p><script>window.sidebarCurrent = {name: 'Positioner', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a>::<wbr><a class="trait" href=''>Positioner</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/primitives.rs.html#1183-1190' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Positioner: <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> {
+    type <a href='#associatedtype.Position' class="type">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html" title="trait core::cmp::Ord">Ord</a>;
+    fn <a href='#tymethod.start' class='fnname'>start</a>() -&gt; Self::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.update' class='fnname'>update</a>(&amp;self, position: &amp;mut Self::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>);
+}</pre><div class='docblock'><p>Trait for updating the position for types which can be yielded from a <code>Stream</code>.</p>
+</div>
+            <h2 id='associated-types' class='small-section-header'>
+              Associated Types<a href='#associated-types' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Position' class='method'><span id='Position.t' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html" title="trait core::cmp::Ord">Ord</a></code></span></h3><div class='docblock'><p>The type which keeps track of the position.</p>
+</div></div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.start' class='method'><span id='start.v' class='invisible'><code>fn <a href='#tymethod.start' class='fnname'>start</a>() -&gt; Self::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a></code></span></h3><div class='docblock'><p>Creates a start position</p>
+</div><h3 id='tymethod.update' class='method'><span id='update.v' class='invisible'><code>fn <a href='#tymethod.update' class='fnname'>update</a>(&amp;self, position: &amp;mut Self::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>)</code></span></h3><div class='docblock'><p>Updates the position given that <code>self</code> has been taken from the stream</p>
+</div></div>
+                <h2 id='foreign-impls' class='small-section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-Positioner' class='impl'><span class='in-band'><code>impl&lt;'a, T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt; <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'a </a>T <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a>,&nbsp;</span></code><a href='#impl-Positioner' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1192-1203' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Position-1' class="type"><span id='Position.t-1' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a> = T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a></code></span></h4>
+<h4 id='method.start' class="method"><span id='start.v-1' class='invisible'><code>fn <a href='#method.start' class='fnname'>start</a>() -&gt; T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1197-1199' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.update' class="method"><span id='update.v-1' class='invisible'><code>fn <a href='#method.update' class='fnname'>update</a>(&amp;self, position: &amp;mut T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1200-1202' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-Positioner-1' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">[</a>T<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a>,&nbsp;</span></code><a href='#impl-Positioner-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1205-1218' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Position-2' class="type"><span id='Position.t-2' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a> = T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a></code></span></h4>
+<h4 id='method.start-1' class="method"><span id='start.v-2' class='invisible'><code>fn <a href='#method.start' class='fnname'>start</a>() -&gt; T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1210-1212' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.update-1' class="method"><span id='update.v-2' class='invisible'><code>fn <a href='#method.update' class='fnname'>update</a>(&amp;self, position: &amp;mut T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1213-1217' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-Positioner-2' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code><a href='#impl-Positioner-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1235-1245' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Position-3' class="type"><span id='Position.t-3' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a> = <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a></code></span></h4>
+<h4 id='method.start-2' class="method"><span id='start.v-3' class='invisible'><code>fn <a href='#method.start' class='fnname'>start</a>() -&gt; <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1237-1239' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.update-2' class="method"><span id='update.v-3' class='invisible'><code>fn <a href='#method.update' class='fnname'>update</a>(&amp;self, position: &amp;mut <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1240-1244' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-Positioner-3' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.char.html">char</a></code><a href='#impl-Positioner-3' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1247-1259' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Position-4' class="type"><span id='Position.t-4' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a> = <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a></code></span></h4>
+<h4 id='method.start-3' class="method"><span id='start.v-4' class='invisible'><code>fn <a href='#method.start' class='fnname'>start</a>() -&gt; <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1249-1251' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.update-3' class="method"><span id='update.v-4' class='invisible'><code>fn <a href='#method.update' class='fnname'>update</a>(&amp;self, position: &amp;mut <a class="struct" href="../../combine/primitives/struct.SourcePosition.html" title="struct combine::primitives::SourcePosition">SourcePosition</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1252-1258' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-Positioner-4' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code><a href='#impl-Positioner-4' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1261-1271' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Position-5' class="type"><span id='Position.t-5' class='invisible'><code>type <a href='#associatedtype.Position' class="type">Position</a> = <a class="struct" href="../../combine/primitives/struct.BytePosition.html" title="struct combine::primitives::BytePosition">BytePosition</a></code></span></h4>
+<h4 id='method.start-4' class="method"><span id='start.v-5' class='invisible'><code>fn <a href='#method.start' class='fnname'>start</a>() -&gt; <a class="struct" href="../../combine/primitives/struct.BytePosition.html" title="struct combine::primitives::BytePosition">BytePosition</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1264-1266' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.update-4' class="method"><span id='update.v-5' class='invisible'><code>fn <a href='#method.update' class='fnname'>update</a>(&amp;self, b: &amp;mut <a class="struct" href="../../combine/primitives/struct.BytePosition.html" title="struct combine::primitives::BytePosition">BytePosition</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1268-1270' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/combine/primitives.rs.html#1220-1233' title='goto source code'>[src]</a></div><code>impl&lt;'a, T&gt; Positioner for <a class="struct" href="../../combine/primitives/struct.SliceStream.html" title="struct combine::primitives::SliceStream">SliceStream</a>&lt;'a, T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../combine/primitives/trait.Positioner.html" title="trait combine::primitives::Positioner">Positioner</a> + 'a,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Position' class="type">Position</a> = T::<a class="type" href="../../combine/primitives/trait.Positioner.html#associatedtype.Position" title="type combine::primitives::Positioner::Position">Position</a>;</span></code></li>
+</ul><script type="text/javascript" async
+                         src="../../implementors/combine/primitives/trait.Positioner.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

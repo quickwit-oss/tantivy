@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Error` trait in crate `serde`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Error">
+
+    <title>serde::de::Error - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait Error</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.custom">custom</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.invalid_type">invalid_type</a><a href="#method.invalid_value">invalid_value</a><a href="#method.invalid_length">invalid_length</a><a href="#method.unknown_variant">unknown_variant</a><a href="#method.unknown_field">unknown_field</a><a href="#method.missing_field">missing_field</a><a href="#method.duplicate_field">duplicate_field</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'Error', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="trait" href=''>Error</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde/de/mod.rs.html#152-270' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a> {
+    fn <a href='#tymethod.custom' class='fnname'>custom</a>&lt;T&gt;(msg: T) -&gt; Self<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a></span>;
+
+    fn <a href='#method.invalid_type' class='fnname'>invalid_type</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.invalid_value' class='fnname'>invalid_value</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.invalid_length' class='fnname'>invalid_length</a>(len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.unknown_variant' class='fnname'>unknown_variant</a>(variant: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.unknown_field' class='fnname'>unknown_field</a>(field: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.missing_field' class='fnname'>missing_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self { ... }
+<div class='item-spacer'></div>    fn <a href='#method.duplicate_field' class='fnname'>duplicate_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self { ... }
+}</pre><div class='docblock'><p>The <code>Error</code> trait allows <code>Deserialize</code> implementations to create descriptive
+error messages belonging to the <code>Deserializer</code> against which they are
+currently running.</p>
+<p>Every <code>Deserializer</code> declares an <code>Error</code> type that encompasses both
+general-purpose deserialization errors as well as errors specific to the
+particular deserialization format. For example the <code>Error</code> type of
+<code>serde_json</code> can represent errors like an invalid JSON escape sequence or an
+unterminated string literal, in addition to the error cases that are part of
+this trait.</p>
+<p>Most deserializers should only need to provide the <code>Error::custom</code> method
+and inherit the default behavior for the other methods.</p>
+</div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.custom' class='method'><span id='custom.v' class='invisible'><code>fn <a href='#tymethod.custom' class='fnname'>custom</a>&lt;T&gt;(msg: T) -&gt; Self <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a>,&nbsp;</span></code></span></h3><div class='docblock'><p>Raised when there is general error when deserializing a type.</p>
+<p>The message should not be capitalized and should not end with a period.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>};
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">IpAddr</span> {
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+    {
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">String</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>));
+        <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>)
+    }
+}</pre>
+</div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.invalid_type' class='method'><span id='invalid_type.v' class='invisible'><code>fn <a href='#method.invalid_type' class='fnname'>invalid_type</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> receives a type different from what it was
+expecting.</p>
+<p>The <code>unexp</code> argument provides information about what type was received.
+This is the type that was present in the input file or other source data
+of the Deserializer.</p>
+<p>The <code>exp</code> argument provides information about what type was being
+expected. This is the type that is written in the program.</p>
+<p>For example if we try to deserialize a String out of a JSON file
+containing an integer, the unexpected type is the integer and the
+expected type is the string.</p>
+</div><h3 id='method.invalid_value' class='method'><span id='invalid_value.v' class='invisible'><code>fn <a href='#method.invalid_value' class='fnname'>invalid_value</a>(unexp: <a class="enum" href="../../serde/de/enum.Unexpected.html" title="enum serde::de::Unexpected">Unexpected</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> receives a value of the right type but that
+is wrong for some other reason.</p>
+<p>The <code>unexp</code> argument provides information about what value was received.
+This is the value that was present in the input file or other source
+data of the Deserializer.</p>
+<p>The <code>exp</code> argument provides information about what value was being
+expected. This is the type that is written in the program.</p>
+<p>For example if we try to deserialize a String out of some binary data
+that is not valid UTF-8, the unexpected value is the bytes and the
+expected value is a string.</p>
+</div><h3 id='method.invalid_length' class='method'><span id='invalid_length.v' class='invisible'><code>fn <a href='#method.invalid_length' class='fnname'>invalid_length</a>(len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, exp: &amp;<a class="trait" href="../../serde/de/trait.Expected.html" title="trait serde::de::Expected">Expected</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when deserializing a sequence or map and the input data contains
+too many or too few elements.</p>
+<p>The <code>len</code> argument is the number of elements encountered. The sequence
+or map may have expected more arguments or fewer arguments.</p>
+<p>The <code>exp</code> argument provides information about what data was being
+expected. For example <code>exp</code> might say that a tuple of size 6 was
+expected.</p>
+</div><h3 id='method.unknown_variant' class='method'><span id='unknown_variant.v' class='invisible'><code>fn <a href='#method.unknown_variant' class='fnname'>unknown_variant</a>(variant: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> enum type received a variant with an
+unrecognized name.</p>
+</div><h3 id='method.unknown_field' class='method'><span id='unknown_field.v' class='invisible'><code>fn <a href='#method.unknown_field' class='fnname'>unknown_field</a>(field: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, expected: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> struct type received a field with an
+unrecognized name.</p>
+</div><h3 id='method.missing_field' class='method'><span id='missing_field.v' class='invisible'><code>fn <a href='#method.missing_field' class='fnname'>missing_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> struct type expected to receive a required
+field with a particular name but that field was not present in the
+input.</p>
+</div><h3 id='method.duplicate_field' class='method'><span id='duplicate_field.v' class='invisible'><code>fn <a href='#method.duplicate_field' class='fnname'>duplicate_field</a>(field: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self</code></span></h3><div class='docblock'><p>Raised when a <code>Deserialize</code> struct type received more than one of the
+same field.</p>
+</div></div>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/serde/de/value.rs.html#59-78' title='goto source code'>[src]</a></div><code>impl Error for <a class="struct" href="../../serde/de/value/struct.Error.html" title="struct serde::de::value::Error">Error</a></code></li>
+</ul><script type="text/javascript" async
+                         src="../../implementors/serde/de/trait.Error.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

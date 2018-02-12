@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `NixPath` trait in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, NixPath">
+
+    <title>nix::NixPath - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait NixPath</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.len">len</a><a href="#tymethod.with_nix_path">with_nix_path</a></div><a class="sidebar-title" href="#foreign-impls">Implementations on Foreign Types</a><div class="sidebar-links"><a href="#impl-NixPath">str</a><a href="#impl-NixPath">OsStr</a><a href="#impl-NixPath">CStr</a><a href="#impl-NixPath">[u8]</a><a href="#impl-NixPath">Path</a><a href="#impl-NixPath">PathBuf</a><a href="#impl-NixPath">Option&lt;&amp;&#39;a NP&gt;</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>nix</a></p><script>window.sidebarCurrent = {name: 'NixPath', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>nix</a>::<wbr><a class="trait" href=''>NixPath</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/nix/lib.rs.html#152-157' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait NixPath {
+    fn <a href='#tymethod.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T</span>;
+}</pre>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.len' class='method'><span id='len.v' class='invisible'><code>fn <a href='#tymethod.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span></h3><h3 id='tymethod.with_nix_path' class='method'><span id='with_nix_path.v' class='invisible'><code>fn <a href='#tymethod.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span></h3></div>
+                <h2 id='foreign-impls' class='small-section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-NixPath' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code><a href='#impl-NixPath' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#159-168' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len' class="method"><span id='len.v-1' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#160-162' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path' class="method"><span id='with_nix_path.v-1' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#164-167' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-1' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/os_str/struct.OsStr.html" title="struct std::ffi::os_str::OsStr">OsStr</a></code><a href='#impl-NixPath-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#170-179' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len-1' class="method"><span id='len.v-2' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#171-173' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-1' class="method"><span id='with_nix_path.v-2' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#175-178' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-2' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a></code><a href='#impl-NixPath-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#181-195' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len-2' class="method"><span id='len.v-3' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#182-184' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-2' class="method"><span id='with_nix_path.v-3' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#186-194' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-3' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code><a href='#impl-NixPath-3' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#197-222' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len-3' class="method"><span id='len.v-4' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#198-200' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-3' class="method"><span id='with_nix_path.v-4' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#202-221' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-4' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html" title="struct std::path::Path">Path</a></code><a href='#impl-NixPath-4' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#224-232' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len-4' class="method"><span id='len.v-5' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#225-227' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-4' class="method"><span id='with_nix_path.v-5' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#229-231' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-5' class='impl'><span class='in-band'><code>impl <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html" title="struct std::path::PathBuf">PathBuf</a></code><a href='#impl-NixPath-5' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#234-242' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.len-5' class="method"><span id='len.v-6' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#235-237' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-5' class="method"><span id='with_nix_path.v-6' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#239-241' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-NixPath-6' class='impl'><span class='in-band'><code>impl&lt;'a, NP:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a>&gt; <a class="trait" href="../nix/trait.NixPath.html" title="trait nix::NixPath">NixPath</a> for <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'a </a>NP&gt;</code><a href='#impl-NixPath-6' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#245-257' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'><p>Treats <code>None</code> as an empty string.</p>
+</div><span class='docblock autohide'><div class='impl-items'><h4 id='method.len-6' class="method"><span id='len.v-7' class='invisible'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#246-248' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.with_nix_path-6' class="method"><span id='with_nix_path.v-7' class='invisible'><code>fn <a href='#method.with_nix_path' class='fnname'>with_nix_path</a>&lt;T, F&gt;(&amp;self, f: F) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="https://doc.rust-lang.org/nightly/std/ffi/c_str/struct.CStr.html" title="struct std::ffi::c_str::CStr">CStr</a>) -&gt; T,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#250-256' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    </ul><script type="text/javascript" async
+                         src="../implementors/nix/trait.NixPath.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

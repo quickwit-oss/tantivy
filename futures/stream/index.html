@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `stream` mod in crate `futures`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, stream">
+
+    <title>futures::stream - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module stream</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>futures</a></p><script>window.sidebarCurrent = {name: 'stream', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>futures</a>::<wbr><a class="mod" href=''>stream</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/futures/stream/mod.rs.html#1-1145' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Asynchronous streams</p>
+<p>This module contains the <code>Stream</code> trait and a number of adaptors for this
+trait. This trait is very similar to the <code>Iterator</code> trait in the standard
+library except that it expresses the concept of blocking as well. A stream
+here is a sequential sequence of values which may take some amount of time
+in between to produce.</p>
+<p>A stream may request that it is blocked between values while the next value
+is calculated, and provides a way to get notified once the next value is
+ready as well.</p>
+<p>You can find more information/tutorials about streams <a href="https://tokio.rs/docs/getting-started/streams-and-sinks/">online at
+https://tokio.rs</a></p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use self::futures_unordered::<a class="struct" href="../../futures/stream/futures_unordered/struct.FuturesUnordered.html" title="struct futures::stream::futures_unordered::FuturesUnordered">FuturesUnordered</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="futures_unordered/index.html"
+                                  title='mod futures::stream::futures_unordered'>futures_unordered</a></td>
+                           <td class='docblock-short'>
+                                <p>An unbounded set of futures.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AndThen.html"
+                                  title='struct futures::stream::AndThen'>AndThen</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which chains a computation onto values produced by a
+stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BufferUnordered.html"
+                                  title='struct futures::stream::BufferUnordered'>BufferUnordered</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor for a stream of futures to execute the futures concurrently, if
+possible, delivering results as they become available.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Buffered.html"
+                                  title='struct futures::stream::Buffered'>Buffered</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor for a stream of futures to execute the futures concurrently, if
+possible.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.CatchUnwind.html"
+                                  title='struct futures::stream::CatchUnwind'>CatchUnwind</a></td>
+                           <td class='docblock-short'>
+                                <p>Stream for the <code>catch_unwind</code> combinator.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Chain.html"
+                                  title='struct futures::stream::Chain'>Chain</a></td>
+                           <td class='docblock-short'>
+                                <p>An adapter for chaining the output of two streams.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Chunks.html"
+                                  title='struct futures::stream::Chunks'>Chunks</a></td>
+                           <td class='docblock-short'>
+                                <p>An adaptor that chunks up elements in a vector.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Collect.html"
+                                  title='struct futures::stream::Collect'>Collect</a></td>
+                           <td class='docblock-short'>
+                                <p>A future which collects all of the values of a stream into a vector.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Concat.html"
+                                  title='struct futures::stream::Concat'>Concat</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>A stream combinator to concatenate the results of a stream into the first
+yielded item.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Concat2.html"
+                                  title='struct futures::stream::Concat2'>Concat2</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator to concatenate the results of a stream into the first
+yielded item.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Empty.html"
+                                  title='struct futures::stream::Empty'>Empty</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which contains no elements.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Filter.html"
+                                  title='struct futures::stream::Filter'>Filter</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator used to filter the results of a stream and only yield
+some values.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FilterMap.html"
+                                  title='struct futures::stream::FilterMap'>FilterMap</a></td>
+                           <td class='docblock-short'>
+                                <p>A combinator used to filter the results of a stream and simultaneously map
+them to a different type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Flatten.html"
+                                  title='struct futures::stream::Flatten'>Flatten</a></td>
+                           <td class='docblock-short'>
+                                <p>A combinator used to flatten a stream-of-streams into one long stream of
+elements.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Fold.html"
+                                  title='struct futures::stream::Fold'>Fold</a></td>
+                           <td class='docblock-short'>
+                                <p>A future used to collect all the results of a stream into one generic type.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ForEach.html"
+                                  title='struct futures::stream::ForEach'>ForEach</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which executes a unit closure over each item on a
+stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Forward.html"
+                                  title='struct futures::stream::Forward'>Forward</a></td>
+                           <td class='docblock-short'>
+                                <p>Future for the <code>Stream::forward</code> combinator, which sends a stream of values
+to a sink and then waits until the sink has fully flushed those values.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FromErr.html"
+                                  title='struct futures::stream::FromErr'>FromErr</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator to change the error type of a stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Fuse.html"
+                                  title='struct futures::stream::Fuse'>Fuse</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which &quot;fuse&quot;s a stream once it's terminated.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FuturesOrdered.html"
+                                  title='struct futures::stream::FuturesOrdered'>FuturesOrdered</a></td>
+                           <td class='docblock-short'>
+                                <p>An unbounded queue of futures.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Inspect.html"
+                                  title='struct futures::stream::Inspect'>Inspect</a></td>
+                           <td class='docblock-short'>
+                                <p>Do something with the items of a stream, passing it on.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.InspectErr.html"
+                                  title='struct futures::stream::InspectErr'>InspectErr</a></td>
+                           <td class='docblock-short'>
+                                <p>Do something with the error of a stream, passing it on.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Iter.html"
+                                  title='struct futures::stream::Iter'>Iter</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>A stream which is just a shim over an underlying instance of <code>Iterator</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IterOk.html"
+                                  title='struct futures::stream::IterOk'>IterOk</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which is just a shim over an underlying instance of <code>Iterator</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IterResult.html"
+                                  title='struct futures::stream::IterResult'>IterResult</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which is just a shim over an underlying instance of <code>Iterator</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IterStream.html"
+                                  title='struct futures::stream::IterStream'>IterStream</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>A stream which is just a shim over an underlying instance of <code>Iterator</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Map.html"
+                                  title='struct futures::stream::Map'>Map</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which will change the type of a stream from one
+type to another.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.MapErr.html"
+                                  title='struct futures::stream::MapErr'>MapErr</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which will change the error type of a stream from one
+type to another.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Merge.html"
+                                  title='struct futures::stream::Merge'>Merge</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>An adapter for merging the output of two streams.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Once.html"
+                                  title='struct futures::stream::Once'>Once</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which emits single element and then EOF.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.OrElse.html"
+                                  title='struct futures::stream::OrElse'>OrElse</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which chains a computation onto errors produced by a
+stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Peekable.html"
+                                  title='struct futures::stream::Peekable'>Peekable</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>Stream</code> that implements a <code>peek</code> method.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.PollFn.html"
+                                  title='struct futures::stream::PollFn'>PollFn</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which adapts a function returning <code>Poll</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Repeat.html"
+                                  title='struct futures::stream::Repeat'>Repeat</a></td>
+                           <td class='docblock-short'>
+                                <p>Stream that produces the same element repeatedly.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Select.html"
+                                  title='struct futures::stream::Select'>Select</a></td>
+                           <td class='docblock-short'>
+                                <p>An adapter for merging the output of two streams.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Skip.html"
+                                  title='struct futures::stream::Skip'>Skip</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which skips a number of elements before continuing.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SkipWhile.html"
+                                  title='struct futures::stream::SkipWhile'>SkipWhile</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which skips elements of a stream while a predicate
+holds.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SplitSink.html"
+                                  title='struct futures::stream::SplitSink'>SplitSink</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>Sink</code> part of the split pair</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SplitStream.html"
+                                  title='struct futures::stream::SplitStream'>SplitStream</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>Stream</code> part of the split pair</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.StreamFuture.html"
+                                  title='struct futures::stream::StreamFuture'>StreamFuture</a></td>
+                           <td class='docblock-short'>
+                                <p>A combinator used to temporarily convert a stream into a future.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Take.html"
+                                  title='struct futures::stream::Take'>Take</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which returns a maximum number of elements.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TakeWhile.html"
+                                  title='struct futures::stream::TakeWhile'>TakeWhile</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which takes elements from a stream while a predicate
+holds.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Then.html"
+                                  title='struct futures::stream::Then'>Then</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which chains a computation onto each item produced by a
+stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Unfold.html"
+                                  title='struct futures::stream::Unfold'>Unfold</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream which creates futures, polls them and return their result</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Wait.html"
+                                  title='struct futures::stream::Wait'>Wait</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream combinator which converts an asynchronous stream to a <strong>blocking
+iterator</strong>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Zip.html"
+                                  title='struct futures::stream::Zip'>Zip</a></td>
+                           <td class='docblock-short'>
+                                <p>An adapter for merging the output of two streams.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.MergedItem.html"
+                                  title='enum futures::stream::MergedItem'>MergedItem</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>An item returned from a merge stream, which represents an item from one or
+both of the underlying streams.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Stream.html"
+                                  title='trait futures::stream::Stream'>Stream</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream of values, not all of which may have been produced yet.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.empty.html"
+                                  title='fn futures::stream::empty'>empty</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a stream which contains no elements.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.futures_ordered.html"
+                                  title='fn futures::stream::futures_ordered'>futures_ordered</a></td>
+                           <td class='docblock-short'>
+                                <p>Converts a list of futures into a <code>Stream</code> of results from the futures.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.futures_unordered.html"
+                                  title='fn futures::stream::futures_unordered'>futures_unordered</a></td>
+                           <td class='docblock-short'>
+                                <p>Converts a list of futures into a <code>Stream</code> of results from the futures.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.iter.html"
+                                  title='fn futures::stream::iter'>iter</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] <p>Converts an <code>Iterator</code> over <code>Result</code>s into a <code>Stream</code> which is always ready
+to yield the next value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.iter_ok.html"
+                                  title='fn futures::stream::iter_ok'>iter_ok</a></td>
+                           <td class='docblock-short'>
+                                <p>Converts an <code>Iterator</code> into a <code>Stream</code> which is always ready
+to yield the next value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.iter_result.html"
+                                  title='fn futures::stream::iter_result'>iter_result</a></td>
+                           <td class='docblock-short'>
+                                <p>Converts an <code>Iterator</code> over <code>Result</code>s into a <code>Stream</code> which is always ready
+to yield the next value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.once.html"
+                                  title='fn futures::stream::once'>once</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a stream of single element</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.poll_fn.html"
+                                  title='fn futures::stream::poll_fn'>poll_fn</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a new stream wrapping around a function returning <code>Poll</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.repeat.html"
+                                  title='fn futures::stream::repeat'>repeat</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a stream which produces the same item repeatedly.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unfold.html"
+                                  title='fn futures::stream::unfold'>unfold</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a <code>Stream</code> from a seed and a closure returning a <code>Future</code>.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "futures";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

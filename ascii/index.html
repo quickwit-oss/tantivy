@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ascii` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ascii">
+
+    <title>ascii - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate ascii</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'ascii', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>ascii</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/ascii/lib.rs.html#11-42' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A library that provides ASCII-only string and character types, equivalent to the <code>char</code>, <code>str</code> and
+<code>String</code> types in the standard library.</p>
+<h1 id="using-ascii-without-libstd" class="section-header"><a href="#using-ascii-without-libstd">Using ascii without libstd</a></h1>
+<p>Most of <code>AsciiChar</code> and <code>AsciiStr</code> can be used without <code>std</code> by enabling the feature <code>no_std</code>. The
+owned string type <code>AsciiString</code> and the conversion trait <code>IntoAsciiString</code> as well as all methods
+referring to these types aren't available without <code>std</code>.</p>
+<h1 id="requirements" class="section-header"><a href="#requirements">Requirements</a></h1>
+<p>The <code>ascii</code> library requires rustc 1.9.0 or greater, due to the <a href="https://github.com/rust-lang/rust/pull/32804">stabilization of
+<code>AsciiExt</code></a>. Using the <code>no_std</code> feature lowers
+this requirement to rustc 1.6.0 or greater.</p>
+<h1 id="history" class="section-header"><a href="#history">History</a></h1>
+<p>This packages included the Ascii types that were removed from the Rust standard library by the
+2014-12 <a href="https://github.com/rust-lang/rfcs/pull/486">reform of the <code>std::ascii</code> module</a>. The
+API changed significantly since then.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AsAsciiStrError.html"
+                                  title='struct ascii::AsAsciiStrError'>AsAsciiStrError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error that is returned when a sequence of <code>u8</code> are not all ASCII.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AsciiStr.html"
+                                  title='struct ascii::AsciiStr'>AsciiStr</a></td>
+                           <td class='docblock-short'>
+                                <p>AsciiStr represents a byte or string slice that only contains ASCII characters.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.AsciiString.html"
+                                  title='struct ascii::AsciiString'>AsciiString</a></td>
+                           <td class='docblock-short'>
+                                <p>A growable string stored as an ASCII encoded buffer.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ToAsciiCharError.html"
+                                  title='struct ascii::ToAsciiCharError'>ToAsciiCharError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error returned by <code>ToAsciiChar</code>.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.AsciiChar.html"
+                                  title='enum ascii::AsciiChar'>AsciiChar</a></td>
+                           <td class='docblock-short'>
+                                <p>An ASCII character. It wraps a <code>u8</code>, with the highest bit always zero.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.AsAsciiStr.html"
+                                  title='trait ascii::AsAsciiStr'>AsAsciiStr</a></td>
+                           <td class='docblock-short'>
+                                <p>Convert slices of bytes to <code>AsciiStr</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.AsMutAsciiStr.html"
+                                  title='trait ascii::AsMutAsciiStr'>AsMutAsciiStr</a></td>
+                           <td class='docblock-short'>
+                                <p>Convert mutable slices of bytes to <code>AsciiStr</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.IntoAsciiString.html"
+                                  title='trait ascii::IntoAsciiString'>IntoAsciiString</a></td>
+                           <td class='docblock-short'>
+                                <p>Convert vectors into <code>AsciiString</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.ToAsciiChar.html"
+                                  title='trait ascii::ToAsciiChar'>ToAsciiChar</a></td>
+                           <td class='docblock-short'>
+                                <p>Convert <code>char</code>, <code>u8</code> and other character types to <code>AsciiChar</code>.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "ascii";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

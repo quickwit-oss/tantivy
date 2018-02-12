@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["pin","Pin the current epoch."]],"struct":[["Atomic","Like `std::sync::atomic::AtomicPtr`."],["Guard","An RAII-style guard for pinning the current epoch."],["Owned","Like `Box<T>`: an owned, heap-allocated data value of type `T`."],["Shared","Like `&'a T`: a shared reference valid for lifetime `'a`."]]});

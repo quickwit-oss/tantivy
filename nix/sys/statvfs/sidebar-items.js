@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["fstatvfs","Fill an existing `Statvfs` object with information about `fd`"],["statvfs","Fill an existing `Statvfs` object with information about the `path`"]],"mod":[["vfs","Structs related to the `statvfs` and `fstatvfs` functions"]]});

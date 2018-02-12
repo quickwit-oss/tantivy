@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Spawn` struct in crate `futures`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Spawn">
+
+    <title>futures::executor::Spawn - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Spawn</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.poll_future">poll_future</a><a href="#method.wait_future">wait_future</a><a href="#method.execute">execute</a><a href="#method.poll_stream">poll_stream</a><a href="#method.wait_stream">wait_stream</a><a href="#method.start_send">start_send</a><a href="#method.poll_flush">poll_flush</a><a href="#method.wait_send">wait_send</a><a href="#method.wait_flush">wait_flush</a><a href="#method.wait_close">wait_close</a><a href="#method.get_ref">get_ref</a><a href="#method.get_mut">get_mut</a><a href="#method.into_inner">into_inner</a><a href="#method.poll_future_notify">poll_future_notify</a><a href="#method.poll_stream_notify">poll_stream_notify</a><a href="#method.start_send_notify">start_send_notify</a><a href="#method.poll_flush_notify">poll_flush_notify</a><a href="#method.close_notify">close_notify</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a></div></div><p class='location'><a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a></p><script>window.sidebarCurrent = {name: 'Spawn', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="struct" href=''>Spawn</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#213-217' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Spawn&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt; { /* fields omitted */ }</pre><div class='docblock'><p>Representation of a spawned future/stream.</p>
+<p>This object is returned by the <code>spawn</code> function in this module. This
+represents a &quot;fused task and future&quot;, storing all necessary pieces of a task
+and owning the top-level future that's being driven as well.</p>
+<p>A <code>Spawn</code> can be poll'd for completion or execution of the current thread
+can be blocked indefinitely until a notification arrives. This can be used
+with either futures or streams, with different methods being available on
+<code>Spawn</code> depending which is used.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;F:&nbsp;<a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;F&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#213-285' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.poll_future' class="method"><span id='poll_future.v' class='invisible'><code>pub fn <a href='#method.poll_future' class='fnname'>poll_future</a>(&amp;mut self, unpark: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;<a class="trait" href="../../futures/executor/trait.Unpark.html" title="trait futures::executor::Unpark">Unpark</a>&gt;) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;F::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, F::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#229-231' title='goto source code'>[src]</a></span></h4>
+<div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>poll_future_notify</code> instead</p>
+</div></div><div class='docblock'><p>Polls the internal future, scheduling notifications to be sent to the
+<code>unpark</code> argument.</p>
+<p>This method will poll the internal future, testing if it's completed
+yet. The <code>unpark</code> argument is used as a sink for notifications sent to
+this future. That is, while the future is being polled, any call to
+<code>task::park()</code> will return a handle that contains the <code>unpark</code>
+specified.</p>
+<p>If this function returns <code>NotReady</code>, then the <code>unpark</code> should have been
+scheduled to receive a notification when poll can be called again.
+Otherwise if <code>Ready</code> or <code>Err</code> is returned, the <code>Spawn</code> task can be
+safely destroyed.</p>
+</div><h4 id='method.wait_future' class="method"><span id='wait_future.v' class='invisible'><code>pub fn <a href='#method.wait_future' class='fnname'>wait_future</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;F::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, F::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#239-249' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Waits for the internal future to complete, blocking this thread's
+execution until it does.</p>
+<p>This function will call <code>poll_future</code> in a loop, waiting for the future
+to complete. When a future cannot make progress it will use
+<code>thread::park</code> to block the current thread.</p>
+</div><h4 id='method.execute' class="method"><span id='execute.v' class='invisible'><code>pub fn <a href='#method.execute' class='fnname'>execute</a>(self, exec: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;<a class="trait" href="../../futures/executor/trait.Executor.html" title="trait futures::executor::Executor">Executor</a>&gt;) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>&lt;Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Error = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'static,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#270-284' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>A specialized function to request running a future to completion on the
+specified executor.</p>
+<p>This function only works for futures whose item and error types are <code>()</code>
+and also implement the <code>Send</code> and <code>'static</code> bounds. This will submit
+units of work (instances of <code>Run</code>) to the <code>exec</code> argument provided
+necessary to drive the future to completion.</p>
+<p>When the future would block, it's arranged that when the future is again
+ready it will submit another unit of work to the <code>exec</code> provided. This
+will happen in a loop until the future has completed.</p>
+<p>This method is not appropriate for all futures, and other kinds of
+executors typically provide a similar function with perhaps relaxed
+bounds as well.</p>
+<p>Note that this method is likely to be deprecated in favor of the
+<code>futures::Executor</code> trait and <code>execute</code> method, but if this'd cause
+difficulty for you please let us know!</p>
+</div></div><h3 id='impl-1' class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class="trait" href="../../futures/stream/trait.Stream.html" title="trait futures::stream::Stream">Stream</a>&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;S&gt;</code><a href='#impl-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#287-311' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.poll_stream' class="method"><span id='poll_stream.v' class='invisible'><code>pub fn <a href='#method.poll_stream' class='fnname'>poll_stream</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;unpark: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;<a class="trait" href="../../futures/executor/trait.Unpark.html" title="trait futures::executor::Unpark">Unpark</a>&gt;<br>) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;S::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Item" title="type futures::stream::Stream::Item">Item</a>&gt;, S::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Error" title="type futures::stream::Stream::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#291-294' title='goto source code'>[src]</a></span></h4>
+<div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>poll_stream_notify</code> instead</p>
+</div></div><div class='docblock'><p>Like <code>poll_future</code>, except polls the underlying stream.</p>
+</div><h4 id='method.wait_stream' class="method"><span id='wait_stream.v' class='invisible'><code>pub fn <a href='#method.wait_stream' class='fnname'>wait_stream</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;S::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Item" title="type futures::stream::Stream::Item">Item</a>, S::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Error" title="type futures::stream::Stream::Error">Error</a>&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#298-310' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Like <code>wait_future</code>, except only waits for the next element to arrive on
+the underlying stream.</p>
+</div></div><h3 id='impl-2' class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;S&gt;</code><a href='#impl-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#313-393' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.start_send' class="method"><span id='start_send.v' class='invisible'><code>pub fn <a href='#method.start_send' class='fnname'>start_send</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;value: S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;unpark: &amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;<a class="trait" href="../../futures/executor/trait.Unpark.html" title="trait futures::executor::Unpark">Unpark</a>&gt;<br>) -&gt; <a class="type" href="../../futures/type.StartSend.html" title="type futures::StartSend">StartSend</a>&lt;S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>, S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#321-324' title='goto source code'>[src]</a></span></h4>
+<div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>start_send_notify</code> instead</p>
+</div></div><div class='docblock'><p>Invokes the underlying <code>start_send</code> method with this task in place.</p>
+<p>If the underlying operation returns <code>NotReady</code> then the <code>unpark</code> value
+passed in will receive a notification when the operation is ready to be
+attempted again.</p>
+</div><h4 id='method.poll_flush' class="method"><span id='poll_flush.v' class='invisible'><code>pub fn <a href='#method.poll_flush' class='fnname'>poll_flush</a>(&amp;mut self, unpark: &amp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;<a class="trait" href="../../futures/executor/trait.Unpark.html" title="trait futures::executor::Unpark">Unpark</a>&gt;) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#333-336' title='goto source code'>[src]</a></span></h4>
+<div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>poll_flush_notify</code> instead</p>
+</div></div><div class='docblock'><p>Invokes the underlying <code>poll_complete</code> method with this task in place.</p>
+<p>If the underlying operation returns <code>NotReady</code> then the <code>unpark</code> value
+passed in will receive a notification when the operation is ready to be
+attempted again.</p>
+</div><h4 id='method.wait_send' class="method"><span id='wait_send.v' class='invisible'><code>pub fn <a href='#method.wait_send' class='fnname'>wait_send</a>(&amp;mut self, value: S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#343-355' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Blocks the current thread until it's able to send <code>value</code> on this sink.</p>
+<p>This function will send the <code>value</code> on the sink that this task wraps. If
+the sink is not ready to send the value yet then the current thread will
+be blocked until it's able to send the value.</p>
+</div><h4 id='method.wait_flush' class="method"><span id='wait_flush.v' class='invisible'><code>pub fn <a href='#method.wait_flush' class='fnname'>wait_flush</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#365-375' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Blocks the current thread until it's able to flush this sink.</p>
+<p>This function will call the underlying sink's <code>poll_complete</code> method
+until it returns that it's ready, proxying out errors upwards to the
+caller if one occurs.</p>
+<p>The thread will be blocked until <code>poll_complete</code> returns that it's
+ready.</p>
+</div><h4 id='method.wait_close' class="method"><span id='wait_close.v' class='invisible'><code>pub fn <a href='#method.wait_close' class='fnname'>wait_close</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, S::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#382-392' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Blocks the current thread until it's able to close this sink.</p>
+<p>This function will close the sink that this task wraps. If the sink
+is not ready to be close yet, then the current thread will be blocked
+until it's closed.</p>
+</div></div><h3 id='impl-3' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;T&gt;</code><a href='#impl-3' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#237-365' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.get_ref' class="method"><span id='get_ref.v' class='invisible'><code>pub fn <a href='#method.get_ref' class='fnname'>get_ref</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#239-241' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Get a shared reference to the object the Spawn is wrapping.</p>
+</div><h4 id='method.get_mut' class="method"><span id='get_mut.v' class='invisible'><code>pub fn <a href='#method.get_mut' class='fnname'>get_mut</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>T</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#244-246' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Get a mutable reference to the object the Spawn is wrapping.</p>
+</div><h4 id='method.into_inner' class="method"><span id='into_inner.v' class='invisible'><code>pub fn <a href='#method.into_inner' class='fnname'>into_inner</a>(self) -&gt; T <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#249-251' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Consume the Spawn, returning its inner object</p>
+</div><h4 id='method.poll_future_notify' class="method"><span id='poll_future_notify.v' class='invisible'><code>pub fn <a href='#method.poll_future_notify' class='fnname'>poll_future_notify</a>&lt;N&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;notify: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>N, <br>&nbsp;&nbsp;&nbsp;&nbsp;id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;T::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, T::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#282-290' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Polls the internal future, scheduling notifications to be sent to the
+<code>notify</code> argument.</p>
+<p>This method will poll the internal future, testing if it's completed
+yet. The <code>notify</code> argument is used as a sink for notifications sent to
+this future. That is, while the future is being polled, any call to
+<code>task::current()</code> will return a handle that contains the <code>notify</code>
+specified.</p>
+<p>If this function returns <code>NotReady</code>, then the <code>notify</code> should have been
+scheduled to receive a notification when poll can be called again.
+Otherwise if <code>Ready</code> or <code>Err</code> is returned, the <code>Spawn</code> task can be
+safely destroyed.</p>
+<p>Note that <code>notify</code> itself is passed as a shared reference, and is itself
+not required to be a <code>NotifyHandle</code>. The <code>Clone</code> and <code>Into</code> trait bounds
+will be used to convert this <code>notify</code> to a <code>NotifyHandle</code> if necessary.
+This construction can avoid an unnecessary atomic reference count bump
+in some situations.</p>
+<h2 id="unsafety-and-id" class="section-header"><a href="#unsafety-and-id">Unsafety and <code>id</code></a></h2>
+<p>This function and all other <code>*_notify</code> functions on this type will treat
+the <code>id</code> specified very carefully, explicitly calling functions like the
+<code>notify</code> argument's <code>clone_id</code> and <code>drop_id</code> functions. It should be
+safe to encode a pointer itself into the <code>id</code> specified, such as an
+<code>Arc&lt;N&gt;</code> or a <code>Box&lt;N&gt;</code>. The <code>clone_id</code> and <code>drop_id</code> functions are then
+intended to be sufficient for the memory management related to that
+pointer.</p>
+</div><h4 id='method.poll_stream_notify' class="method"><span id='poll_stream_notify.v' class='invisible'><code>pub fn <a href='#method.poll_stream_notify' class='fnname'>poll_stream_notify</a>&lt;N&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;notify: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>N, <br>&nbsp;&nbsp;&nbsp;&nbsp;id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;T::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Item" title="type futures::stream::Stream::Item">Item</a>&gt;, T::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Error" title="type futures::stream::Stream::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/stream/trait.Stream.html" title="trait futures::stream::Stream">Stream</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#293-302' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Like <code>poll_future_notify</code>, except polls the underlying stream.</p>
+</div><h4 id='method.start_send_notify' class="method"><span id='start_send_notify.v' class='invisible'><code>pub fn <a href='#method.start_send_notify' class='fnname'>start_send_notify</a>&lt;N&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;value: T::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;notify: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>N, <br>&nbsp;&nbsp;&nbsp;&nbsp;id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>) -&gt; <a class="type" href="../../futures/type.StartSend.html" title="type futures::StartSend">StartSend</a>&lt;T::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>, T::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#309-319' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Invokes the underlying <code>start_send</code> method with this task in place.</p>
+<p>If the underlying operation returns <code>NotReady</code> then the <code>notify</code> value
+passed in will receive a notification when the operation is ready to be
+attempted again.</p>
+</div><h4 id='method.poll_flush_notify' class="method"><span id='poll_flush_notify.v' class='invisible'><code>pub fn <a href='#method.poll_flush_notify' class='fnname'>poll_flush_notify</a>&lt;N&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;notify: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>N, <br>&nbsp;&nbsp;&nbsp;&nbsp;id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, T::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#326-335' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Invokes the underlying <code>poll_complete</code> method with this task in place.</p>
+<p>If the underlying operation returns <code>NotReady</code> then the <code>notify</code> value
+passed in will receive a notification when the operation is ready to be
+attempted again.</p>
+</div><h4 id='method.close_notify' class="method"><span id='close_notify.v' class='invisible'><code>pub fn <a href='#method.close_notify' class='fnname'>close_notify</a>&lt;N&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;notify: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>N, <br>&nbsp;&nbsp;&nbsp;&nbsp;id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a><br>) -&gt; <a class="type" href="../../futures/type.Poll.html" title="type futures::Poll">Poll</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, T::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#342-351' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Invokes the underlying <code>close</code> method with this task in place.</p>
+<p>If the underlying operation returns <code>NotReady</code> then the <code>notify</code> value
+passed in will receive a notification when the operation is ready to be
+attempted again.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;T&gt;</code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#367-373' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#368-372' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "futures";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

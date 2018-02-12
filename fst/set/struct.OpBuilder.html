@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `OpBuilder` struct in crate `fst`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, OpBuilder">
+
+    <title>fst::set::OpBuilder - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct OpBuilder</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.add">add</a><a href="#method.push">push</a><a href="#method.union">union</a><a href="#method.intersection">intersection</a><a href="#method.difference">difference</a><a href="#method.symmetric_difference">symmetric_difference</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Extend%3CI%3E">Extend&lt;I&gt;</a><a href="#impl-FromIterator%3CI%3E">FromIterator&lt;I&gt;</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>set</a></p><script>window.sidebarCurrent = {name: 'OpBuilder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>fst</a>::<wbr><a href='index.html'>set</a>::<wbr><a class="struct" href=''>OpBuilder</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/fst/set.rs.html#612' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct OpBuilder&lt;'s&gt;(_);</pre><div class='docblock'><p>A builder for collecting set streams on which to perform set operations.</p>
+<p>Set operations include intersection, union, difference and symmetric
+difference. The result of each set operation is itself a stream that emits
+keys in lexicographic order.</p>
+<p>All set operations work efficiently on an arbitrary number of
+streams with memory proportional to the number of streams.</p>
+<p>The algorithmic complexity of all set operations is <code>O(n1 + n2 + n3 + ...)</code>
+where <code>n1, n2, n3, ...</code> correspond to the number of elements in each
+stream.</p>
+<p>The <code>'s</code> lifetime parameter refers to the lifetime of the underlying set.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'s&gt; <a class="struct" href="../../fst/set/struct.OpBuilder.html" title="struct fst::set::OpBuilder">OpBuilder</a>&lt;'s&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#614-740' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#616-618' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Create a new set operation builder.</p>
+</div><h4 id='method.add' class="method"><span id='add.v' class='invisible'><code>pub fn <a href='#method.add' class='fnname'>add</a>&lt;I, S&gt;(self, streamable: I) -&gt; Self <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: for&lt;'a&gt; <a class="trait" href="../../fst/trait.IntoStreamer.html" title="trait fst::IntoStreamer">IntoStreamer</a>&lt;'a, Into = S, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;S: 's + for&lt;'a&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#627-632' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Add a stream to this set operation.</p>
+<p>This is useful for a chaining style pattern, e.g.,
+<code>builder.add(stream1).add(stream2).union()</code>.</p>
+<p>The stream must emit a lexicographically ordered sequence of byte
+strings.</p>
+</div><h4 id='method.push' class="method"><span id='push.v' class='invisible'><code>pub fn <a href='#method.push' class='fnname'>push</a>&lt;I, S&gt;(&amp;mut self, streamable: I) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: for&lt;'a&gt; <a class="trait" href="../../fst/trait.IntoStreamer.html" title="trait fst::IntoStreamer">IntoStreamer</a>&lt;'a, Into = S, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;S: 's + for&lt;'a&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#638-642' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Add a stream to this set operation.</p>
+<p>The stream must emit a lexicographically ordered sequence of byte
+strings.</p>
+</div><h4 id='method.union' class="method"><span id='union.v' class='invisible'><code>pub fn <a href='#method.union' class='fnname'>union</a>(self) -&gt; <a class="struct" href="../../fst/set/struct.Union.html" title="struct fst::set::Union">Union</a>&lt;'s&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#662-664' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs a union operation on all streams that have been added.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>, <span class="ident">Set</span>};
+
+<span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>]).<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>]).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">union</span> <span class="op">=</span> <span class="ident">set1</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="ident">set2</span>).<span class="ident">union</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+<span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">union</span>.<span class="ident">next</span>() {
+    <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">key</span>.<span class="ident">to_vec</span>());
+}
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">b&quot;a&quot;</span>, <span class="string">b&quot;b&quot;</span>, <span class="string">b&quot;c&quot;</span>, <span class="string">b&quot;y&quot;</span>, <span class="string">b&quot;z&quot;</span>]);</pre>
+</div><h4 id='method.intersection' class="method"><span id='intersection.v' class='invisible'><code>pub fn <a href='#method.intersection' class='fnname'>intersection</a>(self) -&gt; <a class="struct" href="../../fst/set/struct.Intersection.html" title="struct fst::set::Intersection">Intersection</a>&lt;'s&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#684-686' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs an intersection operation on all streams that have been added.</p>
+<h1 id="example-1" class="section-header"><a href="#example-1">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>, <span class="ident">Set</span>};
+
+<span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>]).<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>]).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">set1</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="ident">set2</span>).<span class="ident">intersection</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+<span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">intersection</span>.<span class="ident">next</span>() {
+    <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">key</span>.<span class="ident">to_vec</span>());
+}
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">b&quot;a&quot;</span>]);</pre>
+</div><h4 id='method.difference' class="method"><span id='difference.v' class='invisible'><code>pub fn <a href='#method.difference' class='fnname'>difference</a>(self) -&gt; <a class="struct" href="../../fst/set/struct.Difference.html" title="struct fst::set::Difference">Difference</a>&lt;'s&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#708-710' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs a difference operation with respect to the first stream added.
+That is, this returns a stream of all elements in the first stream
+that don't exist in any other stream that has been added.</p>
+<h1 id="example-2" class="section-header"><a href="#example-2">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>, <span class="ident">Set</span>};
+
+<span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>]).<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>]).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">difference</span> <span class="op">=</span> <span class="ident">set1</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="ident">set2</span>).<span class="ident">difference</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+<span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">difference</span>.<span class="ident">next</span>() {
+    <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">key</span>.<span class="ident">to_vec</span>());
+}
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">b&quot;b&quot;</span>, <span class="string">b&quot;c&quot;</span>]);</pre>
+</div><h4 id='method.symmetric_difference' class="method"><span id='symmetric_difference.v' class='invisible'><code>pub fn <a href='#method.symmetric_difference' class='fnname'>symmetric_difference</a>(self) -&gt; <a class="struct" href="../../fst/set/struct.SymmetricDifference.html" title="struct fst::set::SymmetricDifference">SymmetricDifference</a>&lt;'s&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#737-739' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs a symmetric difference operation on all of the streams that
+have been added.</p>
+<p>When there are only two streams, then the keys returned correspond to
+keys that are in either stream but <em>not</em> in both streams.</p>
+<p>More generally, for any number of streams, keys that occur in an odd
+number of streams are returned.</p>
+<h1 id="example-3" class="section-header"><a href="#example-3">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>, <span class="ident">Set</span>};
+
+<span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>, <span class="string">&quot;c&quot;</span>]).<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>]).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sym_difference</span> <span class="op">=</span> <span class="ident">set1</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="ident">set2</span>).<span class="ident">symmetric_difference</span>();
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+<span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">sym_difference</span>.<span class="ident">next</span>() {
+    <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">key</span>.<span class="ident">to_vec</span>());
+}
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">b&quot;b&quot;</span>, <span class="string">b&quot;c&quot;</span>, <span class="string">b&quot;y&quot;</span>, <span class="string">b&quot;z&quot;</span>]);</pre>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Extend%3CI%3E' class='impl'><span class='in-band'><code>impl&lt;'f, I, S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.Extend.html" title="trait core::iter::traits::Extend">Extend</a>&lt;I&gt; for <a class="struct" href="../../fst/set/struct.OpBuilder.html" title="struct fst::set::OpBuilder">OpBuilder</a>&lt;'f&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: for&lt;'a&gt; <a class="trait" href="../../fst/trait.IntoStreamer.html" title="trait fst::IntoStreamer">IntoStreamer</a>&lt;'a, Into = S, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;S: 'f + for&lt;'a&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,&nbsp;</span></code><a href='#impl-Extend%3CI%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#742-750' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.extend' class="method"><span id='extend.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.Extend.html#tymethod.extend' class='fnname'>extend</a>&lt;T&gt;(&amp;mut self, it: T) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>&lt;Item = I&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#745-749' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Extends a collection with the contents of an iterator. <a href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.Extend.html#tymethod.extend">Read more</a></p>
+</div></div><h3 id='impl-FromIterator%3CI%3E' class='impl'><span class='in-band'><code>impl&lt;'f, I, S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.FromIterator.html" title="trait core::iter::traits::FromIterator">FromIterator</a>&lt;I&gt; for <a class="struct" href="../../fst/set/struct.OpBuilder.html" title="struct fst::set::OpBuilder">OpBuilder</a>&lt;'f&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: for&lt;'a&gt; <a class="trait" href="../../fst/trait.IntoStreamer.html" title="trait fst::IntoStreamer">IntoStreamer</a>&lt;'a, Into = S, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;S: 'f + for&lt;'a&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a, Item = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>&gt;,&nbsp;</span></code><a href='#impl-FromIterator%3CI%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#752-760' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_iter' class="method"><span id='from_iter.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.FromIterator.html#tymethod.from_iter' class='fnname'>from_iter</a>&lt;T&gt;(it: T) -&gt; Self <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>&lt;Item = I&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#755-759' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a value from an iterator. <a href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.FromIterator.html#tymethod.from_iter">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "fst";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

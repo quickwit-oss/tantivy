@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `schema` mod in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, schema">
+
+    <title>tantivy::schema - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Module schema</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'><a href='../index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'schema', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>tantivy</a>::<wbr><a class="mod" href=''>schema</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/schema/mod.rs.html#1-177' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Schema definition for tantivy's indices.</p>
+<h1 id="setting-your-schema-in-tantivy" class="section-header"><a href="#setting-your-schema-in-tantivy">Setting your schema in Tantivy</a></h1>
+<p>Tantivy has a very strict schema.
+The schema defines information about the fields your index contains, that is, for each field:</p>
+<ul>
+<li>the field name (may only contain letters <code>[a-zA-Z]</code>, number <code>[0-9]</code>, and <code>_</code>)</li>
+<li>the type of the field (currently only  <code>text</code> and <code>u64</code> are supported)</li>
+<li>how the field should be indexed / stored.</li>
+</ul>
+<p>This very last point is critical as it will enable / disable some of the functionality
+for your index.</p>
+<p>Tantivy's schema is stored within the <code>meta.json</code> file at the root of your
+directory.</p>
+<h1 id="building-a-schema-programmatically" class="section-header"><a href="#building-a-schema-programmatically">Building a schema &quot;programmatically&quot;</a></h1><h2 id="setting-a-text-field" class="section-header"><a href="#setting-a-text-field">Setting a text field</a></h2><h3 id="example" class="section-header"><a href="#example">Example</a></h3>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">tantivy</span>::<span class="ident">schema</span>::<span class="kw-2">*</span>;
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+<span class="kw">let</span> <span class="ident">title_options</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>()
+    .<span class="ident">set_stored</span>()
+    .<span class="ident">set_indexing_options</span>(<span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
+        .<span class="ident">set_tokenizer</span>(<span class="string">&quot;default&quot;</span>)
+        .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>));
+<span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title_options&quot;</span>, <span class="ident">title_options</span>);
+<span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();</pre>
+<p>We can split the problem of generating a search result page into two phases :</p>
+<ul>
+<li>identifying the list of 10 or so documents to be displayed (Conceptually <code>query -&gt; doc_ids[]</code>)</li>
+<li>for each of these documents, retrieving the information required to generate
+the search results page. (<code>doc_ids[] -&gt; Document[]</code>)</li>
+</ul>
+<p>In the first phase, the ability to search for documents by the given field is determined by the
+<a href="enum.TextIndexingOptions.html"><code>TextIndexingOptions</code></a> of our [<code>TextOptions</code>]
+(struct.TextOptions.html).</p>
+<p>The effect of each possible setting is described more in detail [<code>TextIndexingOptions</code>]
+(enum.TextIndexingOptions.html).</p>
+<p>On the other hand setting the field as stored or not determines whether the field should be returned
+when <a href="../struct.Searcher.html#method.doc"><code>searcher.doc(doc_address)</code></a> is called.</p>
+<h3 id="shortcuts" class="section-header"><a href="#shortcuts">Shortcuts</a></h3>
+<p>For convenience, a few special values of <code>TextOptions</code>.
+They can be composed using the <code>|</code> operator.
+The example can be rewritten :</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">tantivy</span>::<span class="ident">schema</span>::<span class="kw-2">*</span>;
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+<span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title_options&quot;</span>, <span class="ident">TEXT</span> <span class="op">|</span> <span class="ident">STORED</span>);
+<span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();</pre>
+<h2 id="setting-a-u64-field" class="section-header"><a href="#setting-a-u64-field">Setting a u64 field</a></h2><h3 id="example-1" class="section-header"><a href="#example-1">Example</a></h3>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">tantivy</span>::<span class="ident">schema</span>::<span class="kw-2">*</span>;
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+<span class="kw">let</span> <span class="ident">num_stars_options</span> <span class="op">=</span> <span class="ident">IntOptions</span>::<span class="ident">default</span>()
+    .<span class="ident">set_stored</span>()
+    .<span class="ident">set_indexed</span>();
+<span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;num_stars&quot;</span>, <span class="ident">num_stars_options</span>);
+<span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();</pre>
+<p>Just like for Text fields (see above),
+setting the field as stored defines whether the field will be
+returned when <a href="../struct.Searcher.html#method.doc"><code>searcher.doc(doc_address)</code></a> is called,
+and setting the field as indexed means that we will be able perform queries such as <code>num_stars:10</code>.
+Note that unlike text fields, u64 can only be indexed in one way for the moment.
+This may change when we will start supporting range queries.</p>
+<p>The <code>fast</code> option on the other hand is specific to u64 fields, and is only relevant
+if you are implementing your own queries. This functionality is somewhat similar to Lucene's
+<code>DocValues</code>.</p>
+<p>u64 that are indexed as fast will be stored in a special data structure that will
+make it possible to access the u64 value given the doc id rapidly. This is useful if the value of
+the field is required during scoring or collection for instance.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Document.html"
+                                  title='struct tantivy::schema::Document'>Document</a></td>
+                           <td class='docblock-short'>
+                                <p>Tantivy's Document is the object that can
+be indexed and then searched for.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Facet.html"
+                                  title='struct tantivy::schema::Facet'>Facet</a></td>
+                           <td class='docblock-short'>
+                                <p>A Facet represent a point in a given hierarchy.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Field.html"
+                                  title='struct tantivy::schema::Field'>Field</a></td>
+                           <td class='docblock-short'>
+                                <p><code>Field</code> is actually a <code>u8</code> identifying a <code>Field</code>
+The schema is in charge of holding mapping between field names
+to <code>Field</code> objects.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FieldEntry.html"
+                                  title='struct tantivy::schema::FieldEntry'>FieldEntry</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>FieldEntry</code> represents a field and its configuration.
+<code>Schema</code> are a collection of <code>FieldEntry</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FieldValue.html"
+                                  title='struct tantivy::schema::FieldValue'>FieldValue</a></td>
+                           <td class='docblock-short'>
+                                <p><code>FieldValue</code> holds together a <code>Field</code> and its <code>Value</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IntOptions.html"
+                                  title='struct tantivy::schema::IntOptions'>IntOptions</a></td>
+                           <td class='docblock-short'>
+                                <p>Define how an int field should be handled by tantivy.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.NamedFieldDocument.html"
+                                  title='struct tantivy::schema::NamedFieldDocument'>NamedFieldDocument</a></td>
+                           <td class='docblock-short'>
+                                <p>Internal representation of a document used for JSON
+serialization.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Schema.html"
+                                  title='struct tantivy::schema::Schema'>Schema</a></td>
+                           <td class='docblock-short'>
+                                <p>Tantivy has a very strict schema.
+You need to specify in advance, whether a field is indexed or not,
+stored or not, and RAM-based or not.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SchemaBuilder.html"
+                                  title='struct tantivy::schema::SchemaBuilder'>SchemaBuilder</a></td>
+                           <td class='docblock-short'>
+                                <p>Tantivy has a very strict schema.
+You need to specify in advance whether a field is indexed or not,
+stored or not, and RAM-based or not.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Term.html"
+                                  title='struct tantivy::schema::Term'>Term</a></td>
+                           <td class='docblock-short'>
+                                <p>Term represents the value that the token can take.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TextFieldIndexing.html"
+                                  title='struct tantivy::schema::TextFieldIndexing'>TextFieldIndexing</a></td>
+                           <td class='docblock-short'>
+                                <p>Configuration defining indexing for a text field.
+It wraps:</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TextOptions.html"
+                                  title='struct tantivy::schema::TextOptions'>TextOptions</a></td>
+                           <td class='docblock-short'>
+                                <p>Define how a text field should be handled by tantivy.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Cardinality.html"
+                                  title='enum tantivy::schema::Cardinality'>Cardinality</a></td>
+                           <td class='docblock-short'>
+                                <p>Express whether a field is single-value or multi-valued.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.DocParsingError.html"
+                                  title='enum tantivy::schema::DocParsingError'>DocParsingError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error that may happen when deserializing
+a document from JSON.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FieldType.html"
+                                  title='enum tantivy::schema::FieldType'>FieldType</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>FieldType</code> describes the type (text, u64) of a field as well as
+how it should be handled by tantivy.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.IndexRecordOption.html"
+                                  title='enum tantivy::schema::IndexRecordOption'>IndexRecordOption</a></td>
+                           <td class='docblock-short'>
+                                <p><code>IndexRecordOption</code> describes an amount information associated
+to a given indexed field.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Value.html"
+                                  title='enum tantivy::schema::Value'>Value</a></td>
+                           <td class='docblock-short'>
+                                <p>Value represents the value of a any field.
+It is an enum over all over all of the possible field type.</p>
+
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FACET_SEP_BYTE.html"
+                                  title='constant tantivy::schema::FACET_SEP_BYTE'>FACET_SEP_BYTE</a></td>
+                           <td class='docblock-short'>
+                                <p>BYTE used as a level separation in the binary
+representation of facets.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.FAST.html"
+                                  title='constant tantivy::schema::FAST'>FAST</a></td>
+                           <td class='docblock-short'>
+                                <p>Shortcut for a u64 fast field.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.INT_INDEXED.html"
+                                  title='constant tantivy::schema::INT_INDEXED'>INT_INDEXED</a></td>
+                           <td class='docblock-short'>
+                                <p>Shortcut for a u64 indexed field.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.INT_STORED.html"
+                                  title='constant tantivy::schema::INT_STORED'>INT_STORED</a></td>
+                           <td class='docblock-short'>
+                                <p>Shortcut for a u64 stored field.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.STORED.html"
+                                  title='constant tantivy::schema::STORED'>STORED</a></td>
+                           <td class='docblock-short'>
+                                <p>A stored fields of a document can be retrieved given its <code>DocId</code>.
+Stored field are stored together and LZ4 compressed.
+Reading the stored fields of a document is relatively slow.
+(100 microsecs)</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.STRING.html"
+                                  title='constant tantivy::schema::STRING'>STRING</a></td>
+                           <td class='docblock-short'>
+                                <p>The field will be untokenized and indexed</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.TEXT.html"
+                                  title='constant tantivy::schema::TEXT'>TEXT</a></td>
+                           <td class='docblock-short'>
+                                <p>The field will be tokenized and indexed</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.is_valid_field_name.html"
+                                  title='fn tantivy::schema::is_valid_field_name'>is_valid_field_name</a></td>
+                           <td class='docblock-short'>
+                                <p>Validator for a potential <code>field_name</code>.
+Returns true iff the name can be use for a field name.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

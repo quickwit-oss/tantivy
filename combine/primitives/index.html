@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `primitives` mod in crate `combine`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, primitives">
+
+    <title>combine::primitives - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Module primitives</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'primitives', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>combine</a>::<wbr><a class="mod" href=''>primitives</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/combine/primitives.rs.html#1-2085' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Module containing the primitive types which is used to create and compose more advanced
+parsers.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BufferedStream.html"
+                                  title='struct combine::primitives::BufferedStream'>BufferedStream</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>BufferedStream</code> wraps an instance <code>StreamOnce</code>, allowing it to be used as a <code>Stream</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BytePosition.html"
+                                  title='struct combine::primitives::BytePosition'>BytePosition</a></td>
+                           <td class='docblock-short'>
+                                <p>Struct which represents a position in a byte stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.IteratorStream.html"
+                                  title='struct combine::primitives::IteratorStream'>IteratorStream</a></td>
+                           <td class='docblock-short'>
+                                <p>Wrapper around iterators which allows them to be treated as a stream.
+Returned by <a href="fn.from_iter.html"><code>from_iter</code></a>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ParseError.html"
+                                  title='struct combine::primitives::ParseError'>ParseError</a></td>
+                           <td class='docblock-short'>
+                                <p>Struct which hold information about an error that occurred at a specific position.
+Can hold multiple instances of <code>Error</code> if more that one error occurred in the same position.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ReadStream.html"
+                                  title='struct combine::primitives::ReadStream'>ReadStream</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SharedBufferedStream.html"
+                                  title='struct combine::primitives::SharedBufferedStream'>SharedBufferedStream</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SliceStream.html"
+                                  title='struct combine::primitives::SliceStream'>SliceStream</a></td>
+                           <td class='docblock-short'>
+                                <p>Newtype for constructing a stream from a slice where the items in the slice are not copyable.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.SourcePosition.html"
+                                  title='struct combine::primitives::SourcePosition'>SourcePosition</a></td>
+                           <td class='docblock-short'>
+                                <p>Struct which represents a position in a source file.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.State.html"
+                                  title='struct combine::primitives::State'>State</a></td>
+                           <td class='docblock-short'>
+                                <p>The <code>State&lt;I&gt;</code> struct keeps track of the current position in the stream <code>I</code> using the
+<code>Positioner</code> trait to update the position.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Consumed.html"
+                                  title='enum combine::primitives::Consumed'>Consumed</a></td>
+                           <td class='docblock-short'>
+                                <p>Enum used to indicate if a parser consumed any items of the stream it was given as an input.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Error.html"
+                                  title='enum combine::primitives::Error'>Error</a></td>
+                           <td class='docblock-short'>
+                                <p>Enum used to store information about an error that has occurred during parsing.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.FastResult.html"
+                                  title='enum combine::primitives::FastResult'>FastResult</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Info.html"
+                                  title='enum combine::primitives::Info'>Info</a></td>
+                           <td class='docblock-short'>
+                                <p>Enum holding error information. Variants are defined for <code>Stream::Item</code> and <code>Stream::Range</code> as
+well as string variants holding simple descriptions.</p>
+
+                           </td>
+                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.FullRangeStream.html"
+                                  title='trait combine::primitives::FullRangeStream'>FullRangeStream</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>RangeStream</code> which is capable of providing it's entire range.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Parser.html"
+                                  title='trait combine::primitives::Parser'>Parser</a></td>
+                           <td class='docblock-short'>
+                                <p>By implementing the <code>Parser</code> trait a type says that it can be used to parse an input stream
+into the type <code>Output</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Positioner.html"
+                                  title='trait combine::primitives::Positioner'>Positioner</a></td>
+                           <td class='docblock-short'>
+                                <p>Trait for updating the position for types which can be yielded from a <code>Stream</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Range.html"
+                                  title='trait combine::primitives::Range'>Range</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.RangeStream.html"
+                                  title='trait combine::primitives::RangeStream'>RangeStream</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>RangeStream</code> is an extension of <code>Stream</code> which allows for zero copy parsing.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.Stream.html"
+                                  title='trait combine::primitives::Stream'>Stream</a></td>
+                           <td class='docblock-short'>
+                                <p>A stream of tokens which can be duplicated</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="trait" href="trait.StreamOnce.html"
+                                  title='trait combine::primitives::StreamOnce'>StreamOnce</a></td>
+                           <td class='docblock-short'>
+                                <p><code>StreamOnce</code> represents a sequence of items that can be extracted one by one.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.from_iter.html"
+                                  title='fn combine::primitives::from_iter'>from_iter</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] 
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.from_read.html"
+                                  title='fn combine::primitives::from_read'>from_read</a></td>
+                           <td class='docblock-short'>
+                               [<div class='stab deprecated'>Deprecated</div>] 
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.uncons.html"
+                                  title='fn combine::primitives::uncons'>uncons</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.uncons_while.html"
+                                  title='fn combine::primitives::uncons_while'>uncons_while</a></td>
+                           <td class='docblock-short'>
+                                <p>Removes items from the input while <code>predicate</code> returns <code>true</code>.</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.ConsumedResult.html"
+                                  title='type combine::primitives::ConsumedResult'>ConsumedResult</a></td>
+                           <td class='docblock-short'>
+                                <p>A <code>Result</code> type which has the consumed status flattened into the result.
+Conversions to and from <code>std::result::Result</code> can be done using <code>result.into()</code> or
+<code>From::from(result)</code></p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.ParseResult.html"
+                                  title='type combine::primitives::ParseResult'>ParseResult</a></td>
+                           <td class='docblock-short'>
+                                <p>A type alias over the specific <code>Result</code> type used by parsers to indicate wether they were
+successful or not.
+<code>O</code> is the type that is output on success.
+<code>I</code> is the specific stream type used in the parser.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "combine";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

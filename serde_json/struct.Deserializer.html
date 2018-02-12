@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Deserializer` struct in crate `serde_json`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Deserializer">
+
+    <title>serde_json::Deserializer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Deserializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.from_reader">from_reader</a><a href="#method.from_slice">from_slice</a><a href="#method.from_str">from_str</a><a href="#method.end">end</a><a href="#method.into_iter">into_iter</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Deserializer%3C%27de%3E">Deserializer&lt;&#39;de&gt;</a></div></div><p class='location'><a href='index.html'>serde_json</a></p><script>window.sidebarCurrent = {name: 'Deserializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>serde_json</a>::<wbr><a class="struct" href=''>Deserializer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/serde_json/de.rs.html#26-30' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Deserializer&lt;R&gt; { /* fields omitted */ }</pre><div class='docblock'><p>A structure that deserializes JSON into Rust values.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'de, R&gt; <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../serde_json/de/trait.Read.html" title="trait serde_json::de::Read">Read</a>&lt;'de&gt;,&nbsp;</span></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#32-51' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(read: R) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#44-50' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Create a JSON deserializer from one of the possible serde_json input
+sources.</p>
+<p>Typically it is more convenient to use one of these methods instead:</p>
+<ul>
+<li>Deserializer::from_str</li>
+<li>Deserializer::from_bytes</li>
+<li>Deserializer::from_reader</li>
+</ul>
+</div></div><h3 id='impl-1' class='impl'><span class='in-band'><code>impl&lt;R&gt; <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;<a class="struct" href="../serde_json/de/struct.IoRead.html" title="struct serde_json::de::IoRead">IoRead</a>&lt;R&gt;&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>,&nbsp;</span></code><a href='#impl-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#53-61' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_reader' class="method"><span id='from_reader.v' class='invisible'><code>pub fn <a href='#method.from_reader' class='fnname'>from_reader</a>(reader: R) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#58-60' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a JSON deserializer from an <code>io::Read</code>.</p>
+</div></div><h3 id='impl-2' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;<a class="struct" href="../serde_json/de/struct.SliceRead.html" title="struct serde_json::de::SliceRead">SliceRead</a>&lt;'a&gt;&gt;</code><a href='#impl-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#63-68' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_slice' class="method"><span id='from_slice.v' class='invisible'><code>pub fn <a href='#method.from_slice' class='fnname'>from_slice</a>(bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#65-67' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a JSON deserializer from a <code>&amp;[u8]</code>.</p>
+</div></div><h3 id='impl-3' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;<a class="struct" href="../serde_json/de/struct.StrRead.html" title="struct serde_json::de::StrRead">StrRead</a>&lt;'a&gt;&gt;</code><a href='#impl-3' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#70-75' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_str' class="method"><span id='from_str.v' class='invisible'><code>pub fn <a href='#method.from_str' class='fnname'>from_str</a>(s: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#72-74' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a JSON deserializer from a <code>&amp;str</code>.</p>
+</div></div><h3 id='impl-4' class='impl'><span class='in-band'><code>impl&lt;'de, R:&nbsp;<a class="trait" href="../serde_json/de/trait.Read.html" title="trait serde_json::de::Read">Read</a>&lt;'de&gt;&gt; <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt;</code><a href='#impl-4' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#110-763' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.end' class="method"><span id='end.v' class='invisible'><code>pub fn <a href='#method.end' class='fnname'>end</a>(&amp;mut self) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#114-119' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The <code>Deserializer::end</code> method should be called after a value has been fully deserialized.
+This allows the <code>Deserializer</code> to validate that the input stream is at the end or that it
+only has trailing whitespace.</p>
+</div><h4 id='method.into_iter' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../serde_json/de/struct.StreamDeserializer.html" title="struct serde_json::de::StreamDeserializer">StreamDeserializer</a>&lt;'de, R, T&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../serde_json/de/struct.StreamDeserializer.html" title="struct serde_json::de::StreamDeserializer">StreamDeserializer</a>&lt;'de, R, T&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'de, R, T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../serde_json/de/struct.StreamDeserializer.html" title="struct serde_json::de::StreamDeserializer">StreamDeserializer</a>&lt;'de, R, T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../serde_json/de/trait.Read.html" title="trait serde_json::de::Read">Read</a>&lt;'de&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../serde/de/trait.Deserialize.html" title="trait serde::de::Deserialize">Deserialize</a>&lt;'de&gt;,&nbsp;</span></span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;T&gt;;</span></code></div></div><span id='into_iter.v' class='invisible'><code>pub fn <a href='#method.into_iter' class='fnname'>into_iter</a>&lt;T&gt;(self) -&gt; <a class="struct" href="../serde_json/de/struct.StreamDeserializer.html" title="struct serde_json::de::StreamDeserializer">StreamDeserializer</a>&lt;'de, R, T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../serde/de/trait.Deserialize.html" title="trait serde::de::Deserialize">Deserialize</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#122-135' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Turn a JSON deserializer into an iterator over values of type T.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Deserializer%3C%27de%3E' class='impl'><span class='in-band'><code>impl&lt;'de, 'a, R:&nbsp;<a class="trait" href="../serde_json/de/trait.Read.html" title="trait serde_json::de::Read">Read</a>&lt;'de&gt;&gt; <a class="trait" href="../serde/de/trait.Deserializer.html" title="trait serde::de::Deserializer">Deserializer</a>&lt;'de&gt; for &amp;'a mut <a class="struct" href="../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt;</code><a href='#impl-Deserializer%3C%27de%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#799-1425' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../serde/de/trait.Deserializer.html#associatedtype.Error' class="type">Error</a> = <a class="struct" href="../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code></span></h4>
+<div class='docblock'><p>The error type that can be returned if some error occurs during deserialization. <a href="../serde/de/trait.Deserializer.html#associatedtype.Error">Read more</a></p>
+</div><h4 id='method.deserialize_any' class="method"><span id='deserialize_any.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_any' class='fnname'>deserialize_any</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#803-887' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Require the <code>Deserializer</code> to figure out how to drive the visitor based on what data type is in the input. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_any">Read more</a></p>
+</div><h4 id='method.deserialize_bool' class="method"><span id='deserialize_bool.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_bool' class='fnname'>deserialize_bool</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#889-918' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>bool</code> value.</p>
+</div><h4 id='method.deserialize_i8' class="method"><span id='deserialize_i8.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_i8' class='fnname'>deserialize_i8</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#920-925' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting an <code>i8</code> value.</p>
+</div><h4 id='method.deserialize_i16' class="method"><span id='deserialize_i16.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_i16' class='fnname'>deserialize_i16</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#927-932' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting an <code>i16</code> value.</p>
+</div><h4 id='method.deserialize_i32' class="method"><span id='deserialize_i32.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_i32' class='fnname'>deserialize_i32</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#934-939' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting an <code>i32</code> value.</p>
+</div><h4 id='method.deserialize_i64' class="method"><span id='deserialize_i64.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_i64' class='fnname'>deserialize_i64</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#941-946' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting an <code>i64</code> value.</p>
+</div><h4 id='method.deserialize_u8' class="method"><span id='deserialize_u8.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_u8' class='fnname'>deserialize_u8</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#948-953' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>u8</code> value.</p>
+</div><h4 id='method.deserialize_u16' class="method"><span id='deserialize_u16.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_u16' class='fnname'>deserialize_u16</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#955-960' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>u16</code> value.</p>
+</div><h4 id='method.deserialize_u32' class="method"><span id='deserialize_u32.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_u32' class='fnname'>deserialize_u32</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#962-967' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>u32</code> value.</p>
+</div><h4 id='method.deserialize_u64' class="method"><span id='deserialize_u64.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_u64' class='fnname'>deserialize_u64</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#969-974' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>u64</code> value.</p>
+</div><h4 id='method.deserialize_f32' class="method"><span id='deserialize_f32.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_f32' class='fnname'>deserialize_f32</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#976-981' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>f32</code> value.</p>
+</div><h4 id='method.deserialize_f64' class="method"><span id='deserialize_f64.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_f64' class='fnname'>deserialize_f64</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#983-988' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>f64</code> value.</p>
+</div><h4 id='method.deserialize_char' class="method"><span id='deserialize_char.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_char' class='fnname'>deserialize_char</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#990-995' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a <code>char</code> value.</p>
+</div><h4 id='method.deserialize_str' class="method"><span id='deserialize_str.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_str' class='fnname'>deserialize_str</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#997-1024' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a string value and does not benefit from taking ownership of buffered data owned by the <code>Deserializer</code>. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_str">Read more</a></p>
+</div><h4 id='method.deserialize_string' class="method"><span id='deserialize_string.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_string' class='fnname'>deserialize_string</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1026-1031' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a string value and would benefit from taking ownership of buffered data owned by the <code>Deserializer</code>. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_string">Read more</a></p>
+</div><h4 id='method.deserialize_bytes' class="method"><span id='deserialize_bytes.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_bytes' class='fnname'>deserialize_bytes</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1114-1142' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a JSON string as bytes. Note that this function does not check
+whether the bytes represent a valid UTF-8 string.</p>
+<p>The relevant part of the JSON specification is Section 8.2 of <a href="https://tools.ietf.org/html/rfc7159">RFC
+7159</a>:</p>
+<blockquote>
+<p>When all the strings represented in a JSON text are composed entirely
+of Unicode characters (however escaped), then that JSON text is
+interoperable in the sense that all software implementations that
+parse it will agree on the contents of names and of string values in
+objects and arrays.</p>
+<p>However, the ABNF in this specification allows member names and string
+values to contain bit sequences that cannot encode Unicode characters;
+for example, &quot;\uDEAD&quot; (a single unpaired UTF-16 surrogate). Instances
+of this have been observed, for example, when a library truncates a
+UTF-16 string without checking whether the truncation split a
+surrogate pair.  The behavior of software that receives JSON texts
+containing such values is unpredictable; for example, implementations
+might return different values for the length of a string value or even
+suffer fatal runtime exceptions.</p>
+</blockquote>
+<p>The behavior of serde_json is specified to fail on non-UTF-8 strings
+when deserializing into Rust UTF-8 string types such as String, and
+succeed with non-UTF-8 bytes when deserializing using this method.</p>
+<p>Escape sequences are processed as usual, and for <code>\uXXXX</code> escapes it is
+still checked if the hex number represents a valid Unicode code point.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>You can use this to parse JSON strings containing invalid UTF-8 bytes.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_bytes</span>;
+
+<span class="kw">use</span> <span class="ident">serde_bytes</span>::<span class="ident">ByteBuf</span>;
+
+<span class="kw">fn</span> <span class="ident">look_at_bytes</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">json_data</span> <span class="op">=</span> <span class="string">b&quot;\&quot;some bytes: \xe5\x00\xe5\&quot;&quot;</span>;
+    <span class="kw">let</span> <span class="ident">bytes</span>: <span class="ident">ByteBuf</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>(<span class="ident">json_data</span>)<span class="question-mark">?</span>;
+
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">b&#39;\xe5&#39;</span>, <span class="ident">bytes</span>[<span class="number">12</span>]);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">b&#39;\0&#39;</span>, <span class="ident">bytes</span>[<span class="number">13</span>]);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">b&#39;\xe5&#39;</span>, <span class="ident">bytes</span>[<span class="number">14</span>]);
+
+    <span class="prelude-val">Ok</span>(())
+}</pre>
+<p>Backslash escape sequences like <code>\n</code> are still interpreted and required
+to be valid, and <code>\u</code> escape sequences are required to represent valid
+Unicode code points.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_bytes</span>;
+
+<span class="kw">use</span> <span class="ident">serde_bytes</span>::<span class="ident">ByteBuf</span>;
+
+<span class="kw">fn</span> <span class="ident">look_at_bytes</span>() {
+    <span class="kw">let</span> <span class="ident">json_data</span> <span class="op">=</span> <span class="string">b&quot;\&quot;invalid unicode surrogate: \\uD801\&quot;&quot;</span>;
+    <span class="kw">let</span> <span class="ident">parsed</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ByteBuf</span>, _<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>(<span class="ident">json_data</span>);
+
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parsed</span>.<span class="ident">is_err</span>());
+
+    <span class="kw">let</span> <span class="ident">expected_msg</span> <span class="op">=</span> <span class="string">&quot;unexpected end of hex escape at line 1 column 35&quot;</span>;
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_msg</span>, <span class="ident">parsed</span>.<span class="ident">unwrap_err</span>().<span class="ident">to_string</span>());
+}</pre>
+</div><h4 id='method.deserialize_byte_buf' class="method"><span id='deserialize_byte_buf.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_byte_buf' class='fnname'>deserialize_byte_buf</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1145-1150' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a byte array and would benefit from taking ownership of buffered data owned by the <code>Deserializer</code>. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_byte_buf">Read more</a></p>
+</div><h4 id='method.deserialize_option' class="method"><span id='deserialize_option.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_option' class='fnname'>deserialize_option</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1154-1166' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a <code>null</code> as a None, and any other values as a <code>Some(...)</code>.</p>
+</div><h4 id='method.deserialize_unit' class="method"><span id='deserialize_unit.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_unit' class='fnname'>deserialize_unit</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1168-1192' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a unit value.</p>
+</div><h4 id='method.deserialize_unit_struct' class="method"><span id='deserialize_unit_struct.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_unit_struct' class='fnname'>deserialize_unit_struct</a>&lt;V&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_name: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;visitor: V<br>) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1194-1203' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a unit struct with a particular name. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_unit_struct">Read more</a></p>
+</div><h4 id='method.deserialize_newtype_struct' class="method"><span id='deserialize_newtype_struct.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_newtype_struct' class='fnname'>deserialize_newtype_struct</a>&lt;V&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_name: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;visitor: V<br>) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1207-1212' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a newtype struct as the underlying value.</p>
+</div><h4 id='method.deserialize_seq' class="method"><span id='deserialize_seq.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_seq' class='fnname'>deserialize_seq</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1214-1249' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a sequence of values.</p>
+</div><h4 id='method.deserialize_tuple' class="method"><span id='deserialize_tuple.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_tuple' class='fnname'>deserialize_tuple</a>&lt;V&gt;(self, _len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1251-1260' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a sequence of values and knows how many values there are without looking at the serialized data. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_tuple">Read more</a></p>
+</div><h4 id='method.deserialize_tuple_struct' class="method"><span id='deserialize_tuple_struct.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_tuple_struct' class='fnname'>deserialize_tuple_struct</a>&lt;V&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_name: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;_len: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;visitor: V<br>) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1262-1272' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a tuple struct with a particular name and number of fields. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_tuple_struct">Read more</a></p>
+</div><h4 id='method.deserialize_map' class="method"><span id='deserialize_map.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_map' class='fnname'>deserialize_map</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1274-1309' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a map of key-value pairs.</p>
+</div><h4 id='method.deserialize_struct' class="method"><span id='deserialize_struct.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_struct' class='fnname'>deserialize_struct</a>&lt;V&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_name: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;_fields: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;visitor: V<br>) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1311-1367' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting a struct with a particular name and fields. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_struct">Read more</a></p>
+</div><h4 id='method.deserialize_enum' class="method"><span id='deserialize_enum.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_enum' class='fnname'>deserialize_enum</a>&lt;V&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_name: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;_variants: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'static [</a>&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;visitor: V<br>) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1372-1406' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses an enum as an object like <code>{&quot;$KEY&quot;:$VALUE}</code>, where $VALUE is either a straight
+value, a <code>[..]</code>, or a <code>{..}</code>.</p>
+</div><h4 id='method.deserialize_identifier' class="method"><span id='deserialize_identifier.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_identifier' class='fnname'>deserialize_identifier</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1408-1416' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting the name of a struct field or the discriminant of an enum variant. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_identifier">Read more</a></p>
+</div><h4 id='method.deserialize_ignored_any' class="method"><span id='deserialize_ignored_any.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#tymethod.deserialize_ignored_any' class='fnname'>deserialize_ignored_any</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="type" href="../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;V::<a class="type" href="../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde_json/de.rs.html#1418-1424' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Hint that the <code>Deserialize</code> type needs to deserialize a value whose type doesn't matter because it is ignored. <a href="../serde/de/trait.Deserializer.html#tymethod.deserialize_ignored_any">Read more</a></p>
+</div><h4 id='method.is_human_readable' class="method"><span id='is_human_readable.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserializer.html#method.is_human_readable' class='fnname'>is_human_readable</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/serde/de/mod.rs.html#1110-1112' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Determine whether <code>Deserialize</code> implementations should expect to deserialize their human-readable form. <a href="../serde/de/trait.Deserializer.html#method.is_human_readable">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "serde_json";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

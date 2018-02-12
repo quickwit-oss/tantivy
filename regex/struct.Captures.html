@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Captures` struct in crate `regex`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Captures">
+
+    <title>regex::Captures - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct Captures</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.get">get</a><a href="#method.name">name</a><a href="#method.iter">iter</a><a href="#method.expand">expand</a><a href="#method.len">len</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Index%3Cusize%3E">Index&lt;usize&gt;</a><a href="#impl-Index%3C%26%27i%20str%3E">Index&lt;&amp;&#39;i str&gt;</a></div></div><p class='location'><a href='index.html'>regex</a></p><script>window.sidebarCurrent = {name: 'Captures', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>regex</a>::<wbr><a class="struct" href=''>Captures</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/regex/re_unicode.rs.html#804-808' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Captures&lt;'t&gt; { /* fields omitted */ }</pre><div class='docblock'><p>Captures represents a group of captured strings for a single match.</p>
+<p>The 0th capture always corresponds to the entire match. Each subsequent
+index corresponds to the next capture group in the regex. If a capture
+group is named, then the matched string is <em>also</em> available via the <code>name</code>
+method. (Note that the 0th capture is always unnamed and so must be
+accessed with the <code>get</code> method.)</p>
+<p>Positions returned from a capture group are always byte indices.</p>
+<p><code>'t</code> is the lifetime of the matched text.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#810-880' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.get' class="method"><span id='get.v' class='invisible'><code>pub fn <a href='#method.get' class='fnname'>get</a>(&amp;self, i: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../regex/struct.Match.html" title="struct regex::Match">Match</a>&lt;'t&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#830-832' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the match associated with the capture group at index <code>i</code>. If
+<code>i</code> does not correspond to a capture group, or if the capture group
+did not participate in the match, then <code>None</code> is returned.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>Get the text of the match with a default of an empty string if this
+group didn't participate in the match:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">re</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r&quot;[a-z]+(?:([0-9]+)|([A-Z]+))&quot;</span>).<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="ident">caps</span> <span class="op">=</span> <span class="ident">re</span>.<span class="ident">captures</span>(<span class="string">&quot;abc123&quot;</span>).<span class="ident">unwrap</span>();
+
+<span class="kw">let</span> <span class="ident">text1</span> <span class="op">=</span> <span class="ident">caps</span>.<span class="ident">get</span>(<span class="number">1</span>).<span class="ident">map_or</span>(<span class="string">&quot;&quot;</span>, <span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>());
+<span class="kw">let</span> <span class="ident">text2</span> <span class="op">=</span> <span class="ident">caps</span>.<span class="ident">get</span>(<span class="number">2</span>).<span class="ident">map_or</span>(<span class="string">&quot;&quot;</span>, <span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>());
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">text1</span>, <span class="string">&quot;123&quot;</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">text2</span>, <span class="string">&quot;&quot;</span>);</pre>
+</div><h4 id='method.name' class="method"><span id='name.v' class='invisible'><code>pub fn <a href='#method.name' class='fnname'>name</a>(&amp;self, name: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../regex/struct.Match.html" title="struct regex::Match">Match</a>&lt;'t&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#836-838' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the match for the capture group named <code>name</code>. If <code>name</code> isn't a
+valid capture group or didn't match anything, then <code>None</code> is returned.</p>
+</div><h4 id='method.iter' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../regex/struct.SubCaptureMatches.html" title="struct regex::SubCaptureMatches">SubCaptureMatches</a>&lt;'c, 't&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../regex/struct.SubCaptureMatches.html" title="struct regex::SubCaptureMatches">SubCaptureMatches</a>&lt;'c, 't&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'c, 't&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../regex/struct.SubCaptureMatches.html" title="struct regex::SubCaptureMatches">SubCaptureMatches</a>&lt;'c, 't&gt;</span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../regex/struct.Match.html" title="struct regex::Match">Match</a>&lt;'t&gt;&gt;;</span></code></div></div><span id='iter.v' class='invisible'><code>pub fn <a href='#method.iter' class='fnname'>iter</a>&lt;'c&gt;(&amp;'c self) -&gt; <a class="struct" href="../regex/struct.SubCaptureMatches.html" title="struct regex::SubCaptureMatches">SubCaptureMatches</a>&lt;'c, 't&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#845-850' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>An iterator that yields all capturing matches in the order in which
+they appear in the regex. If a particular capture group didn't
+participate in the match, then <code>None</code> is yielded for that capture.</p>
+<p>The first match always corresponds to the overall match of the regex.</p>
+</div><h4 id='method.expand' class="method"><span id='expand.v' class='invisible'><code>pub fn <a href='#method.expand' class='fnname'>expand</a>(&amp;self, replacement: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, dst: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#868-870' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Expands all instances of <code>$name</code> in <code>replacement</code> to the corresponding
+capture group <code>name</code>, and writes them to the <code>dst</code> buffer given.</p>
+<p><code>name</code> may be an integer corresponding to the index of the
+capture group (counted by order of opening parenthesis where <code>0</code> is the
+entire match) or it can be a name (consisting of letters, digits or
+underscores) corresponding to a named capture group.</p>
+<p>If <code>name</code> isn't a valid capture group (whether the name doesn't exist
+or isn't a valid index), then it is replaced with the empty string.</p>
+<p>The longest possible name is used. e.g., <code>$1a</code> looks up the capture
+group named <code>1a</code> and not the capture group at index <code>1</code>. To exert more
+precise control over the name, use braces, e.g., <code>${1}a</code>.</p>
+<p>To write a literal <code>$</code> use <code>$$</code>.</p>
+</div><h4 id='method.len' class="method"><span id='len.v' class='invisible'><code>pub fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#877-879' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the number of captured groups.</p>
+<p>This is always at least <code>1</code>, since every regex has at least one capture
+group that corresponds to the full match.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#882-886' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#883-885' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Index%3Cusize%3E' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html" title="trait core::ops::index::Index">Index</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>&gt; for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Index%3Cusize%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#920-927' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'><p>Get a group by index.</p>
+<p><code>'t</code> is the lifetime of the matched text.</p>
+<p>The text can't outlive the <code>Captures</code> object if this method is
+used, because of how <code>Index</code> is defined (normally <code>a[i]</code> is part
+of <code>a</code> and can't outlive it); to do that, use <code>get()</code> instead.</p>
+<h1 id="panics" class="section-header"><a href="#panics">Panics</a></h1>
+<p>If there is no group at the given index.</p>
+</div><div class='impl-items'><h4 id='associatedtype.Output' class="type"><span id='Output.t' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#associatedtype.Output' class="type">Output</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span></h4>
+<div class='docblock'><p>The returned type after indexing.</p>
+</div><h4 id='method.index' class="method"><span id='index.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#tymethod.index' class='fnname'>index</a>(&amp;self, i: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#923-926' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the indexing (<code>container[index]</code>) operation.</p>
+</div></div><h3 id='impl-Index%3C%26%27i%20str%3E' class='impl'><span class='in-band'><code>impl&lt;'t, 'i&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html" title="trait core::ops::index::Index">Index</a>&lt;&amp;'i <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt; for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Index%3C%26%27i%20str%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#941-948' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'><p>Get a group by name.</p>
+<p><code>'t</code> is the lifetime of the matched text and <code>'i</code> is the lifetime
+of the group name (the index).</p>
+<p>The text can't outlive the <code>Captures</code> object if this method is
+used, because of how <code>Index</code> is defined (normally <code>a[i]</code> is part
+of <code>a</code> and can't outlive it); to do that, use <code>name</code> instead.</p>
+<h1 id="panics-1" class="section-header"><a href="#panics-1">Panics</a></h1>
+<p>If there is no group named by the given value.</p>
+</div><div class='impl-items'><h4 id='associatedtype.Output-1' class="type"><span id='Output.t-1' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#associatedtype.Output' class="type">Output</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span></h4>
+<div class='docblock'><p>The returned type after indexing.</p>
+</div><h4 id='method.index-1' class="method"><span id='index.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#tymethod.index' class='fnname'>index</a>&lt;'a&gt;(&amp;'a self, name: &amp;'i <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#944-947' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the indexing (<code>container[index]</code>) operation.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "regex";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

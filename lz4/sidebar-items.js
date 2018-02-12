@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["BlockMode",""],["BlockSize",""],["ContentChecksum",""]],"mod":[["liblz4",""]],"struct":[["Decoder",""],["Encoder",""],["EncoderBuilder",""]]});

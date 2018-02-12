@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `stat64` struct in crate `libc`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, stat64">
+
+    <title>libc::stat64 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    <link rel="shortcut icon" href="https://doc.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../libc/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'>Struct stat64</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.st_dev">st_dev</a><a href="#structfield.st_ino">st_ino</a><a href="#structfield.st_nlink">st_nlink</a><a href="#structfield.st_mode">st_mode</a><a href="#structfield.st_uid">st_uid</a><a href="#structfield.st_gid">st_gid</a><a href="#structfield.st_rdev">st_rdev</a><a href="#structfield.st_size">st_size</a><a href="#structfield.st_blksize">st_blksize</a><a href="#structfield.st_blocks">st_blocks</a><a href="#structfield.st_atime">st_atime</a><a href="#structfield.st_atime_nsec">st_atime_nsec</a><a href="#structfield.st_mtime">st_mtime</a><a href="#structfield.st_mtime_nsec">st_mtime_nsec</a><a href="#structfield.st_ctime">st_ctime</a><a href="#structfield.st_ctime_nsec">st_ctime_nsec</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Copy">Copy</a><a href="#impl-Clone">Clone</a></div></div><p class='location'><a href='index.html'>libc</a></p><script>window.sidebarCurrent = {name: 'stat64', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>libc</a>::<wbr><a class="struct" href=''>stat64</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/libc/macros.rs.html#42' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'><div class="docblock attributes">#[repr(C)]
+</div>pub struct stat64 {
+    pub st_dev: <a class="type" href="../libc/type.dev_t.html" title="type libc::dev_t">dev_t</a>,
+    pub st_ino: <a class="type" href="../libc/type.ino64_t.html" title="type libc::ino64_t">ino64_t</a>,
+    pub st_nlink: <a class="type" href="../libc/type.nlink_t.html" title="type libc::nlink_t">nlink_t</a>,
+    pub st_mode: <a class="type" href="../libc/type.mode_t.html" title="type libc::mode_t">mode_t</a>,
+    pub st_uid: <a class="type" href="../libc/type.uid_t.html" title="type libc::uid_t">uid_t</a>,
+    pub st_gid: <a class="type" href="../libc/type.gid_t.html" title="type libc::gid_t">gid_t</a>,
+    pub st_rdev: <a class="type" href="../libc/type.dev_t.html" title="type libc::dev_t">dev_t</a>,
+    pub st_size: <a class="type" href="../libc/type.off_t.html" title="type libc::off_t">off_t</a>,
+    pub st_blksize: <a class="type" href="../libc/type.blksize_t.html" title="type libc::blksize_t">blksize_t</a>,
+    pub st_blocks: <a class="type" href="../libc/type.blkcnt64_t.html" title="type libc::blkcnt64_t">blkcnt64_t</a>,
+    pub st_atime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a>,
+    pub st_atime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a>,
+    pub st_mtime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a>,
+    pub st_mtime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a>,
+    pub st_ctime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a>,
+    pub st_ctime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a>,
+    // some fields omitted
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.st_dev" class="structfield small-section-header">
+                           <a href="#structfield.st_dev" class="anchor field"></a>
+                           <span id="st_dev.v" class='invisible'>
+                           <code>st_dev: <a class="type" href="../libc/type.dev_t.html" title="type libc::dev_t">dev_t</a></code>
+                           </span></span><span id="structfield.st_ino" class="structfield small-section-header">
+                           <a href="#structfield.st_ino" class="anchor field"></a>
+                           <span id="st_ino.v" class='invisible'>
+                           <code>st_ino: <a class="type" href="../libc/type.ino64_t.html" title="type libc::ino64_t">ino64_t</a></code>
+                           </span></span><span id="structfield.st_nlink" class="structfield small-section-header">
+                           <a href="#structfield.st_nlink" class="anchor field"></a>
+                           <span id="st_nlink.v" class='invisible'>
+                           <code>st_nlink: <a class="type" href="../libc/type.nlink_t.html" title="type libc::nlink_t">nlink_t</a></code>
+                           </span></span><span id="structfield.st_mode" class="structfield small-section-header">
+                           <a href="#structfield.st_mode" class="anchor field"></a>
+                           <span id="st_mode.v" class='invisible'>
+                           <code>st_mode: <a class="type" href="../libc/type.mode_t.html" title="type libc::mode_t">mode_t</a></code>
+                           </span></span><span id="structfield.st_uid" class="structfield small-section-header">
+                           <a href="#structfield.st_uid" class="anchor field"></a>
+                           <span id="st_uid.v" class='invisible'>
+                           <code>st_uid: <a class="type" href="../libc/type.uid_t.html" title="type libc::uid_t">uid_t</a></code>
+                           </span></span><span id="structfield.st_gid" class="structfield small-section-header">
+                           <a href="#structfield.st_gid" class="anchor field"></a>
+                           <span id="st_gid.v" class='invisible'>
+                           <code>st_gid: <a class="type" href="../libc/type.gid_t.html" title="type libc::gid_t">gid_t</a></code>
+                           </span></span><span id="structfield.st_rdev" class="structfield small-section-header">
+                           <a href="#structfield.st_rdev" class="anchor field"></a>
+                           <span id="st_rdev.v" class='invisible'>
+                           <code>st_rdev: <a class="type" href="../libc/type.dev_t.html" title="type libc::dev_t">dev_t</a></code>
+                           </span></span><span id="structfield.st_size" class="structfield small-section-header">
+                           <a href="#structfield.st_size" class="anchor field"></a>
+                           <span id="st_size.v" class='invisible'>
+                           <code>st_size: <a class="type" href="../libc/type.off_t.html" title="type libc::off_t">off_t</a></code>
+                           </span></span><span id="structfield.st_blksize" class="structfield small-section-header">
+                           <a href="#structfield.st_blksize" class="anchor field"></a>
+                           <span id="st_blksize.v" class='invisible'>
+                           <code>st_blksize: <a class="type" href="../libc/type.blksize_t.html" title="type libc::blksize_t">blksize_t</a></code>
+                           </span></span><span id="structfield.st_blocks" class="structfield small-section-header">
+                           <a href="#structfield.st_blocks" class="anchor field"></a>
+                           <span id="st_blocks.v" class='invisible'>
+                           <code>st_blocks: <a class="type" href="../libc/type.blkcnt64_t.html" title="type libc::blkcnt64_t">blkcnt64_t</a></code>
+                           </span></span><span id="structfield.st_atime" class="structfield small-section-header">
+                           <a href="#structfield.st_atime" class="anchor field"></a>
+                           <span id="st_atime.v" class='invisible'>
+                           <code>st_atime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a></code>
+                           </span></span><span id="structfield.st_atime_nsec" class="structfield small-section-header">
+                           <a href="#structfield.st_atime_nsec" class="anchor field"></a>
+                           <span id="st_atime_nsec.v" class='invisible'>
+                           <code>st_atime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a></code>
+                           </span></span><span id="structfield.st_mtime" class="structfield small-section-header">
+                           <a href="#structfield.st_mtime" class="anchor field"></a>
+                           <span id="st_mtime.v" class='invisible'>
+                           <code>st_mtime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a></code>
+                           </span></span><span id="structfield.st_mtime_nsec" class="structfield small-section-header">
+                           <a href="#structfield.st_mtime_nsec" class="anchor field"></a>
+                           <span id="st_mtime_nsec.v" class='invisible'>
+                           <code>st_mtime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a></code>
+                           </span></span><span id="structfield.st_ctime" class="structfield small-section-header">
+                           <a href="#structfield.st_ctime" class="anchor field"></a>
+                           <span id="st_ctime.v" class='invisible'>
+                           <code>st_ctime: <a class="type" href="../libc/type.time_t.html" title="type libc::time_t">time_t</a></code>
+                           </span></span><span id="structfield.st_ctime_nsec" class="structfield small-section-header">
+                           <a href="#structfield.st_ctime_nsec" class="anchor field"></a>
+                           <span id="st_ctime_nsec.v" class='invisible'>
+                           <code>st_ctime_nsec: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i64.html">i64</a></code>
+                           </span></span>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="struct" href="../libc/struct.stat64.html" title="struct libc::stat64">stat64</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/libc/macros.rs.html#44' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../libc/struct.stat64.html" title="struct libc::stat64">stat64</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/libc/macros.rs.html#45-47' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../libc/struct.stat64.html" title="struct libc::stat64">stat64</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/libc/macros.rs.html#46' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "libc";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

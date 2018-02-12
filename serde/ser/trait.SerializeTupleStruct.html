@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `SerializeTupleStruct` trait in crate `serde`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, SerializeTupleStruct">
+
+    <title>serde::ser::SerializeTupleStruct - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait SerializeTupleStruct</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.Ok">Ok</a><a href="#associatedtype.Error">Error</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.serialize_field">serialize_field</a><a href="#tymethod.end">end</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a></p><script>window.sidebarCurrent = {name: 'SerializeTupleStruct', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="trait" href=''>SerializeTupleStruct</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/serde/ser/mod.rs.html#1579-1593' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait SerializeTupleStruct {
+    type <a href='#associatedtype.Ok' class="type">Ok</a>;
+    type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>;
+    fn <a href='#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T<br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Error" title="type serde::ser::SerializeTupleStruct::Error">Error</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a></span>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Ok" title="type serde::ser::SerializeTupleStruct::Ok">Ok</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Error" title="type serde::ser::SerializeTupleStruct::Error">Error</a>&gt;;
+}</pre><div class='docblock'><p>Returned from <code>Serializer::serialize_tuple_struct</code>.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>, <span class="ident">SerializeTupleStruct</span>};
+
+<span class="kw">struct</span> <span class="ident">Rgb</span>(<span class="ident">u8</span>, <span class="ident">u8</span>, <span class="ident">u8</span>);
+
+<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Rgb</span> {
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_tuple_struct</span>(<span class="string">&quot;Rgb&quot;</span>, <span class="number">3</span>)<span class="question-mark">?</span>;
+        <span class="ident">ts</span>.<span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
+        <span class="ident">ts</span>.<span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>)<span class="question-mark">?</span>;
+        <span class="ident">ts</span>.<span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">2</span>)<span class="question-mark">?</span>;
+        <span class="ident">ts</span>.<span class="ident">end</span>()
+    }
+}</pre>
+</div>
+            <h2 id='associated-types' class='small-section-header'>
+              Associated Types<a href='#associated-types' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='associatedtype.Ok' class='method'><span id='Ok.t' class='invisible'><code>type <a href='#associatedtype.Ok' class="type">Ok</a></code></span></h3><div class='docblock'><p>Must match the <code>Ok</code> type of our <code>Serializer</code>.</p>
+</div><h3 id='associatedtype.Error' class='method'><span id='Error.t' class='invisible'><code>type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a></code></span></h3><div class='docblock'><p>Must match the <code>Error</code> type of our <code>Serializer</code>.</p>
+</div></div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.serialize_field' class='method'><span id='serialize_field.v' class='invisible'><code>fn <a href='#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(&amp;mut self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Error" title="type serde::ser::SerializeTupleStruct::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a>,&nbsp;</span></code></span></h3><div class='docblock'><p>Serialize a tuple struct field.</p>
+</div><h3 id='tymethod.end' class='method'><span id='end.v' class='invisible'><code>fn <a href='#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Ok" title="type serde::ser::SerializeTupleStruct::Ok">Ok</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeTupleStruct.html#associatedtype.Error" title="type serde::ser::SerializeTupleStruct::Error">Error</a>&gt;</code></span></h3><div class='docblock'><p>Finish serializing a tuple struct.</p>
+</div></div>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/serde/ser/impossible.rs.html#119-137' title='goto source code'>[src]</a></div><code>impl&lt;Ok, Error&gt; SerializeTupleStruct for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Ok' class="type">Ok</a> = Ok;</span><span class="where fmt-newline">  type <a href='#associatedtype.Error' class="type">Error</a> = Error;</span></code></li>
+</ul><script type="text/javascript" async
+                         src="../../implementors/serde/ser/trait.SerializeTupleStruct.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "serde";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

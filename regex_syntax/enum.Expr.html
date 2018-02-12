@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Expr` enum in crate `regex_syntax`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Expr">
+
+    <title>regex_syntax::Expr - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Enum Expr</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Empty">Empty</a><a href="#variant.Literal">Literal</a><a href="#variant.LiteralBytes">LiteralBytes</a><a href="#variant.AnyChar">AnyChar</a><a href="#variant.AnyCharNoNL">AnyCharNoNL</a><a href="#variant.AnyByte">AnyByte</a><a href="#variant.AnyByteNoNL">AnyByteNoNL</a><a href="#variant.Class">Class</a><a href="#variant.ClassBytes">ClassBytes</a><a href="#variant.StartLine">StartLine</a><a href="#variant.EndLine">EndLine</a><a href="#variant.StartText">StartText</a><a href="#variant.EndText">EndText</a><a href="#variant.WordBoundary">WordBoundary</a><a href="#variant.NotWordBoundary">NotWordBoundary</a><a href="#variant.WordBoundaryAscii">WordBoundaryAscii</a><a href="#variant.NotWordBoundaryAscii">NotWordBoundaryAscii</a><a href="#variant.Group">Group</a><a href="#variant.Repeat">Repeat</a><a href="#variant.Concat">Concat</a><a href="#variant.Alternate">Alternate</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.parse">parse</a><a href="#method.prefixes">prefixes</a><a href="#method.suffixes">suffixes</a><a href="#method.is_anchored_start">is_anchored_start</a><a href="#method.has_anchored_start">has_anchored_start</a><a href="#method.is_anchored_end">is_anchored_end</a><a href="#method.has_anchored_end">has_anchored_end</a><a href="#method.has_bytes">has_bytes</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-Eq">Eq</a><a href="#impl-Display">Display</a></div></div><p class='location'><a href='index.html'>regex_syntax</a></p><script>window.sidebarCurrent = {name: 'Expr', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>regex_syntax</a>::<wbr><a class="enum" href=''>Expr</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/regex_syntax/lib.rs.html#97-179' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum Expr {
+    Empty,
+    Literal {
+        chars: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.char.html">char</a>&gt;,
+        casei: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    },
+    LiteralBytes {
+        bytes: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
+        casei: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    },
+    AnyChar,
+    AnyCharNoNL,
+    AnyByte,
+    AnyByteNoNL,
+    Class(<a class="struct" href="../regex_syntax/struct.CharClass.html" title="struct regex_syntax::CharClass">CharClass</a>),
+    ClassBytes(<a class="struct" href="../regex_syntax/struct.ByteClass.html" title="struct regex_syntax::ByteClass">ByteClass</a>),
+    StartLine,
+    EndLine,
+    StartText,
+    EndText,
+    WordBoundary,
+    NotWordBoundary,
+    WordBoundaryAscii,
+    NotWordBoundaryAscii,
+    Group {
+        e: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;,
+        i: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>&gt;,
+        name: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
+    },
+    Repeat {
+        e: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;,
+        r: <a class="enum" href="../regex_syntax/enum.Repeater.html" title="enum regex_syntax::Repeater">Repeater</a>,
+        greedy: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    },
+    Concat(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;),
+    Alternate(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;),
+}</pre><div class='docblock'><p>A regular expression abstract syntax tree.</p>
+<p>An <code>Expr</code> represents the abstract syntax of a regular expression.</p>
+</div><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.Empty" class="variant small-section-header"><a href="#variant.Empty" class="anchor field"></a><span id='Empty.v' class='invisible'><code>Empty</code></span></span><div class='docblock'><p>An empty regex (which never matches any text).</p>
+</div><span id="variant.Literal" class="variant small-section-header"><a href="#variant.Literal" class="anchor field"></a><span id='Literal.v' class='invisible'><code>Literal</code></span></span><div class='docblock'><p>A sequence of one or more literal characters to be matched.</p>
+</div><span class='docblock autohide sub-variant' id='variant.Literal.fields'><h3 class='fields'>Fields of <code>Literal</code></h3>
+
+                           <table><tr><td id='variant.Literal.field.chars'><span id='Literal.v.chars.v' class='invisible'><code>chars:&nbsp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.char.html">char</a>&gt;</code></span></td><td><div class='docblock'><p>The characters.</p>
+</div></td></tr><tr><td id='variant.Literal.field.casei'><span id='Literal.v.casei.v' class='invisible'><code>casei:&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><div class='docblock'><p>Whether to match case insensitively.</p>
+</div></td></tr></table></span><span id="variant.LiteralBytes" class="variant small-section-header"><a href="#variant.LiteralBytes" class="anchor field"></a><span id='LiteralBytes.v' class='invisible'><code>LiteralBytes</code></span></span><div class='docblock'><p>A sequence of one or more literal bytes to be matched.</p>
+</div><span class='docblock autohide sub-variant' id='variant.LiteralBytes.fields'><h3 class='fields'>Fields of <code>LiteralBytes</code></h3>
+
+                           <table><tr><td id='variant.LiteralBytes.field.bytes'><span id='LiteralBytes.v.bytes.v' class='invisible'><code>bytes:&nbsp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;</code></span></td><td><div class='docblock'><p>The bytes.</p>
+</div></td></tr><tr><td id='variant.LiteralBytes.field.casei'><span id='LiteralBytes.v.casei.v' class='invisible'><code>casei:&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><div class='docblock'><p>Whether to match case insensitively.</p>
+<p>The interpretation of &quot;case insensitive&quot; in this context is
+ambiguous since <code>bytes</code> can be arbitrary. However, a good heuristic
+is to assume that the bytes are ASCII-compatible and do simple
+ASCII case folding.</p>
+</div></td></tr></table></span><span id="variant.AnyChar" class="variant small-section-header"><a href="#variant.AnyChar" class="anchor field"></a><span id='AnyChar.v' class='invisible'><code>AnyChar</code></span></span><div class='docblock'><p>Match any character.</p>
+</div><span id="variant.AnyCharNoNL" class="variant small-section-header"><a href="#variant.AnyCharNoNL" class="anchor field"></a><span id='AnyCharNoNL.v' class='invisible'><code>AnyCharNoNL</code></span></span><div class='docblock'><p>Match any character, excluding new line (<code>0xA</code>).</p>
+</div><span id="variant.AnyByte" class="variant small-section-header"><a href="#variant.AnyByte" class="anchor field"></a><span id='AnyByte.v' class='invisible'><code>AnyByte</code></span></span><div class='docblock'><p>Match any byte.</p>
+</div><span id="variant.AnyByteNoNL" class="variant small-section-header"><a href="#variant.AnyByteNoNL" class="anchor field"></a><span id='AnyByteNoNL.v' class='invisible'><code>AnyByteNoNL</code></span></span><div class='docblock'><p>Match any byte, excluding new line (<code>0xA</code>).</p>
+</div><span id="variant.Class" class="variant small-section-header"><a href="#variant.Class" class="anchor field"></a><span id='Class.v' class='invisible'><code>Class(<a class="struct" href="../regex_syntax/struct.CharClass.html" title="struct regex_syntax::CharClass">CharClass</a>)</code></span></span><div class='docblock'><p>A character class.</p>
+</div><span id="variant.ClassBytes" class="variant small-section-header"><a href="#variant.ClassBytes" class="anchor field"></a><span id='ClassBytes.v' class='invisible'><code>ClassBytes(<a class="struct" href="../regex_syntax/struct.ByteClass.html" title="struct regex_syntax::ByteClass">ByteClass</a>)</code></span></span><div class='docblock'><p>A character class with byte ranges only.</p>
+</div><span id="variant.StartLine" class="variant small-section-header"><a href="#variant.StartLine" class="anchor field"></a><span id='StartLine.v' class='invisible'><code>StartLine</code></span></span><div class='docblock'><p>Match the start of a line or beginning of input.</p>
+</div><span id="variant.EndLine" class="variant small-section-header"><a href="#variant.EndLine" class="anchor field"></a><span id='EndLine.v' class='invisible'><code>EndLine</code></span></span><div class='docblock'><p>Match the end of a line or end of input.</p>
+</div><span id="variant.StartText" class="variant small-section-header"><a href="#variant.StartText" class="anchor field"></a><span id='StartText.v' class='invisible'><code>StartText</code></span></span><div class='docblock'><p>Match the beginning of input.</p>
+</div><span id="variant.EndText" class="variant small-section-header"><a href="#variant.EndText" class="anchor field"></a><span id='EndText.v' class='invisible'><code>EndText</code></span></span><div class='docblock'><p>Match the end of input.</p>
+</div><span id="variant.WordBoundary" class="variant small-section-header"><a href="#variant.WordBoundary" class="anchor field"></a><span id='WordBoundary.v' class='invisible'><code>WordBoundary</code></span></span><div class='docblock'><p>Match a word boundary (word character on one side and a non-word
+character on the other).</p>
+</div><span id="variant.NotWordBoundary" class="variant small-section-header"><a href="#variant.NotWordBoundary" class="anchor field"></a><span id='NotWordBoundary.v' class='invisible'><code>NotWordBoundary</code></span></span><div class='docblock'><p>Match a position that is not a word boundary (word or non-word
+characters on both sides).</p>
+</div><span id="variant.WordBoundaryAscii" class="variant small-section-header"><a href="#variant.WordBoundaryAscii" class="anchor field"></a><span id='WordBoundaryAscii.v' class='invisible'><code>WordBoundaryAscii</code></span></span><div class='docblock'><p>Match an ASCII word boundary.</p>
+</div><span id="variant.NotWordBoundaryAscii" class="variant small-section-header"><a href="#variant.NotWordBoundaryAscii" class="anchor field"></a><span id='NotWordBoundaryAscii.v' class='invisible'><code>NotWordBoundaryAscii</code></span></span><div class='docblock'><p>Match a position that is not an ASCII word boundary.</p>
+</div><span id="variant.Group" class="variant small-section-header"><a href="#variant.Group" class="anchor field"></a><span id='Group.v' class='invisible'><code>Group</code></span></span><div class='docblock'><p>A group, possibly non-capturing.</p>
+</div><span class='docblock autohide sub-variant' id='variant.Group.fields'><h3 class='fields'>Fields of <code>Group</code></h3>
+
+                           <table><tr><td id='variant.Group.field.e'><span id='Group.v.e.v' class='invisible'><code>e:&nbsp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;</code></span></td><td><div class='docblock'><p>The expression inside the group.</p>
+</div></td></tr><tr><td id='variant.Group.field.i'><span id='Group.v.i.v' class='invisible'><code>i:&nbsp;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>&gt;</code></span></td><td><div class='docblock'><p>The capture index (starting at <code>1</code>) only for capturing groups.</p>
+</div></td></tr><tr><td id='variant.Group.field.name'><span id='Group.v.name.v' class='invisible'><code>name:&nbsp;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span></td><td><div class='docblock'><p>The capture name, only for capturing named groups.</p>
+</div></td></tr></table></span><span id="variant.Repeat" class="variant small-section-header"><a href="#variant.Repeat" class="anchor field"></a><span id='Repeat.v' class='invisible'><code>Repeat</code></span></span><div class='docblock'><p>A repeat operator (<code>?</code>, <code>*</code>, <code>+</code> or <code>{m,n}</code>).</p>
+</div><span class='docblock autohide sub-variant' id='variant.Repeat.fields'><h3 class='fields'>Fields of <code>Repeat</code></h3>
+
+                           <table><tr><td id='variant.Repeat.field.e'><span id='Repeat.v.e.v' class='invisible'><code>e:&nbsp;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;</code></span></td><td><div class='docblock'><p>The expression to be repeated. Limited to literals, <code>.</code>, classes
+or grouped expressions.</p>
+</div></td></tr><tr><td id='variant.Repeat.field.r'><span id='Repeat.v.r.v' class='invisible'><code>r:&nbsp;<a class="enum" href="../regex_syntax/enum.Repeater.html" title="enum regex_syntax::Repeater">Repeater</a></code></span></td><td><div class='docblock'><p>The type of repeat operator used.</p>
+</div></td></tr><tr><td id='variant.Repeat.field.greedy'><span id='Repeat.v.greedy.v' class='invisible'><code>greedy:&nbsp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span></td><td><div class='docblock'><p>Whether the repeat is greedy (match the most) or not (match the
+least).</p>
+</div></td></tr></table></span><span id="variant.Concat" class="variant small-section-header"><a href="#variant.Concat" class="anchor field"></a><span id='Concat.v' class='invisible'><code>Concat(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;)</code></span></span><div class='docblock'><p>A concatenation of expressions. Must be matched one after the other.</p>
+<p>N.B. A concat expression can only appear at the top-level or
+immediately inside a group expression.</p>
+</div><span id="variant.Alternate" class="variant small-section-header"><a href="#variant.Alternate" class="anchor field"></a><span id='Alternate.v' class='invisible'><code>Alternate(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;)</code></span></span><div class='docblock'><p>An alternation of expressions. Only one must match.</p>
+<p>N.B. An alternate expression can only appear at the top-level or
+immediately inside a group expression.</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#400-591' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.parse' class="method"><span id='parse.v' class='invisible'><code>pub fn <a href='#method.parse' class='fnname'>parse</a>(s: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="type" href="../regex_syntax/type.Result.html" title="type regex_syntax::Result">Result</a>&lt;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#406-408' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a string in a regular expression syntax tree.</p>
+<p>This is a convenience method for parsing an expression using the
+default configuration. To tweak parsing options (such as which flags
+are enabled by default), use the <code>ExprBuilder</code> type.</p>
+</div><h4 id='method.prefixes' class="method"><span id='prefixes.v' class='invisible'><code>pub fn <a href='#method.prefixes' class='fnname'>prefixes</a>(&amp;self) -&gt; <a class="struct" href="../regex_syntax/struct.Literals.html" title="struct regex_syntax::Literals">Literals</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#503-507' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a set of literal prefixes extracted from this expression.</p>
+</div><h4 id='method.suffixes' class="method"><span id='suffixes.v' class='invisible'><code>pub fn <a href='#method.suffixes' class='fnname'>suffixes</a>(&amp;self) -&gt; <a class="struct" href="../regex_syntax/struct.Literals.html" title="struct regex_syntax::Literals">Literals</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#510-514' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a set of literal suffixes extracted from this expression.</p>
+</div><h4 id='method.is_anchored_start' class="method"><span id='is_anchored_start.v' class='invisible'><code>pub fn <a href='#method.is_anchored_start' class='fnname'>is_anchored_start</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#518-529' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if and only if the expression is required to match from
+the beginning of text.</p>
+</div><h4 id='method.has_anchored_start' class="method"><span id='has_anchored_start.v' class='invisible'><code>pub fn <a href='#method.has_anchored_start' class='fnname'>has_anchored_start</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#533-544' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if and only if the expression has at least one matchable
+sub-expression that must match the beginning of text.</p>
+</div><h4 id='method.is_anchored_end' class="method"><span id='is_anchored_end.v' class='invisible'><code>pub fn <a href='#method.is_anchored_end' class='fnname'>is_anchored_end</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#548-559' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if and only if the expression is required to match at the
+end of the text.</p>
+</div><h4 id='method.has_anchored_end' class="method"><span id='has_anchored_end.v' class='invisible'><code>pub fn <a href='#method.has_anchored_end' class='fnname'>has_anchored_end</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#563-574' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if and only if the expression has at least one matchable
+sub-expression that must match the beginning of text.</p>
+</div><h4 id='method.has_bytes' class="method"><span id='has_bytes.v' class='invisible'><code>pub fn <a href='#method.has_bytes' class='fnname'>has_bytes</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#578-590' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns true if and only if the expression contains sub-expressions
+that can match arbitrary bytes.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-Eq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> for <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl-Eq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#96' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="enum" href="../regex_syntax/enum.Expr.html" title="enum regex_syntax::Expr">Expr</a></code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#1189-1261' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'><p>This implementation of <code>Display</code> will write a regular expression from the
+syntax tree. It does not write the original string parsed.</p>
+</div><div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/lib.rs.html#1190-1260' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "regex_syntax";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

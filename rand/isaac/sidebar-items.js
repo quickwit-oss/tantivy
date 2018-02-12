@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Isaac64Rng","A random number generator that uses ISAAC-64[1], the 64-bit variant of the ISAAC algorithm."],["IsaacRng","A random number generator that uses the ISAAC algorithm[1]."]]});

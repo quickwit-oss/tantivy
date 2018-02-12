@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Replacer` trait in crate `regex`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Replacer">
+
+    <title>regex::Replacer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait Replacer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.replace_append">replace_append</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.no_expansion">no_expansion</a></div><a class="sidebar-title" href="#foreign-impls">Implementations on Foreign Types</a><div class="sidebar-links"><a href="#impl-Replacer">&amp;&#39;a str</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>regex</a></p><script>window.sidebarCurrent = {name: 'Replacer', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>regex</a>::<wbr><a class="trait" href=''>Replacer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/regex/re_unicode.rs.html#1017-1037' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Replacer {
+    fn <a href='#tymethod.replace_append' class='fnname'>replace_append</a>(&amp;mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>, dst: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>);
+
+    fn <a href='#method.no_expansion' class='fnname'>no_expansion</a>&lt;'r&gt;(&amp;'r mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'r, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt; { ... }
+}</pre><div class='docblock'><p>Replacer describes types that can be used to replace matches in a string.</p>
+<p>In general, users of this crate shouldn't need to implement this trait,
+since implementations are already provided for <code>&amp;str</code> and
+<code>FnMut(&amp;Captures) -&gt; String</code>, which covers most use cases.</p>
+</div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.replace_append' class='method'><span id='replace_append.v' class='invisible'><code>fn <a href='#tymethod.replace_append' class='fnname'>replace_append</a>(&amp;mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>, dst: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)</code></span></h3><div class='docblock'><p>Appends text to <code>dst</code> to replace the current match.</p>
+<p>The current match is represented by <code>caps</code>, which is guaranteed to
+have a match at capture group <code>0</code>.</p>
+<p>For example, a no-op replacement would be
+<code>dst.extend(caps.get(0).unwrap().as_str())</code>.</p>
+</div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.no_expansion' class='method'><span id='no_expansion.v' class='invisible'><code>fn <a href='#method.no_expansion' class='fnname'>no_expansion</a>&lt;'r&gt;(&amp;'r mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'r, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;</code></span></h3><div class='docblock'><p>Return a fixed unchanging replacement string.</p>
+<p>When doing replacements, if access to <code>Captures</code> is not needed (e.g.,
+the replacement byte string does not need <code>$</code> expansion), then it can
+be beneficial to avoid finding sub-captures.</p>
+<p>In general, this is called once for every call to <code>replacen</code>.</p>
+</div></div>
+                <h2 id='foreign-impls' class='small-section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-Replacer' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../regex/trait.Replacer.html" title="trait regex::Replacer">Replacer</a> for &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code><a href='#impl-Replacer' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#1039-1050' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.replace_append' class="method"><span id='replace_append.v-1' class='invisible'><code>fn <a href='#method.replace_append' class='fnname'>replace_append</a>(&amp;mut self, caps: &amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>, dst: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#1040-1042' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.no_expansion-1' class="method"><span id='no_expansion.v-1' class='invisible'><code>fn <a href='#method.no_expansion' class='fnname'>no_expansion</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#1044-1049' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#1052-1056' title='goto source code'>[src]</a></div><code>impl&lt;F&gt; Replacer for F <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(&amp;<a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,&nbsp;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../src/regex/re_unicode.rs.html#1068-1076' title='goto source code'>[src]</a></div><code>impl&lt;'t&gt; Replacer for <a class="struct" href="../regex/struct.NoExpand.html" title="struct regex::NoExpand">NoExpand</a>&lt;'t&gt;</code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/regex/trait.Replacer.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "regex";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

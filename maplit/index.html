@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `maplit` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, maplit">
+
+    <title>maplit - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate maplit</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#macros">Macros</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'maplit', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>maplit</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/maplit/lib.rs.html#1-323' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Macros for container literals with specific type.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">maplit</span>;
+
+<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="macro">hashmap</span><span class="macro">!</span>{
+    <span class="string">&quot;a&quot;</span> <span class="op">=&gt;</span> <span class="number">1</span>,
+    <span class="string">&quot;b&quot;</span> <span class="op">=&gt;</span> <span class="number">2</span>,
+};</pre>
+<p>The <strong>maplit</strong> crate uses <code>=&gt;</code> syntax for the mapping macros. It is
+not possible to use <code>:</code> as separator due to syntactic restrictions in
+regular <code>macro_rules!</code> macros.</p>
+<p>Note that rust macros are flexible in which brackets you use for the invocation.
+You can use them as <code>hashmap!{}</code> or <code>hashmap![]</code> or <code>hashmap!()</code>.
+This crate suggests <code>{}</code> as the convention for the map &amp; set macros,
+it matches their <code>Debug</code> output.</p>
+<p>Generic container macros already exist elsewhere, so those are not provided
+here at the moment.</p>
+</div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.btreemap.html"
+                                  title='macro maplit::btreemap'>btreemap</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a <strong>BTreeMap</strong> from a list of key-value pairs</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.btreeset.html"
+                                  title='macro maplit::btreeset'>btreeset</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a <strong>BTreeSet</strong> from a list of elements.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.convert_args.html"
+                                  title='macro maplit::convert_args'>convert_args</a></td>
+                           <td class='docblock-short'>
+                                <p>Macro that converts the keys or key-value pairs passed to another maplit
+macro. The default conversion is to use the <a href="https://doc.rust-lang.org/std/convert/trait.Into.html"><code>Into</code></a> trait, if no
+custom conversion is passed.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.hashmap.html"
+                                  title='macro maplit::hashmap'>hashmap</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a <strong>HashMap</strong> from a list of key-value pairs</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.hashset.html"
+                                  title='macro maplit::hashset'>hashset</a></td>
+                           <td class='docblock-short'>
+                                <p>Create a <strong>HashSet</strong> from a list of elements.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "maplit";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

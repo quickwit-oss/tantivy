@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `PeekingNext` trait in crate `itertools`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, PeekingNext">
+
+    <title>itertools::PeekingNext - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait PeekingNext</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.peeking_next">peeking_next</a></div><a class="sidebar-title" href="#foreign-impls">Implementations on Foreign Types</a><div class="sidebar-links"><a href="#impl-PeekingNext">Peekable&lt;I&gt;</a><a href="#impl-PeekingNext">Iter&lt;&#39;a, T&gt;</a><a href="#impl-PeekingNext">Chars&lt;&#39;a&gt;</a><a href="#impl-PeekingNext">CharIndices&lt;&#39;a&gt;</a><a href="#impl-PeekingNext">Bytes&lt;&#39;a&gt;</a><a href="#impl-PeekingNext">Iter&lt;&#39;a, T&gt;</a><a href="#impl-PeekingNext">Iter&lt;&#39;a, T&gt;</a><a href="#impl-PeekingNext">Empty&lt;T&gt;</a><a href="#impl-PeekingNext">Iter&lt;&#39;a, T&gt;</a><a href="#impl-PeekingNext">Iter&lt;&#39;a, T&gt;</a><a href="#impl-PeekingNext">Rev&lt;I&gt;</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>itertools</a></p><script>window.sidebarCurrent = {name: 'PeekingNext', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>itertools</a>::<wbr><a class="trait" href=''>PeekingNext</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#14-20' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait PeekingNext: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> {
+    fn <a href='#tymethod.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></span>;
+}</pre><div class='docblock'><p>An iterator that allows peeking at an element before deciding to accept it.</p>
+<p>See <a href="trait.Itertools.html#method.peeking_take_while"><code>.peeking_take_while()</code></a>
+for more information.</p>
+<p>This is implemented by peeking adaptors like peekable and put back,
+but also by a few iterators that can be peeked natively, like the slice’s
+by reference iterator (<code>std::slice::Iter</code>).</p>
+</div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.peeking_next' class='method'><span id='peeking_next.v' class='invisible'><code>fn <a href='#tymethod.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span></h3><div class='docblock'><p>Pass a reference to the next iterator element to the closure <code>accept</code>;
+if <code>accept</code> returns true, return it as the next element,
+else None.</p>
+</div></div>
+                <h2 id='foreign-impls' class='small-section-header'>
+                  Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
+                </h2>
+            <h3 id='impl-PeekingNext' class='impl'><span class='in-band'><code>impl&lt;I&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/iter/struct.Peekable.html" title="struct core::iter::Peekable">Peekable</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a>,&nbsp;</span></code><a href='#impl-PeekingNext' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#22-35' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next' class="method"><span id='peeking_next.v-1' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#25-34' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-1' class='impl'><span class='in-band'><code>impl&lt;'a, T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/slice/struct.Iter.html" title="struct core::slice::Iter">Iter</a>&lt;'a, T&gt;</code><a href='#impl-PeekingNext-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-1' class="method"><span id='peeking_next.v-2' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-2' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/str/struct.Chars.html" title="struct core::str::Chars">Chars</a>&lt;'a&gt;</code><a href='#impl-PeekingNext-2' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-2' class="method"><span id='peeking_next.v-3' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-3' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/str/struct.CharIndices.html" title="struct core::str::CharIndices">CharIndices</a>&lt;'a&gt;</code><a href='#impl-PeekingNext-3' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-3' class="method"><span id='peeking_next.v-4' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-4' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/str/struct.Bytes.html" title="struct core::str::Bytes">Bytes</a>&lt;'a&gt;</code><a href='#impl-PeekingNext-4' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-4' class="method"><span id='peeking_next.v-5' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-5' class='impl'><span class='in-band'><code>impl&lt;'a, T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/option/struct.Iter.html" title="struct core::option::Iter">Iter</a>&lt;'a, T&gt;</code><a href='#impl-PeekingNext-5' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-5' class="method"><span id='peeking_next.v-6' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-6' class='impl'><span class='in-band'><code>impl&lt;'a, T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/result/struct.Iter.html" title="struct core::result::Iter">Iter</a>&lt;'a, T&gt;</code><a href='#impl-PeekingNext-6' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-6' class="method"><span id='peeking_next.v-7' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-7' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/iter/sources/struct.Empty.html" title="struct core::iter::sources::Empty">Empty</a>&lt;T&gt;</code><a href='#impl-PeekingNext-7' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-7' class="method"><span id='peeking_next.v-8' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-8' class='impl'><span class='in-band'><code>impl&lt;'a, T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/linked_list/struct.Iter.html" title="struct alloc::linked_list::Iter">Iter</a>&lt;'a, T&gt;</code><a href='#impl-PeekingNext-8' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-8' class="method"><span id='peeking_next.v-9' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-9' class='impl'><span class='in-band'><code>impl&lt;'a, T&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec_deque/struct.Iter.html" title="struct alloc::vec_deque::Iter">Iter</a>&lt;'a, T&gt;</code><a href='#impl-PeekingNext-9' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-9' class="method"><span id='peeking_next.v-10' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span><h3 id='impl-PeekingNext-10' class='impl'><span class='in-band'><code>impl&lt;I:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.DoubleEndedIterator.html" title="trait core::iter::traits::DoubleEndedIterator">DoubleEndedIterator</a>&gt; <a class="trait" href="../itertools/trait.PeekingNext.html" title="trait itertools::PeekingNext">PeekingNext</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/iter/struct.Rev.html" title="struct core::iter::Rev">Rev</a>&lt;I&gt;</code><a href='#impl-PeekingNext-10' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#117-131' title='goto source code'>[src]</a></span></h3>
+<span class='docblock autohide'><div class='impl-items'><h4 id='method.peeking_next-10' class="method"><span id='peeking_next.v-11' class='invisible'><code>fn <a href='#method.peeking_next' class='fnname'>peeking_next</a>&lt;F&gt;(&amp;mut self, accept: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;Self::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item" title="type core::iter::iterator::Iterator::Item">Item</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#118-130' title='goto source code'>[src]</a></span></h4>
+</div></span>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#37-53' title='goto source code'>[src]</a></div><code>impl&lt;I&gt; PeekingNext for <a class="struct" href="../itertools/structs/struct.PutBack.html" title="struct itertools::structs::PutBack">PutBack</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a>,&nbsp;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../src/itertools/peeking_take_while.rs.html#55-71' title='goto source code'>[src]</a></div><code>impl&lt;I&gt; PeekingNext for <a class="struct" href="../itertools/structs/struct.PutBackN.html" title="struct itertools::structs::PutBackN">PutBackN</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a>,&nbsp;</span></code></li>
+</ul><script type="text/javascript" async
+                         src="../implementors/itertools/trait.PeekingNext.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "itertools";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

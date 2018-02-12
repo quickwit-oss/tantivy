@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `rustc_demangle` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, rustc_demangle">
+
+    <title>rustc_demangle - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate rustc_demangle</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'rustc_demangle', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>rustc_demangle</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/rustc_demangle/lib.rs.html#1-361' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Demangle Rust compiler symbol names.</p>
+<p>This crate provides a <code>demangle</code> function which will return a <code>Demangle</code>
+sentinel value that can be used to learn about the demangled version of a
+symbol name. The demangled representation will be the same as the original
+if it doesn't look like a mangled symbol name.</p>
+<p><code>Demangle</code> can be formatted with the <code>Display</code> trait. The alternate
+modifier (<code>#</code>) can be used to format the symbol name without the
+trailing hash value.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rustc_demangle</span>::<span class="ident">demangle</span>;
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">demangle</span>(<span class="string">&quot;_ZN4testE&quot;</span>).<span class="ident">to_string</span>(), <span class="string">&quot;test&quot;</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">demangle</span>(<span class="string">&quot;_ZN3foo3barE&quot;</span>).<span class="ident">to_string</span>(), <span class="string">&quot;foo::bar&quot;</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">demangle</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">to_string</span>(), <span class="string">&quot;foo&quot;</span>);
+<span class="comment">// With hash</span>
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">demangle</span>(<span class="string">&quot;_ZN3foo17h05af221e174051e9E&quot;</span>)), <span class="string">&quot;foo::h05af221e174051e9&quot;</span>);
+<span class="comment">// Without hash</span>
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:#}&quot;</span>, <span class="ident">demangle</span>(<span class="string">&quot;_ZN3foo17h05af221e174051e9E&quot;</span>)), <span class="string">&quot;foo&quot;</span>);</pre>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Demangle.html"
+                                  title='struct rustc_demangle::Demangle'>Demangle</a></td>
+                           <td class='docblock-short'>
+                                <p>Representation of a demangled symbol name.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.TryDemangleError.html"
+                                  title='struct rustc_demangle::TryDemangleError'>TryDemangleError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error returned from the <code>try_demangle</code> function below when demangling fails.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.demangle.html"
+                                  title='fn rustc_demangle::demangle'>demangle</a></td>
+                           <td class='docblock-short'>
+                                <p>De-mangles a Rust symbol into a more readable version</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.try_demangle.html"
+                                  title='fn rustc_demangle::try_demangle'>try_demangle</a></td>
+                           <td class='docblock-short'>
+                                <p>The same as <code>demangle</code>, except return an <code>Err</code> if the string does not appear
+to be a Rust symbol, rather than &quot;demangling&quot; the given string as a no-op.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "rustc_demangle";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

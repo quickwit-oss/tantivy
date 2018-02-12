@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Uuid` struct in crate `uuid`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Uuid">
+
+    <title>uuid::Uuid - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    <link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico">
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../uuid/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
+        <p class='location'>Struct Uuid</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.nil">nil</a><a href="#method.new">new</a><a href="#method.new_v4">new_v4</a><a href="#method.from_fields">from_fields</a><a href="#method.from_bytes">from_bytes</a><a href="#method.get_variant">get_variant</a><a href="#method.get_version_num">get_version_num</a><a href="#method.get_version">get_version</a><a href="#method.as_bytes">as_bytes</a><a href="#method.simple">simple</a><a href="#method.hyphenated">hyphenated</a><a href="#method.urn">urn</a><a href="#method.to_timestamp">to_timestamp</a><a href="#method.parse_str">parse_str</a><a href="#method.is_nil">is_nil</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Serialize">Serialize</a><a href="#impl-Deserialize%3C%27de%3E">Deserialize&lt;&#39;de&gt;</a><a href="#impl-Copy">Copy</a><a href="#impl-Clone">Clone</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-Eq">Eq</a><a href="#impl-PartialOrd">PartialOrd</a><a href="#impl-Ord">Ord</a><a href="#impl-Default">Default</a><a href="#impl-FromStr">FromStr</a><a href="#impl-Debug">Debug</a><a href="#impl-Display">Display</a><a href="#impl-Hash">Hash</a><a href="#impl-Rand">Rand</a></div></div><p class='location'><a href='index.html'>uuid</a></p><script>window.sidebarCurrent = {name: 'Uuid', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>uuid</a>::<wbr><a class="struct" href=''>Uuid</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/uuid/lib.rs.html#179-182' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Uuid { /* fields omitted */ }</pre><div class='docblock'><p>A Universally Unique Identifier (UUID).</p>
+</div>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#313-836' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.nil' class="method"><span id='nil.v' class='invisible'><code>pub fn <a href='#method.nil' class='fnname'>nil</a>() -&gt; <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#333-335' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The 'nil UUID'.</p>
+<p>The nil UUID is special form of UUID that is specified to have all
+128 bits set to zero, as defined in <a href="https://tools.ietf.org/html/rfc4122.html#section-4.1.7">IETF RFC 4122 Section 4.1.7</a>.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>Basic usage:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">nil</span>();
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">hyphenated</span>().<span class="ident">to_string</span>(),
+           <span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>);</pre>
+</div><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(v: <a class="enum" href="../uuid/enum.UuidVersion.html" title="enum uuid::UuidVersion">UuidVersion</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#344-350' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a new <code>Uuid</code>.</p>
+<p>Note that not all versions can be generated currently and <code>None</code> will be
+returned if the specified version cannot be generated.</p>
+<p>To generate a random UUID (<code>UuidVersion::Random</code>), then the <code>v4</code>
+feature must be enabled for this crate.</p>
+</div><h4 id='method.new_v4' class="method"><span id='new_v4.v' class='invisible'><code>pub fn <a href='#method.new_v4' class='fnname'>new_v4</a>() -&gt; <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#451-453' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a random <code>Uuid</code>.</p>
+<p>This uses the <code>rand</code> crate's default task RNG as the source of random numbers.
+If you'd like to use a custom generator, don't use this method: use the
+<a href="../../rand/rand/trait.Rand.html#tymethod.rand"><code>rand::Rand trait</code></a>'s <code>rand()</code> method instead.</p>
+<p>Note that usage of this method requires the <code>v4</code> feature of this crate
+to be enabled.</p>
+<h1 id="examples-1" class="section-header"><a href="#examples-1">Examples</a></h1>
+<p>Basic usage:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">new_v4</span>();</pre>
+</div><h4 id='method.from_fields' class="method"><span id='from_fields.v' class='invisible'><code>pub fn <a href='#method.from_fields' class='fnname'>from_fields</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;d1: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;d2: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;d3: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;d4: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>, <a class="enum" href="../uuid/enum.ParseError.html" title="enum uuid::ParseError">ParseError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#516-537' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a <code>Uuid</code> from four field values.</p>
+<h1 id="errors" class="section-header"><a href="#errors">Errors</a></h1>
+<p>This function will return an error if <code>d4</code>'s length is not 8 bytes.</p>
+<h1 id="examples-2" class="section-header"><a href="#examples-2">Examples</a></h1>
+<p>Basic usage:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">d4</span> <span class="op">=</span> [<span class="number">12</span>, <span class="number">3</span>, <span class="number">9</span>, <span class="number">56</span>, <span class="number">54</span>, <span class="number">43</span>, <span class="number">8</span>, <span class="number">9</span>];
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_fields</span>(<span class="number">42</span>, <span class="number">12</span>, <span class="number">5</span>, <span class="kw-2">&amp;</span><span class="ident">d4</span>);
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">uuid</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">uuid</span><span class="op">|</span> <span class="ident">uuid</span>.<span class="ident">hyphenated</span>().<span class="ident">to_string</span>());
+
+<span class="kw">let</span> <span class="ident">expected_uuid</span> <span class="op">=</span> <span class="prelude-val">Ok</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;0000002a-000c-0005-0c03-0938362b0809&quot;</span>));
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_uuid</span>, <span class="ident">uuid</span>);</pre>
+<p>An invalid length:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">ParseError</span>;
+
+<span class="kw">let</span> <span class="ident">d4</span> <span class="op">=</span> [<span class="number">12</span>];
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_fields</span>(<span class="number">42</span>, <span class="number">12</span>, <span class="number">5</span>, <span class="kw-2">&amp;</span><span class="ident">d4</span>);
+
+<span class="kw">let</span> <span class="ident">expected_uuid</span> <span class="op">=</span> <span class="prelude-val">Err</span>(<span class="ident">ParseError</span>::<span class="ident">InvalidLength</span>(<span class="number">1</span>));
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_uuid</span>, <span class="ident">uuid</span>);</pre>
+</div><h4 id='method.from_bytes' class="method"><span id='from_bytes.v' class='invisible'><code>pub fn <a href='#method.from_bytes' class='fnname'>from_bytes</a>(b: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>, <a class="enum" href="../uuid/enum.ParseError.html" title="enum uuid::ParseError">ParseError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#577-586' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Creates a <code>Uuid</code> using the supplied bytes.</p>
+<h1 id="errors-1" class="section-header"><a href="#errors-1">Errors</a></h1>
+<p>This function will return an error if <code>b</code> has any length other than 16.</p>
+<h1 id="examples-3" class="section-header"><a href="#examples-3">Examples</a></h1>
+<p>Basic usage:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> [<span class="number">4</span>, <span class="number">54</span>, <span class="number">67</span>, <span class="number">12</span>, <span class="number">43</span>, <span class="number">2</span>, <span class="number">98</span>, <span class="number">76</span>,
+             <span class="number">32</span>, <span class="number">50</span>, <span class="number">87</span>, <span class="number">5</span>, <span class="number">1</span>, <span class="number">33</span>, <span class="number">43</span>, <span class="number">87</span>];
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>);
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">uuid</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">uuid</span><span class="op">|</span> <span class="ident">uuid</span>.<span class="ident">hyphenated</span>().<span class="ident">to_string</span>());
+
+<span class="kw">let</span> <span class="ident">expected_uuid</span> <span class="op">=</span> <span class="prelude-val">Ok</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;0436430c-2b02-624c-2032-570501212b57&quot;</span>));
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_uuid</span>, <span class="ident">uuid</span>);</pre>
+<p>An incorrect number of bytes:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">ParseError</span>;
+
+<span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> [<span class="number">4</span>, <span class="number">54</span>, <span class="number">67</span>, <span class="number">12</span>, <span class="number">43</span>, <span class="number">2</span>, <span class="number">98</span>, <span class="number">76</span>];
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>);
+
+<span class="kw">let</span> <span class="ident">expected_uuid</span> <span class="op">=</span> <span class="prelude-val">Err</span>(<span class="ident">ParseError</span>::<span class="ident">InvalidLength</span>(<span class="number">8</span>));
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_uuid</span>, <span class="ident">uuid</span>);</pre>
+</div><h4 id='method.get_variant' class="method"><span id='get_variant.v' class='invisible'><code>pub fn <a href='#method.get_variant' class='fnname'>get_variant</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../uuid/enum.UuidVariant.html" title="enum uuid::UuidVariant">UuidVariant</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#606-614' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the variant of the <code>Uuid</code> structure.</p>
+<p>This determines the interpretation of the structure of the UUID.
+Currently only the RFC4122 variant is generated by this module.</p>
+<ul>
+<li><a href="http://tools.ietf.org/html/rfc4122#section-4.1.1">Variant Reference</a></li>
+</ul>
+</div><h4 id='method.get_version_num' class="method"><span id='get_version_num.v' class='invisible'><code>pub fn <a href='#method.get_version_num' class='fnname'>get_version_num</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#633-635' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the version number of the <code>Uuid</code>.</p>
+<p>This represents the algorithm used to generate the contents.</p>
+<p>Currently only the Random (V4) algorithm is supported by this
+module.  There are security and privacy implications for using
+older versions - see <a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">Wikipedia: Universally Unique Identifier</a> for
+details.</p>
+<ul>
+<li><a href="http://tools.ietf.org/html/rfc4122#section-4.1.3">Version Reference</a></li>
+</ul>
+</div><h4 id='method.get_version' class="method"><span id='get_version.v' class='invisible'><code>pub fn <a href='#method.get_version' class='fnname'>get_version</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../uuid/enum.UuidVersion.html" title="enum uuid::UuidVersion">UuidVersion</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#640-650' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the version of the <code>Uuid</code>.</p>
+<p>This represents the algorithm used to generate the contents</p>
+</div><h4 id='method.as_bytes' class="method"><span id='as_bytes.v' class='invisible'><code>pub fn <a href='#method.as_bytes' class='fnname'>as_bytes</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 16]</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#667-669' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Return an array of 16 octets containing the UUID data</p>
+<h1 id="examples-4" class="section-header"><a href="#examples-4">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">nil</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">as_bytes</span>(), <span class="kw-2">&amp;</span>[<span class="number">0</span>; <span class="number">16</span>]);
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">parse_str</span>(<span class="string">&quot;936DA01F9ABD4d9d80C702AF85C822A8&quot;</span>).<span class="ident">unwrap</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">as_bytes</span>(),
+           <span class="kw-2">&amp;</span>[<span class="number">147</span>, <span class="number">109</span>, <span class="number">160</span>, <span class="number">31</span>, <span class="number">154</span>, <span class="number">189</span>, <span class="number">77</span>, <span class="number">157</span>,
+             <span class="number">128</span>, <span class="number">199</span>, <span class="number">2</span>, <span class="number">175</span>, <span class="number">133</span>, <span class="number">200</span>, <span class="number">34</span>, <span class="number">168</span>]);</pre>
+</div><h4 id='method.simple' class="method"><span id='simple.v' class='invisible'><code>pub fn <a href='#method.simple' class='fnname'>simple</a>(&amp;self) -&gt; <a class="struct" href="../uuid/struct.Simple.html" title="struct uuid::Simple">Simple</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#683-685' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a wrapper which when formatted via <code>fmt::Display</code> will format a
+string of 32 hexadecimal digits.</p>
+<h1 id="examples-5" class="section-header"><a href="#examples-5">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">nil</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">simple</span>().<span class="ident">to_string</span>(),
+           <span class="string">&quot;00000000000000000000000000000000&quot;</span>);</pre>
+</div><h4 id='method.hyphenated' class="method"><span id='hyphenated.v' class='invisible'><code>pub fn <a href='#method.hyphenated' class='fnname'>hyphenated</a>(&amp;self) -&gt; <a class="struct" href="../uuid/struct.Hyphenated.html" title="struct uuid::Hyphenated">Hyphenated</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#699-701' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a wrapper which when formatted via <code>fmt::Display</code> will format a
+string of hexadecimal digits separated into groups with a hyphen.</p>
+<h1 id="examples-6" class="section-header"><a href="#examples-6">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">nil</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">hyphenated</span>().<span class="ident">to_string</span>(),
+           <span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>);</pre>
+</div><h4 id='method.urn' class="method"><span id='urn.v' class='invisible'><code>pub fn <a href='#method.urn' class='fnname'>urn</a>(&amp;self) -&gt; <a class="struct" href="../uuid/struct.Urn.html" title="struct uuid::Urn">Urn</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#715-717' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a wrapper which when formatted via <code>fmt::Display</code> will format a
+string of the UUID as a full URN string.</p>
+<h1 id="examples-7" class="section-header"><a href="#examples-7">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+
+<span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">nil</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">uuid</span>.<span class="ident">urn</span>().<span class="ident">to_string</span>(),
+           <span class="string">&quot;urn:uuid:00000000-0000-0000-0000-000000000000&quot;</span>);</pre>
+</div><h4 id='method.to_timestamp' class="method"><span id='to_timestamp.v' class='invisible'><code>pub fn <a href='#method.to_timestamp' class='fnname'>to_timestamp</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u16.html">u16</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#723-741' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns an Optional Tuple of (u64, u16) representing the timestamp and
+counter portion of a V1 UUID.  If the supplied UUID is not V1, this
+will return None</p>
+</div><h4 id='method.parse_str' class="method"><span id='parse_str.v' class='invisible'><code>pub fn <a href='#method.parse_str' class='fnname'>parse_str</a>(input: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>, <a class="enum" href="../uuid/enum.ParseError.html" title="enum uuid::ParseError">ParseError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#748-830' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parses a <code>Uuid</code> from a string of hexadecimal digits with optional hyphens.</p>
+<p>Any of the formats generated by this module (simple, hyphenated, urn) are
+supported by this parsing function.</p>
+</div><h4 id='method.is_nil' class="method"><span id='is_nil.v' class='invisible'><code>pub fn <a href='#method.is_nil' class='fnname'>is_nil</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#833-835' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Tests if the UUID is nil</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Serialize' class='impl'><span class='in-band'><code>impl <a class="trait" href="../serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Serialize' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/serde.rs.html#10-14' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.serialize' class="method"><span id='serialize.v' class='invisible'><code>fn <a href='../serde/ser/trait.Serialize.html#tymethod.serialize' class='fnname'>serialize</a>&lt;S:&nbsp;<a class="trait" href="../serde/ser/trait.Serializer.html" title="trait serde::ser::Serializer">Serializer</a>&gt;(&amp;self, serializer: S) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;S::<a class="type" href="../serde/ser/trait.Serializer.html#associatedtype.Ok" title="type serde::ser::Serializer::Ok">Ok</a>, S::<a class="type" href="../serde/ser/trait.Serializer.html#associatedtype.Error" title="type serde::ser::Serializer::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/serde.rs.html#11-13' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Serialize this value into the given Serde serializer. <a href="../serde/ser/trait.Serialize.html#tymethod.serialize">Read more</a></p>
+</div></div><h3 id='impl-Deserialize%3C%27de%3E' class='impl'><span class='in-band'><code>impl&lt;'de&gt; <a class="trait" href="../serde/de/trait.Deserialize.html" title="trait serde::de::Deserialize">Deserialize</a>&lt;'de&gt; for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Deserialize%3C%27de%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/serde.rs.html#16-34' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.deserialize' class="method"><span id='deserialize.v' class='invisible'><code>fn <a href='../serde/de/trait.Deserialize.html#tymethod.deserialize' class='fnname'>deserialize</a>&lt;D:&nbsp;<a class="trait" href="../serde/de/trait.Deserializer.html" title="trait serde::de::Deserializer">Deserializer</a>&lt;'de&gt;&gt;(deserializer: D) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self, D::<a class="type" href="../serde/de/trait.Deserializer.html#associatedtype.Error" title="type serde::de::Deserializer::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/serde.rs.html#17-33' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Deserialize this value from the given Serde deserializer. <a href="../serde/de/trait.Deserialize.html#tymethod.deserialize">Read more</a></p>
+</div></div><h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-Eq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Eq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-PartialOrd' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html" title="trait core::cmp::PartialOrd">PartialOrd</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-PartialOrd' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.partial_cmp' class="method"><span id='partial_cmp.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#tymethod.partial_cmp' class='fnname'>partial_cmp</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/cmp/enum.Ordering.html" title="enum core::cmp::Ordering">Ordering</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method returns an ordering between <code>self</code> and <code>other</code> values if one exists. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#tymethod.partial_cmp">Read more</a></p>
+</div><h4 id='method.lt' class="method"><span id='lt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.lt' class='fnname'>lt</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests less than (for <code>self</code> and <code>other</code>) and is used by the <code>&lt;</code> operator. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.lt">Read more</a></p>
+</div><h4 id='method.le' class="method"><span id='le.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.le' class='fnname'>le</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests less than or equal to (for <code>self</code> and <code>other</code>) and is used by the <code>&lt;=</code> operator. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.le">Read more</a></p>
+</div><h4 id='method.gt' class="method"><span id='gt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.gt' class='fnname'>gt</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests greater than (for <code>self</code> and <code>other</code>) and is used by the <code>&gt;</code> operator. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.gt">Read more</a></p>
+</div><h4 id='method.ge' class="method"><span id='ge.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.ge' class='fnname'>ge</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests greater than or equal to (for <code>self</code> and <code>other</code>) and is used by the <code>&gt;=</code> operator. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html#method.ge">Read more</a></p>
+</div></div><h3 id='impl-Ord' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html" title="trait core::cmp::Ord">Ord</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Ord' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.cmp' class="method"><span id='cmp.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#tymethod.cmp' class='fnname'>cmp</a>(&amp;self, __arg_0: &amp;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/cmp/enum.Ordering.html" title="enum core::cmp::Ordering">Ordering</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#178' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method returns an <code>Ordering</code> between <code>self</code> and <code>other</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#tymethod.cmp">Read more</a></p>
+</div><h4 id='method.max' class="method"><span id='max.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#method.max' class='fnname'>max</a>(self, other: Self) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.21.0'>1.21.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#460-463' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Compares and returns the maximum of two values. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#method.max">Read more</a></p>
+</div><h4 id='method.min' class="method"><span id='min.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#method.min' class='fnname'>min</a>(self, other: Self) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.21.0'>1.21.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#476-479' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Compares and returns the minimum of two values. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#method.min">Read more</a></p>
+</div></div><h3 id='impl-Default' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Default' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#844-849' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.default' class="method"><span id='default.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default' class='fnname'>default</a>() -&gt; <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#846-848' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the nil UUID, which is all zeroes</p>
+</div></div><h3 id='impl-FromStr' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/str/trait.FromStr.html" title="trait core::str::FromStr">FromStr</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-FromStr' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#851-861' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='associatedtype.Err' class="type"><span id='Err.t' class='invisible'><code>type <a href='https://doc.rust-lang.org/nightly/core/str/trait.FromStr.html#associatedtype.Err' class="type">Err</a> = <a class="enum" href="../uuid/enum.ParseError.html" title="enum uuid::ParseError">ParseError</a></code></span></h4>
+<div class='docblock'><p>The associated error which can be returned from parsing.</p>
+</div><h4 id='method.from_str' class="method"><span id='from_str.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/str/trait.FromStr.html#tymethod.from_str' class='fnname'>from_str</a>(us: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a>, <a class="enum" href="../uuid/enum.ParseError.html" title="enum uuid::ParseError">ParseError</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#858-860' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Parse a hex string and interpret as a <code>Uuid</code>.</p>
+<p>Accepted formats are a sequence of 32 hexadecimal characters,
+with or without hyphens (grouped as 8, 4, 4, 4, 12).</p>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#863-867' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#864-866' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#869-873' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#870-872' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Hash' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html" title="trait core::hash::Hash">Hash</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Hash' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#875-879' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.hash' class="method"><span id='hash.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#tymethod.hash' class='fnname'>hash</a>&lt;S:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hasher.html" title="trait core::hash::Hasher">Hasher</a>&gt;(&amp;self, state: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>S)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#876-878' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Feeds this value into the given [<code>Hasher</code>]. <a href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#tymethod.hash">Read more</a></p>
+</div><h4 id='method.hash_slice' class="method"><span id='hash_slice.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#method.hash_slice' class='fnname'>hash_slice</a>&lt;H&gt;(data: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[Self]</a>, state: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>H) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;H: <a class="trait" href="https://doc.rust-lang.org/nightly/core/hash/trait.Hasher.html" title="trait core::hash::Hasher">Hasher</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.3.0'>1.3.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/hash/mod.rs.html#202-208' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Feeds a slice of this type into the given [<code>Hasher</code>]. <a href="https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html#method.hash_slice">Read more</a></p>
+</div></div><h3 id='impl-Rand' class='impl'><span class='in-band'><code>impl <a class="trait" href="../rand/trait.Rand.html" title="trait rand::Rand">Rand</a> for <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code><a href='#impl-Rand' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#928-936' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'><p>Generates a random <code>Uuid</code> (V4 conformant).</p>
+</div><div class='impl-items'><h4 id='method.rand' class="method"><span id='rand.v' class='invisible'><code>fn <a href='../rand/trait.Rand.html#tymethod.rand' class='fnname'>rand</a>&lt;R:&nbsp;<a class="trait" href="../rand/trait.Rng.html" title="trait rand::Rng">Rng</a>&gt;(rng: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R) -&gt; <a class="struct" href="../uuid/struct.Uuid.html" title="struct uuid::Uuid">Uuid</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/uuid/lib.rs.html#929-935' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Generates a random instance of this type using the specified source of randomness. <a href="../rand/trait.Rand.html#tymethod.rand">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "uuid";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Tokenizer` trait in crate `tantivy`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Tokenizer">
+
+    <title>tantivy::tokenizer::Tokenizer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        <p class='location'>Trait Tokenizer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.TokenStreamImpl">TokenStreamImpl</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.token_stream">token_stream</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.filter">filter</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a></p><script>window.sidebarCurrent = {name: 'Tokenizer', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a>::<wbr><a class="trait" href=''>Tokenizer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/tantivy/tokenizer/tokenizer.rs.html#41-77' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Tokenizer&lt;'a&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> {
+    type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a>: <a class="trait" href="../../tantivy/tokenizer/trait.TokenStream.html" title="trait tantivy::tokenizer::TokenStream">TokenStream</a>;
+    fn <a href='#tymethod.token_stream' class='fnname'>token_stream</a>(&amp;self, text: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a>;
+
+    fn <a href='#method.filter' class='fnname'>filter</a>&lt;NewFilter&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;new_filter: NewFilter<br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; ChainTokenizer&lt;NewFilter, Self&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;NewFilter: <a class="trait" href="../../tantivy/tokenizer/trait.TokenFilter.html" title="trait tantivy::tokenizer::TokenFilter">TokenFilter</a>&lt;Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a>&gt;</span>,
+    { ... }
+}</pre><div class='docblock'><p><code>Tokenizer</code> are in charge of splitting text into a stream of token
+before indexing.</p>
+<p>See the <a href="./index.html">module documentation</a> for more detail.</p>
+<h1 id="warning" class="section-header"><a href="#warning">Warning</a></h1>
+<p>This API may change to use associated types.</p>
+</div>
+            <h2 id='associated-types' class='small-section-header'>
+              Associated Types<a href='#associated-types' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='associatedtype.TokenStreamImpl' class='method'><span id='TokenStreamImpl.t' class='invisible'><code>type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a>: <a class="trait" href="../../tantivy/tokenizer/trait.TokenStream.html" title="trait tantivy::tokenizer::TokenStream">TokenStream</a></code></span></h3><div class='docblock'><p>Type associated to the resulting tokenstream tokenstream.</p>
+</div></div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.token_stream' class='method'><span id='token_stream.v' class='invisible'><code>fn <a href='#tymethod.token_stream' class='fnname'>token_stream</a>(&amp;self, text: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a></code></span></h3><div class='docblock'><p>Creates a token stream for a given <code>str</code>.</p>
+</div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.filter' class='method'><span id='filter.v' class='invisible'><code>fn <a href='#method.filter' class='fnname'>filter</a>&lt;NewFilter&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;new_filter: NewFilter<br>) -&gt; ChainTokenizer&lt;NewFilter, Self&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;NewFilter: <a class="trait" href="../../tantivy/tokenizer/trait.TokenFilter.html" title="trait tantivy::tokenizer::TokenFilter">TokenFilter</a>&lt;Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a>&gt;,&nbsp;</span></code></span></h3><div class='docblock'><p>Appends a token filter to the current tokenizer.</p>
+<p>The method consumes the current <code>TokenStream</code> and returns a
+new one.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre class="rust rust-example-rendered">
+
+<span class="kw">use</span> <span class="ident">tantivy</span>::<span class="ident">tokenizer</span>::<span class="kw-2">*</span>;
+
+<span class="kw">let</span> <span class="ident">en_stem</span> <span class="op">=</span> <span class="ident">SimpleTokenizer</span>
+    .<span class="ident">filter</span>(<span class="ident">RemoveLongFilter</span>::<span class="ident">limit</span>(<span class="number">40</span>))
+    .<span class="ident">filter</span>(<span class="ident">LowerCaser</span>)
+    .<span class="ident">filter</span>(<span class="ident">Stemmer</span>::<span class="ident">new</span>());</pre>
+</div></div>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/tokenizer/simple_tokenizer.rs.html#14-24' title='goto source code'>[src]</a></div><code>impl&lt;'a&gt; Tokenizer&lt;'a&gt; for <a class="struct" href="../../tantivy/tokenizer/struct.SimpleTokenizer.html" title="struct tantivy::tokenizer::SimpleTokenizer">SimpleTokenizer</a><span class="where fmt-newline">  type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a> = SimpleTokenStream&lt;'a&gt;;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/tokenizer/facet_tokenizer.rs.html#29-39' title='goto source code'>[src]</a></div><code>impl&lt;'a&gt; Tokenizer&lt;'a&gt; for <a class="struct" href="../../tantivy/tokenizer/struct.FacetTokenizer.html" title="struct tantivy::tokenizer::FacetTokenizer">FacetTokenizer</a><span class="where fmt-newline">  type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a> = FacetTokenStream&lt;'a&gt;;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/tokenizer/japanese_tokenizer.rs.html#20-44' title='goto source code'>[src]</a></div><code>impl&lt;'a&gt; Tokenizer&lt;'a&gt; for <a class="struct" href="../../tantivy/tokenizer/struct.JapaneseTokenizer.html" title="struct tantivy::tokenizer::JapaneseTokenizer">JapaneseTokenizer</a><span class="where fmt-newline">  type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a> = JapaneseTokenizerStream;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/tokenizer/raw_tokenizer.rs.html#12-27' title='goto source code'>[src]</a></div><code>impl&lt;'a&gt; Tokenizer&lt;'a&gt; for <a class="struct" href="../../tantivy/tokenizer/struct.RawTokenizer.html" title="struct tantivy::tokenizer::RawTokenizer">RawTokenizer</a><span class="where fmt-newline">  type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a> = RawTokenStream;</span></code></li>
+</ul><script type="text/javascript" async
+                         src="../../implementors/tantivy/tokenizer/trait.Tokenizer.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

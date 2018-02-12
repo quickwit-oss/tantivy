@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.2.3/src/raw/pack.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>pack.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc source">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+</pre><pre class="rust ">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+
+<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ReadBytesExt</span>, <span class="ident">WriteBytesExt</span>, <span class="ident">LittleEndian</span>};
+
+<span class="doccomment">/// pack_uint packs the given integer in the smallest number of bytes possible,</span>
+<span class="doccomment">/// and writes it to the given writer. The number of bytes written is returned</span>
+<span class="doccomment">/// on success.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack_uint</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="ident">wtr</span>: <span class="ident">W</span>, <span class="ident">n</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">nbytes</span> <span class="op">=</span> <span class="ident">pack_size</span>(<span class="ident">n</span>);
+    <span class="ident">pack_uint_in</span>(<span class="ident">wtr</span>, <span class="ident">n</span>, <span class="ident">nbytes</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">nbytes</span>)
+}
+
+<span class="doccomment">/// pack_uint_in is like pack_uint, but always uses the number of bytes given</span>
+<span class="doccomment">/// to pack the number given.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `nbytes` must be &gt;= pack_size(n) and &lt;= 8, where `pack_size(n)` is the</span>
+<span class="doccomment">/// smallest number of bytes that can store the integer given.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack_uint_in</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(
+    <span class="kw-2">mut</span> <span class="ident">wtr</span>: <span class="ident">W</span>,
+    <span class="ident">n</span>: <span class="ident">u64</span>,
+    <span class="ident">nbytes</span>: <span class="ident">u8</span>,
+) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="ident">wtr</span>.<span class="ident">write_uint</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(<span class="ident">n</span>, <span class="ident">nbytes</span> <span class="kw">as</span> <span class="ident">usize</span>).<span class="ident">map_err</span>(<span class="ident">From</span>::<span class="ident">from</span>)
+}
+
+<span class="doccomment">/// unpack_uint is the dual of pack_uint. It unpacks the integer at the current</span>
+<span class="doccomment">/// position in `rdr` after reading `nbytes` bytes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `nbytes` must be &gt;= 1 and &lt;= 8.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unpack_uint</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">io</span>::<span class="ident">Read</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">rdr</span>: <span class="ident">R</span>, <span class="ident">nbytes</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
+    <span class="ident">rdr</span>.<span class="ident">read_uint</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(<span class="ident">nbytes</span> <span class="kw">as</span> <span class="ident">usize</span>).<span class="ident">map_err</span>(<span class="ident">From</span>::<span class="ident">from</span>)
+}
+
+<span class="doccomment">/// pack_size returns the smallest number of bytes that can encode `n`.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack_size</span>(<span class="ident">n</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
+    <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">8</span> {
+        <span class="number">1</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">16</span> {
+        <span class="number">2</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">24</span> {
+        <span class="number">3</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">32</span> {
+        <span class="number">4</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">40</span> {
+        <span class="number">5</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">48</span> {
+        <span class="number">6</span>
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">56</span> {
+        <span class="number">7</span>
+    } <span class="kw">else</span> {
+        <span class="number">8</span>
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+    <span class="kw">use</span> <span class="ident">quickcheck</span>::{<span class="ident">QuickCheck</span>, <span class="ident">StdGen</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">prop_pack_in_out</span>() {
+        <span class="kw">fn</span> <span class="ident">p</span>(<span class="ident">num</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[]);
+            <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">pack_uint</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>, <span class="ident">num</span>).<span class="ident">unwrap</span>();
+            <span class="ident">buf</span>.<span class="ident">set_position</span>(<span class="number">0</span>);
+            <span class="ident">num</span> <span class="op">==</span> <span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>, <span class="ident">size</span>).<span class="ident">unwrap</span>()
+        }
+        <span class="ident">QuickCheck</span>::<span class="ident">new</span>()
+            .<span class="ident">gen</span>(<span class="ident">StdGen</span>::<span class="ident">new</span>(::<span class="ident">rand</span>::<span class="ident">thread_rng</span>(), <span class="number">257</span>)) <span class="comment">// pick byte boundary</span>
+            .<span class="ident">quickcheck</span>(<span class="ident">p</span> <span class="kw">as</span> <span class="kw">fn</span>(<span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>);
+    }
+}
+</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "fst";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

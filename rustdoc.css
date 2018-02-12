@@ -1,0 +1,1230 @@
+/**
+ * Copyright 2013 The Rust Project Developers. See the COPYRIGHT
+ * file at the top-level directory of this distribution and at
+ * http://rust-lang.org/COPYRIGHT.
+ *
+ * Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+ * http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+ * <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+ * option. This file may not be copied, modified, or distributed
+ * except according to those terms.
+ */
+
+/* See FiraSans-LICENSE.txt for the Fira Sans license. */
+@font-face {
+	font-family: 'Fira Sans';
+	font-style: normal;
+	font-weight: 400;
+	src: local('Fira Sans'), url("FiraSans-Regular.woff") format('woff');
+}
+@font-face {
+	font-family: 'Fira Sans';
+	font-style: normal;
+	font-weight: 500;
+	src: local('Fira Sans Medium'), url("FiraSans-Medium.woff") format('woff');
+}
+
+/* See SourceSerifPro-LICENSE.txt for the Source Serif Pro license and
+ * Heuristica-LICENSE.txt for the Heuristica license. */
+@font-face {
+	font-family: 'Source Serif Pro';
+	font-style: normal;
+	font-weight: 400;
+	src: local('Source Serif Pro'), url("SourceSerifPro-Regular.woff") format('woff');
+}
+@font-face {
+	font-family: 'Source Serif Pro';
+	font-style: italic;
+	font-weight: 400;
+	src: url("Heuristica-Italic.woff") format('woff');
+}
+@font-face {
+	font-family: 'Source Serif Pro';
+	font-style: normal;
+	font-weight: 700;
+	src: local('Source Serif Pro Bold'), url("SourceSerifPro-Bold.woff") format('woff');
+}
+
+/* See SourceCodePro-LICENSE.txt for the Source Code Pro license. */
+@font-face {
+	font-family: 'Source Code Pro';
+	font-style: normal;
+	font-weight: 400;
+	/* Avoid using locally installed font because bad versions are in circulation:
+	 * see https://github.com/rust-lang/rust/issues/24355 */
+	src: url("SourceCodePro-Regular.woff") format('woff');
+}
+@font-face {
+	font-family: 'Source Code Pro';
+	font-style: normal;
+	font-weight: 600;
+	src: url("SourceCodePro-Semibold.woff") format('woff');
+}
+
+* {
+  -webkit-box-sizing: border-box;
+	 -moz-box-sizing: border-box;
+		  box-sizing: border-box;
+}
+
+/* General structure and fonts */
+
+body {
+	font: 16px/1.4 "Source Serif Pro", Georgia, Times, "Times New Roman", serif;
+	margin: 0;
+	position: relative;
+	padding: 10px 15px 20px 15px;
+
+	-webkit-font-feature-settings: "kern", "liga";
+	-moz-font-feature-settings: "kern", "liga";
+	font-feature-settings: "kern", "liga";
+}
+
+h1 {
+	font-size: 1.5em;
+}
+h2 {
+	font-size: 1.4em;
+}
+h3 {
+	font-size: 1.3em;
+}
+h1, h2, h3:not(.impl):not(.method):not(.type):not(.tymethod):not(.important), h4:not(.method):not(.type):not(.tymethod):not(.associatedconstant) {
+	font-weight: 500;
+	margin: 20px 0 15px 0;
+	padding-bottom: 6px;
+}
+h1.fqn {
+	border-bottom: 1px dashed;
+	margin-top: 0;
+	position: relative;
+}
+h2, h3:not(.impl):not(.method):not(.type):not(.tymethod), h4:not(.method):not(.type):not(.tymethod):not(.associatedconstant) {
+	border-bottom: 1px solid;
+}
+h3.impl, h3.method, h4.method, h3.type, h4.type, h4.associatedconstant {
+	font-weight: 600;
+	margin-top: 10px;
+	margin-bottom: 10px;
+	position: relative;
+}
+h3.impl, h3.method, h3.type {
+	margin-top: 15px;
+}
+
+h1, h2, h3, h4,
+.sidebar, a.source, .search-input, .content table :not(code)>a,
+.collapse-toggle, ul.item-list > li > .out-of-band {
+	font-family: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+ol, ul {
+	padding-left: 25px;
+}
+ul ul, ol ul, ul ol, ol ol {
+	margin-bottom: 0;
+}
+
+p {
+	margin: 0 0 .6em 0;
+}
+
+summary {
+	outline: none;
+}
+
+code, pre {
+	font-family: "Source Code Pro", Menlo, Monaco, Consolas, "DejaVu Sans Mono", Inconsolata, monospace;
+	white-space: pre-wrap;
+}
+.docblock code, .docblock-short code {
+	border-radius: 3px;
+	padding: 0 0.2em;
+}
+.docblock pre code, .docblock-short pre code, .docblock code.spotlight {
+	padding: 0;
+}
+.docblock code.spotlight :last-child {
+	padding-bottom: 0.6em;
+}
+pre {
+	padding: 14px;
+}
+
+.source .content pre {
+	padding: 20px;
+}
+
+img {
+	max-width: 100%;
+}
+
+.source .content {
+	margin-top: 50px;
+	max-width: none;
+	overflow: visible;
+	margin-left: 0px;
+	min-width: 70em;
+}
+
+nav.sub {
+	font-size: 16px;
+	text-transform: uppercase;
+}
+
+.sidebar {
+	width: 200px;
+	position: fixed;
+	left: 0;
+	top: 0;
+	height: 100vh;
+	overflow: auto;
+}
+
+.sidebar .block > ul > li {
+	margin-right: -20px;
+}
+
+.content, nav {
+	max-width: 960px;
+}
+
+/* Everything else */
+
+.js-only, .hidden {
+	display: none !important;
+}
+
+.sidebar img {
+	margin: 20px auto;
+	display: block;
+	margin-top: 10px;
+}
+
+.sidebar .location {
+	border: 1px solid;
+	font-size: 17px;
+	margin: 30px 10px 20px 10px;
+	text-align: center;
+	word-wrap: break-word;
+}
+
+.sidebar .version {
+	font-size: 15px;
+	text-align: center;
+	border-bottom: 1px solid;
+	overflow-wrap: break-word;
+	word-wrap: break-word; /* deprecated */
+	word-break: break-word; /* Chrome, non-standard */
+}
+
+.location:empty {
+	border: none;
+}
+
+.location a:first-child {
+	font-weight: 500;
+}
+
+.block {
+	padding: 0;
+	margin-bottom: 14px;
+}
+.block h2, .block h3 {
+	margin-top: 0;
+	margin-bottom: 8px;
+	text-align: center;
+}
+.block ul, .block li {
+	margin: 0 10px;
+	padding: 0;
+	list-style: none;
+}
+
+.block a {
+	display: block;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	line-height: 15px;
+	padding: 7px 5px;
+	font-size: 14px;
+	font-weight: 300;
+	transition: border 500ms ease-out;
+}
+
+.sidebar-title {
+	border-top: 1px solid;
+	border-bottom: 1px solid;
+	text-align: center;
+	font-size: 17px;
+	margin-bottom: 5px;
+}
+
+.sidebar-links {
+	margin-bottom: 15px;
+}
+
+.sidebar-links > a {
+	padding-left: 10px;
+	width: 100%;
+}
+
+.sidebar-menu {
+	display: none;
+}
+
+.content {
+	padding: 15px 0;
+}
+
+.source .content pre.rust {
+	white-space: pre;
+	overflow: auto;
+	padding-left: 0;
+}
+
+#search {
+	margin-left: 230px;
+	position: relative;
+}
+
+#results {
+	position: absolute;
+	right: 0;
+	left: 0;
+	overflow: auto;
+}
+
+.content pre.line-numbers {
+	float: left;
+	border: none;
+	position: relative;
+
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+.line-numbers span {
+	cursor: pointer;
+}
+
+.docblock-short p {
+	display: inline;
+}
+
+.docblock-short.nowrap {
+	display: block;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.docblock-short p {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin: 0;
+}
+.docblock-short code {
+	white-space: nowrap;
+}
+
+.docblock h1, .docblock h2, .docblock h3, .docblock h4, .docblock h5 {
+	border-bottom: 1px solid;
+}
+
+#main > .docblock h1 { font-size: 1.3em; }
+#main > .docblock h2 { font-size: 1.15em; }
+#main > .docblock h3, #main > .docblock h4, #main > .docblock h5 { font-size: 1em; }
+
+.docblock h1 { font-size: 1em; }
+.docblock h2 { font-size: 0.95em; }
+.docblock h3, .docblock h4, .docblock h5 { font-size: 0.9em; }
+
+.docblock {
+	margin-left: 24px;
+	position: relative;
+}
+
+.content .out-of-band {
+	font-size: 23px;
+	margin: 0px;
+	padding: 0px;
+	text-align: right;
+	display: inline-block;
+	font-weight: normal;
+	position: absolute;
+	right: 0;
+}
+
+h3.impl > .out-of-band {
+	font-size: 21px;
+}
+
+h4.method > .out-of-band {
+	font-size: 19px;
+}
+
+ul.item-list > li > .out-of-band {
+	font-size: 19px;
+}
+
+h4 > code, h3 > code, .invisible > code {
+	max-width: calc(100% - 41px);
+	display: block;
+}
+
+.in-band, code {
+	z-index: 5;
+}
+
+.invisible {
+	width: 100%;
+	display: inline-block;
+}
+
+.content .in-band {
+	margin: 0px;
+	padding: 0px;
+	display: inline-block;
+	max-width: calc(100% - 43px);
+}
+
+.in-band > code {
+	display: inline-block;
+}
+
+#main {
+	position: relative;
+}
+#main > .since {
+	top: inherit;
+	font-family: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.content table {
+	border-spacing: 0 5px;
+	border-collapse: separate;
+}
+.content td { vertical-align: top; }
+.content td:first-child { padding-right: 20px; }
+.content td p:first-child { margin-top: 0; }
+.content td h1, .content td h2 { margin-left: 0; font-size: 1.1em; }
+
+.docblock table {
+	border: 1px solid;
+	margin: .5em 0;
+	border-collapse: collapse;
+	width: 100%;
+}
+
+.docblock table td {
+	padding: .5em;
+	border-top: 1px dashed;
+	border-bottom: 1px dashed;
+}
+
+.docblock table th {
+	padding: .5em;
+	text-align: left;
+	border-top: 1px solid;
+	border-bottom: 1px solid;
+}
+
+.fields + table {
+	margin-bottom: 1em;
+}
+
+.content .item-list {
+	list-style-type: none;
+	padding: 0;
+}
+
+.content .item-list li {
+	margin-bottom: 1em;
+}
+
+.content .multi-column {
+	-moz-column-count: 5;
+	-moz-column-gap: 2.5em;
+	-webkit-column-count: 5;
+	-webkit-column-gap: 2.5em;
+	column-count: 5;
+	column-gap: 2.5em;
+}
+.content .multi-column li { width: 100%; display: inline-block; }
+
+.content .method {
+	font-size: 1em;
+	position: relative;
+}
+/* Shift "where ..." part of method or fn definition down a line */
+.content .method .where,
+.content .fn .where,
+.content .where.fmt-newline {
+	display: block;
+	font-size: 0.8em;
+}
+
+.content .methods > div:not(.important-traits) { margin-left: 40px; }
+
+.content .impl-items .docblock, .content .impl-items .stability {
+	margin-left: 40px;
+	margin-bottom: .6em;
+}
+.content .impl-items .method, .content .impl-items > .type, .impl-items > .associatedconstant {
+	margin-left: 20px;
+}
+
+.content .stability code {
+	font-size: 90%;
+}
+
+nav {
+	border-bottom: 1px solid;
+	padding-bottom: 10px;
+	margin-bottom: 10px;
+}
+nav.main {
+	padding: 20px 0;
+	text-align: center;
+}
+nav.main .current {
+	border-top: 1px solid;
+	border-bottom: 1px solid;
+}
+nav.main .separator {
+	border: 1px solid;
+	display: inline-block;
+	height: 23px;
+	margin: 0 20px;
+}
+nav.sum { text-align: right; }
+nav.sub form { display: inline; }
+
+nav.sub, .content {
+	margin-left: 230px;
+}
+
+a {
+	text-decoration: none;
+	background: transparent;
+}
+
+.small-section-header:hover > .anchor {
+	display: initial;
+}
+
+.in-band:hover > .anchor {
+	display: inline-block;
+	position: absolute;
+}
+.anchor {
+	display: none;
+	position: absolute;
+	left: -25px;
+}
+.anchor.field {
+	left: -20px;
+}
+.anchor:before {
+	content: '\2002\00a7\2002';
+}
+
+.docblock a:hover, .docblock-short a:hover, .stability a {
+	text-decoration: underline;
+}
+
+.block a.current.crate { font-weight: 500; }
+
+.search-input {
+	width: 100%;
+	/* Override Normalize.css: we have margins and do
+	 not want to overflow - the `moz` attribute is necessary
+	 until Firefox 29, too early to drop at this point */
+	-moz-box-sizing: border-box !important;
+	box-sizing: border-box !important;
+	outline: none;
+	border: none;
+	border-radius: 1px;
+	margin-top: 5px;
+	padding: 10px 16px;
+	font-size: 17px;
+	transition: border-color 300ms ease;
+	transition: border-radius 300ms ease-in-out;
+	transition: box-shadow 300ms ease-in-out;
+}
+
+.search-input:focus {
+	border-radius: 2px;
+	border: 0;
+	outline: 0;
+	box-shadow: 0 0 8px #078dd8;
+}
+
+.search-results .desc {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	display: block;
+}
+
+.search-results a {
+	display: block;
+}
+
+.content .search-results td:first-child { padding-right: 0; }
+.content .search-results td:first-child a { padding-right: 10px; }
+
+tr.result span.primitive::after {
+	content: ' (primitive type)';
+	font-style: italic;
+}
+
+body.blur > :not(#help) {
+	filter: blur(8px);
+	-webkit-filter: blur(8px);
+	opacity: .7;
+}
+
+#help {
+	width: 100%;
+	height: 100vh;
+	position: fixed;
+	top: 0;
+	left: 0;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+#help > div {
+	flex: 0 0 auto;
+	box-shadow: 0 0 6px rgba(0,0,0,.2);
+	width: 550px;
+	height: auto;
+	border: 1px solid;
+}
+#help dt {
+	float: left;
+	clear: left;
+	display: block;
+}
+#help dd { margin: 5px 35px; }
+#help .infos { padding-left: 0; }
+#help h1, #help h2 { margin-top: 0; }
+#help > div div {
+	width: 50%;
+	float: left;
+	padding: 20px;
+	padding-left: 17px;
+}
+
+.stab {
+	display: table;
+	border-width: 1px;
+	border-style: solid;
+	padding: 3px;
+	margin-bottom: 5px;
+	font-size: 90%;
+}
+.stab p {
+	display: inline;
+}
+
+.stab summary {
+	display: list-item;
+}
+
+.stab .microscope {
+	font-size: 1.5em;
+}
+
+.module-item .stab {
+	display: inline;
+	border-width: 0;
+	padding: 0;
+	margin: 0;
+	background: inherit !important;
+}
+
+.module-item.unstable {
+	opacity: 0.65;
+}
+
+.since {
+	font-weight: normal;
+	font-size: initial;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.variants_table {
+	width: 100%;
+}
+
+.variants_table tbody tr td:first-child {
+	width: 1%; /* make the variant name as small as possible */
+}
+
+td.summary-column {
+	width: 100%;
+}
+
+.summary {
+	padding-right: 0px;
+}
+
+pre.rust .question-mark {
+	font-weight: bold;
+}
+
+a.test-arrow {
+	display: inline-block;
+	position: absolute;
+	padding: 5px 10px 5px 10px;
+	border-radius: 5px;
+	font-size: 130%;
+	top: 5px;
+	right: 5px;
+}
+a.test-arrow:hover{
+	text-decoration: none;
+}
+
+.section-header:hover a:before {
+	position: absolute;
+	left: -25px;
+	content: '\2002\00a7\2002';
+}
+
+.section-header:hover a {
+	text-decoration: none;
+}
+
+.section-header a {
+	color: inherit;
+}
+
+.collapse-toggle {
+	font-weight: 300;
+	position: absolute;
+	left: -23px;
+	top: 0;
+}
+
+h3 > .collapse-toggle, h4 > .collapse-toggle {
+	font-size: 0.8em;
+	top: 5px;
+}
+
+.toggle-wrapper > .collapse-toggle {
+	left: -24px;
+	margin-top: 0px;
+}
+
+.toggle-wrapper {
+	position: relative;
+	margin-top: 5px;
+}
+
+.toggle-wrapper.collapsed {
+	height: 25px;
+	transition: height .2s;
+	margin-bottom: .6em;
+}
+
+.collapse-toggle > .inner {
+	display: inline-block;
+	width: 1.2ch;
+	text-align: center;
+}
+
+.ghost {
+	display: none;
+}
+
+.ghost + .since {
+	position: initial;
+	display: table-cell;
+}
+
+.since + .srclink {
+	display: table-cell;
+	padding-left: 10px;
+}
+
+.item-spacer {
+	width: 100%;
+	height: 12px;
+}
+
+span.since {
+	position: initial;
+	font-size: 20px;
+	margin-right: 5px;
+}
+
+.toggle-wrapper > .collapse-toggle {
+	left: 0;
+}
+
+.variant + .toggle-wrapper + .docblock > p {
+	margin-top: 5px;
+}
+
+.sub-variant, .sub-variant > h3 {
+	margin-top: 0 !important;
+}
+
+.toggle-label {
+	display: inline-block;
+	margin-left: 4px;
+	margin-top: 3px;
+}
+
+.enum > .toggle-wrapper + .docblock, .struct > .toggle-wrapper + .docblock {
+	margin-left: 30px;
+	margin-bottom: 20px;
+	margin-top: 5px;
+}
+
+.docblock > .section-header:first-child {
+	margin-left: 15px;
+	margin-top: 0;
+}
+
+.docblock > .section-header:first-child:hover > a:before {
+	left: -10px;
+}
+
+.enum > .collapsed, .struct > .collapsed {
+	margin-bottom: 25px;
+}
+
+#main > .variant, #main > .structfield {
+	display: block;
+}
+
+.attributes {
+	display: block;
+	margin: 0px 0px 0px 30px !important;
+}
+.toggle-attributes.collapsed {
+	margin-bottom: 5px;
+}
+
+:target > code {
+	opacity: 1;
+}
+
+/* Media Queries */
+
+@media (max-width: 700px) {
+	body {
+		padding-top: 0px;
+	}
+
+	.sidebar {
+		height: 45px;
+		min-height: 40px;
+		width: calc(100% + 30px);
+		margin: 0;
+		margin-left: -15px;
+		padding: 0 15px;
+		position: static;
+		z-index: 1;
+	}
+
+	.sidebar > .location {
+		float: right;
+		margin: 0px;
+		margin-top: 2px;
+		padding: 3px 10px 1px 10px;
+		min-height: 39px;
+		background: inherit;
+		text-align: left;
+		font-size: 24px;
+	}
+
+	.sidebar .location:empty {
+		padding: 0;
+	}
+
+	.sidebar img {
+		width: 35px;
+		margin-top: 5px;
+		margin-bottom: 5px;
+		float: left;
+		margin-left: 50px;
+	}
+
+	.sidebar-menu {
+		position: fixed;
+		z-index: 10;
+		font-size: 2rem;
+		cursor: pointer;
+		width: 45px;
+		left: 0;
+		text-align: center;
+		display: block;
+		border-bottom: 1px solid;
+		border-right: 1px solid;
+		height: 45px;
+	}
+
+	.sidebar-elems {
+		position: fixed;
+		z-index: 1;
+		left: 0;
+		top: 45px;
+		bottom: 0;
+		overflow-y: auto;
+		border-right: 1px solid;
+		display: none;
+	}
+
+	.sidebar > .block.version {
+		border-bottom: none;
+		margin-top: 12px;
+	}
+
+	nav.sub {
+		width: calc(100% - 32px);
+		float: right;
+	}
+
+	.content {
+		margin-left: 0px;
+	}
+
+	#main {
+		margin-top: 45px;
+		padding: 0;
+	}
+
+	.content .in-band {
+		width: 100%;
+	}
+
+	.content h4 > .out-of-band {
+		position: inherit;
+	}
+
+	.toggle-wrapper > .collapse-toggle {
+		left: 0px;
+	}
+
+	.toggle-wrapper {
+		height: 1.5em;
+	}
+
+	#search {
+		margin-left: 0;
+	}
+
+	.content .impl-items .method, .content .impl-items > .type, .impl-items > .associatedconstant {
+		display: flex;
+	}
+}
+
+@media print {
+	nav.sub, .content .out-of-band, .collapse-toggle {
+		display: none;
+	}
+}
+
+.information {
+	position: absolute;
+	left: -20px;
+	margin-top: 7px;
+	z-index: 1;
+}
+
+.tooltip {
+	position: relative;
+	display: inline-block;
+	cursor: pointer;
+}
+
+.tooltip .tooltiptext {
+	width: 120px;
+	display: none;
+	text-align: center;
+	padding: 5px 3px;
+	border-radius: 6px;
+	margin-left: 5px;
+	top: -5px;
+	left: 105%;
+	z-index: 1;
+}
+
+.tooltip:hover .tooltiptext {
+	display: inline;
+}
+
+.tooltip .tooltiptext::after {
+	content: " ";
+	position: absolute;
+	top: 50%;
+	left: 11px;
+	margin-top: -5px;
+	border-width: 5px;
+	border-style: solid;
+}
+
+.important-traits .tooltip .tooltiptext {
+	border: 1px solid;
+}
+
+pre.rust {
+	position: relative;
+}
+
+.search-failed {
+	text-align: center;
+	margin-top: 20px;
+}
+
+#titles {
+	height: 35px;
+}
+
+#titles > div {
+	float: left;
+	width: 33.3%;
+	text-align: center;
+	border-bottom: 1px solid;
+	font-size: 18px;
+	cursor: pointer;
+}
+
+#titles > div.selected {
+	border-bottom: 3px solid;
+}
+
+#titles > div:hover {
+	border-bottom: 3px solid;
+}
+
+#titles > div > div.count {
+	display: inline-block;
+	font-size: 16px;
+}
+
+.important-traits {
+	cursor: pointer;
+	z-index: 2;
+}
+
+h4 > .important-traits {
+	position: absolute;
+	left: -44px;
+	top: 2px;
+}
+
+@media (max-width: 700px) {
+	h4 > .important-traits {
+		position: absolute;
+		left: -22px;
+		top: 24px;
+	}
+
+	#titles > div > div.count {
+		float: left;
+		width: 100%;
+	}
+
+	#titles {
+		height: 50px;
+	}
+
+	.sidebar.mobile {
+		position: fixed;
+		width: 100%;
+		margin-left: 0;
+		background-color: rgba(0,0,0,0);
+		height: 100%;
+	}
+
+	.show-it {
+		display: block;
+		width: 246px;
+	}
+
+	.show-it > .block.items {
+		margin: 8px 0;
+	}
+
+	.show-it > .block.items > ul {
+		margin: 0;
+	}
+
+	.show-it > .block.items > ul > li {
+		text-align: center;
+		margin: 2px 0;
+	}
+
+	.show-it > .block.items > ul > li > a {
+		font-size: 21px;
+	}
+
+	/* Because of ios, we need to actually have a full height sidebar title so the
+	 * actual sidebar can show up. But then we need to make it transparent so we don't
+	 * hide content. The filler just allows to create the background for the sidebar
+	 * title. But because of the absolute position, I had to lower the z-index.
+	 */
+	#sidebar-filler {
+		position: fixed;
+		left: 45px;
+		width: calc(100% - 45px);
+		top: 0;
+		height: 45px;
+		z-index: -1;
+		border-bottom: 1px solid;
+	}
+}
+
+
+@media (max-width: 416px) {
+	#titles {
+		height: 73px;
+	}
+
+	#titles > div {
+		height: 73px;
+	}
+}
+
+.modal {
+	position: fixed;
+	width: 100vw;
+	height: 100vh;
+	z-index: 10000;
+	top: 0;
+	left: 0;
+}
+
+.modal-content {
+	display: block;
+	max-width: 60%;
+	min-width: 200px;
+	padding: 8px;
+	top: 40%;
+	position: absolute;
+	left: 50%;
+	transform: translate(-50%, -40%);
+	border: 1px solid;
+	border-radius: 4px;
+	border-top-right-radius: 0;
+}
+
+.modal-content > .docblock {
+	margin: 0;
+}
+
+h3.important {
+	margin: 0;
+	margin-bottom: 13px;
+	font-size: 19px;
+}
+
+.modal-content > .docblock > code.content {
+	margin: 0;
+	padding: 0;
+	font-size: 20px;
+}
+
+.modal-content > .close {
+	position: absolute;
+	font-weight: 900;
+	right: -25px;
+	top: -1px;
+	font-size: 18px;
+	width: 25px;
+	padding-right: 2px;
+	border-top-right-radius: 5px;
+	border-bottom-right-radius: 5px;
+	text-align: center;
+	border: 1px solid;
+	border-right: 0;
+	cursor: pointer;
+}
+
+.modal-content > .whiter {
+	height: 25px;
+	position: absolute;
+	width: 3px;
+	right: -2px;
+	top: 0px;
+}
+
+#main > div.important-traits {
+	position: absolute;
+	left: -24px;
+	margin-top: 16px;
+}
+
+.content > .methods > div.important-traits {
+	position: absolute;
+	left: -42px;
+	margin-top: 2px;
+}
+
+kbd {
+	display: inline-block;
+	padding: 3px 5px;
+	font: 15px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+	line-height: 10px;
+	vertical-align: middle;
+	border: solid 1px;
+	border-radius: 3px;
+	box-shadow: inset 0 -1px 0;
+	cursor: default;
+}
+
+.theme-picker {
+	position: absolute;
+	left: 211px;
+	top: 19px;
+}
+
+#theme-picker {
+	padding: 4px;
+	width: 27px;
+	height: 29px;
+	border: 1px solid;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+#theme-choices {
+	display: none;
+	position: absolute;
+	left: 0;
+	top: 28px;
+	border: 1px solid;
+	border-radius: 3px;
+	z-index: 1;
+	cursor: pointer;
+}
+
+#theme-choices > button {
+	border: none;
+	width: 100%;
+	padding: 4px;
+	text-align: center;
+	background: rgba(0,0,0,0);
+}
+
+#theme-choices > button:not(:first-child) {
+	border-top: 1px solid;
+}
+
+@media (max-width: 700px) {
+	.theme-picker {
+		left: 10px;
+		top: 54px;
+		z-index: 1;
+	}
+}

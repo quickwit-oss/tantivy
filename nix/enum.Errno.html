@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Errno` enum in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Errno">
+
+    <title>nix::Errno - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc enum">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Enum Errno</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.UnknownErrno">UnknownErrno</a><a href="#variant.EPERM">EPERM</a><a href="#variant.ENOENT">ENOENT</a><a href="#variant.ESRCH">ESRCH</a><a href="#variant.EINTR">EINTR</a><a href="#variant.EIO">EIO</a><a href="#variant.ENXIO">ENXIO</a><a href="#variant.E2BIG">E2BIG</a><a href="#variant.ENOEXEC">ENOEXEC</a><a href="#variant.EBADF">EBADF</a><a href="#variant.ECHILD">ECHILD</a><a href="#variant.EAGAIN">EAGAIN</a><a href="#variant.ENOMEM">ENOMEM</a><a href="#variant.EACCES">EACCES</a><a href="#variant.EFAULT">EFAULT</a><a href="#variant.ENOTBLK">ENOTBLK</a><a href="#variant.EBUSY">EBUSY</a><a href="#variant.EEXIST">EEXIST</a><a href="#variant.EXDEV">EXDEV</a><a href="#variant.ENODEV">ENODEV</a><a href="#variant.ENOTDIR">ENOTDIR</a><a href="#variant.EISDIR">EISDIR</a><a href="#variant.EINVAL">EINVAL</a><a href="#variant.ENFILE">ENFILE</a><a href="#variant.EMFILE">EMFILE</a><a href="#variant.ENOTTY">ENOTTY</a><a href="#variant.ETXTBSY">ETXTBSY</a><a href="#variant.EFBIG">EFBIG</a><a href="#variant.ENOSPC">ENOSPC</a><a href="#variant.ESPIPE">ESPIPE</a><a href="#variant.EROFS">EROFS</a><a href="#variant.EMLINK">EMLINK</a><a href="#variant.EPIPE">EPIPE</a><a href="#variant.EDOM">EDOM</a><a href="#variant.ERANGE">ERANGE</a><a href="#variant.EDEADLK">EDEADLK</a><a href="#variant.ENAMETOOLONG">ENAMETOOLONG</a><a href="#variant.ENOLCK">ENOLCK</a><a href="#variant.ENOSYS">ENOSYS</a><a href="#variant.ENOTEMPTY">ENOTEMPTY</a><a href="#variant.ELOOP">ELOOP</a><a href="#variant.ENOMSG">ENOMSG</a><a href="#variant.EIDRM">EIDRM</a><a href="#variant.ECHRNG">ECHRNG</a><a href="#variant.EL2NSYNC">EL2NSYNC</a><a href="#variant.EL3HLT">EL3HLT</a><a href="#variant.EL3RST">EL3RST</a><a href="#variant.ELNRNG">ELNRNG</a><a href="#variant.EUNATCH">EUNATCH</a><a href="#variant.ENOCSI">ENOCSI</a><a href="#variant.EL2HLT">EL2HLT</a><a href="#variant.EBADE">EBADE</a><a href="#variant.EBADR">EBADR</a><a href="#variant.EXFULL">EXFULL</a><a href="#variant.ENOANO">ENOANO</a><a href="#variant.EBADRQC">EBADRQC</a><a href="#variant.EBADSLT">EBADSLT</a><a href="#variant.EBFONT">EBFONT</a><a href="#variant.ENOSTR">ENOSTR</a><a href="#variant.ENODATA">ENODATA</a><a href="#variant.ETIME">ETIME</a><a href="#variant.ENOSR">ENOSR</a><a href="#variant.ENONET">ENONET</a><a href="#variant.ENOPKG">ENOPKG</a><a href="#variant.EREMOTE">EREMOTE</a><a href="#variant.ENOLINK">ENOLINK</a><a href="#variant.EADV">EADV</a><a href="#variant.ESRMNT">ESRMNT</a><a href="#variant.ECOMM">ECOMM</a><a href="#variant.EPROTO">EPROTO</a><a href="#variant.EMULTIHOP">EMULTIHOP</a><a href="#variant.EDOTDOT">EDOTDOT</a><a href="#variant.EBADMSG">EBADMSG</a><a href="#variant.EOVERFLOW">EOVERFLOW</a><a href="#variant.ENOTUNIQ">ENOTUNIQ</a><a href="#variant.EBADFD">EBADFD</a><a href="#variant.EREMCHG">EREMCHG</a><a href="#variant.ELIBACC">ELIBACC</a><a href="#variant.ELIBBAD">ELIBBAD</a><a href="#variant.ELIBSCN">ELIBSCN</a><a href="#variant.ELIBMAX">ELIBMAX</a><a href="#variant.ELIBEXEC">ELIBEXEC</a><a href="#variant.EILSEQ">EILSEQ</a><a href="#variant.ERESTART">ERESTART</a><a href="#variant.ESTRPIPE">ESTRPIPE</a><a href="#variant.EUSERS">EUSERS</a><a href="#variant.ENOTSOCK">ENOTSOCK</a><a href="#variant.EDESTADDRREQ">EDESTADDRREQ</a><a href="#variant.EMSGSIZE">EMSGSIZE</a><a href="#variant.EPROTOTYPE">EPROTOTYPE</a><a href="#variant.ENOPROTOOPT">ENOPROTOOPT</a><a href="#variant.EPROTONOSUPPORT">EPROTONOSUPPORT</a><a href="#variant.ESOCKTNOSUPPORT">ESOCKTNOSUPPORT</a><a href="#variant.EOPNOTSUPP">EOPNOTSUPP</a><a href="#variant.EPFNOSUPPORT">EPFNOSUPPORT</a><a href="#variant.EAFNOSUPPORT">EAFNOSUPPORT</a><a href="#variant.EADDRINUSE">EADDRINUSE</a><a href="#variant.EADDRNOTAVAIL">EADDRNOTAVAIL</a><a href="#variant.ENETDOWN">ENETDOWN</a><a href="#variant.ENETUNREACH">ENETUNREACH</a><a href="#variant.ENETRESET">ENETRESET</a><a href="#variant.ECONNABORTED">ECONNABORTED</a><a href="#variant.ECONNRESET">ECONNRESET</a><a href="#variant.ENOBUFS">ENOBUFS</a><a href="#variant.EISCONN">EISCONN</a><a href="#variant.ENOTCONN">ENOTCONN</a><a href="#variant.ESHUTDOWN">ESHUTDOWN</a><a href="#variant.ETOOMANYREFS">ETOOMANYREFS</a><a href="#variant.ETIMEDOUT">ETIMEDOUT</a><a href="#variant.ECONNREFUSED">ECONNREFUSED</a><a href="#variant.EHOSTDOWN">EHOSTDOWN</a><a href="#variant.EHOSTUNREACH">EHOSTUNREACH</a><a href="#variant.EALREADY">EALREADY</a><a href="#variant.EINPROGRESS">EINPROGRESS</a><a href="#variant.ESTALE">ESTALE</a><a href="#variant.EUCLEAN">EUCLEAN</a><a href="#variant.ENOTNAM">ENOTNAM</a><a href="#variant.ENAVAIL">ENAVAIL</a><a href="#variant.EISNAM">EISNAM</a><a href="#variant.EREMOTEIO">EREMOTEIO</a><a href="#variant.EDQUOT">EDQUOT</a><a href="#variant.ENOMEDIUM">ENOMEDIUM</a><a href="#variant.EMEDIUMTYPE">EMEDIUMTYPE</a><a href="#variant.ECANCELED">ECANCELED</a><a href="#variant.ENOKEY">ENOKEY</a><a href="#variant.EKEYEXPIRED">EKEYEXPIRED</a><a href="#variant.EKEYREVOKED">EKEYREVOKED</a><a href="#variant.EKEYREJECTED">EKEYREJECTED</a><a href="#variant.EOWNERDEAD">EOWNERDEAD</a><a href="#variant.ENOTRECOVERABLE">ENOTRECOVERABLE</a><a href="#variant.ERFKILL">ERFKILL</a><a href="#variant.EHWPOISON">EHWPOISON</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.last">last</a><a href="#method.desc">desc</a><a href="#method.from_i32">from_i32</a><a href="#method.clear">clear</a><a href="#method.result">result</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Clone">Clone</a><a href="#impl-PartialEq">PartialEq</a><a href="#impl-Copy">Copy</a><a href="#impl-Error">Error</a><a href="#impl-Display">Display</a><a href="#impl-From%3CErrno%3E">From&lt;Errno&gt;</a></div></div><p class='location'><a href='index.html'>nix</a></p><script>window.sidebarCurrent = {name: 'Errno', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>nix</a>::<wbr><a class="enum" href=''>Errno</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/nix/errno.rs.html#534-670' title='goto source code'>[src]</a></span></h1>
+<pre class='rust enum'>pub enum Errno {
+    UnknownErrno,
+    EPERM,
+    ENOENT,
+    ESRCH,
+    EINTR,
+    EIO,
+    ENXIO,
+    E2BIG,
+    ENOEXEC,
+    EBADF,
+    ECHILD,
+    EAGAIN,
+    ENOMEM,
+    EACCES,
+    EFAULT,
+    ENOTBLK,
+    EBUSY,
+    EEXIST,
+    EXDEV,
+    ENODEV,
+    ENOTDIR,
+    EISDIR,
+    EINVAL,
+    ENFILE,
+    EMFILE,
+    ENOTTY,
+    ETXTBSY,
+    EFBIG,
+    ENOSPC,
+    ESPIPE,
+    EROFS,
+    EMLINK,
+    EPIPE,
+    EDOM,
+    ERANGE,
+    EDEADLK,
+    ENAMETOOLONG,
+    ENOLCK,
+    ENOSYS,
+    ENOTEMPTY,
+    ELOOP,
+    ENOMSG,
+    EIDRM,
+    ECHRNG,
+    EL2NSYNC,
+    EL3HLT,
+    EL3RST,
+    ELNRNG,
+    EUNATCH,
+    ENOCSI,
+    EL2HLT,
+    EBADE,
+    EBADR,
+    EXFULL,
+    ENOANO,
+    EBADRQC,
+    EBADSLT,
+    EBFONT,
+    ENOSTR,
+    ENODATA,
+    ETIME,
+    ENOSR,
+    ENONET,
+    ENOPKG,
+    EREMOTE,
+    ENOLINK,
+    EADV,
+    ESRMNT,
+    ECOMM,
+    EPROTO,
+    EMULTIHOP,
+    EDOTDOT,
+    EBADMSG,
+    EOVERFLOW,
+    ENOTUNIQ,
+    EBADFD,
+    EREMCHG,
+    ELIBACC,
+    ELIBBAD,
+    ELIBSCN,
+    ELIBMAX,
+    ELIBEXEC,
+    EILSEQ,
+    ERESTART,
+    ESTRPIPE,
+    EUSERS,
+    ENOTSOCK,
+    EDESTADDRREQ,
+    EMSGSIZE,
+    EPROTOTYPE,
+    ENOPROTOOPT,
+    EPROTONOSUPPORT,
+    ESOCKTNOSUPPORT,
+    EOPNOTSUPP,
+    EPFNOSUPPORT,
+    EAFNOSUPPORT,
+    EADDRINUSE,
+    EADDRNOTAVAIL,
+    ENETDOWN,
+    ENETUNREACH,
+    ENETRESET,
+    ECONNABORTED,
+    ECONNRESET,
+    ENOBUFS,
+    EISCONN,
+    ENOTCONN,
+    ESHUTDOWN,
+    ETOOMANYREFS,
+    ETIMEDOUT,
+    ECONNREFUSED,
+    EHOSTDOWN,
+    EHOSTUNREACH,
+    EALREADY,
+    EINPROGRESS,
+    ESTALE,
+    EUCLEAN,
+    ENOTNAM,
+    ENAVAIL,
+    EISNAM,
+    EREMOTEIO,
+    EDQUOT,
+    ENOMEDIUM,
+    EMEDIUMTYPE,
+    ECANCELED,
+    ENOKEY,
+    EKEYEXPIRED,
+    EKEYREVOKED,
+    EKEYREJECTED,
+    EOWNERDEAD,
+    ENOTRECOVERABLE,
+    ERFKILL,
+    EHWPOISON,
+}</pre><h2 id='variants' class='variants small-section-header'>
+                   Variants<a href='#variants' class='anchor'></a></h2>
+<span id="variant.UnknownErrno" class="variant small-section-header"><a href="#variant.UnknownErrno" class="anchor field"></a><span id='UnknownErrno.v' class='invisible'><code>UnknownErrno</code></span></span><span id="variant.EPERM" class="variant small-section-header"><a href="#variant.EPERM" class="anchor field"></a><span id='EPERM.v' class='invisible'><code>EPERM</code></span></span><span id="variant.ENOENT" class="variant small-section-header"><a href="#variant.ENOENT" class="anchor field"></a><span id='ENOENT.v' class='invisible'><code>ENOENT</code></span></span><span id="variant.ESRCH" class="variant small-section-header"><a href="#variant.ESRCH" class="anchor field"></a><span id='ESRCH.v' class='invisible'><code>ESRCH</code></span></span><span id="variant.EINTR" class="variant small-section-header"><a href="#variant.EINTR" class="anchor field"></a><span id='EINTR.v' class='invisible'><code>EINTR</code></span></span><span id="variant.EIO" class="variant small-section-header"><a href="#variant.EIO" class="anchor field"></a><span id='EIO.v' class='invisible'><code>EIO</code></span></span><span id="variant.ENXIO" class="variant small-section-header"><a href="#variant.ENXIO" class="anchor field"></a><span id='ENXIO.v' class='invisible'><code>ENXIO</code></span></span><span id="variant.E2BIG" class="variant small-section-header"><a href="#variant.E2BIG" class="anchor field"></a><span id='E2BIG.v' class='invisible'><code>E2BIG</code></span></span><span id="variant.ENOEXEC" class="variant small-section-header"><a href="#variant.ENOEXEC" class="anchor field"></a><span id='ENOEXEC.v' class='invisible'><code>ENOEXEC</code></span></span><span id="variant.EBADF" class="variant small-section-header"><a href="#variant.EBADF" class="anchor field"></a><span id='EBADF.v' class='invisible'><code>EBADF</code></span></span><span id="variant.ECHILD" class="variant small-section-header"><a href="#variant.ECHILD" class="anchor field"></a><span id='ECHILD.v' class='invisible'><code>ECHILD</code></span></span><span id="variant.EAGAIN" class="variant small-section-header"><a href="#variant.EAGAIN" class="anchor field"></a><span id='EAGAIN.v' class='invisible'><code>EAGAIN</code></span></span><span id="variant.ENOMEM" class="variant small-section-header"><a href="#variant.ENOMEM" class="anchor field"></a><span id='ENOMEM.v' class='invisible'><code>ENOMEM</code></span></span><span id="variant.EACCES" class="variant small-section-header"><a href="#variant.EACCES" class="anchor field"></a><span id='EACCES.v' class='invisible'><code>EACCES</code></span></span><span id="variant.EFAULT" class="variant small-section-header"><a href="#variant.EFAULT" class="anchor field"></a><span id='EFAULT.v' class='invisible'><code>EFAULT</code></span></span><span id="variant.ENOTBLK" class="variant small-section-header"><a href="#variant.ENOTBLK" class="anchor field"></a><span id='ENOTBLK.v' class='invisible'><code>ENOTBLK</code></span></span><span id="variant.EBUSY" class="variant small-section-header"><a href="#variant.EBUSY" class="anchor field"></a><span id='EBUSY.v' class='invisible'><code>EBUSY</code></span></span><span id="variant.EEXIST" class="variant small-section-header"><a href="#variant.EEXIST" class="anchor field"></a><span id='EEXIST.v' class='invisible'><code>EEXIST</code></span></span><span id="variant.EXDEV" class="variant small-section-header"><a href="#variant.EXDEV" class="anchor field"></a><span id='EXDEV.v' class='invisible'><code>EXDEV</code></span></span><span id="variant.ENODEV" class="variant small-section-header"><a href="#variant.ENODEV" class="anchor field"></a><span id='ENODEV.v' class='invisible'><code>ENODEV</code></span></span><span id="variant.ENOTDIR" class="variant small-section-header"><a href="#variant.ENOTDIR" class="anchor field"></a><span id='ENOTDIR.v' class='invisible'><code>ENOTDIR</code></span></span><span id="variant.EISDIR" class="variant small-section-header"><a href="#variant.EISDIR" class="anchor field"></a><span id='EISDIR.v' class='invisible'><code>EISDIR</code></span></span><span id="variant.EINVAL" class="variant small-section-header"><a href="#variant.EINVAL" class="anchor field"></a><span id='EINVAL.v' class='invisible'><code>EINVAL</code></span></span><span id="variant.ENFILE" class="variant small-section-header"><a href="#variant.ENFILE" class="anchor field"></a><span id='ENFILE.v' class='invisible'><code>ENFILE</code></span></span><span id="variant.EMFILE" class="variant small-section-header"><a href="#variant.EMFILE" class="anchor field"></a><span id='EMFILE.v' class='invisible'><code>EMFILE</code></span></span><span id="variant.ENOTTY" class="variant small-section-header"><a href="#variant.ENOTTY" class="anchor field"></a><span id='ENOTTY.v' class='invisible'><code>ENOTTY</code></span></span><span id="variant.ETXTBSY" class="variant small-section-header"><a href="#variant.ETXTBSY" class="anchor field"></a><span id='ETXTBSY.v' class='invisible'><code>ETXTBSY</code></span></span><span id="variant.EFBIG" class="variant small-section-header"><a href="#variant.EFBIG" class="anchor field"></a><span id='EFBIG.v' class='invisible'><code>EFBIG</code></span></span><span id="variant.ENOSPC" class="variant small-section-header"><a href="#variant.ENOSPC" class="anchor field"></a><span id='ENOSPC.v' class='invisible'><code>ENOSPC</code></span></span><span id="variant.ESPIPE" class="variant small-section-header"><a href="#variant.ESPIPE" class="anchor field"></a><span id='ESPIPE.v' class='invisible'><code>ESPIPE</code></span></span><span id="variant.EROFS" class="variant small-section-header"><a href="#variant.EROFS" class="anchor field"></a><span id='EROFS.v' class='invisible'><code>EROFS</code></span></span><span id="variant.EMLINK" class="variant small-section-header"><a href="#variant.EMLINK" class="anchor field"></a><span id='EMLINK.v' class='invisible'><code>EMLINK</code></span></span><span id="variant.EPIPE" class="variant small-section-header"><a href="#variant.EPIPE" class="anchor field"></a><span id='EPIPE.v' class='invisible'><code>EPIPE</code></span></span><span id="variant.EDOM" class="variant small-section-header"><a href="#variant.EDOM" class="anchor field"></a><span id='EDOM.v' class='invisible'><code>EDOM</code></span></span><span id="variant.ERANGE" class="variant small-section-header"><a href="#variant.ERANGE" class="anchor field"></a><span id='ERANGE.v' class='invisible'><code>ERANGE</code></span></span><span id="variant.EDEADLK" class="variant small-section-header"><a href="#variant.EDEADLK" class="anchor field"></a><span id='EDEADLK.v' class='invisible'><code>EDEADLK</code></span></span><span id="variant.ENAMETOOLONG" class="variant small-section-header"><a href="#variant.ENAMETOOLONG" class="anchor field"></a><span id='ENAMETOOLONG.v' class='invisible'><code>ENAMETOOLONG</code></span></span><span id="variant.ENOLCK" class="variant small-section-header"><a href="#variant.ENOLCK" class="anchor field"></a><span id='ENOLCK.v' class='invisible'><code>ENOLCK</code></span></span><span id="variant.ENOSYS" class="variant small-section-header"><a href="#variant.ENOSYS" class="anchor field"></a><span id='ENOSYS.v' class='invisible'><code>ENOSYS</code></span></span><span id="variant.ENOTEMPTY" class="variant small-section-header"><a href="#variant.ENOTEMPTY" class="anchor field"></a><span id='ENOTEMPTY.v' class='invisible'><code>ENOTEMPTY</code></span></span><span id="variant.ELOOP" class="variant small-section-header"><a href="#variant.ELOOP" class="anchor field"></a><span id='ELOOP.v' class='invisible'><code>ELOOP</code></span></span><span id="variant.ENOMSG" class="variant small-section-header"><a href="#variant.ENOMSG" class="anchor field"></a><span id='ENOMSG.v' class='invisible'><code>ENOMSG</code></span></span><span id="variant.EIDRM" class="variant small-section-header"><a href="#variant.EIDRM" class="anchor field"></a><span id='EIDRM.v' class='invisible'><code>EIDRM</code></span></span><span id="variant.ECHRNG" class="variant small-section-header"><a href="#variant.ECHRNG" class="anchor field"></a><span id='ECHRNG.v' class='invisible'><code>ECHRNG</code></span></span><span id="variant.EL2NSYNC" class="variant small-section-header"><a href="#variant.EL2NSYNC" class="anchor field"></a><span id='EL2NSYNC.v' class='invisible'><code>EL2NSYNC</code></span></span><span id="variant.EL3HLT" class="variant small-section-header"><a href="#variant.EL3HLT" class="anchor field"></a><span id='EL3HLT.v' class='invisible'><code>EL3HLT</code></span></span><span id="variant.EL3RST" class="variant small-section-header"><a href="#variant.EL3RST" class="anchor field"></a><span id='EL3RST.v' class='invisible'><code>EL3RST</code></span></span><span id="variant.ELNRNG" class="variant small-section-header"><a href="#variant.ELNRNG" class="anchor field"></a><span id='ELNRNG.v' class='invisible'><code>ELNRNG</code></span></span><span id="variant.EUNATCH" class="variant small-section-header"><a href="#variant.EUNATCH" class="anchor field"></a><span id='EUNATCH.v' class='invisible'><code>EUNATCH</code></span></span><span id="variant.ENOCSI" class="variant small-section-header"><a href="#variant.ENOCSI" class="anchor field"></a><span id='ENOCSI.v' class='invisible'><code>ENOCSI</code></span></span><span id="variant.EL2HLT" class="variant small-section-header"><a href="#variant.EL2HLT" class="anchor field"></a><span id='EL2HLT.v' class='invisible'><code>EL2HLT</code></span></span><span id="variant.EBADE" class="variant small-section-header"><a href="#variant.EBADE" class="anchor field"></a><span id='EBADE.v' class='invisible'><code>EBADE</code></span></span><span id="variant.EBADR" class="variant small-section-header"><a href="#variant.EBADR" class="anchor field"></a><span id='EBADR.v' class='invisible'><code>EBADR</code></span></span><span id="variant.EXFULL" class="variant small-section-header"><a href="#variant.EXFULL" class="anchor field"></a><span id='EXFULL.v' class='invisible'><code>EXFULL</code></span></span><span id="variant.ENOANO" class="variant small-section-header"><a href="#variant.ENOANO" class="anchor field"></a><span id='ENOANO.v' class='invisible'><code>ENOANO</code></span></span><span id="variant.EBADRQC" class="variant small-section-header"><a href="#variant.EBADRQC" class="anchor field"></a><span id='EBADRQC.v' class='invisible'><code>EBADRQC</code></span></span><span id="variant.EBADSLT" class="variant small-section-header"><a href="#variant.EBADSLT" class="anchor field"></a><span id='EBADSLT.v' class='invisible'><code>EBADSLT</code></span></span><span id="variant.EBFONT" class="variant small-section-header"><a href="#variant.EBFONT" class="anchor field"></a><span id='EBFONT.v' class='invisible'><code>EBFONT</code></span></span><span id="variant.ENOSTR" class="variant small-section-header"><a href="#variant.ENOSTR" class="anchor field"></a><span id='ENOSTR.v' class='invisible'><code>ENOSTR</code></span></span><span id="variant.ENODATA" class="variant small-section-header"><a href="#variant.ENODATA" class="anchor field"></a><span id='ENODATA.v' class='invisible'><code>ENODATA</code></span></span><span id="variant.ETIME" class="variant small-section-header"><a href="#variant.ETIME" class="anchor field"></a><span id='ETIME.v' class='invisible'><code>ETIME</code></span></span><span id="variant.ENOSR" class="variant small-section-header"><a href="#variant.ENOSR" class="anchor field"></a><span id='ENOSR.v' class='invisible'><code>ENOSR</code></span></span><span id="variant.ENONET" class="variant small-section-header"><a href="#variant.ENONET" class="anchor field"></a><span id='ENONET.v' class='invisible'><code>ENONET</code></span></span><span id="variant.ENOPKG" class="variant small-section-header"><a href="#variant.ENOPKG" class="anchor field"></a><span id='ENOPKG.v' class='invisible'><code>ENOPKG</code></span></span><span id="variant.EREMOTE" class="variant small-section-header"><a href="#variant.EREMOTE" class="anchor field"></a><span id='EREMOTE.v' class='invisible'><code>EREMOTE</code></span></span><span id="variant.ENOLINK" class="variant small-section-header"><a href="#variant.ENOLINK" class="anchor field"></a><span id='ENOLINK.v' class='invisible'><code>ENOLINK</code></span></span><span id="variant.EADV" class="variant small-section-header"><a href="#variant.EADV" class="anchor field"></a><span id='EADV.v' class='invisible'><code>EADV</code></span></span><span id="variant.ESRMNT" class="variant small-section-header"><a href="#variant.ESRMNT" class="anchor field"></a><span id='ESRMNT.v' class='invisible'><code>ESRMNT</code></span></span><span id="variant.ECOMM" class="variant small-section-header"><a href="#variant.ECOMM" class="anchor field"></a><span id='ECOMM.v' class='invisible'><code>ECOMM</code></span></span><span id="variant.EPROTO" class="variant small-section-header"><a href="#variant.EPROTO" class="anchor field"></a><span id='EPROTO.v' class='invisible'><code>EPROTO</code></span></span><span id="variant.EMULTIHOP" class="variant small-section-header"><a href="#variant.EMULTIHOP" class="anchor field"></a><span id='EMULTIHOP.v' class='invisible'><code>EMULTIHOP</code></span></span><span id="variant.EDOTDOT" class="variant small-section-header"><a href="#variant.EDOTDOT" class="anchor field"></a><span id='EDOTDOT.v' class='invisible'><code>EDOTDOT</code></span></span><span id="variant.EBADMSG" class="variant small-section-header"><a href="#variant.EBADMSG" class="anchor field"></a><span id='EBADMSG.v' class='invisible'><code>EBADMSG</code></span></span><span id="variant.EOVERFLOW" class="variant small-section-header"><a href="#variant.EOVERFLOW" class="anchor field"></a><span id='EOVERFLOW.v' class='invisible'><code>EOVERFLOW</code></span></span><span id="variant.ENOTUNIQ" class="variant small-section-header"><a href="#variant.ENOTUNIQ" class="anchor field"></a><span id='ENOTUNIQ.v' class='invisible'><code>ENOTUNIQ</code></span></span><span id="variant.EBADFD" class="variant small-section-header"><a href="#variant.EBADFD" class="anchor field"></a><span id='EBADFD.v' class='invisible'><code>EBADFD</code></span></span><span id="variant.EREMCHG" class="variant small-section-header"><a href="#variant.EREMCHG" class="anchor field"></a><span id='EREMCHG.v' class='invisible'><code>EREMCHG</code></span></span><span id="variant.ELIBACC" class="variant small-section-header"><a href="#variant.ELIBACC" class="anchor field"></a><span id='ELIBACC.v' class='invisible'><code>ELIBACC</code></span></span><span id="variant.ELIBBAD" class="variant small-section-header"><a href="#variant.ELIBBAD" class="anchor field"></a><span id='ELIBBAD.v' class='invisible'><code>ELIBBAD</code></span></span><span id="variant.ELIBSCN" class="variant small-section-header"><a href="#variant.ELIBSCN" class="anchor field"></a><span id='ELIBSCN.v' class='invisible'><code>ELIBSCN</code></span></span><span id="variant.ELIBMAX" class="variant small-section-header"><a href="#variant.ELIBMAX" class="anchor field"></a><span id='ELIBMAX.v' class='invisible'><code>ELIBMAX</code></span></span><span id="variant.ELIBEXEC" class="variant small-section-header"><a href="#variant.ELIBEXEC" class="anchor field"></a><span id='ELIBEXEC.v' class='invisible'><code>ELIBEXEC</code></span></span><span id="variant.EILSEQ" class="variant small-section-header"><a href="#variant.EILSEQ" class="anchor field"></a><span id='EILSEQ.v' class='invisible'><code>EILSEQ</code></span></span><span id="variant.ERESTART" class="variant small-section-header"><a href="#variant.ERESTART" class="anchor field"></a><span id='ERESTART.v' class='invisible'><code>ERESTART</code></span></span><span id="variant.ESTRPIPE" class="variant small-section-header"><a href="#variant.ESTRPIPE" class="anchor field"></a><span id='ESTRPIPE.v' class='invisible'><code>ESTRPIPE</code></span></span><span id="variant.EUSERS" class="variant small-section-header"><a href="#variant.EUSERS" class="anchor field"></a><span id='EUSERS.v' class='invisible'><code>EUSERS</code></span></span><span id="variant.ENOTSOCK" class="variant small-section-header"><a href="#variant.ENOTSOCK" class="anchor field"></a><span id='ENOTSOCK.v' class='invisible'><code>ENOTSOCK</code></span></span><span id="variant.EDESTADDRREQ" class="variant small-section-header"><a href="#variant.EDESTADDRREQ" class="anchor field"></a><span id='EDESTADDRREQ.v' class='invisible'><code>EDESTADDRREQ</code></span></span><span id="variant.EMSGSIZE" class="variant small-section-header"><a href="#variant.EMSGSIZE" class="anchor field"></a><span id='EMSGSIZE.v' class='invisible'><code>EMSGSIZE</code></span></span><span id="variant.EPROTOTYPE" class="variant small-section-header"><a href="#variant.EPROTOTYPE" class="anchor field"></a><span id='EPROTOTYPE.v' class='invisible'><code>EPROTOTYPE</code></span></span><span id="variant.ENOPROTOOPT" class="variant small-section-header"><a href="#variant.ENOPROTOOPT" class="anchor field"></a><span id='ENOPROTOOPT.v' class='invisible'><code>ENOPROTOOPT</code></span></span><span id="variant.EPROTONOSUPPORT" class="variant small-section-header"><a href="#variant.EPROTONOSUPPORT" class="anchor field"></a><span id='EPROTONOSUPPORT.v' class='invisible'><code>EPROTONOSUPPORT</code></span></span><span id="variant.ESOCKTNOSUPPORT" class="variant small-section-header"><a href="#variant.ESOCKTNOSUPPORT" class="anchor field"></a><span id='ESOCKTNOSUPPORT.v' class='invisible'><code>ESOCKTNOSUPPORT</code></span></span><span id="variant.EOPNOTSUPP" class="variant small-section-header"><a href="#variant.EOPNOTSUPP" class="anchor field"></a><span id='EOPNOTSUPP.v' class='invisible'><code>EOPNOTSUPP</code></span></span><span id="variant.EPFNOSUPPORT" class="variant small-section-header"><a href="#variant.EPFNOSUPPORT" class="anchor field"></a><span id='EPFNOSUPPORT.v' class='invisible'><code>EPFNOSUPPORT</code></span></span><span id="variant.EAFNOSUPPORT" class="variant small-section-header"><a href="#variant.EAFNOSUPPORT" class="anchor field"></a><span id='EAFNOSUPPORT.v' class='invisible'><code>EAFNOSUPPORT</code></span></span><span id="variant.EADDRINUSE" class="variant small-section-header"><a href="#variant.EADDRINUSE" class="anchor field"></a><span id='EADDRINUSE.v' class='invisible'><code>EADDRINUSE</code></span></span><span id="variant.EADDRNOTAVAIL" class="variant small-section-header"><a href="#variant.EADDRNOTAVAIL" class="anchor field"></a><span id='EADDRNOTAVAIL.v' class='invisible'><code>EADDRNOTAVAIL</code></span></span><span id="variant.ENETDOWN" class="variant small-section-header"><a href="#variant.ENETDOWN" class="anchor field"></a><span id='ENETDOWN.v' class='invisible'><code>ENETDOWN</code></span></span><span id="variant.ENETUNREACH" class="variant small-section-header"><a href="#variant.ENETUNREACH" class="anchor field"></a><span id='ENETUNREACH.v' class='invisible'><code>ENETUNREACH</code></span></span><span id="variant.ENETRESET" class="variant small-section-header"><a href="#variant.ENETRESET" class="anchor field"></a><span id='ENETRESET.v' class='invisible'><code>ENETRESET</code></span></span><span id="variant.ECONNABORTED" class="variant small-section-header"><a href="#variant.ECONNABORTED" class="anchor field"></a><span id='ECONNABORTED.v' class='invisible'><code>ECONNABORTED</code></span></span><span id="variant.ECONNRESET" class="variant small-section-header"><a href="#variant.ECONNRESET" class="anchor field"></a><span id='ECONNRESET.v' class='invisible'><code>ECONNRESET</code></span></span><span id="variant.ENOBUFS" class="variant small-section-header"><a href="#variant.ENOBUFS" class="anchor field"></a><span id='ENOBUFS.v' class='invisible'><code>ENOBUFS</code></span></span><span id="variant.EISCONN" class="variant small-section-header"><a href="#variant.EISCONN" class="anchor field"></a><span id='EISCONN.v' class='invisible'><code>EISCONN</code></span></span><span id="variant.ENOTCONN" class="variant small-section-header"><a href="#variant.ENOTCONN" class="anchor field"></a><span id='ENOTCONN.v' class='invisible'><code>ENOTCONN</code></span></span><span id="variant.ESHUTDOWN" class="variant small-section-header"><a href="#variant.ESHUTDOWN" class="anchor field"></a><span id='ESHUTDOWN.v' class='invisible'><code>ESHUTDOWN</code></span></span><span id="variant.ETOOMANYREFS" class="variant small-section-header"><a href="#variant.ETOOMANYREFS" class="anchor field"></a><span id='ETOOMANYREFS.v' class='invisible'><code>ETOOMANYREFS</code></span></span><span id="variant.ETIMEDOUT" class="variant small-section-header"><a href="#variant.ETIMEDOUT" class="anchor field"></a><span id='ETIMEDOUT.v' class='invisible'><code>ETIMEDOUT</code></span></span><span id="variant.ECONNREFUSED" class="variant small-section-header"><a href="#variant.ECONNREFUSED" class="anchor field"></a><span id='ECONNREFUSED.v' class='invisible'><code>ECONNREFUSED</code></span></span><span id="variant.EHOSTDOWN" class="variant small-section-header"><a href="#variant.EHOSTDOWN" class="anchor field"></a><span id='EHOSTDOWN.v' class='invisible'><code>EHOSTDOWN</code></span></span><span id="variant.EHOSTUNREACH" class="variant small-section-header"><a href="#variant.EHOSTUNREACH" class="anchor field"></a><span id='EHOSTUNREACH.v' class='invisible'><code>EHOSTUNREACH</code></span></span><span id="variant.EALREADY" class="variant small-section-header"><a href="#variant.EALREADY" class="anchor field"></a><span id='EALREADY.v' class='invisible'><code>EALREADY</code></span></span><span id="variant.EINPROGRESS" class="variant small-section-header"><a href="#variant.EINPROGRESS" class="anchor field"></a><span id='EINPROGRESS.v' class='invisible'><code>EINPROGRESS</code></span></span><span id="variant.ESTALE" class="variant small-section-header"><a href="#variant.ESTALE" class="anchor field"></a><span id='ESTALE.v' class='invisible'><code>ESTALE</code></span></span><span id="variant.EUCLEAN" class="variant small-section-header"><a href="#variant.EUCLEAN" class="anchor field"></a><span id='EUCLEAN.v' class='invisible'><code>EUCLEAN</code></span></span><span id="variant.ENOTNAM" class="variant small-section-header"><a href="#variant.ENOTNAM" class="anchor field"></a><span id='ENOTNAM.v' class='invisible'><code>ENOTNAM</code></span></span><span id="variant.ENAVAIL" class="variant small-section-header"><a href="#variant.ENAVAIL" class="anchor field"></a><span id='ENAVAIL.v' class='invisible'><code>ENAVAIL</code></span></span><span id="variant.EISNAM" class="variant small-section-header"><a href="#variant.EISNAM" class="anchor field"></a><span id='EISNAM.v' class='invisible'><code>EISNAM</code></span></span><span id="variant.EREMOTEIO" class="variant small-section-header"><a href="#variant.EREMOTEIO" class="anchor field"></a><span id='EREMOTEIO.v' class='invisible'><code>EREMOTEIO</code></span></span><span id="variant.EDQUOT" class="variant small-section-header"><a href="#variant.EDQUOT" class="anchor field"></a><span id='EDQUOT.v' class='invisible'><code>EDQUOT</code></span></span><span id="variant.ENOMEDIUM" class="variant small-section-header"><a href="#variant.ENOMEDIUM" class="anchor field"></a><span id='ENOMEDIUM.v' class='invisible'><code>ENOMEDIUM</code></span></span><span id="variant.EMEDIUMTYPE" class="variant small-section-header"><a href="#variant.EMEDIUMTYPE" class="anchor field"></a><span id='EMEDIUMTYPE.v' class='invisible'><code>EMEDIUMTYPE</code></span></span><span id="variant.ECANCELED" class="variant small-section-header"><a href="#variant.ECANCELED" class="anchor field"></a><span id='ECANCELED.v' class='invisible'><code>ECANCELED</code></span></span><span id="variant.ENOKEY" class="variant small-section-header"><a href="#variant.ENOKEY" class="anchor field"></a><span id='ENOKEY.v' class='invisible'><code>ENOKEY</code></span></span><span id="variant.EKEYEXPIRED" class="variant small-section-header"><a href="#variant.EKEYEXPIRED" class="anchor field"></a><span id='EKEYEXPIRED.v' class='invisible'><code>EKEYEXPIRED</code></span></span><span id="variant.EKEYREVOKED" class="variant small-section-header"><a href="#variant.EKEYREVOKED" class="anchor field"></a><span id='EKEYREVOKED.v' class='invisible'><code>EKEYREVOKED</code></span></span><span id="variant.EKEYREJECTED" class="variant small-section-header"><a href="#variant.EKEYREJECTED" class="anchor field"></a><span id='EKEYREJECTED.v' class='invisible'><code>EKEYREJECTED</code></span></span><span id="variant.EOWNERDEAD" class="variant small-section-header"><a href="#variant.EOWNERDEAD" class="anchor field"></a><span id='EOWNERDEAD.v' class='invisible'><code>EOWNERDEAD</code></span></span><span id="variant.ENOTRECOVERABLE" class="variant small-section-header"><a href="#variant.ENOTRECOVERABLE" class="anchor field"></a><span id='ENOTRECOVERABLE.v' class='invisible'><code>ENOTRECOVERABLE</code></span></span><span id="variant.ERFKILL" class="variant small-section-header"><a href="#variant.ERFKILL" class="anchor field"></a><span id='ERFKILL.v' class='invisible'><code>ERFKILL</code></span></span><span id="variant.EHWPOISON" class="variant small-section-header"><a href="#variant.EHWPOISON" class="anchor field"></a><span id='EHWPOISON.v' class='invisible'><code>EHWPOISON</code></span></span>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#62-88' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.last' class="method"><span id='last.v' class='invisible'><code>pub fn <a href='#method.last' class='fnname'>last</a>() -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#63-65' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.desc' class="method"><span id='desc.v' class='invisible'><code>pub fn <a href='#method.desc' class='fnname'>desc</a>(self) -&gt; &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#67-69' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.from_i32' class="method"><span id='from_i32.v' class='invisible'><code>pub fn <a href='#method.from_i32' class='fnname'>from_i32</a>(err: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.i32.html">i32</a>) -&gt; <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#71-73' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.clear' class="method"><span id='clear.v' class='invisible'><code>pub unsafe fn <a href='#method.clear' class='fnname'>clear</a>()</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#75-77' title='goto source code'>[src]</a></span></h4>
+<h4 id='method.result' class="method"><span id='result.v' class='invisible'><code>pub fn <a href='#method.result' class='fnname'>result</a>&lt;S:&nbsp;<a class="trait" href="../nix/errno/trait.ErrnoSentinel.html" title="trait nix::errno::ErrnoSentinel">ErrnoSentinel</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>&lt;S&gt;&gt;(value: S) -&gt; <a class="type" href="../nix/type.Result.html" title="type nix::Result">Result</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#81-87' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns <code>Ok(value)</code> if it does not contain the sentinel value. This
+should not be used when <code>-1</code> is not the errno sentinel value.</p>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 id='impl-PartialEq' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-PartialEq' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.eq' class="method"><span id='eq.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used by <code>==</code>. <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">Read more</a></p>
+</div><h4 id='method.ne' class="method"><span id='ne.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne' class='fnname'>ne</a>(&amp;self, other: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Rhs) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#121' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>This method tests for <code>!=</code>.</p>
+</div></div><h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#533' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 id='impl-Error' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-Error' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#108-112' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.description' class="method"><span id='description.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description' class='fnname'>description</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#109-111' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>A short description of the error. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#tymethod.description">Read more</a></p>
+</div><h4 id='method.cause' class="method"><span id='cause.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause' class='fnname'>cause</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="trait" href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html" title="trait std::error::Error">Error</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/std/error.rs.html#154' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>The lower-level cause of this error, if any. <a href="https://doc.rust-lang.org/nightly/std/error/trait.Error.html#method.cause">Read more</a></p>
+</div></div><h3 id='impl-Display' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a></code><a href='#impl-Display' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#114-118' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt-1' class="method"><span id='fmt.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#115-117' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt">Read more</a></p>
+</div></div><h3 id='impl-From%3CErrno%3E' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a>&gt; for <a class="struct" href="https://doc.rust-lang.org/nightly/std/io/error/struct.Error.html" title="struct std::io::error::Error">Error</a></code><a href='#impl-From%3CErrno%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#120-124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from' class="method"><span id='from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(err: <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/errno.rs.html#121-123' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the conversion.</p>
+</div></div><h3 id='impl-From%3CErrno%3E-1' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a>&gt; for <a class="enum" href="../nix/enum.Error.html" title="enum nix::Error">Error</a></code><a href='#impl-From%3CErrno%3E-1' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#122-124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from-1' class="method"><span id='from.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(errno: <a class="enum" href="../nix/enum.Errno.html" title="enum nix::Errno">Errno</a>) -&gt; <a class="enum" href="../nix/enum.Error.html" title="enum nix::Error">Error</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/nix/lib.rs.html#123' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Performs the conversion.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

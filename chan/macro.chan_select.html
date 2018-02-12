@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `chan_select` macro in crate `chan`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, chan_select">
+
+    <title>chan::chan_select - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc macro">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'><a href='index.html'>chan</a></p><script>window.sidebarCurrent = {name: 'chan_select', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>chan</a>::<wbr><a class="macro" href=''>chan_select</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/chan/lib.rs.html#1470-1530' title='goto source code'>[src]</a></span></h1>
+<pre class="rust macro">
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">chan_select</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>, $(
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">chan</span>:<span class="ident">ident</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meth</span>:<span class="ident">ident</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">send</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>)
+        $(<span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">pat</span>)<span class="op">*</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">code</span>:<span class="ident">expr</span>,
+    )<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>, $(
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">chan</span>:<span class="ident">ident</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meth</span>:<span class="ident">ident</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">send</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>)
+        $(<span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">pat</span>)<span class="op">*</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">code</span>:<span class="ident">expr</span>
+    ),<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, $(
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">chan</span>:<span class="ident">ident</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meth</span>:<span class="ident">ident</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">send</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>)
+        $(<span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">pat</span>)<span class="op">*</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">code</span>:<span class="ident">expr</span>,
+    )<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, $(
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">chan</span>:<span class="ident">ident</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meth</span>:<span class="ident">ident</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">send</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>)
+        $(<span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">pat</span>)<span class="op">*</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">code</span>:<span class="ident">expr</span>
+    ),<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>,) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>,) <span class="op">=&gt;</span> { ... };
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> { ... };
+    () <span class="op">=&gt;</span> { ... };
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
+}</pre>
+<div class='docblock'><p>Synchronize on at most one channel send or receive operation.</p>
+<p>This is a <em>heterogeneous</em> select. Namely, it supports any mix of
+asynchronous, synchronous or rendezvous channels, any mix of send or
+receive operations and any mix of types on channels.</p>
+<p>Here is how select operates:</p>
+<ol>
+<li>It first examines all send and receive operations. If one or more of
+them can succeed without blocking, then it randomly selects <em>one</em>,
+executes the operation and runs the code in the corresponding arm.</li>
+<li>If all operations are blocked and there is a <code>default</code> arm, then the
+code in the <code>default</code> arm is executed.</li>
+<li>If all operations are blocked and there is no <code>default</code> arm, then
+<code>Select</code> will subscribe to all channels involved. <code>Select</code> will be
+notified when state in one of the channels has changed. This will wake
+<code>Select</code> up, and it will retry the steps in (1). If all operations remain
+blocked, then (3) is repeated.</li>
+</ol>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<p>Which one synchronizes first?</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
+
+<span class="kw">let</span> (<span class="ident">asend</span>, <span class="ident">arecv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">0</span>);
+<span class="kw">let</span> (<span class="ident">bsend</span>, <span class="ident">brecv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">0</span>);
+
+<span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> <span class="ident">asend</span>.<span class="ident">send</span>(<span class="number">5</span>));
+<span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> <span class="ident">brecv</span>.<span class="ident">recv</span>());
+
+<span class="macro">chan_select</span><span class="macro">!</span> {
+    <span class="ident">arecv</span>.<span class="ident">recv</span>() <span class="op">-&gt;</span> <span class="ident">val</span> <span class="op">=&gt;</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;arecv received: {:?}&quot;</span>, <span class="ident">val</span>);
+    },
+    <span class="ident">bsend</span>.<span class="ident">send</span>(<span class="number">10</span>) <span class="op">=&gt;</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;bsend sent&quot;</span>);
+    },
+}</pre>
+<p>See the &quot;failure modes&quot; section below for more examples of the syntax.</p>
+<h1 id="example-empty-select" class="section-header"><a href="#example-empty-select">Example: empty select</a></h1>
+<p>An empty select, <code>chan_select! {}</code> will block indefinitely.</p>
+<h1 id="warning" class="section-header"><a href="#warning">Warning</a></h1>
+<p><code>chan_select!</code> is simultaneously the most wonderful and horrifying thing
+in this crate.</p>
+<p>It is wonderful because it is essential for the
+composition of channel operations in a concurrent program. Without select,
+channels becomes much less expressive.</p>
+<p>It is horrifying because the macro used to define it is <em>extremely</em>
+sensitive. My hope is that it is simply my own lack of creativity at fault
+and that others can help me fix it, but we may just be fundamentally stuck
+with something like this until a proper compiler plugin can rescue us.</p>
+<h1 id="failure-modes" class="section-header"><a href="#failure-modes">Failure modes</a></h1>
+<p>When I say that this macro is sensitive, what I mean is, &quot;if you misstep
+on the syntax, you will be slapped upside the head with an irrelevant
+error message.&quot;</p>
+<p>Consider this:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="macro">chan_select</span><span class="macro">!</span> {
+    <span class="ident">default</span> <span class="op">=&gt;</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;   .&quot;</span>);
+        <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">50</span>));
+    }
+    <span class="ident">tick</span>.<span class="ident">recv</span>() <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;tick.&quot;</span>),
+    <span class="ident">boom</span>.<span class="ident">recv</span>() <span class="op">=&gt;</span> { <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;BOOM!&quot;</span>); <span class="kw">return</span>; },
+}</pre>
+<p>The compiler will tell you that the &quot;recursion limit reached while
+expanding the macro.&quot;</p>
+<p>The actual problem is that <strong>every</strong> arm requires a trailing comma,
+regardless of whether the arm is wrapped in a <code>{ ... }</code> or not. So it
+should be written <code>default =&gt; { ... },</code>. (I'm told that various highly
+skilled individuals could remove this restriction.)</p>
+<p>Here's another. Can you spot the problem? I swear it's not commas this
+time.</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="macro">chan_select</span><span class="macro">!</span> {
+    <span class="ident">tick</span>.<span class="ident">recv</span>() <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;tick.&quot;</span>),
+    <span class="ident">boom</span>.<span class="ident">recv</span>() <span class="op">=&gt;</span> { <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;BOOM!&quot;</span>); <span class="kw">return</span>; },
+    <span class="ident">default</span> <span class="op">=&gt;</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;   .&quot;</span>);
+        <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">50</span>));
+    },
+}</pre>
+<p>This produces the same &quot;recursion limit&quot; error as above.</p>
+<p>The actual problem is that the <code>default</code> arm <em>must</em> come first (or it must
+be omitted completely).</p>
+<p>Yet another:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<span class="macro">chan_select</span><span class="macro">!</span> {
+    <span class="ident">default</span> <span class="op">=&gt;</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;   .&quot;</span>);
+        <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">50</span>));
+    },
+    <span class="ident">tick</span>().<span class="ident">recv</span>() <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;tick.&quot;</span>),
+    <span class="ident">boom</span>.<span class="ident">recv</span>() <span class="op">=&gt;</span> { <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;BOOM!&quot;</span>); <span class="kw">return</span>; },
+}</pre>
+<p>Again, you'll get the same &quot;recursion limit&quot; error.</p>
+<p>The actual problem is that the channel operations must be of the form
+<code>ident.recv()</code> or <code>ident.send()</code>. You cannot use an arbitrary expression
+in place of <code>ident</code> that evaluates to a channel! To fix this, you must
+rebind <code>tick()</code> to an identifier outside of <code>chan_select!</code>.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "chan";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

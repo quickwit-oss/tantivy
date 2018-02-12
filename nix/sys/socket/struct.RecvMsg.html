@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `RecvMsg` struct in crate `nix`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, RecvMsg">
+
+    <title>nix::sys::socket::RecvMsg - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Struct RecvMsg</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#fields">Fields</a><div class="sidebar-links"><a href="#structfield.bytes">bytes</a><a href="#structfield.address">address</a><a href="#structfield.flags">flags</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.cmsgs">cmsgs</a></div></div><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a></p><script>window.sidebarCurrent = {name: 'RecvMsg', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>RecvMsg</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#112-118' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct RecvMsg&lt;'a&gt; {
+    pub bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+    pub address: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../../nix/sys/socket/enum.SockAddr.html" title="enum nix::sys::socket::SockAddr">SockAddr</a>&gt;,
+    pub flags: <a class="struct" href="../../../nix/sys/socket/struct.MsgFlags.html" title="struct nix::sys::socket::MsgFlags">MsgFlags</a>,
+    // some fields omitted
+}</pre><h2 id='fields' class='fields small-section-header'>
+                       Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.bytes" class="structfield small-section-header">
+                           <a href="#structfield.bytes" class="anchor field"></a>
+                           <span id="bytes.v" class='invisible'>
+                           <code>bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code>
+                           </span></span><span id="structfield.address" class="structfield small-section-header">
+                           <a href="#structfield.address" class="anchor field"></a>
+                           <span id="address.v" class='invisible'>
+                           <code>address: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../../nix/sys/socket/enum.SockAddr.html" title="enum nix::sys::socket::SockAddr">SockAddr</a>&gt;</code>
+                           </span></span><span id="structfield.flags" class="structfield small-section-header">
+                           <a href="#structfield.flags" class="anchor field"></a>
+                           <span id="flags.v" class='invisible'>
+                           <code>flags: <a class="struct" href="../../../nix/sys/socket/struct.MsgFlags.html" title="struct nix::sys::socket::MsgFlags">MsgFlags</a></code>
+                           </span></span>
+                    <h2 id='methods' class='small-section-header'>
+                      Methods<a href='#methods' class='anchor'></a>
+                    </h2>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#120-126' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.cmsgs' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="enum" href="../../../nix/sys/socket/enum.ControlMessage.html" title="enum nix::sys::socket::ControlMessage">ControlMessage</a>&lt;'a&gt;;</span></code></div></div><span id='cmsgs.v' class='invisible'><code>pub fn <a href='#method.cmsgs' class='fnname'>cmsgs</a>(&amp;self) -&gt; <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#123-125' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Iterate over the valid control messages pointed to by this
+msghdr.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "nix";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>
