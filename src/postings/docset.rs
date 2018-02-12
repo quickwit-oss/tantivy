@@ -34,6 +34,9 @@ pub trait DocSet {
     /// More specifically, if the docset is already positionned on the target
     /// skipping will advance to the next position and return SkipResult::Overstep.
     ///
+    /// If `.skip_next()` oversteps, then the docset must be positionned correctly
+    /// on an existing document. In other words, `.doc()` should return the first document
+    /// greater than `DocId`.
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;

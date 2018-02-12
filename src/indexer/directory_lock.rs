@@ -25,4 +25,3 @@ impl Drop for DirectoryLock {
         }
     }
 }
-
