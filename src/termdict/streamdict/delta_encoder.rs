@@ -49,7 +49,6 @@ impl TermDeltaDecoder {
         }
     }
 
-
     // code
     // first bit represents whether the prefix / suffix len can be encoded
     // on the same byte. (the next one)
@@ -57,18 +56,17 @@ impl TermDeltaDecoder {
 
     #[inline(always)]
     pub fn decode<'a>(&mut self, code: u8, mut cursor: &'a [u8]) -> &'a [u8] {
-        let (prefix_len, suffix_len): (usize, usize) =
-            if (code & 1u8) == 1u8 {
-                let b = cursor[0];
-                cursor = &cursor[1..];
-                let prefix_len = (b & 15u8) as usize;
-                let suffix_len = (b >> 4u8) as usize;
-                (prefix_len, suffix_len)
-            } else {
-                let prefix_len = u32::deserialize(&mut cursor).unwrap();
-                let suffix_len = u32::deserialize(&mut cursor).unwrap();
-                (prefix_len as usize, suffix_len as usize)
-            };
+        let (prefix_len, suffix_len): (usize, usize) = if (code & 1u8) == 1u8 {
+            let b = cursor[0];
+            cursor = &cursor[1..];
+            let prefix_len = (b & 15u8) as usize;
+            let suffix_len = (b >> 4u8) as usize;
+            (prefix_len, suffix_len)
+        } else {
+            let prefix_len = u32::deserialize(&mut cursor).unwrap();
+            let suffix_len = u32::deserialize(&mut cursor).unwrap();
+            (prefix_len as usize, suffix_len as usize)
+        };
         unsafe { self.term.set_len(prefix_len) };
         self.term.extend_from_slice(&(*cursor)[..suffix_len]);
         &cursor[suffix_len..]

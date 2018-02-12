@@ -39,6 +39,5 @@ fn test_unrolled_linked_list() {
                 assert!(!it.next().is_some());
             }
         }
-
     }
 }

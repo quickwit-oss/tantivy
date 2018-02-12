@@ -3,7 +3,7 @@ use DocId;
 use Score;
 use collector::Collector;
 use postings::SkipResult;
-use common::DocBitSet;
+use common::BitSet;
 use std::ops::{Deref, DerefMut};
 
 /// Scored set of documents matching a query within a specific segment.
@@ -62,19 +62,27 @@ impl Scorer for EmptyScorer {
     }
 }
 
+/// Wraps a `DocSet` and simply returns a constant `Scorer`.
+/// The `ConstScorer` is useful if you have a `DocSet` where
+/// you needed a scorer.
+///
+/// The `ConstScorer`'s constant score can be set
+/// by calling `.set_score(...)`.
 pub struct ConstScorer<TDocSet: DocSet> {
     docset: TDocSet,
-    score: Score
+    score: Score,
 }
 
 impl<TDocSet: DocSet> ConstScorer<TDocSet> {
+    /// Creates a new `ConstScorer`.
     pub fn new(docset: TDocSet) -> ConstScorer<TDocSet> {
         ConstScorer {
             docset,
-            score: 1f32
+            score: 1f32,
         }
     }
 
+    /// Sets the constant score to a different value.
     pub fn set_score(&mut self, score: Score) {
         self.score = score;
     }
@@ -101,11 +109,10 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.size_hint()
     }
 
-    fn to_doc_bitset(&mut self, max_doc: DocId) -> DocBitSet {
-        self.docset.to_doc_bitset(max_doc)
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        self.docset.append_to_bitset(bitset);
     }
 }
-
 
 impl<TDocSet: DocSet> Scorer for ConstScorer<TDocSet> {
     fn score(&self) -> Score {

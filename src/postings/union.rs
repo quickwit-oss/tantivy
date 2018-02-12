@@ -10,7 +10,7 @@ const HORIZON: usize = 64 * HORIZON_NUM_TINYBITSETS;
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct UnionDocSet<TDocSet: DocSet> {
     docsets: Vec<TDocSet>,
-    bitsets: Box<[u64; HORIZON_NUM_TINYBITSETS]>,
+    bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
     cursor: usize,
     offset: DocId,
     doc: DocId,
@@ -31,7 +31,7 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for UnionDocSet<TDocSet> {
                 .collect();
         UnionDocSet {
             docsets: non_empty_docsets,
-            bitsets: Box::new([0u64; HORIZON_NUM_TINYBITSETS]),
+            bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
             doc: 0
@@ -40,10 +40,10 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for UnionDocSet<TDocSet> {
 }
 
 
-fn refill<TDocSet: DocSet>(docsets: &mut Vec<TDocSet>, bitsets: &mut [u64; HORIZON_NUM_TINYBITSETS], min_doc: DocId) {
+fn refill<TDocSet: DocSet>(docsets: &mut Vec<TDocSet>, bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS], min_doc: DocId) {
     docsets
         .drain_filter(|docset| {
-            let horizon = min_doc + HORIZON_NUM_TINYBITSETS as u32;
+            let horizon = min_doc + HORIZON as u32;
             loop {
                 let doc = docset.doc();
                 if doc >= horizon {
@@ -51,7 +51,7 @@ fn refill<TDocSet: DocSet>(docsets: &mut Vec<TDocSet>, bitsets: &mut [u64; HORIZ
                 }
                 // add this document
                 let delta = doc - min_doc;
-                bitsets[(delta / 64) as usize] |= 1 << (delta % 64);
+                bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
                 if !docset.advance() {
                     // remove the docset, it has been entirely consumed.
                     return true;
@@ -91,14 +91,6 @@ impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
         self.refill()
     }
 
-    fn doc(&self) -> DocId {
-        self.doc
-    }
-
-    fn size_hint(&self) -> u32 {
-        0u32
-    }
-
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         let mut reached = false;
         self.docsets
@@ -121,6 +113,14 @@ impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
                 SkipResult::OverStep
             }
         }
+    }
+
+    fn doc(&self) -> DocId {
+        self.doc
+    }
+
+    fn size_hint(&self) -> u32 {
+        0u32
     }
 }
 

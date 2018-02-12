@@ -1,7 +1,6 @@
-use super::{Token, Tokenizer, TokenStream};
+use super::{Token, TokenStream, Tokenizer};
 use std::str;
 use schema::FACET_SEP_BYTE;
-
 
 /// The `FacetTokenizer` process a `Facet` binary representation
 /// and emits a token for all of its parent.
@@ -39,27 +38,27 @@ impl<'a> Tokenizer<'a> for FacetTokenizer {
     }
 }
 
-
 impl<'a> TokenStream for FacetTokenStream<'a> {
     fn advance(&mut self) -> bool {
         match self.state {
             State::RootFacetNotEmitted => {
-                self.state =
-                    if self.text.is_empty() {
-                        State::Terminated
-                    } else {
-                        State::UpToPosition(0)
-                    };
+                self.state = if self.text.is_empty() {
+                    State::Terminated
+                } else {
+                    State::UpToPosition(0)
+                };
                 true
             }
             State::UpToPosition(cursor) => {
                 let bytes: &[u8] = self.text.as_bytes();
-                if let Some(next_sep_pos) = bytes[cursor+1..]
+                if let Some(next_sep_pos) = bytes[cursor + 1..]
                     .iter()
                     .cloned()
                     .position(|b| b == FACET_SEP_BYTE)
-                    .map(|pos| cursor + 1 + pos) {
-                    let facet_part = unsafe { str::from_utf8_unchecked(&bytes[cursor..next_sep_pos]) };
+                    .map(|pos| cursor + 1 + pos)
+                {
+                    let facet_part =
+                        unsafe { str::from_utf8_unchecked(&bytes[cursor..next_sep_pos]) };
                     self.token.text.push_str(facet_part);
                     self.state = State::UpToPosition(next_sep_pos);
                 } else {
@@ -69,9 +68,7 @@ impl<'a> TokenStream for FacetTokenStream<'a> {
                 }
                 true
             }
-            State::Terminated => {
-                false
-            }
+            State::Terminated => false,
         }
     }
 
@@ -87,9 +84,10 @@ impl<'a> TokenStream for FacetTokenStream<'a> {
 #[cfg(test)]
 mod tests {
 
-    use tokenizer::{TokenStream, Token, Tokenizer};
+    use tokenizer::{Token, TokenStream, Tokenizer};
     use super::FacetTokenizer;
     use schema::Facet;
+    use std::str;
 
     #[test]
     fn test_facet_tokenizer() {
@@ -101,7 +99,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe { ::std::str::from_utf8_unchecked(facet.encoded_bytes()) })
+                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
@@ -121,7 +119,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe { ::std::str::from_utf8_unchecked(facet.encoded_bytes()) })
+                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);

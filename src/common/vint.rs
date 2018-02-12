@@ -11,6 +11,10 @@ impl VInt {
     pub fn val(&self) -> u64 {
         self.0
     }
+
+    pub fn deserialize_u64<R: Read>(reader: &mut R) -> io::Result<u64> {
+        VInt::deserialize(reader).map(|vint| vint.0)
+    }
 }
 
 impl BinarySerializable for VInt {

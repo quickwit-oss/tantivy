@@ -1,4 +1,4 @@
-use common::{DocBitSet, TinySet};
+use common::{BitSet, TinySet};
 use DocId;
 use postings::DocSet;
 use postings::SkipResult;
@@ -8,107 +8,100 @@ use std::cmp::Ordering;
 ///
 /// # Implementation detail
 ///
-/// Skipping is relatively fast here as we can directly point to the 
+/// Skipping is relatively fast here as we can directly point to the
 /// right tiny bitset bucket.
 ///
-/// TODO: Consider implementing a `BitTreeSet` in order to advance faster 
+/// TODO: Consider implementing a `BitTreeSet` in order to advance faster
 /// when the bitset is sparse
 pub struct BitSetDocSet {
-    docs: DocBitSet,
-    cursor_bucket: usize, //< index associated to the current tiny bitset
-    cursor_tinybitset: u64,
-    doc: u32
+    docs: BitSet,
+    cursor_bucket: u32, //< index associated to the current tiny bitset
+    cursor_tinybitset: TinySet,
+    doc: u32,
 }
 
-impl From<DocBitSet> for BitSetDocSet {
-    fn from(docs: DocBitSet) -> BitSetDocSet {
-        let first_tiny_bitset = 
-            if docs.num_tiny_bitsets() == 0 {
-                0u64
-            } else {
-                docs.tiny_bitset(0) as u64
-            };
+impl BitSetDocSet {
+    fn go_to_bucket(&mut self, bucket_addr: u32) {
+        self.cursor_bucket = bucket_addr;
+        self.cursor_tinybitset = self.docs.tinyset(bucket_addr);
+    }
+}
+
+impl From<BitSet> for BitSetDocSet {
+    fn from(docs: BitSet) -> BitSetDocSet {
+        let first_tiny_bitset = if docs.max_value() == 0 {
+            TinySet::empty()
+        } else {
+            docs.tinyset(0)
+        };
         BitSetDocSet {
             docs,
             cursor_bucket: 0,
             cursor_tinybitset: first_tiny_bitset,
-            doc: 0u32
+            doc: 0u32,
         }
     }
 }
 
 impl DocSet for BitSetDocSet {
     fn advance(&mut self) -> bool {
-        loop {
-            if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
-                self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
-                return true;
-            } else {
-                if self.cursor_bucket < self.docs.num_tiny_bitsets() - 1 {
-                    self.cursor_bucket += 1;
-                    self.cursor_tinybitset = self.docs.tiny_bitset(self.cursor_bucket);
-                } else {
-                    return false;
-                }
-            }
-
+        if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
+            self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
+            return true;
+        }
+        if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {
+            self.go_to_bucket(cursor_bucket);
+            let lower = self.cursor_tinybitset.pop_lowest().unwrap();
+            self.doc = (cursor_bucket * 64u32) | lower;
+            true
+        } else {
+            false
         }
     }
-
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         // skip is required to advance.
         if !self.advance() {
             return SkipResult::End;
         }
-        let target_bucket = (target / 64u32) as usize;
-        
+        let target_bucket = target / 64u32;
+
         // Mask for all of the bits greater or equal
         // to our target document.
         match target_bucket.cmp(&self.cursor_bucket) {
             Ordering::Greater => {
-                self.cursor_bucket = target_bucket;
-                self.cursor_tinybitset = self.docs.tiny_bitset(target_bucket);
-//                let greater: u64 = <u64 as TinySet>::range_greater_or_equal(target % 64);
-//                self.cursor_tinybitset.intersect(greater);
-                loop {
-                    if !self.advance() {
-                        return SkipResult::End;
+                self.go_to_bucket(target_bucket);
+                let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
+                self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
+                if !self.advance() {
+                    SkipResult::End
+                } else {
+                    if self.doc() == target {
+                        SkipResult::Reached
                     } else {
-                        if self.doc() == target {
-                            return SkipResult::Reached;
-                        } else {
-                            // assert!(self.doc() > target);
-                            if self.doc() > target {
-                                return SkipResult::OverStep;
-                            }
-
-                        }
+                        debug_assert!(self.doc() > target);
+                        SkipResult::OverStep
                     }
                 }
             }
-            Ordering::Equal => {
-                loop {
-                    match self.doc().cmp(&target) {
-                        Ordering::Less => {
-                            if !self.advance() {
-                                return SkipResult::End;
-                            }
-                        }
-                        Ordering::Equal => {
-                            assert!(self.doc() == target);
-                            return SkipResult::Reached;
-                        }
-                        Ordering::Greater => {
-                            assert!(self.doc() > target);
-                            return SkipResult::OverStep;
+            Ordering::Equal => loop {
+                match self.doc().cmp(&target) {
+                    Ordering::Less => {
+                        if !self.advance() {
+                            return SkipResult::End;
                         }
                     }
+                    Ordering::Equal => {
+                        return SkipResult::Reached;
+                    }
+                    Ordering::Greater => {
+                        debug_assert!(self.doc() > target);
+                        return SkipResult::OverStep;
+                    }
                 }
-            }
-
+            },
             Ordering::Less => {
-                assert!(self.doc() > target);
+                debug_assert!(self.doc() > target);
                 SkipResult::OverStep
             }
         }
@@ -135,19 +128,20 @@ impl DocSet for BitSetDocSet {
     /// but we don't have access to any better
     /// value.
     fn size_hint(&self) -> u32 {
-        self.docs.size_hint()
+        self.docs.len() as u32
     }
 }
 
 #[cfg(test)]
 mod tests {
     use DocId;
-    use common::DocBitSet;
-    use postings::{SkipResult, DocSet};
+    use common::BitSet;
+    use postings::{DocSet, SkipResult};
     use super::BitSetDocSet;
+    extern crate test;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
-        let mut docset = DocBitSet::with_maxdoc(max_doc);
+        let mut docset = BitSet::with_max_value(max_doc);
         for &doc in docs {
             docset.insert(doc);
         }
@@ -167,10 +161,10 @@ mod tests {
     #[test]
     fn test_docbitset_sequential() {
         test_go_through_sequential(&[]);
-        test_go_through_sequential(&[1,2,3]);
-        test_go_through_sequential(&[1,2,3,4,5,63,64,65]);
-        test_go_through_sequential(&[63,64,65]);
-        test_go_through_sequential(&[1,2,3,4,95,96,97,98,99]);
+        test_go_through_sequential(&[1, 2, 3]);
+        test_go_through_sequential(&[1, 2, 3, 4, 5, 63, 64, 65]);
+        test_go_through_sequential(&[63, 64, 65]);
+        test_go_through_sequential(&[1, 2, 3, 4, 95, 96, 97, 98, 99]);
     }
 
     #[test]
@@ -206,6 +200,73 @@ mod tests {
             assert_eq!(docset.doc(), 5112);
             assert!(!docset.advance());
         }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5500, 6666], 10_000);
+            assert_eq!(docset.skip_next(5112), SkipResult::Reached);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5500);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
+            assert!(!docset.advance());
+        }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5500, 6666], 10_000);
+            assert_eq!(docset.skip_next(5111), SkipResult::OverStep);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5500);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
+            assert!(!docset.advance());
+        }
+        {
+            let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5513, 6666], 10_000);
+            assert_eq!(docset.skip_next(5111), SkipResult::OverStep);
+            assert_eq!(docset.doc(), 5112);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 5513);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 6666);
+            assert!(!docset.advance());
+        }
     }
 
+    #[bench]
+    fn bench_bitset_1pct_insert(b: &mut test::Bencher) {
+        use tests;
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
+        b.iter(|| {
+            let mut bitset = BitSet::with_max_value(1_000_000);
+            for el in els.iter().cloned() {
+                bitset.insert(el);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_bitset_1pct_clone(b: &mut test::Bencher) {
+        use tests;
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in els {
+            bitset.insert(el);
+        }
+        b.iter(|| bitset.clone());
+    }
+
+    #[bench]
+    fn bench_bitset_1pct_clone_iterate(b: &mut test::Bencher) {
+        use tests;
+        use DocSet;
+        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in els {
+            bitset.insert(el);
+        }
+        b.iter(|| {
+            let mut docset = BitSetDocSet::from(bitset.clone());
+            while docset.advance() {}
+        });
+    }
 }

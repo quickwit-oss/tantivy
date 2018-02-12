@@ -108,17 +108,21 @@ impl SegmentReader {
     pub fn facet_reader(&self, field: Field) -> Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
         if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(ErrorKind::InvalidArgument(format!("The field {:?} is not a \
-                    hierarchical facet.", field_entry)).into())
+            return Err(ErrorKind::InvalidArgument(format!(
+                "The field {:?} is not a \
+                 hierarchical facet.",
+                field_entry
+            )).into());
         }
         let term_ords_reader = self.multi_value_reader(field)?;
-        let termdict_source = self.termdict_composite
-            .open_read(field)
-            .ok_or_else(|| {
-                ErrorKind::InvalidArgument(format!("The field \"{}\" is a hierarchical \
-                    but this segment does not seem to have the field term \
-                    dictionary.", field_entry.name()))
-            })?;
+        let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
+            ErrorKind::InvalidArgument(format!(
+                "The field \"{}\" is a hierarchical \
+                 but this segment does not seem to have the field term \
+                 dictionary.",
+                field_entry.name()
+            ))
+        })?;
         let termdict = TermDictionaryImpl::from_source(termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Ok(facet_reader)

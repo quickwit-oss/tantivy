@@ -1,13 +1,11 @@
 use std::io::Write;
-use common::BinarySerializable;
+use common::{BinarySerializable, VInt, is_power_of_2};
 use std::marker::PhantomData;
-use DocId;
 use std::io;
 
 struct LayerBuilder<T: BinarySerializable> {
-    period: usize,
+    period_mask: usize,
     buffer: Vec<u8>,
-    remaining: usize,
     len: usize,
     _phantom_: PhantomData<T>,
 }
@@ -23,34 +21,33 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     }
 
     fn with_period(period: usize) -> LayerBuilder<T> {
+        assert!(is_power_of_2(period), "The period has to be a power of 2.");
         LayerBuilder {
-            period,
+            period_mask: (period - 1),
             buffer: Vec::new(),
-            remaining: period,
             len: 0,
             _phantom_: PhantomData,
         }
     }
 
-    fn insert(&mut self, doc_id: DocId, value: &T) -> io::Result<Option<(DocId, u32)>> {
-        self.remaining -= 1;
+    fn insert(&mut self, key: u64, value: &T) -> io::Result<Option<(u64, u64)>> {
         self.len += 1;
-        let offset = self.written_size() as u32;
-        doc_id.serialize(&mut self.buffer)?;
+        let offset = self.written_size() as u64;
+        VInt(key).serialize(&mut self.buffer)?;
         value.serialize(&mut self.buffer)?;
-        Ok(if self.remaining == 0 {
-            self.remaining = self.period;
-            Some((doc_id, offset))
+        let emit_skip_info = (self.period_mask & self.len) == 0;
+        if emit_skip_info {
+            Ok(Some((key, offset)))
         } else {
-            None
-        })
+            Ok(None)
+        }
     }
 }
 
 pub struct SkipListBuilder<T: BinarySerializable> {
     period: usize,
     data_layer: LayerBuilder<T>,
-    skip_layers: Vec<LayerBuilder<u32>>,
+    skip_layers: Vec<LayerBuilder<u64>>,
 }
 
 impl<T: BinarySerializable> SkipListBuilder<T> {
@@ -62,7 +59,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         }
     }
 
-    fn get_skip_layer(&mut self, layer_id: usize) -> &mut LayerBuilder<u32> {
+    fn get_skip_layer(&mut self, layer_id: usize) -> &mut LayerBuilder<u64> {
         if layer_id == self.skip_layers.len() {
             let layer_builder = LayerBuilder::with_period(self.period);
             self.skip_layers.push(layer_builder);
@@ -70,9 +67,9 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         &mut self.skip_layers[layer_id]
     }
 
-    pub fn insert(&mut self, doc_id: DocId, dest: &T) -> io::Result<()> {
+    pub fn insert(&mut self, key: u64, dest: &T) -> io::Result<()> {
         let mut layer_id = 0;
-        let mut skip_pointer = self.data_layer.insert(doc_id, dest)?;
+        let mut skip_pointer = self.data_layer.insert(key, dest)?;
         loop {
             skip_pointer = match skip_pointer {
                 Some((skip_doc_id, skip_offset)) => self.get_skip_layer(layer_id)
@@ -86,13 +83,11 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
     }
 
     pub fn write<W: Write>(self, output: &mut W) -> io::Result<()> {
-        let mut size: u32 = 0;
-        let mut layer_sizes: Vec<u32> = Vec::new();
-        size += self.data_layer.buffer.len() as u32;
-        layer_sizes.push(size);
+        let mut size: u64 = self.data_layer.buffer.len() as u64;
+        let mut layer_sizes = vec![VInt(size)];
         for layer in self.skip_layers.iter().rev() {
-            size += layer.buffer.len() as u32;
-            layer_sizes.push(size);
+            size += layer.buffer.len() as u64;
+            layer_sizes.push(VInt(size));
         }
         layer_sizes.serialize(output)?;
         self.data_layer.write(output)?;

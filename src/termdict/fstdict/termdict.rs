@@ -3,10 +3,11 @@ use fst;
 use fst::raw::Fst;
 use directory::ReadOnlySource;
 use common::BinarySerializable;
+use common::CountingWriter;
 use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
-use super::{TermStreamerImpl, TermStreamerBuilderImpl};
+use super::{TermInfoStore, TermInfoStoreWriter, TermStreamerBuilderImpl, TermStreamerImpl};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -15,7 +16,7 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 /// See [`TermDictionaryBuilder`](./trait.TermDictionaryBuilder.html)
 pub struct TermDictionaryBuilderImpl<W> {
     fst_builder: fst::MapBuilder<W>,
-    data: Vec<u8>,
+    term_info_store_writer: TermInfoStoreWriter,
     term_ord: u64,
 }
 
@@ -41,8 +42,8 @@ where
     /// # Warning
     ///
     /// Horribly dangerous internal API. See `.insert_key(...)`.
-    pub(crate) fn insert_value(&mut self, value: &TermInfo) -> io::Result<()> {
-        value.serialize(&mut self.data)?;
+    pub(crate) fn insert_value(&mut self, term_info: &TermInfo) -> io::Result<()> {
+        self.term_info_store_writer.write_term_info(term_info)?;
         Ok(())
     }
 }
@@ -54,25 +55,28 @@ where
     fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilderImpl {
-            fst_builder: fst_builder,
-            data: Vec::new(),
+            fst_builder,
+            term_info_store_writer: TermInfoStoreWriter::new(),
             term_ord: 0,
         })
     }
 
     fn insert<K: AsRef<[u8]>>(&mut self, key_ref: K, value: &TermInfo) -> io::Result<()> {
         let key = key_ref.as_ref();
-        self.insert_key(key.as_ref())?;
+        self.insert_key(key)?;
         self.insert_value(value)?;
         Ok(())
     }
 
-    fn finish(self) -> io::Result<W> {
+    fn finish(mut self) -> io::Result<W> {
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
-        let footer_size = self.data.len() as u32;
-        file.write_all(&self.data)?;
-        (footer_size as u32).serialize(&mut file)?;
-        file.flush()?;
+        {
+            let mut counting_writer = CountingWriter::wrap(&mut file);
+            self.term_info_store_writer.serialize(&mut counting_writer)?;
+            let footer_size = counting_writer.written_bytes();
+            (footer_size as u64).serialize(&mut counting_writer)?;
+            counting_writer.flush()?;
+        }
         Ok(file)
     }
 }
@@ -92,9 +96,8 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
 /// See [`TermDictionary`](./trait.TermDictionary.html)
 pub struct TermDictionaryImpl {
     fst_index: fst::Map,
-    values_mmap: ReadOnlySource,
+    term_info_store: TermInfoStore,
 }
-
 
 impl<'a> TermDictionary<'a> for TermDictionaryImpl {
     type Streamer = TermStreamerImpl<'a>;
@@ -103,23 +106,26 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
 
     fn from_source(source: ReadOnlySource) -> Self {
         let total_len = source.len();
-        let length_offset = total_len - 4;
+        let length_offset = total_len - 8;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
-        let footer_size = u32::deserialize(&mut split_len_buffer).expect(
-            "Deserializing 4 bytes should always work",
-        ) as usize;
+        let footer_size = u64::deserialize(&mut split_len_buffer)
+            .expect("Deserializing 8 bytes should always work") as usize;
         let split_len = length_offset - footer_size;
         let fst_source = source.slice(0, split_len);
         let values_source = source.slice(split_len, length_offset);
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
-            fst_index: fst_index,
-            values_mmap: values_source,
+            fst_index,
+            term_info_store: TermInfoStore::open(values_source),
         }
     }
 
     fn num_terms(&self) -> usize {
-        self.values_mmap.len() / TermInfo::SIZE_IN_BYTES
+        self.term_info_store.num_terms()
+    }
+
+    fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
+        self.fst_index.get(key)
     }
 
     fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool {
@@ -128,32 +134,22 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let mut node = fst.root();
         while ord != 0 || !node.is_final() {
             if let Some(transition) = node.transitions()
-                .take_while(|transition| {
-                    transition.out.value() <= ord
-                })
-                .last() {
+                .take_while(|transition| transition.out.value() <= ord)
+                .last()
+            {
                 ord -= transition.out.value();
                 bytes.push(transition.inp);
                 let new_node_addr = transition.addr;
                 node = fst.node(new_node_addr);
-            }
-            else {
+            } else {
                 return false;
             }
         }
-        return true;
-    }
-
-    fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
-        self.fst_index.get(key)
+        true
     }
 
     fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo {
-        let buffer = self.values_mmap.as_slice();
-        let offset = term_ord as usize * TermInfo::SIZE_IN_BYTES;
-        let mut cursor = &buffer[offset..];
-        TermInfo::deserialize(&mut cursor)
-            .expect("The fst is corrupted. Failed to deserialize a value.")
+        self.term_info_store.get(term_ord)
     }
 
     fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {

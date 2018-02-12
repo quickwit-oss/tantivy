@@ -4,7 +4,7 @@ use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
 use std::slice;
 use std::io::{self, Read};
-use stable_deref_trait::{StableDeref, CloneStableDeref};
+use stable_deref_trait::{CloneStableDeref, StableDeref};
 
 /// Read object that represents files in tantivy.
 ///

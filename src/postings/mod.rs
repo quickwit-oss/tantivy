@@ -97,39 +97,52 @@ mod tests {
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let query = TermQuery::new(Term::from_field_text(title, "abc"), IndexRecordOption::WithFreqsAndPositions);
+        let query = TermQuery::new(
+            Term::from_field_text(title, "abc"),
+            IndexRecordOption::WithFreqsAndPositions,
+        );
         let weight = query.specialized_weight(&*searcher);
         {
-            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            let mut scorer = weight
+                .specialized_scorer(searcher.segment_reader(0u32))
+                .unwrap();
             scorer.advance();
-            assert_eq!(&[0,1,2], scorer.postings().positions());
+            assert_eq!(&[0, 1, 2], scorer.postings().positions());
             scorer.advance();
-            assert_eq!(&[0,5], scorer.postings().positions());
+            assert_eq!(&[0, 5], scorer.postings().positions());
         }
         {
-            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            let mut scorer = weight
+                .specialized_scorer(searcher.segment_reader(0u32))
+                .unwrap();
             scorer.advance();
             scorer.advance();
-            assert_eq!(&[0,5], scorer.postings().positions());
+            assert_eq!(&[0, 5], scorer.postings().positions());
         }
         {
-            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            let mut scorer = weight
+                .specialized_scorer(searcher.segment_reader(0u32))
+                .unwrap();
             assert_eq!(scorer.skip_next(1), SkipResult::Reached);
             assert_eq!(scorer.doc(), 1);
-            assert_eq!(&[0,5], scorer.postings().positions());
+            assert_eq!(&[0, 5], scorer.postings().positions());
         }
         {
-            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            let mut scorer = weight
+                .specialized_scorer(searcher.segment_reader(0u32))
+                .unwrap();
             assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
             assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0,5], scorer.postings().positions());
+            assert_eq!(&[0, 5], scorer.postings().positions());
         }
         {
-            let mut scorer = weight.specialized_scorer(searcher.segment_reader(0u32)).unwrap();
+            let mut scorer = weight
+                .specialized_scorer(searcher.segment_reader(0u32))
+                .unwrap();
             assert_eq!(scorer.skip_next(100), SkipResult::Reached);
             assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
             assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0,5], scorer.postings().positions());
+            assert_eq!(&[0, 5], scorer.postings().positions());
         }
     }
 

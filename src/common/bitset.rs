@@ -1,190 +1,260 @@
-use DocId;
+use std::fmt;
 
-pub trait TinySet {
-    fn insert(&mut self, b: u32);
-    fn is_empty(&self) -> bool;
-    fn pop_lowest(&mut self) -> Option<u32>;
-    fn remove(&mut self, b: u32);
-    fn lowest(&mut self) -> Option<u32>;
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) struct TinySet(u64);
 
-    /// Update self to represent the
-    /// intersection of its elements and the other
-    /// set given in arguments.
-    fn intersect(&mut self, other: Self);
-
-    /// Returns a `TinySet` than contains all values up
-    /// to limit excluded.
-    ///
-    /// The limit is assumed to be strictly lower than 64.
-    fn range_lower(limit: u32) -> u64;
-
-    /// Returns a `TinySet` that contains all values greater
-    /// or equal to the given limit, included. (and up to 63)
-    ///
-    /// The limit is assumed to be strictly lower than 64.
-    fn range_greater_or_equal(from_included: u32) -> u64 {
-        assert!(from_included < 64);
-        0 ^ Self::range_lower(from_included)
+impl fmt::Debug for TinySet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.into_iter().collect::<Vec<u32>>().fmt(f)
     }
 }
 
-impl TinySet for u64 {
-    fn range_lower(from_included: u32) -> u64 {
-        assert!(from_included < 64);
-        (1u64 << (from_included as u64)) - 1u64
+pub struct TinySetIterator(TinySet);
+impl Iterator for TinySetIterator {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop_lowest()
+    }
+}
+
+impl IntoIterator for TinySet {
+    type Item = u32;
+    type IntoIter = TinySetIterator;
+    fn into_iter(self) -> Self::IntoIter {
+        TinySetIterator(self)
+    }
+}
+
+impl TinySet {
+    /// Returns an empty `TinySet`.
+    pub fn empty() -> TinySet {
+        TinySet(0u64)
     }
 
-    fn intersect(&mut self, filter_mask: u64) {
-        *self &= filter_mask;
+    /// Returns the complement of the set in `[0, 64[`.
+    fn complement(&self) -> TinySet {
+        TinySet(!self.0)
     }
 
+    /// Returns true iff the `TinySet` contains the element `el`.
+    pub fn contains(&self, el: u32) -> bool {
+        !self.intersect(TinySet::singleton(el)).is_empty()
+    }
+
+    /// Returns the intersection of `self` and `other`
+    pub fn intersect(&self, other: TinySet) -> TinySet {
+        TinySet(self.0 & other.0)
+    }
+
+    /// Creates a new `TinySet` containing only one element
+    /// within `[0; 64[`
     #[inline(always)]
-    fn insert(&mut self, b: u32) {
-        *self |= 1u64 << (b as u64);
+    pub fn singleton(el: u32) -> TinySet {
+        TinySet(1u64 << (el as u64))
     }
 
+    /// Insert a new element within [0..64[
     #[inline(always)]
-    fn is_empty(&self) -> bool {
-        *self == 0u64
+    pub fn insert(self, el: u32) -> TinySet {
+        self.union(TinySet::singleton(el))
     }
 
+    /// Insert a new element within [0..64[
     #[inline(always)]
-    fn pop_lowest(&mut self) -> Option<u32> {
+    pub fn insert_mut(&mut self, el: u32) -> bool {
+        let old = *self;
+        *self = old.insert(el);
+        old != *self
+    }
+
+    /// Returns the union of two tinysets
+    #[inline(always)]
+    pub fn union(self, other: TinySet) -> TinySet {
+        TinySet(self.0 | other.0)
+    }
+
+    /// Returns true iff the `TinySet` is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.0 == 0u64
+    }
+
+    /// Returns the lowest element in the `TinySet`
+    /// and removes it.
+    #[inline(always)]
+    pub fn pop_lowest(&mut self) -> Option<u32> {
         if let Some(lowest) = self.lowest() {
-            self.remove(lowest);
+            self.0 ^= TinySet::singleton(lowest).0;
             Some(lowest)
         } else {
             None
         }
     }
 
+    /// Returns the lowest element in the `TinySet`
+    /// (or None if the set is empty).
     #[inline(always)]
-    fn remove(&mut self, b: u32) {
-        *self ^= 1 << (b as u64);
-    }
-
-    #[inline(always)]
-    fn lowest(&mut self) -> Option<u32> {
+    pub fn lowest(&mut self) -> Option<u32> {
         if self.is_empty() {
             None
         } else {
-            let least_significant_bit = self.trailing_zeros() as u32;
+            let least_significant_bit = self.0.trailing_zeros() as u32;
             Some(least_significant_bit)
         }
     }
+
+    /// Returns a `TinySet` than contains all values up
+    /// to limit excluded.
+    ///
+    /// The limit is assumed to be strictly lower than 64.
+    pub fn range_lower(upper_bound: u32) -> TinySet {
+        TinySet((1u64 << ((upper_bound % 64u32) as u64)) - 1u64)
+    }
+
+    /// Returns a `TinySet` that contains all values greater
+    /// or equal to the given limit, included. (and up to 63)
+    ///
+    /// The limit is assumed to be strictly lower than 64.
+    pub fn range_greater_or_equal(from_included: u32) -> TinySet {
+        TinySet::range_lower(from_included).complement()
+    }
 }
 
-pub struct DocBitSet {
-    tinybitsets: Box<[u64]>,
-    size_hint: usize, //< Technically it should be u32, but we
-                      // count multiple inserts.
-                      // `usize` guards us from overflow.
-    max_doc: DocId
+#[derive(Clone)]
+pub struct BitSet {
+    tinysets: Box<[TinySet]>,
+    len: usize, //< Technically it should be u32, but we
+    // count multiple inserts.
+    // `usize` guards us from overflow.
+    max_value: u32,
 }
 
-impl DocBitSet {
-    pub fn with_maxdoc(max_doc: DocId) -> DocBitSet {
-        let num_buckets = (max_doc + 63) / 64;
-        DocBitSet {
-            tinybitsets: vec![0u64; num_buckets as usize].into_boxed_slice(),
-            size_hint: 0,
-            max_doc
+fn num_buckets(max_val: u32) -> u32 {
+    (max_val + 63u32) / 64u32
+}
+
+impl BitSet {
+    /// Create a new `BitSet` that may contain elements
+    /// within `[0, max_val[`.
+    pub fn with_max_value(max_value: u32) -> BitSet {
+        let num_buckets = num_buckets(max_value);
+        let tinybisets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
+        BitSet {
+            tinysets: tinybisets,
+            len: 0,
+            max_value,
         }
     }
 
-    pub fn size_hint(&self) -> u32 {
-        if self.max_doc as usize > self.size_hint {
-            self.size_hint as u32
-        } else {
-            self.max_doc
+    /// Removes all elements from the `BitSet`.
+    pub fn clear(&mut self) {
+        for tinyset in self.tinysets.iter_mut() {
+            *tinyset = TinySet::empty();
         }
     }
 
-    pub fn insert(&mut self, doc: DocId) {
+    /// Returns the number of elements in the `BitSet`.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Inserts an element in the `BitSet`
+    pub fn insert(&mut self, el: u32) {
         // we do not check saturated els.
-        self.size_hint += 1;
-        let bucket = (doc / 64u32) as usize;
-        self.tinybitsets[bucket].insert(doc % 64u32);
+        let higher = el / 64u32;
+        let lower = el % 64u32;
+        self.len += if self.tinysets[higher as usize].insert_mut(lower) {
+            1
+        } else {
+            0
+        };
     }
 
-    pub fn contains(&self, doc: DocId) -> bool {
-        let tiny_bitset = self.tiny_bitset((doc / 64u32) as usize);
-        let lower = doc % 64;
-        let mask = 1u64 << (lower as u64);
-        (tiny_bitset & mask) != 0u64
+    /// Returns true iff the elements is in the `BitSet`.
+    pub fn contains(&self, el: u32) -> bool {
+        self.tinyset(el / 64u32).contains(el % 64)
     }
 
-    pub fn max_doc(&self) -> DocId {
-        self.max_doc
+    /// Returns the first non-empty `TinySet` associated to a bucket lower
+    /// or greater than bucket.
+    ///
+    /// Reminder: the tiny set with the bucket `bucket`, represents the
+    /// elements from `bucket * 64` to `(bucket+1) * 64`.
+    pub(crate) fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
+        self.tinysets[bucket as usize..]
+            .iter()
+            .cloned()
+            .position(|tinyset| !tinyset.is_empty())
+            .map(|delta_bucket| bucket + delta_bucket as u32)
     }
 
-    pub fn num_tiny_bitsets(&self) -> usize {
-        self.tinybitsets.len()
+    pub fn max_value(&self) -> u32 {
+        self.max_value
     }
 
-    pub fn tiny_bitset(&self, bucket: usize) -> u64 {
-        self.tinybitsets[bucket]
+    /// Returns the tiny bitset representing the
+    /// the set restricted to the number range from
+    /// `bucket * 64` to `(bucket + 1) * 64`.
+    pub(crate) fn tinyset(&self, bucket: u32) -> TinySet {
+        self.tinysets[bucket as usize]
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    extern crate test;
+    use tests;
     use std::collections::HashSet;
-    use DocId;
+    use super::BitSet;
     use super::TinySet;
-    use super::DocBitSet;
+    use tests::generate_nonunique_unsorted;
+    use std::collections::BTreeSet;
+    use query::BitSetDocSet;
+    use DocSet;
 
     #[test]
     fn test_tiny_set() {
-        assert!(0u64.is_empty());
+        assert!(TinySet::empty().is_empty());
         {
-            let mut u = 0u64;
-            u.insert(1u32);
+            let mut u = TinySet::empty().insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = 0u64;
-            u.insert(1u32);
-            u.insert(1u32);
+            let mut u = TinySet::empty().insert(1u32).insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = 0u64;
-            u.insert(2u32);
+            let mut u = TinySet::empty().insert(2u32);
             assert_eq!(u.pop_lowest(), Some(2u32));
-            u.insert(1u32);
+            u.insert_mut(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none());
         }
         {
-            let mut u = 0u64;
-            u.insert(63u32);
+            let mut u = TinySet::empty().insert(63u32);
             assert_eq!(u.pop_lowest(), Some(63u32));
             assert!(u.pop_lowest().is_none());
         }
     }
 
-
     #[test]
-    fn test_docbitset() {
-        // docs are assumed to be lower than 100.
-        let test_against_hashset = |docs: &[DocId], max_doc: u32| {
-            let mut hashset: HashSet<DocId> = HashSet::new();
-            let mut docbitset = DocBitSet::with_maxdoc(max_doc);
-            for &doc in docs {
-                assert!(doc < max_doc);
-                hashset.insert(doc);
-                docbitset.insert(doc);
+    fn test_bitset() {
+        let test_against_hashset = |els: &[u32], max_value: u32| {
+            let mut hashset: HashSet<u32> = HashSet::new();
+            let mut bitset = BitSet::with_max_value(max_value);
+            for &el in els {
+                assert!(el < max_value);
+                hashset.insert(el);
+                bitset.insert(el);
             }
-            for doc in 0..max_doc {
-                assert_eq!(
-                    hashset.contains(&doc),
-                    docbitset.contains(doc)
-                );
+            for el in 0..max_value {
+                assert_eq!(hashset.contains(&el), bitset.contains(el));
             }
-            assert_eq!(docbitset.max_doc(), max_doc);
+            assert_eq!(bitset.max_value(), max_value);
         };
 
         test_against_hashset(&[], 0);
@@ -194,17 +264,119 @@ mod tests {
         test_against_hashset(&[1u32, 2u32], 4);
         test_against_hashset(&[99u32], 100);
         test_against_hashset(&[63u32], 64);
-        test_against_hashset(&[62u32,63u32], 64);
+        test_against_hashset(&[62u32, 63u32], 64);
     }
 
     #[test]
-    fn test_docbitset_num_buckets() {
-        assert_eq!(DocBitSet::with_maxdoc(0u32).num_tiny_bitsets(), 0);
-        assert_eq!(DocBitSet::with_maxdoc(1u32).num_tiny_bitsets(), 1);
-        assert_eq!(DocBitSet::with_maxdoc(64u32).num_tiny_bitsets(), 1);
-        assert_eq!(DocBitSet::with_maxdoc(65u32).num_tiny_bitsets(), 2);
-        assert_eq!(DocBitSet::with_maxdoc(128u32).num_tiny_bitsets(), 2);
-        assert_eq!(DocBitSet::with_maxdoc(129u32).num_tiny_bitsets(), 3);
+    fn test_bitset_large() {
+        let arr = generate_nonunique_unsorted(1_000_000, 50_000);
+        let mut btreeset: BTreeSet<u32> = BTreeSet::new();
+        let mut bitset = BitSet::with_max_value(1_000_000);
+        for el in arr {
+            btreeset.insert(el);
+            bitset.insert(el);
+        }
+        for i in 0..1_000_000 {
+            assert_eq!(btreeset.contains(&i), bitset.contains(i));
+        }
+        assert_eq!(btreeset.len(), bitset.len());
+        let mut bitset_docset = BitSetDocSet::from(bitset);
+        for el in btreeset.into_iter() {
+            bitset_docset.advance();
+            assert_eq!(bitset_docset.doc(), el);
+        }
+        assert!(!bitset_docset.advance());
+    }
+
+    #[test]
+    fn test_bitset_num_buckets() {
+        use super::num_buckets;
+        assert_eq!(num_buckets(0u32), 0);
+        assert_eq!(num_buckets(1u32), 1);
+        assert_eq!(num_buckets(64u32), 1);
+        assert_eq!(num_buckets(65u32), 2);
+        assert_eq!(num_buckets(128u32), 2);
+        assert_eq!(num_buckets(129u32), 3);
+    }
+
+    #[test]
+    fn test_tinyset_range() {
+        assert_eq!(
+            TinySet::range_lower(3).into_iter().collect::<Vec<u32>>(),
+            [0, 1, 2]
+        );
+        assert!(TinySet::range_lower(0).is_empty());
+        assert_eq!(
+            TinySet::range_lower(63).into_iter().collect::<Vec<u32>>(),
+            (0u32..63u32).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            TinySet::range_lower(1).into_iter().collect::<Vec<u32>>(),
+            [0]
+        );
+        assert_eq!(
+            TinySet::range_lower(2).into_iter().collect::<Vec<u32>>(),
+            [0, 1]
+        );
+        assert_eq!(
+            TinySet::range_greater_or_equal(3)
+                .into_iter()
+                .collect::<Vec<u32>>(),
+            (3u32..64u32).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_bitset_len() {
+        let mut bitset = BitSet::with_max_value(1_000);
+        assert_eq!(bitset.len(), 0);
+        bitset.insert(3u32);
+        assert_eq!(bitset.len(), 1);
+        bitset.insert(103u32);
+        assert_eq!(bitset.len(), 2);
+        bitset.insert(3u32);
+        assert_eq!(bitset.len(), 2);
+        bitset.insert(103u32);
+        assert_eq!(bitset.len(), 2);
+        bitset.insert(104u32);
+        assert_eq!(bitset.len(), 3);
+    }
+
+    #[test]
+    fn test_bitset_clear() {
+        let mut bitset = BitSet::with_max_value(1_000);
+        let els = tests::sample(1_000, 0.01f32);
+        for &el in &els {
+            bitset.insert(el);
+        }
+        assert!(els.iter().all(|el| bitset.contains(*el)));
+        bitset.clear();
+        for el in 0u32..1000u32 {
+            assert!(!bitset.contains(el));
+        }
+    }
+
+    #[bench]
+    fn bench_tinyset_pop(b: &mut test::Bencher) {
+        b.iter(|| test::black_box(TinySet::singleton(31u32)).pop_lowest());
+    }
+
+    #[bench]
+    fn bench_tinyset_sum(b: &mut test::Bencher) {
+        let tiny_set = TinySet::empty().insert(10u32).insert(14u32).insert(21u32);
+        b.iter(|| {
+            assert_eq!(test::black_box(tiny_set).into_iter().sum::<u32>(), 45u32);
+        });
+    }
+
+    #[bench]
+    fn bench_tinyarr_sum(b: &mut test::Bencher) {
+        let v = [10u32, 14u32, 21u32];
+        b.iter(|| test::black_box(v).iter().cloned().sum::<u32>());
+    }
+
+    #[bench]
+    fn bench_bitset_initialize(b: &mut test::Bencher) {
+        b.iter(|| BitSet::with_max_value(1_000_000));
     }
 }
-

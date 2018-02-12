@@ -24,13 +24,14 @@ impl BooleanWeight {
     }
 }
 
+
 impl Weight for BooleanWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         if self.weights.is_empty() {
             Ok(box EmptyScorer)
         } else if self.weights.len() == 1 {
-            let &(occur, ref weight) =  &self.weights[0];
-            if occur == Occur::MustNot {
+            let &(occur, ref weight) = &self.weights[0];
+                if occur == Occur::MustNot {
                 Ok(box EmptyScorer)
             } else {
                 weight.scorer(reader)

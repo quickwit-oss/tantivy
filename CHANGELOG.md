@@ -1,3 +1,13 @@
+Tantivy 0.5
+==========================
+- Faceting
+- RangeQuery
+- Configurable tokenization pipeline
+- Allowing super large indexes
+    - 64 bits file address
+    - Smarter encoding of the `TermInfo` objects
+
+
 
 Tantivy 0.4.3
 ==========================

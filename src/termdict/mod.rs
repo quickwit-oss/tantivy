@@ -5,7 +5,6 @@ that serves as an address in their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
-```
 
 
 # Implementations
@@ -48,33 +47,29 @@ followed by a streaming through at most `1024` elements in the
 term `stream`.
 */
 
-use schema::{Term, Field, FieldType};
+use schema::{Field, FieldType, Term};
 use directory::ReadOnlySource;
 use postings::TermInfo;
 
-
 /// Position of the term in the sorted list of terms.
 pub type TermOrdinal = u64;
-
 
 pub use self::merger::TermMerger;
 
 #[cfg(not(feature = "streamdict"))]
 mod fstdict;
 #[cfg(not(feature = "streamdict"))]
-pub use self::fstdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
-                        TermStreamerBuilderImpl};
-
+pub use self::fstdict::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerBuilderImpl,
+                        TermStreamerImpl};
 
 #[cfg(feature = "streamdict")]
 mod streamdict;
 #[cfg(feature = "streamdict")]
-pub use self::streamdict::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl,
-                           TermStreamerBuilderImpl};
+pub use self::streamdict::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerBuilderImpl,
+                           TermStreamerImpl};
 
 mod merger;
 use std::io;
-
 
 /// Dictionary associating sorted `&[u8]` to values
 pub trait TermDictionary<'a>
@@ -89,6 +84,10 @@ where
 
     /// Opens a `TermDictionary` given a data source.
     fn from_source(source: ReadOnlySource) -> Self;
+
+    /// Returns the number of terms in the dictionary.
+    /// Term ordinals range from 0 to `num_terms() - 1`.
+    fn num_terms(&self) -> usize;
 
     /// Returns the ordinal associated to a given term.
     fn term_ord<K: AsRef<[u8]>>(&self, term: K) -> Option<TermOrdinal>;
@@ -106,10 +105,6 @@ where
 
     /// Returns the number of terms in the dictionary.
     fn term_info_from_ord(&self, term_ord: TermOrdinal) -> TermInfo;
-
-    /// Returns the number of terms in the dictionary.
-    /// Term ordinals range from 0 to `num_terms() - 1`.
-    fn num_terms(&self) -> usize;
 
     /// Lookups the value corresponding to the key.
     fn get<K: AsRef<[u8]>>(&self, target_key: K) -> Option<TermInfo>;
@@ -153,7 +148,6 @@ where
     /// `Write` object.
     fn finish(self) -> io::Result<W>;
 }
-
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
@@ -202,7 +196,6 @@ pub trait TermStreamer: Sized {
     }
 }
 
-
 /// `TermStreamerBuilder` is an helper object used to define
 /// a range of terms that should be streamed.
 pub trait TermStreamerBuilder {
@@ -226,13 +219,12 @@ pub trait TermStreamerBuilder {
     fn into_stream(self) -> Self::Streamer;
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::{TermDictionaryImpl, TermDictionaryBuilderImpl, TermStreamerImpl};
-    use directory::{RAMDirectory, Directory, ReadOnlySource};
+    use super::{TermDictionaryBuilderImpl, TermDictionaryImpl, TermStreamerImpl};
+    use directory::{Directory, RAMDirectory, ReadOnlySource};
     use std::path::PathBuf;
-    use schema::{FieldType, SchemaBuilder, Document, TEXT};
+    use schema::{Document, FieldType, SchemaBuilder, TEXT};
     use core::Index;
     use std::str;
     use termdict::TermStreamer;
@@ -243,16 +235,14 @@ mod tests {
 
     const BLOCK_SIZE: usize = 1_500;
 
-
     fn make_term_info(val: u64) -> TermInfo {
         TermInfo {
             doc_freq: val as u32,
-            positions_offset: val  * 2u64,
+            positions_offset: val * 2u64,
             postings_offset: val * 3u64,
             positions_inner_offset: 5u8,
         }
     }
-
 
     #[test]
     fn test_term_ordinals() {
@@ -263,15 +253,15 @@ mod tests {
             "Slovenia",
             "Spain",
             "Sweden",
-            "Switzerland"
+            "Switzerland",
         ];
         let mut directory = RAMDirectory::create();
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(write, field_type).unwrap();
             for term in COUNTRIES.iter() {
                 term_dictionary_builder
                     .insert(term.as_bytes(), &make_term_info(0u64))
@@ -283,7 +273,7 @@ mod tests {
         let term_dict: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
         for (term_ord, term) in COUNTRIES.iter().enumerate() {
             assert_eq!(term_dict.term_ord(term).unwrap(), term_ord as u64);
-            let mut bytes = vec!();
+            let mut bytes = vec![];
             assert!(term_dict.ord_to_term(term_ord as u64, &mut bytes));
             assert_eq!(bytes, term.as_bytes());
         }
@@ -296,8 +286,8 @@ mod tests {
         {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(write, field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(write, field_type).unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u64))
                 .unwrap();
@@ -377,7 +367,6 @@ mod tests {
         assert_eq!(&*term_string, "abcdef");
     }
 
-
     #[test]
     fn test_term_dictionary_stream() {
         let ids: Vec<_> = (0u32..10_000u32)
@@ -385,8 +374,8 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -411,13 +400,12 @@ mod tests {
         term_dictionary.get(key.as_bytes());
     }
 
-
     #[test]
     fn test_stream_high_range_prefix_suffix() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             // term requires more than 16bits
             term_dictionary_builder
                 .insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))
@@ -451,8 +439,8 @@ mod tests {
             .collect();
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -520,14 +508,15 @@ mod tests {
     fn test_empty_string() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
+            term_dictionary_builder
+                .insert(&[], &make_term_info(1 as u64))
                 .unwrap();
             term_dictionary_builder
-                .insert(&[], &make_term_info(1 as u64)).unwrap();
-            term_dictionary_builder
-                .insert(&[1u8], &make_term_info(2 as u64)).unwrap();
-            term_dictionary_builder
-                .finish().unwrap()
+                .insert(&[1u8], &make_term_info(2 as u64))
+                .unwrap();
+            term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
         let term_dictionary: TermDictionaryImpl = TermDictionaryImpl::from_source(source);
@@ -543,8 +532,8 @@ mod tests {
     fn test_stream_range_boundaries() {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder = TermDictionaryBuilderImpl::new(vec![], field_type)
-                .unwrap();
+            let mut term_dictionary_builder =
+                TermDictionaryBuilderImpl::new(vec![], field_type).unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder

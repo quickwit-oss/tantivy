@@ -39,6 +39,13 @@ impl Query for BooleanQuery {
         self
     }
 
+    fn disable_scoring(&mut self) {
+        self.scoring_disabled = true;
+        for &mut (_, ref mut subquery) in &mut self.subqueries {
+            subquery.disable_scoring();
+        }
+    }
+
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
@@ -47,13 +54,6 @@ impl Query for BooleanQuery {
             })
             .collect::<Result<_>>()?;
         Ok(box BooleanWeight::new(sub_weights, self.scoring_disabled))
-    }
-
-    fn disable_scoring(&mut self) {
-        self.scoring_disabled = true;
-        for &mut (_, ref mut subquery) in &mut self.subqueries {
-            subquery.disable_scoring();
-        }
     }
 }
 

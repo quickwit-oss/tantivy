@@ -20,7 +20,6 @@ impl CountCollector {
     }
 }
 
-
 impl Collector for CountCollector {
     fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         Ok(())
@@ -34,18 +33,16 @@ impl Collector for CountCollector {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use test::Bencher;
-    use collector::Collector;
+    use collector::{Collector, CountCollector};
 
-    #[bench]
-    fn build_collector(b: &mut Bencher) {
-        b.iter(|| {
-            let mut count_collector = CountCollector::default();
-            for doc in 0..1_000_000 {
-                count_collector.collect(doc, 1f32);
-            }
-            count_collector.count()
-        });
+    #[test]
+    fn test_count_collector() {
+        let mut count_collector = CountCollector::default();
+        assert_eq!(count_collector.count(), 0);
+        count_collector.collect(0u32, 1f32);
+        assert_eq!(count_collector.count(), 1);
+        assert_eq!(count_collector.count(), 1);
+        count_collector.collect(1u32, 1f32);
+        assert_eq!(count_collector.count(), 2);
     }
 }
