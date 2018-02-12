@@ -1,6 +1,7 @@
 use directory::ReadOnlySource;
 use common::{self, BinarySerializable};
-use common::bitpacker::{compute_num_bits, BitUnpacker};
+use common::compute_num_bits;
+use common::bitpacker::BitUnpacker;
 use DocId;
 use schema::SchemaBuilder;
 use std::path::Path;
@@ -117,11 +118,11 @@ impl FastFieldReader for U64FastFieldReader {
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
         let owning_ref = OwningRef::new(data).map(|data| &data[16..]);
-        let bit_unpacker = BitUnpacker::new(owning_ref, num_bits as usize);
+        let bit_unpacker = BitUnpacker::new(owning_ref, num_bits);
         U64FastFieldReader {
-            min_value: min_value,
-            max_value: max_value,
-            bit_unpacker: bit_unpacker,
+            min_value,
+            max_value,
+            bit_unpacker,
         }
     }
 }

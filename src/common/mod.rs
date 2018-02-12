@@ -7,7 +7,7 @@ pub mod bitpacker;
 mod bitset;
 
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
-pub use self::serialize::BinarySerializable;
+pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::timer::Timing;
 pub use self::timer::TimerTree;
 pub use self::timer::OpenTimer;
@@ -15,11 +15,50 @@ pub use self::vint::VInt;
 pub use self::counting_writer::CountingWriter;
 pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
+pub use byteorder::LittleEndian as Endianness;
 
 use std::io;
 
+/// Computes the number of bits that will be used for bitpacking.
+///
+/// In general the target is the minimum number of bits
+/// required to express the amplitude given in argument.
+///
+/// e.g. If the amplitude is 10, we can store all ints on simply 4bits.
+///
+/// The logic is slightly more convoluted here as for optimization
+/// reasons, we want to ensure that a value spawns over at most 8 bytes
+/// of aligns bytes.
+///
+/// Spanning over 9 bytes is possible for instance, if we do
+/// bitpacking with an amplitude of 63 bits.
+/// In this case, the second int will start on bit
+/// 63 (which belongs to byte 7) and ends at byte 15;
+/// Hence 9 bytes (from byte 7 to byte 15 included).
+///
+/// To avoid this, we force the number of bits to 64bits
+/// when the result is greater than `64-8 = 56 bits`.
+///
+/// Note that this only affects rare use cases spawning over
+/// a very large range of values. Even in this case, it results
+/// in an extra cost of at most 12% compared to the optimal
+/// number of bits.
+pub(crate) fn compute_num_bits(n: u64) -> u8 {
+    let amplitude = (64u32 - n.leading_zeros()) as u8;
+    if amplitude <= 64 - 8 {
+        amplitude
+    } else {
+        64
+    }
+}
+
+
+pub(crate) fn is_power_of_2(n: usize) -> bool {
+    (n > 0) && (n & (n - 1) == 0)
+}
+
 /// Create a default io error given a string.
-pub fn make_io_err(msg: String) -> io::Error {
+pub(crate) fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
@@ -68,9 +107,10 @@ pub fn u64_to_i64(val: u64) -> i64 {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
 
-    use super::{i64_to_u64, u64_to_i64};
+    use super::{compute_num_bits, i64_to_u64, u64_to_i64};
+    pub use super::serialize::test::fixed_size_test;
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);
@@ -87,4 +127,18 @@ mod test {
             test_i64_converter_helper(i);
         }
     }
+
+
+    #[test]
+    fn test_compute_num_bits() {
+        assert_eq!(compute_num_bits(1), 1u8);
+        assert_eq!(compute_num_bits(0), 0u8);
+        assert_eq!(compute_num_bits(2), 2u8);
+        assert_eq!(compute_num_bits(3), 2u8);
+        assert_eq!(compute_num_bits(4), 3u8);
+        assert_eq!(compute_num_bits(255), 8u8);
+        assert_eq!(compute_num_bits(256), 9u8);
+        assert_eq!(compute_num_bits(5_000_000_000), 33u8);
+    }
 }
+

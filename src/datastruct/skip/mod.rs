@@ -9,12 +9,12 @@ pub use self::skiplist::SkipList;
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    use super::{SkipList, SkipListBuilder};
 
     #[test]
     fn test_skiplist() {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(8);
         skip_list_builder.insert(2, &3).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
         let mut skip_list: SkipList<u32> = SkipList::from(output.as_slice());
@@ -24,7 +24,7 @@ mod tests {
     #[test]
     fn test_skiplist2() {
         let mut output: Vec<u8> = Vec::new();
-        let skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        let skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(8);
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
         let mut skip_list: SkipList<u32> = SkipList::from(output.as_slice());
         assert_eq!(skip_list.next(), None);
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_skiplist5() {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
         skip_list_builder.insert(2, &()).unwrap();
         skip_list_builder.insert(3, &()).unwrap();
         skip_list_builder.insert(5, &()).unwrap();
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_skiplist7() {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
         for i in 0..1000 {
             skip_list_builder.insert(i, &()).unwrap();
         }
@@ -121,35 +121,48 @@ mod tests {
     #[test]
     fn test_skiplist8() {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(10);
+        let mut skip_list_builder: SkipListBuilder<u64> = SkipListBuilder::new(8);
         skip_list_builder.insert(2, &3).unwrap();
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        assert_eq!(output.len(), 13);
+        assert_eq!(output.len(), 11);
         assert_eq!(output[0], 1u8 + 128u8);
     }
 
     #[test]
     fn test_skiplist9() {
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<u32> = SkipListBuilder::new(3);
-        for i in 0..9 {
+        let mut skip_list_builder: SkipListBuilder<u64> = SkipListBuilder::new(4);
+        for i in 0..4*4*4 {
             skip_list_builder.insert(i, &i).unwrap();
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        assert_eq!(output.len(), 117);
-        assert_eq!(output[0], 3u8 + 128u8);
+        assert_eq!(output.len(), 774);
+        assert_eq!(output[0], 4u8 + 128u8);
     }
 
     #[test]
     fn test_skiplist10() {
         // checking that void gets serialized to nothing.
         let mut output: Vec<u8> = Vec::new();
-        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(3);
-        for i in 0..9 {
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
+        for i in 0..((4*4*4) - 1) {
             skip_list_builder.insert(i, &()).unwrap();
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
-        assert_eq!(output.len(), 81);
+        assert_eq!(output.len(), 230);
+        assert_eq!(output[0], 128u8 + 3u8);
+    }
+
+    #[test]
+    fn test_skiplist11() {
+        // checking that void gets serialized to nothing.
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
+        for i in 0..(4*4) {
+            skip_list_builder.insert(i, &()).unwrap();
+        }
+        skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
+        assert_eq!(output.len(), 65);
         assert_eq!(output[0], 128u8 + 3u8);
     }
 
