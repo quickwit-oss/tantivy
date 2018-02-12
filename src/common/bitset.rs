@@ -27,7 +27,6 @@ impl IntoIterator for TinySet {
 }
 
 impl TinySet {
-
     /// Returns an empty `TinySet`.
     pub fn empty() -> TinySet {
         TinySet(0u64)
@@ -37,7 +36,6 @@ impl TinySet {
     fn complement(&self) -> TinySet {
         TinySet(!self.0)
     }
-
 
     /// Returns true iff the `TinySet` contains the element `el`.
     pub fn contains(&self, el: u32) -> bool {
@@ -137,7 +135,6 @@ fn num_buckets(max_val: u32) -> u32 {
 }
 
 impl BitSet {
-
     /// Create a new `BitSet` that may contain elements
     /// within `[0, max_val[`.
     pub fn with_max_value(max_value: u32) -> BitSet {
@@ -146,7 +143,7 @@ impl BitSet {
         BitSet {
             tinysets: tinybisets,
             len: 0,
-            max_value
+            max_value,
         }
     }
 
@@ -167,18 +164,16 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len +=
-            if self.tinysets[higher as usize].insert_mut(lower) {
-                1
-            } else {
-                0
-            };
+        self.len += if self.tinysets[higher as usize].insert_mut(lower) {
+            1
+        } else {
+            0
+        };
     }
 
     /// Returns true iff the elements is in the `BitSet`.
     pub fn contains(&self, el: u32) -> bool {
-        self.tinyset(el / 64u32)
-            .contains(el % 64)
+        self.tinyset(el / 64u32).contains(el % 64)
     }
 
     /// Returns the first non-empty `TinySet` associated to a bucket lower
@@ -206,7 +201,6 @@ impl BitSet {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -229,9 +223,7 @@ mod tests {
             assert!(u.pop_lowest().is_none())
         }
         {
-            let mut u = TinySet::empty()
-                .insert(1u32)
-                .insert(1u32);
+            let mut u = TinySet::empty().insert(1u32).insert(1u32);
             assert_eq!(u.pop_lowest(), Some(1u32));
             assert!(u.pop_lowest().is_none())
         }
@@ -275,7 +267,6 @@ mod tests {
         test_against_hashset(&[62u32, 63u32], 64);
     }
 
-
     #[test]
     fn test_bitset_large() {
         let arr = generate_nonunique_unsorted(1_000_000, 50_000);
@@ -310,16 +301,27 @@ mod tests {
 
     #[test]
     fn test_tinyset_range() {
-        assert_eq!(TinySet::range_lower(3).into_iter().collect::<Vec<u32>>(), [0, 1, 2]);
+        assert_eq!(
+            TinySet::range_lower(3).into_iter().collect::<Vec<u32>>(),
+            [0, 1, 2]
+        );
         assert!(TinySet::range_lower(0).is_empty());
         assert_eq!(
             TinySet::range_lower(63).into_iter().collect::<Vec<u32>>(),
             (0u32..63u32).collect::<Vec<_>>()
         );
-        assert_eq!(TinySet::range_lower(1).into_iter().collect::<Vec<u32>>(), [0]);
-        assert_eq!(TinySet::range_lower(2).into_iter().collect::<Vec<u32>>(), [0, 1]);
         assert_eq!(
-            TinySet::range_greater_or_equal(3).into_iter().collect::<Vec<u32>>(),
+            TinySet::range_lower(1).into_iter().collect::<Vec<u32>>(),
+            [0]
+        );
+        assert_eq!(
+            TinySet::range_lower(2).into_iter().collect::<Vec<u32>>(),
+            [0, 1]
+        );
+        assert_eq!(
+            TinySet::range_greater_or_equal(3)
+                .into_iter()
+                .collect::<Vec<u32>>(),
             (3u32..64u32).collect::<Vec<_>>()
         );
     }
@@ -350,47 +352,31 @@ mod tests {
         assert!(els.iter().all(|el| bitset.contains(*el)));
         bitset.clear();
         for el in 0u32..1000u32 {
-           assert!(!bitset.contains(el));
+            assert!(!bitset.contains(el));
         }
     }
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {
-        b.iter(|| {
-            test::black_box(TinySet::singleton(31u32))
-                .pop_lowest()
-        });
+        b.iter(|| test::black_box(TinySet::singleton(31u32)).pop_lowest());
     }
 
     #[bench]
     fn bench_tinyset_sum(b: &mut test::Bencher) {
-        let tiny_set = TinySet::empty()
-            .insert(10u32)
-            .insert(14u32)
-            .insert(21u32);
+        let tiny_set = TinySet::empty().insert(10u32).insert(14u32).insert(21u32);
         b.iter(|| {
-            assert_eq!(
-                test::black_box(tiny_set).into_iter().sum::<u32>(),
-                45u32);
+            assert_eq!(test::black_box(tiny_set).into_iter().sum::<u32>(), 45u32);
         });
     }
 
     #[bench]
     fn bench_tinyarr_sum(b: &mut test::Bencher) {
-        let v = [10u32, 14u32, 21u32] ;
-        b.iter(|| {
-            test::black_box(v)
-                .iter()
-                .cloned()
-                .sum::<u32>()
-        });
+        let v = [10u32, 14u32, 21u32];
+        b.iter(|| test::black_box(v).iter().cloned().sum::<u32>());
     }
 
     #[bench]
     fn bench_bitset_initialize(b: &mut test::Bencher) {
-        b.iter(|| {
-            BitSet::with_max_value(1_000_000)
-        });
+        b.iter(|| BitSet::with_max_value(1_000_000));
     }
 }
-

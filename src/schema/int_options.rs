@@ -16,7 +16,8 @@ pub enum Cardinality {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntOptions {
     indexed: bool,
-    #[serde(skip_serializing_if = "Option::is_none")] fast: Option<Cardinality>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fast: Option<Cardinality>,
     stored: bool,
 }
 

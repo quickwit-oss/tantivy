@@ -14,7 +14,6 @@ pub trait BinarySerializable: fmt::Debug + Sized {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self>;
 }
 
-
 /// `FixedSize` marks a `BinarySerializable` as
 /// always serializing to the same size.
 pub trait FixedSize: BinarySerializable {
@@ -103,7 +102,6 @@ impl FixedSize for i64 {
     const SIZE_IN_BYTES: usize = 8;
 }
 
-
 impl BinarySerializable for u8 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u8(*self)
@@ -134,20 +132,17 @@ impl BinarySerializable for String {
     }
 }
 
-
 #[cfg(test)]
 pub mod test {
 
     use common::VInt;
     use super::*;
 
-
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
     }
-
 
     fn serialize_test<T: BinarySerializable + Eq>(v: T) -> usize {
         let mut buffer: Vec<u8> = Vec::new();
@@ -186,7 +181,10 @@ pub mod test {
     fn test_serialize_string() {
         assert_eq!(serialize_test(String::from("")), 1);
         assert_eq!(serialize_test(String::from("ぽよぽよ")), 1 + 3 * 4);
-        assert_eq!(serialize_test(String::from("富士さん見える。")), 1 + 3 * 8);
+        assert_eq!(
+            serialize_test(String::from("富士さん見える。")),
+            1 + 3 * 8
+        );
     }
 
     #[test]

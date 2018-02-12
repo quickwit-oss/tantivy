@@ -87,6 +87,7 @@ mod tests {
     use tokenizer::{Token, TokenStream, Tokenizer};
     use super::FacetTokenizer;
     use schema::Facet;
+    use std::str;
 
     #[test]
     fn test_facet_tokenizer() {
@@ -98,9 +99,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe {
-                    ::std::str::from_utf8_unchecked(facet.encoded_bytes())
-                })
+                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
@@ -120,9 +119,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe {
-                    ::std::str::from_utf8_unchecked(facet.encoded_bytes())
-                })
+                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);

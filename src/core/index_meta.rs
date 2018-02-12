@@ -14,7 +14,8 @@ pub struct IndexMeta {
     pub segments: Vec<SegmentMeta>,
     pub schema: Schema,
     pub opstamp: u64,
-    #[serde(skip_serializing_if = "Option::is_none")] pub payload: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<String>,
 }
 
 impl IndexMeta {

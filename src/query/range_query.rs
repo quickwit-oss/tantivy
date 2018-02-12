@@ -11,17 +11,17 @@ use query::ConstScorer;
 use std::collections::Bound;
 use std::collections::range::RangeArgument;
 
-
-fn map_bound<TFrom, Transform: Fn(TFrom)->Vec<u8> >(bound: Bound<TFrom>, transform: &Transform) -> Bound<Vec<u8>> {
+fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
+    bound: Bound<TFrom>,
+    transform: &Transform,
+) -> Bound<Vec<u8>> {
     use self::Bound::*;
     match bound {
         Excluded(from_val) => Excluded(transform(from_val)),
         Included(from_val) => Included(transform(from_val)),
-        Unbounded => Unbounded
+        Unbounded => Unbounded,
     }
 }
-
-
 
 /// `RangeQuery` match all documents that have at least one term within a defined range.
 ///
@@ -88,40 +88,42 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
-
     /// Create a new `RangeQuery` over a `i64` field.
-    pub fn new_i64<TRangeArgument: RangeArgument<i64>>(field: Field, range: TRangeArgument) -> RangeQuery {
-        let make_term_val = |val: &i64| {
-            Term::from_field_i64(field, *val).value_bytes().to_owned()
-        };
+    pub fn new_i64<TRangeArgument: RangeArgument<i64>>(
+        field: Field,
+        range: TRangeArgument,
+    ) -> RangeQuery {
+        let make_term_val = |val: &i64| Term::from_field_i64(field, *val).value_bytes().to_owned();
         RangeQuery {
             field,
             left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val)
+            right_bound: map_bound(range.end(), &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `u64` field.
-    pub fn new_u64<TRangeArgument: RangeArgument<u64>>(field: Field, range: TRangeArgument) -> RangeQuery {
-        let make_term_val = |val: &u64| {
-            Term::from_field_u64(field, *val).value_bytes().to_owned()
-        };
+    pub fn new_u64<TRangeArgument: RangeArgument<u64>>(
+        field: Field,
+        range: TRangeArgument,
+    ) -> RangeQuery {
+        let make_term_val = |val: &u64| Term::from_field_u64(field, *val).value_bytes().to_owned();
         RangeQuery {
             field,
             left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val)
+            right_bound: map_bound(range.end(), &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `Str` field.
-    pub fn new_str<'b, TRangeArgument: RangeArgument<&'b str>>(field: Field, range: TRangeArgument) -> RangeQuery {
-        let make_term_val = |val: &&str| {
-            val.as_bytes().to_vec()
-        };
+    pub fn new_str<'b, TRangeArgument: RangeArgument<&'b str>>(
+        field: Field,
+        range: TRangeArgument,
+    ) -> RangeQuery {
+        let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,
             left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val)
+            right_bound: map_bound(range.end(), &make_term_val),
         }
     }
 }
@@ -135,7 +137,7 @@ impl Query for RangeQuery {
         Ok(box RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),
-            right_bound: self.right_bound.clone()
+            right_bound: self.right_bound.clone(),
         })
     }
 }
@@ -148,8 +150,8 @@ pub struct RangeWeight {
 
 impl RangeWeight {
     fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
-        where
-            T: TermDictionary<'a> + 'a,
+    where
+        T: TermDictionary<'a> + 'a,
     {
         use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
@@ -203,10 +205,9 @@ mod tests {
 
     #[test]
     fn test_range_query_simple() {
-
         fn run() -> Result<()> {
             let mut schema_builder = SchemaBuilder::new();
-            let year_field= schema_builder.add_u64_field("year", INT_INDEXED);
+            let year_field = schema_builder.add_u64_field("year", INT_INDEXED);
             let schema = schema_builder.build();
 
             let index = Index::create_in_ram(schema);
@@ -233,7 +234,6 @@ mod tests {
         }
 
         run().unwrap();
-
     }
 
     #[test]
@@ -271,22 +271,22 @@ mod tests {
             count_collector.count()
         };
 
+        assert_eq!(count_multiples(RangeQuery::new_i64(int_field, 10..11)), 9);
         assert_eq!(
-            count_multiples(RangeQuery::new_i64(int_field, 10..11)),
-            9
-        );
-        assert_eq!(
-            count_multiples(RangeQuery::new_i64(int_field, (Bound::Included(10), Bound::Included(11)) )),
+            count_multiples(RangeQuery::new_i64(
+                int_field,
+                (Bound::Included(10), Bound::Included(11))
+            )),
             18
         );
         assert_eq!(
-            count_multiples(RangeQuery::new_i64(int_field, (Bound::Excluded(9), Bound::Included(10)))),
+            count_multiples(RangeQuery::new_i64(
+                int_field,
+                (Bound::Excluded(9), Bound::Included(10))
+            )),
             9
         );
-        assert_eq!(
-            count_multiples(RangeQuery::new_i64(int_field, 9..)),
-            91
-        );
+        assert_eq!(count_multiples(RangeQuery::new_i64(int_field, 9..)), 91);
     }
 
 }

@@ -4,21 +4,25 @@ use common::serialize::BinarySerializable;
 use std::mem;
 use std::ops::Deref;
 
-
 pub(crate) struct BitPacker {
     mini_buffer: u64,
-    mini_buffer_written: usize
+    mini_buffer_written: usize,
 }
 
 impl BitPacker {
     pub fn new() -> BitPacker {
         BitPacker {
             mini_buffer: 0u64,
-            mini_buffer_written: 0
+            mini_buffer_written: 0,
         }
     }
 
-    pub fn write<TWrite: Write>(&mut self, val: u64, num_bits: u8, output: &mut TWrite) -> io::Result<()> {
+    pub fn write<TWrite: Write>(
+        &mut self,
+        val: u64,
+        num_bits: u8,
+        output: &mut TWrite,
+    ) -> io::Result<()> {
         let val_u64 = val as u64;
         let num_bits = num_bits as usize;
         if self.mini_buffer_written + num_bits > 64 {
@@ -58,8 +62,8 @@ impl BitPacker {
 
 #[derive(Clone)]
 pub struct BitUnpacker<Data>
-    where
-        Data: Deref<Target=[u8]>,
+where
+    Data: Deref<Target = [u8]>,
 {
     num_bits: usize,
     mask: u64,
@@ -67,16 +71,15 @@ pub struct BitUnpacker<Data>
 }
 
 impl<Data> BitUnpacker<Data>
-    where
-        Data: Deref<Target=[u8]>,
+where
+    Data: Deref<Target = [u8]>,
 {
     pub fn new(data: Data, num_bits: u8) -> BitUnpacker<Data> {
-        let mask: u64 =
-            if num_bits == 64 {
-                !0u64
-            } else {
-                (1u64 << num_bits) - 1u64
-            };
+        let mask: u64 = if num_bits == 64 {
+            !0u64
+        } else {
+            (1u64 << num_bits) - 1u64
+        };
         BitUnpacker {
             num_bits: num_bits as usize,
             mask,
@@ -102,8 +105,7 @@ impl<Data> BitUnpacker<Data>
                 addr + 8 <= data.len(),
                 "The fast field field should have been padded with 7 bytes."
             );
-            let val_unshifted_unmasked: u64 =
-                unsafe { *(data[addr..].as_ptr() as *const u64) };
+            let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
             (val_shifted & mask)
         } else {
@@ -134,8 +136,7 @@ impl<Data> BitUnpacker<Data>
             for output_val in output.iter_mut() {
                 let addr = addr_in_bits >> 3;
                 let bit_shift = addr_in_bits & 7;
-                let val_unshifted_unmasked: u64 =
-                    unsafe { *(data[addr..].as_ptr() as *const u64) };
+                let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
                 let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
                 *output_val = val_shifted & mask;
                 addr_in_bits += num_bits;
@@ -148,7 +149,6 @@ impl<Data> BitUnpacker<Data>
 mod test {
     use super::{BitPacker, BitUnpacker};
 
-
     fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker<Vec<u8>>, Vec<u64>) {
         let mut data = Vec::new();
         let mut bitpacker = BitPacker::new();
@@ -157,10 +157,10 @@ mod test {
             .map(|i| if max_val == 0 { 0 } else { i % max_val })
             .collect();
         for &val in &vals {
-            bitpacker.write(val, num_bits,&mut data).unwrap();
+            bitpacker.write(val, num_bits, &mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), ((num_bits as usize)* len + 7) / 8 + 7);
+        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8 + 7);
         let bitunpacker = BitUnpacker::new(data, num_bits);
         (bitunpacker, vals)
     }

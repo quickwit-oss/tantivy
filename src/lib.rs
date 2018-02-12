@@ -115,9 +115,6 @@
 //! [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) /
 //! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
 
-
-
-
 #[macro_use]
 extern crate lazy_static;
 
@@ -286,7 +283,7 @@ mod tests {
     use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
-    use rand::distributions::{Range, IndependentSample};
+    use rand::distributions::{IndependentSample, Range};
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
@@ -305,7 +302,6 @@ mod tests {
             .map(|_| between.ind_sample(&mut rng))
             .collect::<Vec<u32>>()
     }
-
 
     pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
         generate_array_with_seed(n, ratio, 4)

@@ -93,14 +93,15 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
             write,
             bit_packer,
             min_value,
-            num_bits
+            num_bits,
         })
     }
 
     /// Pushes a new value to the currently open u64 fast field.
     pub fn add_val(&mut self, val: u64) -> io::Result<()> {
         let val_to_write: u64 = val - self.min_value;
-        self.bit_packer.write(val_to_write, self.num_bits,&mut self.write)?;
+        self.bit_packer
+            .write(val_to_write, self.num_bits, &mut self.write)?;
         Ok(())
     }
 

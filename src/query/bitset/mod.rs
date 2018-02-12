@@ -50,14 +50,14 @@ impl DocSet for BitSetDocSet {
             return true;
         }
         if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {
-                self.go_to_bucket(cursor_bucket);
-                let lower = self.cursor_tinybitset.pop_lowest().unwrap();
-                self.doc = (cursor_bucket * 64u32) | lower;
-                true
+            self.go_to_bucket(cursor_bucket);
+            let lower = self.cursor_tinybitset.pop_lowest().unwrap();
+            self.doc = (cursor_bucket * 64u32) | lower;
+            true
         } else {
             false
         }
-}
+    }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         // skip is required to advance.
@@ -232,14 +232,15 @@ mod tests {
         }
     }
 
-
     #[bench]
     fn bench_bitset_1pct_insert(b: &mut test::Bencher) {
         use tests;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         b.iter(|| {
             let mut bitset = BitSet::with_max_value(1_000_000);
-            for el in els.iter().cloned() { bitset.insert(el); }
+            for el in els.iter().cloned() {
+                bitset.insert(el);
+            }
         });
     }
 
@@ -248,8 +249,10 @@ mod tests {
         use tests;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
-        for el in els { bitset.insert(el); }
-        b.iter(|| { bitset.clone() });
+        for el in els {
+            bitset.insert(el);
+        }
+        b.iter(|| bitset.clone());
     }
 
     #[bench]
@@ -258,11 +261,12 @@ mod tests {
         use DocSet;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
-        for el in els { bitset.insert(el); }
+        for el in els {
+            bitset.insert(el);
+        }
         b.iter(|| {
             let mut docset = BitSetDocSet::from(bitset.clone());
             while docset.advance() {}
         });
     }
 }
-

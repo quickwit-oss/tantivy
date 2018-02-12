@@ -25,9 +25,7 @@ fn compress_sorted(vals: &[u32], output: &mut [u8], offset: u32) -> usize {
 }
 
 fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32) -> usize {
-    unsafe {
-        simdcomp::uncompress_sorted(compressed_data.as_ptr(), output.as_mut_ptr(), offset)
-    }
+    unsafe { simdcomp::uncompress_sorted(compressed_data.as_ptr(), output.as_mut_ptr(), offset) }
 }
 
 fn compress_unsorted(vals: &[u32], output: &mut [u8]) -> usize {

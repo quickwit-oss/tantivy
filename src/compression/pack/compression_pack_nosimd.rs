@@ -25,7 +25,9 @@ pub fn compress_sorted(vals: &mut [u32], output: &mut [u8], offset: u32) -> usiz
 
     let mut bit_packer = BitPacker::new();
     for val in vals {
-        bit_packer.write(*val as u64, num_bits,&mut counting_writer).unwrap();
+        bit_packer
+            .write(*val as u64, num_bits, &mut counting_writer)
+            .unwrap();
     }
     counting_writer.written_bytes()
 }
@@ -63,7 +65,9 @@ impl BlockEncoder {
             counting_writer.write_all(&[num_bits]).unwrap();
             let mut bit_packer = BitPacker::new();
             for val in vals {
-                bit_packer.write(*val as u64, num_bits, &mut counting_writer).unwrap();
+                bit_packer
+                    .write(*val as u64, num_bits, &mut counting_writer)
+                    .unwrap();
             }
             for _ in vals.len()..COMPRESSION_BLOCK_SIZE {
                 bit_packer

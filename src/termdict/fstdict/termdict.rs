@@ -7,7 +7,7 @@ use common::CountingWriter;
 use schema::FieldType;
 use postings::TermInfo;
 use termdict::{TermDictionary, TermDictionaryBuilder, TermOrdinal};
-use super::{TermStreamerBuilderImpl, TermStreamerImpl, TermInfoStoreWriter, TermInfoStore};
+use super::{TermInfoStore, TermInfoStoreWriter, TermStreamerBuilderImpl, TermStreamerImpl};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)

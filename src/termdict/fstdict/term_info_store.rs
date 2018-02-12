@@ -10,9 +10,7 @@ use directory::ReadOnlySource;
 use termdict::TermOrdinal;
 use byteorder::ByteOrder;
 
-
 const BLOCK_LEN: usize = 256;
-
 
 #[derive(Debug, Eq, PartialEq, Default)]
 struct TermInfoBlockMeta {
@@ -27,9 +25,11 @@ impl BinarySerializable for TermInfoBlockMeta {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         self.offset.serialize(write)?;
         self.ref_term_info.serialize(write)?;
-        write.write_all(&[self.doc_freq_nbits,
-              self.postings_offset_nbits,
-              self.positions_offset_nbits])?;
+        write.write_all(&[
+            self.doc_freq_nbits,
+            self.postings_offset_nbits,
+            self.positions_offset_nbits,
+        ])?;
         Ok(())
     }
 
@@ -43,17 +43,17 @@ impl BinarySerializable for TermInfoBlockMeta {
             ref_term_info,
             doc_freq_nbits: buffer[0],
             postings_offset_nbits: buffer[1],
-            positions_offset_nbits: buffer[2]
+            positions_offset_nbits: buffer[2],
         })
     }
 }
 
 impl FixedSize for TermInfoBlockMeta {
-    const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3 * u8::SIZE_IN_BYTES;
+    const SIZE_IN_BYTES: usize =
+        u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3 * u8::SIZE_IN_BYTES;
 }
 
 impl TermInfoBlockMeta {
-
     fn num_bits(&self) -> u8 {
         self.doc_freq_nbits + self.postings_offset_nbits + self.positions_offset_nbits + 7
     }
@@ -82,11 +82,10 @@ impl TermInfoBlockMeta {
     }
 }
 
-
 pub struct TermInfoStore {
     num_terms: usize,
     block_meta_source: ReadOnlySource,
-    term_info_source: ReadOnlySource
+    term_info_source: ReadOnlySource,
 }
 
 fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
@@ -109,7 +108,7 @@ impl TermInfoStore {
         TermInfoStore {
             num_terms,
             block_meta_source,
-            term_info_source
+            term_info_source,
         }
     }
 
@@ -117,13 +116,17 @@ impl TermInfoStore {
         let block_id = (term_ord as usize) / BLOCK_LEN;
         let buffer = self.block_meta_source.as_slice();
         let mut block_data: &[u8] = &buffer[block_id * TermInfoBlockMeta::SIZE_IN_BYTES..];
-        let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data).expect("Failed to deserialize terminfoblockmeta");
+        let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
+            .expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
             term_info_block_data.ref_term_info
         } else {
             let term_info_data = self.term_info_source.as_slice();
-            term_info_block_data.deserialize_term_info(&term_info_data[term_info_block_data.offset as usize..], inner_offset - 1)
+            term_info_block_data.deserialize_term_info(
+                &term_info_data[term_info_block_data.offset as usize..],
+                inner_offset - 1,
+            )
         }
     }
 
@@ -140,13 +143,26 @@ pub struct TermInfoStoreWriter {
 }
 
 fn bitpack_serialize<W: Write>(
-        write: &mut W,
-        bit_packer: &mut BitPacker,
-        term_info_block_meta: &TermInfoBlockMeta,
-        term_info: &TermInfo) -> io::Result<()> {
-    bit_packer.write(term_info.doc_freq as u64, term_info_block_meta.doc_freq_nbits, write)?;
-    bit_packer.write(term_info.postings_offset, term_info_block_meta.postings_offset_nbits, write)?;
-    bit_packer.write(term_info.positions_offset, term_info_block_meta.positions_offset_nbits, write)?;
+    write: &mut W,
+    bit_packer: &mut BitPacker,
+    term_info_block_meta: &TermInfoBlockMeta,
+    term_info: &TermInfo,
+) -> io::Result<()> {
+    bit_packer.write(
+        term_info.doc_freq as u64,
+        term_info_block_meta.doc_freq_nbits,
+        write,
+    )?;
+    bit_packer.write(
+        term_info.postings_offset,
+        term_info_block_meta.postings_offset_nbits,
+        write,
+    )?;
+    bit_packer.write(
+        term_info.positions_offset,
+        term_info_block_meta.positions_offset_nbits,
+        write,
+    )?;
     bit_packer.write(term_info.positions_inner_offset as u64, 7, write)?;
     Ok(())
 }
@@ -157,7 +173,7 @@ impl TermInfoStoreWriter {
             buffer_block_metas: Vec::new(),
             buffer_term_infos: Vec::new(),
             term_infos: Vec::with_capacity(BLOCK_LEN),
-            num_terms: 0u64
+            num_terms: 0u64,
         }
     }
 
@@ -199,7 +215,7 @@ impl TermInfoStoreWriter {
                 &mut self.buffer_term_infos,
                 &mut bit_packer,
                 &term_info_block_meta,
-                &term_info
+                &term_info,
             )?;
         }
 
@@ -276,11 +292,11 @@ mod tests {
                 doc_freq: 512,
                 postings_offset: 51,
                 positions_offset: 3584,
-                positions_inner_offset: 0
+                positions_inner_offset: 0,
             },
             doc_freq_nbits: 10,
             postings_offset_nbits: 5,
-            positions_offset_nbits: 11
+            positions_offset_nbits: 11,
         };
         let mut buffer: Vec<u8> = Vec::new();
         term_info_block_meta.serialize(&mut buffer).unwrap();
@@ -292,7 +308,7 @@ mod tests {
     #[test]
     fn test_pack() {
         let mut store_writer = TermInfoStoreWriter::new();
-        let mut term_infos = vec!();
+        let mut term_infos = vec![];
         for i in 0..1000 {
             let term_info = TermInfo {
                 doc_freq: i as u32,
@@ -304,9 +320,7 @@ mod tests {
             term_infos.push(term_info);
         }
         let mut buffer = Vec::new();
-        store_writer
-            .serialize(&mut buffer)
-            .unwrap();
+        store_writer.serialize(&mut buffer).unwrap();
         let term_info_store = TermInfoStore::open(ReadOnlySource::from(buffer));
         for i in 0..1000 {
             assert_eq!(term_info_store.get(i as u64), term_infos[i]);
@@ -314,5 +328,3 @@ mod tests {
     }
 
 }
-
-

@@ -132,7 +132,7 @@ mod tests {
     fn test_skiplist9() {
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder<u64> = SkipListBuilder::new(4);
-        for i in 0..4*4*4 {
+        for i in 0..4 * 4 * 4 {
             skip_list_builder.insert(i, &i).unwrap();
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
@@ -145,7 +145,7 @@ mod tests {
         // checking that void gets serialized to nothing.
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
-        for i in 0..((4*4*4) - 1) {
+        for i in 0..((4 * 4 * 4) - 1) {
             skip_list_builder.insert(i, &()).unwrap();
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();
@@ -158,7 +158,7 @@ mod tests {
         // checking that void gets serialized to nothing.
         let mut output: Vec<u8> = Vec::new();
         let mut skip_list_builder: SkipListBuilder<()> = SkipListBuilder::new(4);
-        for i in 0..(4*4) {
+        for i in 0..(4 * 4) {
             skip_list_builder.insert(i, &()).unwrap();
         }
         skip_list_builder.write::<Vec<u8>>(&mut output).unwrap();

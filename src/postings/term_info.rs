@@ -29,7 +29,7 @@ impl FixedSize for TermInfo {
     /// of the block are bitpacked.
     ///
     /// See `TermInfoStore`.
-    const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2*u64::SIZE_IN_BYTES + u8::SIZE_IN_BYTES;
+    const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES + u8::SIZE_IN_BYTES;
 }
 
 impl BinarySerializable for TermInfo {
