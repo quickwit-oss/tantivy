@@ -1,4 +1,5 @@
 language: rust
+sudo: required
 cache: cargo
 rust:
   - nightly
