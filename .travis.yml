@@ -23,8 +23,10 @@ addons:
       - binutils-dev
       - cmake
 before_script:
-  - |
-          pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+  - export PATH=$HOME/.cargo/bin:$PATH
+  - cargo install cargo-update || echo "cargo-update already installed"
+  - cargo install cargo-travis || echo "cargo-travis already installed"
+  - cargo install-update -a # update outdated cached binaries
 script:
   - cargo build
   - cargo test
@@ -32,4 +34,4 @@ script:
   - cargo doc
 after_success:
   - cargo coveralls --exclude-pattern cpp/
-  - travis-cargo doc-upload
+  - cargo doc-upload
