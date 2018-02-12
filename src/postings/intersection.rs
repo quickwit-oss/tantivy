@@ -71,35 +71,47 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
         }
     }
 
-    fn skip_next(&mut self, mut target: DocId) -> SkipResult {
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
         // We optimize skipping by skipping every single member
         // of the intersection to target.
+
 
         // TODO fix BUG...
         // what if we overstep on the second member of the intersection?
         // The first member is not necessarily correct.
-        let mut overstep = false;
-        for docset in &mut self.docsets {
-            match docset.skip_next(target) {
-                SkipResult::End => {
-                    return SkipResult::End;
+        let mut current_target: DocId = target;
+        let mut current_ord = self.docsets.len();
+
+        'outer: loop {
+            for (ord, docset) in &mut self.docsets.iter_mut().enumerate() {
+                if ord == current_ord {
+                    continue;
                 }
-                SkipResult::OverStep => {
-                    overstep = true;
-                    // update the target
-                    // for the remaining members of the intersection.
-                    target = docset.doc();
-                }
-                SkipResult::Reached => {
+                match docset.skip_next(current_target) {
+                    SkipResult::End => {
+                        return SkipResult::End;
+                    }
+                    SkipResult::OverStep => {
+                        // update the target
+                        // for the remaining members of the intersection.
+                        current_target = docset.doc();
+                        current_ord = ord;
+                        continue 'outer;
+                    }
+                    SkipResult::Reached => {}
                 }
             }
+
+            self.doc = current_target;
+            if target == current_target {
+                return SkipResult::Reached;
+            } else {
+                assert!(current_target > target);
+                return SkipResult::OverStep;
+            }
         }
-        self.doc = target;
-        if overstep {
-            SkipResult::OverStep
-        } else {
-            SkipResult::Reached
-        }
+
+
     }
 
 
@@ -118,8 +130,8 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
 #[cfg(test)]
 mod tests {
     use postings::SkipResult;
-
     use postings::{DocSet, IntersectionDocSet, VecPostings};
+    use postings::tests::UnoptimizedDocSet;
 
     #[test]
     fn test_intersection() {
@@ -153,21 +165,45 @@ mod tests {
         assert_eq!(intersection.doc(), 0);
     }
 
-    #[test]
-    fn test_intersection_skip() {
-        let left = VecPostings::from(vec![4]);
-        let right = VecPostings::from(vec![2, 5]);
-        let mut intersection = IntersectionDocSet::from(vec![left, right]);
-        assert_eq!(intersection.skip_next(4), SkipResult::End);
-    }
 
     #[test]
-    fn test_intersection_skip_2() {
+    fn test_intersection_skip() {
         let left = VecPostings::from(vec![0, 1, 2, 4]);
         let right = VecPostings::from(vec![2, 5]);
         let mut intersection = IntersectionDocSet::from(vec![left, right]);
         assert_eq!(intersection.skip_next(2), SkipResult::Reached);
         assert_eq!(intersection.doc(), 2);
+    }
+
+    fn test_aux<F: Fn()->Box<DocSet>>(postings_factory: F, targets: Vec<u32>) {
+        for target in targets {
+            let mut postings_vanilla = postings_factory();
+            let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
+            let skip_result_vanilla = postings_vanilla.skip_next(target);
+            let skip_result_unopt = postings_unopt.skip_next(target);
+            assert_eq!(skip_result_unopt, skip_result_vanilla);
+            match skip_result_vanilla {
+                SkipResult::Reached => assert_eq!(postings_vanilla.doc(), target),
+                SkipResult::OverStep => assert!(postings_vanilla.doc() > target),
+                SkipResult::End => {},
+            }
+        }
+    }
+
+    #[test]
+    fn test_intersection_skip_against_unoptimized() {
+        test_aux(|| {
+            let left = VecPostings::from(vec![4]);
+            let right = VecPostings::from(vec![2, 5]);
+            box IntersectionDocSet::from(vec![left, right])
+        }, vec![0,2,4,5,6]);
+        test_aux(|| {
+            let mut left = VecPostings::from(vec![1, 4, 5, 6]);
+            let mut right = VecPostings::from(vec![2, 5, 10]);
+            left.advance();
+            right.advance();
+            box IntersectionDocSet::from(vec![left, right])
+        }, vec![0,1,2,3,4,5,6,7,10,11]);
     }
 
     #[test]

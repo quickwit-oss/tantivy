@@ -41,6 +41,7 @@ pub(crate) type UnorderedTermId = usize;
 mod tests {
 
     use super::*;
+    use DocId;
     use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
@@ -631,5 +632,33 @@ mod tests {
             s
         });
     }
+
+
+    /// Wraps a given docset, and forward alls call but the
+    /// `.skip_next(...)`. This is useful to test that a specialized
+    /// implementation of `.skip_next(...)` is consistent
+    /// with the default implementation.
+    pub(crate) struct UnoptimizedDocSet<TDocSet: DocSet>(TDocSet);
+
+    impl<TDocSet: DocSet> UnoptimizedDocSet<TDocSet> {
+        pub fn wrap(docset: TDocSet) -> UnoptimizedDocSet<TDocSet> {
+            UnoptimizedDocSet(docset)
+        }
+    }
+
+    impl<TDocSet: DocSet> DocSet for UnoptimizedDocSet<TDocSet> {
+        fn advance(&mut self) -> bool {
+            self.0.advance()
+        }
+
+        fn doc(&self) -> DocId {
+            self.0.doc()
+        }
+
+        fn size_hint(&self) -> u32 {
+            self.0.size_hint()
+        }
+    }
+
 
 }
