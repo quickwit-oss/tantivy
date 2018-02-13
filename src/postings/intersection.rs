@@ -83,7 +83,7 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
         let mut current_ord = self.docsets.len();
 
         'outer: loop {
-            for (ord, docset) in &mut self.docsets.iter_mut().enumerate() {
+            for (ord, docset) in self.docsets.iter_mut().enumerate() {
                 if ord == current_ord {
                     continue;
                 }
@@ -131,7 +131,7 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
 mod tests {
     use postings::SkipResult;
     use postings::{DocSet, IntersectionDocSet, VecPostings};
-    use postings::tests::UnoptimizedDocSet;
+    use postings::tests::test_skip_against_unoptimized;
 
     #[test]
     fn test_intersection() {
@@ -175,34 +175,29 @@ mod tests {
         assert_eq!(intersection.doc(), 2);
     }
 
-    fn test_aux<F: Fn()->Box<DocSet>>(postings_factory: F, targets: Vec<u32>) {
-        for target in targets {
-            let mut postings_vanilla = postings_factory();
-            let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
-            let skip_result_vanilla = postings_vanilla.skip_next(target);
-            let skip_result_unopt = postings_unopt.skip_next(target);
-            assert_eq!(skip_result_unopt, skip_result_vanilla);
-            match skip_result_vanilla {
-                SkipResult::Reached => assert_eq!(postings_vanilla.doc(), target),
-                SkipResult::OverStep => assert!(postings_vanilla.doc() > target),
-                SkipResult::End => {},
-            }
-        }
-    }
 
     #[test]
     fn test_intersection_skip_against_unoptimized() {
-        test_aux(|| {
+        test_skip_against_unoptimized(|| {
             let left = VecPostings::from(vec![4]);
             let right = VecPostings::from(vec![2, 5]);
             box IntersectionDocSet::from(vec![left, right])
         }, vec![0,2,4,5,6]);
-        test_aux(|| {
+        test_skip_against_unoptimized(|| {
             let mut left = VecPostings::from(vec![1, 4, 5, 6]);
             let mut right = VecPostings::from(vec![2, 5, 10]);
             left.advance();
             right.advance();
             box IntersectionDocSet::from(vec![left, right])
+        }, vec![0,1,2,3,4,5,6,7,10,11]);
+        test_skip_against_unoptimized(|| {
+            box IntersectionDocSet::from(vec![
+                VecPostings::from(vec![1, 4, 5, 6]),
+                VecPostings::from(vec![1, 2, 5, 6]),
+                VecPostings::from(vec![1, 4, 5, 6]),
+                VecPostings::from(vec![1, 5, 6]),
+                VecPostings::from(vec![2, 4, 5, 7, 8])
+            ])
         }, vec![0,1,2,3,4,5,6,7,10,11]);
     }
 
