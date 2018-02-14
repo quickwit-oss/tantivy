@@ -309,7 +309,7 @@ mod tests {
         generate_array_with_seed(n, ratio, 4)
     }
 
-    fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
+    pub fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
         let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
         (0..n).filter(|_| rng.next_f32() < ratio).collect()

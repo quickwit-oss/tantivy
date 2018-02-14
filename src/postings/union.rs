@@ -190,10 +190,13 @@ impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
 mod tests {
 
     use super::UnionDocSet;
-    use postings::{VecPostings, SkipResult, DocSet};
+    use postings::{VecPostings, DocSet};
     use tests;
     use test::Bencher;
     use DocId;
+    use std::collections::BTreeSet;
+    use super::HORIZON;
+    use postings::SkipResult;
     use postings::tests::test_skip_against_unoptimized;
 
 
@@ -241,59 +244,97 @@ mod tests {
             ]
         );
         aux_test_union(vec![
-            tests::generate_array(100_000, 0.01),
-            tests::generate_array(100_000, 0.05),
-            tests::generate_array(100_000, 0.001)
+            tests::sample_with_seed(100_000, 0.01, 1),
+            tests::sample_with_seed(100_000, 0.05, 2),
+            tests::sample_with_seed(100_000, 0.001, 3)
         ]);
+    }
+
+
+    fn test_aux_union_skip(docs_list: &[Vec<DocId>], skip_targets: Vec<DocId>) {
+        let mut btree_set = BTreeSet::new();
+        for docs in docs_list {
+            for &doc in docs.iter() {
+                btree_set.insert(doc);
+            }
+        }
+        let docset_factory = || {
+            let res: Box<DocSet> = box UnionDocSet::from(
+                docs_list
+                    .iter()
+                    .map(|docs| docs.clone())
+                    .map(VecPostings::from)
+                    .collect::<Vec<VecPostings>>()
+            );
+            res
+        };
+        let mut docset = docset_factory();
+        for el in btree_set {
+            assert!(docset.advance());
+            assert_eq!(el, docset.doc());
+        }
+        assert!(!docset.advance());
+        test_skip_against_unoptimized(docset_factory, skip_targets);
     }
 
 
     #[test]
     fn test_union_skip_corner_case() {
-        let mut union_docset = UnionDocSet::from(vec![
-            VecPostings::from(vec![165132, 167382]),
-            VecPostings::from(vec![25029, 25091]),
-        ]);
-        assert_eq!(union_docset.skip_next(25802), SkipResult::OverStep);
-        assert_eq!(union_docset.doc(), 165132);
-        assert!(union_docset.advance());
-        assert_eq!(union_docset.doc(), 167382);
-        assert!(!union_docset.advance());
+        test_aux_union_skip(
+            &[vec![165132, 167382], vec![25029, 25091]],
+            vec![25029],
+        );
     }
 
     #[test]
-    fn test_union_skip() {
-        test_skip_against_unoptimized(|| {
-            box UnionDocSet::from(vec![
-                VecPostings::from(vec![1,2,3,7]),
-                VecPostings::from(vec![1,3,9,10000]),
-                VecPostings::from(vec![1,3,8,9,100])
-            ])
-        }, vec![1,2,3,5,6,7,8,100]);
-        test_skip_against_unoptimized(|| {
-            box UnionDocSet::from(vec![
-                VecPostings::from(tests::generate_array(1_000, 0.001)[160..165].to_owned()),
-                VecPostings::from(tests::generate_array(1_000, 0.005)[100..105].to_owned()),
-                VecPostings::from(tests::generate_array(10_000, 0.001))
-            ])
-        },  tests::generate_array(100, 0.001));
+    fn test_union_skip_corner_case2() {
+        test_aux_union_skip(
+            &[
+                vec![1u32, 1u32 + HORIZON],
+                vec![2u32, 1000u32, 10_000u32]
+            ], vec![0u32, 1u32, 2u32, 3u32, 1u32 + HORIZON, 2u32 + HORIZON]);
+    }
+
+    #[test]
+    fn test_union_skip_corner_case3() {
+        let mut docset = UnionDocSet::from(vec![
+                VecPostings::from(vec![0u32, 5u32]),
+                VecPostings::from(vec![1u32, 4u32]),
+        ]);
+        assert!(docset.advance());
+        assert_eq!(docset.doc(), 0u32);
+        assert_eq!(docset.skip_next(0u32), SkipResult::OverStep);
+        assert_eq!(docset.doc(), 1u32)
+    }
+
+    #[test]
+    fn test_union_skip_random() {
+        test_aux_union_skip(&[
+            vec![1,2,3,7],
+            vec![1,3,9,10000],
+            vec![1,3,8,9,100]
+        ], vec![1,2,3,5,6,7,8,100]);
+        test_aux_union_skip(&[
+            tests::sample_with_seed(100_000, 0.001, 1),
+            tests::sample_with_seed(100_000, 0.002, 2),
+            tests::sample_with_seed(100_000, 0.005, 3)
+        ],  tests::sample_with_seed(100_000, 0.01, 4));
     }
 
     #[test]
     fn test_union_skip_specific() {
-        let mut docset = UnionDocSet::from(vec![
-            VecPostings::from(vec![1,2,3,7]),
-            VecPostings::from(vec![1,3,9,10000]),
-            VecPostings::from(vec![1,3,8,9,100])
-        ]);
-        assert_eq!(docset.skip_next(1), SkipResult::Reached);
+        test_aux_union_skip(&[
+            vec![1,2,3,7],
+            vec![1,3,9,10000],
+            vec![1,3,8,9,100]
+        ], vec![1,2,3,7,8,9,99,100,101,500,20000]);
     }
 
     #[bench]
     fn bench_union_3_high(bench: &mut Bencher) {
         let union_docset: Vec<Vec<DocId>>  = vec![
-            tests::generate_array(100_000, 0.1),
-            tests::generate_array(100_000, 0.2),
+            tests::sample_with_seed(100_000, 0.1, 0),
+            tests::sample_with_seed(100_000, 0.2, 1),
         ];
         bench.iter(|| {
             let mut v = UnionDocSet::from(union_docset.iter()
@@ -305,9 +346,9 @@ mod tests {
     #[bench]
     fn bench_union_3_low(bench: &mut Bencher) {
         let union_docset: Vec<Vec<DocId>>  = vec![
-            tests::generate_array(100_000, 0.01),
-            tests::generate_array(100_000, 0.05),
-            tests::generate_array(100_000, 0.001)
+            tests::sample_with_seed(100_000, 0.01, 0),
+            tests::sample_with_seed(100_000, 0.05, 1),
+            tests::sample_with_seed(100_000, 0.001, 2)
         ];
         bench.iter(|| {
             let mut v = UnionDocSet::from(union_docset.iter()
