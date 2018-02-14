@@ -31,7 +31,7 @@ pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 pub use self::intersection::IntersectionDocSet;
-pub use self::union::UnionDocSet;
+pub use self::union::{docsets_union, UnionDocSet};
 
 pub use common::HasLen;
 

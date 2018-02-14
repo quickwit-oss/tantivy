@@ -14,7 +14,9 @@ mod phrase_query;
 mod all_query;
 mod bitset;
 mod range_query;
+mod exclude;
 
+use self::exclude::ExcludeScorer;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur_filter::OccurFilter;
