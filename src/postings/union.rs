@@ -186,21 +186,6 @@ impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
 }
 
 
-pub fn docsets_union(docsets: Vec<DocSet>) -> Option<Box<DocSet>> {
-    if docsets.is_empty() {
-        None
-    } else {
-        Some(if docsets.len() == 1 {
-            docsets
-                .into_iter()
-                .next()
-                .unwrap() //< we checked the size beforehands
-        } else {
-            box UnionDocSet::from(docsets)
-        })
-    }
-
-}
 
 #[cfg(test)]
 mod tests {

@@ -31,14 +31,14 @@ pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 pub use self::intersection::IntersectionDocSet;
-pub use self::union::{docsets_union, UnionDocSet};
+pub use self::union::UnionDocSet;
 
 pub use common::HasLen;
 
 pub(crate) type UnorderedTermId = usize;
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use super::*;
     use DocId;

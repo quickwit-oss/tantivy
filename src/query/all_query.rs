@@ -65,7 +65,7 @@ impl DocSet for AllScorer {
 }
 
 impl Scorer for AllScorer {
-    fn score(&self) -> Score {
+    fn score(&mut self) -> Score {
         1f32
     }
 }

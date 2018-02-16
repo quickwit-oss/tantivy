@@ -4,7 +4,7 @@ use DocSet;
 use Score;
 use DocId;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum State {
     ExcludeOne(DocId),
     Finished
@@ -47,19 +47,22 @@ impl<TDocSet, TDocSetExclude> ExcludeScorer<TDocSet, TDocSetExclude>
         match self.excluding_state {
             State::ExcludeOne(excluded_doc) => {
                 if doc == excluded_doc {
-                    return false;
-                }
-                match self.excluding_docset.skip_next(doc) {
-                    SkipResult::OverStep => {
-                        self.excluding_state = State::ExcludeOne(self.excluding_docset.doc());
-                        true
-                    }
-                    SkipResult::End => {
-                        self.excluding_state = State::Finished;
-                        true
-                    }
-                    SkipResult::Reached => {
-                        false
+                    false
+                } else if excluded_doc > doc {
+                    true
+                } else {
+                    match self.excluding_docset.skip_next(doc) {
+                        SkipResult::OverStep => {
+                            self.excluding_state = State::ExcludeOne(self.excluding_docset.doc());
+                            true
+                        }
+                        SkipResult::End => {
+                            self.excluding_state = State::Finished;
+                            true
+                        }
+                        SkipResult::Reached => {
+                            false
+                        }
                     }
                 }
             }
@@ -112,7 +115,55 @@ impl<TDocSet, TDocSetExclude> DocSet for ExcludeScorer<TDocSet, TDocSetExclude>
 
 impl<TDocSet, TDocSetExclude> Scorer for ExcludeScorer<TDocSet, TDocSetExclude>
     where TDocSet: Scorer, TDocSetExclude: Scorer {
-    fn score(&self) -> Score {
+    fn score(&mut self) -> Score {
         self.underlying_docset.score()
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use tests::sample_with_seed;
+    use postings::tests::test_skip_against_unoptimized;
+    use super::*;
+    use postings::VecPostings;
+
+    #[test]
+    fn test_exclude() {
+        let mut exclude_scorer = ExcludeScorer::new(
+        VecPostings::from(vec![1,2,5,8,10,15,24]),
+        VecPostings::from(vec![1,2,3,10,16,24])
+        );
+        let mut els = vec![];
+        while exclude_scorer.advance() {
+            els.push(exclude_scorer.doc());
+        }
+        assert_eq!(els, vec![5,8,15]);
+    }
+
+    #[test]
+    fn test_exclude_skip() {
+        test_skip_against_unoptimized(
+            || box ExcludeScorer::new(
+                VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
+                VecPostings::from(vec![1, 2, 3, 10, 16, 24])
+            ),
+            vec![1, 2, 5, 8, 10, 15, 24]
+        );
+    }
+
+    #[test]
+    fn test_exclude_skip_random() {
+        let sample_include = sample_with_seed(10_000, 0.1, 1);
+        let sample_exclude = sample_with_seed(10_000, 0.05, 2);
+        let sample_skip = sample_with_seed(10_000, 0.005, 3);
+        test_skip_against_unoptimized(
+            || box ExcludeScorer::new(
+                VecPostings::from(sample_include.clone()),
+                VecPostings::from(sample_exclude.clone())
+            ),
+            sample_skip
+        );
+    }
+
 }

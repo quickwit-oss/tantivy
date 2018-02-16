@@ -50,7 +50,7 @@ impl<TPostings> Scorer for TermScorer<TPostings>
 where
     TPostings: Postings,
 {
-    fn score(&self) -> Score {
+    fn score(&mut self) -> Score {
         let doc = self.postings.doc();
         let tf = match self.fieldnorm_reader_opt {
             Some(ref fieldnorm_reader) => {

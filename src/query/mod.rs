@@ -15,8 +15,10 @@ mod all_query;
 mod bitset;
 mod range_query;
 mod exclude;
+mod reqopt_scorer;
 
-use self::exclude::ExcludeScorer;
+pub use self::reqopt_scorer::RequiredOptionalScorer;
+pub use self::exclude::ExcludeScorer;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur_filter::OccurFilter;

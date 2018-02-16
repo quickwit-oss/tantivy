@@ -146,7 +146,7 @@ impl DocSet for PhraseScorer {
 }
 
 impl Scorer for PhraseScorer {
-    fn score(&self) -> f32 {
+    fn score(&mut self) -> f32 {
         1f32
     }
 }

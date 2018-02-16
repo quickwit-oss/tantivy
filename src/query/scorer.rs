@@ -4,7 +4,7 @@ use Score;
 use collector::Collector;
 use postings::SkipResult;
 use common::BitSet;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -13,7 +13,7 @@ pub trait Scorer: DocSet {
     /// Returns the score.
     ///
     /// This method will perform a bit of computation and is not cached.
-    fn score(&self) -> Score;
+    fn score(&mut self) -> Score;
 
     /// Consumes the complete `DocSet` and
     /// push the scored documents to the collector.
@@ -25,8 +25,8 @@ pub trait Scorer: DocSet {
 }
 
 impl<'a> Scorer for Box<Scorer + 'a> {
-    fn score(&self) -> Score {
-        self.deref().score()
+    fn score(&mut self) -> Score {
+        self.deref_mut().score()
     }
 
     fn collect(&mut self, collector: &mut Collector) {
@@ -57,7 +57,7 @@ impl DocSet for EmptyScorer {
 }
 
 impl Scorer for EmptyScorer {
-    fn score(&self) -> Score {
+    fn score(&mut self) -> Score {
         0f32
     }
 }
@@ -115,7 +115,7 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
 }
 
 impl<TDocSet: DocSet> Scorer for ConstScorer<TDocSet> {
-    fn score(&self) -> Score {
+    fn score(&mut self) -> Score {
         1f32
     }
 }
