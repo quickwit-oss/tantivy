@@ -9,6 +9,7 @@ use super::BooleanScorer;
 use query::OccurFilter;
 use query::ConstScorer;
 use query::Occur;
+use query::RequiredOptionalScorer;
 use Result;
 
 
@@ -48,30 +49,37 @@ impl BooleanWeight {
                 .push(sub_scorer);
         }
 
-        let mut result_scorer_opt: Option<Box<Scorer + 'a>> = per_occur_scorers
+        let should_scorer_opt: Option<Box<Scorer + 'a>> = per_occur_scorers
             .remove(&Occur::Should)
             .map(scorer_union);
 
-        if let Some(mut subscorers) = per_occur_scorers.remove(&Occur::Must) {
-            if let Some(should_query) = result_scorer_opt {
-                subscorers.push(should_query);
-            }
-            let intersection_scorer = ConstScorer::new(IntersectionDocSet::from(subscorers));
-            result_scorer_opt = Some(box intersection_scorer);
-        }
+        let exclude_scorer_opt: Option<Box<Scorer + 'a>> = per_occur_scorers
+            .remove(&Occur::MustNot)
+            .map(scorer_union);
 
-        // TODO
-        // +a b should match all documents containing "a" regardless of
-        // whether or not they contain "b".
-        if let Some(result_scorer) = result_scorer_opt {
-            if let Some(exclude_scorers) = per_occur_scorers.remove(&Occur::MustNot) {
-                let exclude_scorer = scorer_union(exclude_scorers);
-                Ok(box ExcludeScorer::new(result_scorer, exclude_scorer))
-            } else {
-                Ok(box ConstScorer::new(result_scorer))
+        let must_scorer_opt: Option<Box<Scorer + 'a>> = per_occur_scorers
+            .remove(&Occur::Must)
+            .map(|scorers| {
+                let scorer: Box<Scorer> = box ConstScorer::new(IntersectionDocSet::from(scorers));
+                scorer
+            });
+
+        let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
+            (Some(should_scorer), Some(must_scorer)) =>
+                box RequiredOptionalScorer::new(must_scorer, should_scorer),
+            (None, Some(must_scorer)) =>
+                must_scorer,
+            (Some(should_scorer), None) =>
+                should_scorer,
+            (None, None) => {
+                return Ok(box EmptyScorer);
             }
+        };
+
+        if let Some(exclude_scorer) = exclude_scorer_opt {
+            Ok(box ExcludeScorer::new(positive_scorer, exclude_scorer))
         } else {
-            Ok(box EmptyScorer)
+            Ok(positive_scorer)
         }
     }
 

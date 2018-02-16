@@ -21,7 +21,9 @@ pub struct RequiredOptionalScorer<TReqScorer, TOptScorer> {
 
 impl<TReqScorer, TOptScorer> RequiredOptionalScorer<TReqScorer, TOptScorer>
     where TOptScorer: DocSet {
-    fn new(req_scorer: TReqScorer, mut opt_scorer: TOptScorer) -> RequiredOptionalScorer<TReqScorer, TOptScorer> {
+
+    /// Creates a new `RequiredOptionalScorer`.
+    pub fn new(req_scorer: TReqScorer, mut opt_scorer: TOptScorer) -> RequiredOptionalScorer<TReqScorer, TOptScorer> {
         let opt_finished = !opt_scorer.advance();
         RequiredOptionalScorer {
             req_scorer,
