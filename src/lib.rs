@@ -14,7 +14,6 @@
 #![allow(new_without_default)]
 #![warn(missing_docs)]
 
-
 //! # `tantivy`
 //!
 //! Tantivy is a search engine library.

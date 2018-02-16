@@ -633,7 +633,6 @@ pub mod tests {
         });
     }
 
-
     /// Wraps a given docset, and forward alls call but the
     /// `.skip_next(...)`. This is useful to test that a specialized
     /// implementation of `.skip_next(...)` is consistent
@@ -660,25 +659,38 @@ pub mod tests {
         }
     }
 
-    pub fn test_skip_against_unoptimized<F: Fn()->Box<DocSet>>(postings_factory: F, targets: Vec<u32>) {
+    pub fn test_skip_against_unoptimized<F: Fn() -> Box<DocSet>>(
+        postings_factory: F,
+        targets: Vec<u32>,
+    ) {
         for target in targets {
             let mut postings_opt = postings_factory();
             let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
             let skip_result_opt = postings_opt.skip_next(target);
             let skip_result_unopt = postings_unopt.skip_next(target);
-            assert_eq!(skip_result_unopt, skip_result_opt, "Failed while skipping to {}", target);
+            assert_eq!(
+                skip_result_unopt, skip_result_opt,
+                "Failed while skipping to {}",
+                target
+            );
             match skip_result_opt {
                 SkipResult::Reached => assert_eq!(postings_opt.doc(), target),
                 SkipResult::OverStep => assert!(postings_opt.doc() > target),
-                SkipResult::End => { return; },
+                SkipResult::End => {
+                    return;
+                }
             }
             while postings_opt.advance() {
                 assert!(postings_unopt.advance());
-                assert_eq!(postings_opt.doc(), postings_unopt.doc(), "Failed while skipping to {}", target);
+                assert_eq!(
+                    postings_opt.doc(),
+                    postings_unopt.doc(),
+                    "Failed while skipping to {}",
+                    target
+                );
             }
             assert!(!postings_unopt.advance());
         }
     }
-
 
 }

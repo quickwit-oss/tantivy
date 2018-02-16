@@ -56,7 +56,6 @@ impl Postings for VecPostings {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
 

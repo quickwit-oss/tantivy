@@ -42,8 +42,8 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
     ) -> Result<()> {
-        try!(self.left.set_segment(segment_local_id, segment));
-        try!(self.right.set_segment(segment_local_id, segment));
+        self.left.set_segment(segment_local_id, segment)?;
+        self.right.set_segment(segment_local_id, segment)?;
         Ok(())
     }
 

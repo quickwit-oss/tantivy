@@ -1,9 +1,11 @@
 use DocId;
 use DocSet;
 use query::Scorer;
+use query::score_combiner::{ScoreCombiner, SumCombiner};
 use Score;
 use postings::SkipResult;
 use std::cmp::Ordering;
+use std::marker::PhantomData;
 
 /// Given a required scorer and an optional scorer
 /// matches all document from the required scorer
@@ -12,30 +14,38 @@ use std::cmp::Ordering;
 /// This is useful for queries like `+somethingrequired somethingoptional`.
 ///
 /// Note that `somethingoptional` has no impact on the `DocSet`.
-pub struct RequiredOptionalScorer<TReqScorer, TOptScorer> {
+pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
     req_scorer: TReqScorer,
     opt_scorer: TOptScorer,
     score_cache: Option<Score>,
     opt_finished: bool,
+    _phantom: PhantomData<TScoreCombiner>
 }
 
-impl<TReqScorer, TOptScorer> RequiredOptionalScorer<TReqScorer, TOptScorer>
-    where TOptScorer: DocSet {
-
+impl<TReqScorer, TOptScorer, TScoreCombiner> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+where
+    TOptScorer: DocSet,
+{
     /// Creates a new `RequiredOptionalScorer`.
-    pub fn new(req_scorer: TReqScorer, mut opt_scorer: TOptScorer) -> RequiredOptionalScorer<TReqScorer, TOptScorer> {
+    pub fn new(
+        req_scorer: TReqScorer,
+        mut opt_scorer: TOptScorer,
+    ) -> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
         let opt_finished = !opt_scorer.advance();
         RequiredOptionalScorer {
             req_scorer,
             opt_scorer,
             score_cache: None,
-            opt_finished
+            opt_finished,
+            _phantom: PhantomData
         }
     }
 }
 
-impl<TReqScorer, TOptScorer> DocSet for RequiredOptionalScorer<TReqScorer, TOptScorer>
-    where TReqScorer: DocSet, TOptScorer: DocSet
+impl<TReqScorer, TOptScorer, TScoreCombiner> DocSet for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+where
+    TReqScorer: DocSet,
+    TOptScorer: DocSet,
 {
     fn advance(&mut self) -> bool {
         self.score_cache = None;
@@ -55,41 +65,41 @@ impl<TReqScorer, TOptScorer> DocSet for RequiredOptionalScorer<TReqScorer, TOptS
     }
 }
 
-
-impl<TReqScorer, TOptScorer> Scorer for RequiredOptionalScorer<TReqScorer, TOptScorer>
-    where TReqScorer: Scorer, TOptScorer: Scorer {
-
+impl<TReqScorer, TOptScorer, TScoreCombiner> Scorer for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+where
+    TReqScorer: Scorer,
+    TOptScorer: Scorer,
+    TScoreCombiner: ScoreCombiner
+{
     fn score(&mut self) -> Score {
         if let Some(score) = self.score_cache {
             return score;
         }
         let doc = self.doc();
-        let mut score = self.req_scorer.score();
-        if self.opt_finished {
-            return score;
-        }
-        match self.opt_scorer.doc().cmp(&doc) {
-            Ordering::Greater => {}
-            Ordering::Equal => {
-                score += self.opt_scorer.score();
-            }
-            Ordering::Less => {
-                match self.opt_scorer.skip_next(doc) {
+        let mut score_combiner = TScoreCombiner::default();
+        score_combiner.update(&mut self.req_scorer);
+        if !self.opt_finished {
+            match self.opt_scorer.doc().cmp(&doc) {
+                Ordering::Greater => {}
+                Ordering::Equal => {
+                    score_combiner.update(&mut self.opt_scorer);
+                }
+                Ordering::Less => match self.opt_scorer.skip_next(doc) {
                     SkipResult::Reached => {
-                        score += self.opt_scorer.score();
+                        score_combiner.update(&mut self.opt_scorer);
                     }
                     SkipResult::End => {
                         self.opt_finished = true;
                     }
                     SkipResult::OverStep => {}
-                }
+                },
             }
         }
+        let score = score_combiner.score();
         self.score_cache = Some(score);
         score
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -100,14 +110,14 @@ mod tests {
     use DocSet;
     use postings::tests::test_skip_against_unoptimized;
     use query::Scorer;
-
+    use query::score_combiner::{DoNothingCombiner, SumCombiner};
 
     #[test]
     fn test_reqopt_scorer_empty() {
         let req = vec![1, 3, 7];
-        let mut reqoptscorer = RequiredOptionalScorer::new(
+        let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> = RequiredOptionalScorer::new(
             ConstScorer::new(VecPostings::from(req.clone())),
-            ConstScorer::new(VecPostings::from(vec![]))
+            ConstScorer::new(VecPostings::from(vec![])),
         );
         let mut docs = vec![];
         while reqoptscorer.advance() {
@@ -118,9 +128,9 @@ mod tests {
 
     #[test]
     fn test_reqopt_scorer() {
-        let mut reqoptscorer = RequiredOptionalScorer::new(
-            ConstScorer::new(VecPostings::from(vec![1,3,7,8,9,10,13,15])),
-            ConstScorer::new(VecPostings::from(vec![1,2,7,11,12,15]))
+        let mut reqoptscorer: RequiredOptionalScorer<_,_,SumCombiner> = RequiredOptionalScorer::new(
+            ConstScorer::new(VecPostings::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
+            ConstScorer::new(VecPostings::from(vec![1, 2, 7, 11, 12, 15])),
         );
         {
             assert!(reqoptscorer.advance());
@@ -170,12 +180,15 @@ mod tests {
         let req_docs = sample_with_seed(10_000, 0.02, 1);
         let opt_docs = sample_with_seed(10_000, 0.02, 2);
         let skip_docs = sample_with_seed(10_000, 0.001, 3);
-        test_skip_against_unoptimized(||
-            box RequiredOptionalScorer::new(
-                ConstScorer::new(VecPostings::from(req_docs.clone())),
-                ConstScorer::new(VecPostings::from(opt_docs.clone()))
-            ), skip_docs);
+        test_skip_against_unoptimized(
+            || {
+                box RequiredOptionalScorer::<_,_,DoNothingCombiner>::new(
+                    ConstScorer::new(VecPostings::from(req_docs.clone())),
+                    ConstScorer::new(VecPostings::from(opt_docs.clone())),
+                )
+            },
+            skip_docs,
+        );
     }
-
 
 }

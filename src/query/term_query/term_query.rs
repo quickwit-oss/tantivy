@@ -41,7 +41,7 @@ impl TermQuery {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
-            index_record_option: self.index_record_option
+            index_record_option: self.index_record_option,
         }
     }
 }

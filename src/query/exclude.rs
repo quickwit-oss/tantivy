@@ -7,7 +7,7 @@ use DocId;
 #[derive(Clone, Copy, Debug)]
 enum State {
     ExcludeOne(DocId),
-    Finished
+    Finished,
 }
 
 /// Filters a given `DocSet` by removing the docs from a given `DocSet`.
@@ -19,18 +19,20 @@ pub struct Exclude<TDocSet, TDocSetExclude> {
     excluding_state: State,
 }
 
-
 impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
-    where TDocSetExclude: DocSet {
-
+where
+    TDocSetExclude: DocSet,
+{
     /// Creates a new `ExcludeScorer`
-    pub fn new(underlying_docset: TDocSet, mut excluding_docset: TDocSetExclude) -> Exclude<TDocSet, TDocSetExclude> {
-        let state =
-            if excluding_docset.advance() {
-                State::ExcludeOne(excluding_docset.doc())
-            } else {
-                State::Finished
-            };
+    pub fn new(
+        underlying_docset: TDocSet,
+        mut excluding_docset: TDocSetExclude,
+    ) -> Exclude<TDocSet, TDocSetExclude> {
+        let state = if excluding_docset.advance() {
+            State::ExcludeOne(excluding_docset.doc())
+        } else {
+            State::Finished
+        };
         Exclude {
             underlying_docset,
             excluding_docset,
@@ -40,8 +42,10 @@ impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
 }
 
 impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
-    where TDocSet: DocSet, TDocSetExclude: DocSet {
-
+where
+    TDocSet: DocSet,
+    TDocSetExclude: DocSet,
+{
     /// Returns true iff the doc is not removed.
     ///
     /// The method has to be called with non strictly
@@ -64,22 +68,20 @@ impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
                             self.excluding_state = State::Finished;
                             true
                         }
-                        SkipResult::Reached => {
-                            false
-                        }
+                        SkipResult::Reached => false,
                     }
                 }
             }
-            State::Finished => {
-                true
-            }
+            State::Finished => true,
         }
     }
 }
 
 impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
-    where TDocSet: DocSet, TDocSetExclude: DocSet {
-
+where
+    TDocSet: DocSet,
+    TDocSetExclude: DocSet,
+{
     fn advance(&mut self) -> bool {
         while self.underlying_docset.advance() {
             if self.accept() {
@@ -101,7 +103,6 @@ impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
         } else {
             SkipResult::End
         }
-
     }
 
     fn doc(&self) -> DocId {
@@ -116,9 +117,11 @@ impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
     }
 }
 
-
 impl<TScorer, TDocSetExclude> Scorer for Exclude<TScorer, TDocSetExclude>
-    where TScorer: Scorer, TDocSetExclude: DocSet {
+where
+    TScorer: Scorer,
+    TDocSetExclude: DocSet,
+{
     fn score(&mut self) -> Score {
         self.underlying_docset.score()
     }
@@ -135,24 +138,26 @@ mod tests {
     #[test]
     fn test_exclude() {
         let mut exclude_scorer = Exclude::new(
-        VecPostings::from(vec![1,2,5,8,10,15,24]),
-        VecPostings::from(vec![1,2,3,10,16,24])
+            VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
+            VecPostings::from(vec![1, 2, 3, 10, 16, 24]),
         );
         let mut els = vec![];
         while exclude_scorer.advance() {
             els.push(exclude_scorer.doc());
         }
-        assert_eq!(els, vec![5,8,15]);
+        assert_eq!(els, vec![5, 8, 15]);
     }
 
     #[test]
     fn test_exclude_skip() {
         test_skip_against_unoptimized(
-            || box Exclude::new(
-                VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
-                VecPostings::from(vec![1, 2, 3, 10, 16, 24])
-            ),
-            vec![1, 2, 5, 8, 10, 15, 24]
+            || {
+                box Exclude::new(
+                    VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
+                    VecPostings::from(vec![1, 2, 3, 10, 16, 24]),
+                )
+            },
+            vec![1, 2, 5, 8, 10, 15, 24],
         );
     }
 
@@ -162,11 +167,13 @@ mod tests {
         let sample_exclude = sample_with_seed(10_000, 0.05, 2);
         let sample_skip = sample_with_seed(10_000, 0.005, 3);
         test_skip_against_unoptimized(
-            || box Exclude::new(
-                VecPostings::from(sample_include.clone()),
-                VecPostings::from(sample_exclude.clone())
-            ),
-            sample_skip
+            || {
+                box Exclude::new(
+                    VecPostings::from(sample_include.clone()),
+                    VecPostings::from(sample_exclude.clone()),
+                )
+            },
+            sample_skip,
         );
     }
 

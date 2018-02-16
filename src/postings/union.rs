@@ -1,18 +1,18 @@
 use postings::DocSet;
+use query::Scorer;
 use postings::SkipResult;
 use common::TinySet;
 use std::cmp::Ordering;
 use DocId;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 
-
 const HORIZON_NUM_TINYBITSETS: usize = 32;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct Union<TDocSet: DocSet, TScoreCombiner=DoNothingCombiner>
-    where TDocSet: DocSet,  TScoreCombiner: ScoreCombiner {
-    docsets: Vec<TDocSet>,
+pub struct Union<TScorer, TScoreCombiner=DoNothingCombiner>
+{
+    docsets: Vec<TScorer>,
     bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
     scores: Box<[TScoreCombiner; HORIZON as usize]>,
     cursor: usize,
@@ -20,60 +20,65 @@ pub struct Union<TDocSet: DocSet, TScoreCombiner=DoNothingCombiner>
     doc: DocId,
 }
 
-impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> From<Vec<TDocSet>> for Union<TDocSet, TScoreCombiner> {
-    fn from(docsets: Vec<TDocSet>) -> Union<TDocSet> {
-        let non_empty_docsets: Vec<TDocSet> =
-            docsets
-                .into_iter()
-                .flat_map(|mut docset| {
+impl<TScorer, TScoreCombiner> From<Vec<TScorer>>
+    for Union<TScorer, TScoreCombiner>
+    where TScoreCombiner: ScoreCombiner, TScorer: Scorer
+{
+    fn from(docsets: Vec<TScorer>) -> Union<TScorer, TScoreCombiner> {
+        let non_empty_docsets: Vec<TScorer> = docsets
+            .into_iter()
+            .flat_map(
+                |mut docset| {
                     if docset.advance() {
                         Some(docset)
                     } else {
                         None
                     }
-                })
-                .collect();
+                },
+            )
+            .collect();
         Union {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
-            scores: Box::new([TScoreCombiner::default(); HORIZON]),
+            scores: Box::new([TScoreCombiner::default(); HORIZON as usize]),
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
-            doc: 0
+            doc: 0,
         }
     }
 }
 
-
-fn refill<TDocSet: DocSet>(docsets: &mut Vec<TDocSet>, bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS], min_doc: DocId) {
-    docsets
-        .drain_filter(|docset| {
-            let horizon = min_doc + HORIZON as u32;
-            loop {
-                let doc = docset.doc();
-                if doc >= horizon {
-                    return false;
-                }
-                // add this document
-                let delta = doc - min_doc;
-                bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
-                if !docset.advance() {
-                    // remove the docset, it has been entirely consumed.
-                    return true;
-                }
+fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
+    scorers: &mut Vec<TScorer>,
+    bitsets: &mut [TinySet; HORIZON_NUM_TINYBITSETS],
+    score_combiner: &mut [TScoreCombiner; HORIZON as usize],
+    min_doc: DocId,
+) {
+    scorers.drain_filter(|scorer| {
+        let horizon = min_doc + HORIZON as u32;
+        loop {
+            let doc = scorer.doc();
+            if doc >= horizon {
+                return false;
             }
-        });
+            // add this document
+            let delta = doc - min_doc;
+            bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
+            score_combiner[delta as usize].update(scorer);
+            if !scorer.advance() {
+                // remove the docset, it has been entirely consumed.
+                return true;
+            }
+        }
+    });
 }
 
-impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> Union<TDocSet, TScoreCombiner> {
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
     fn refill(&mut self) -> bool {
-        if let Some(min_doc) = self.docsets
-            .iter_mut()
-            .map(|docset| docset.doc())
-            .min() {
+        if let Some(min_doc) = self.docsets.iter_mut().map(|docset| docset.doc()).min() {
             self.offset = min_doc;
             self.cursor = 0;
-            refill(&mut self.docsets, &mut *self.bitsets, min_doc);
+            refill(&mut self.docsets, &mut *self.bitsets, &mut *self.scores, min_doc);
             self.advance();
             true
         } else {
@@ -94,8 +99,7 @@ impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> Union<TDocSet, TScoreCombin
     }
 }
 
-impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> DocSet for Union<TDocSet, TScoreCombiner> {
-
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, TScoreCombiner> {
     fn advance(&mut self) -> bool {
         if self.advance_buffered() {
             return true;
@@ -150,18 +154,12 @@ impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> DocSet for Union<TDocSet, T
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
             self.docsets
-                .drain_filter(|docset| {
-                    match docset.doc().cmp(&target) {
-                        Ordering::Less => {
-                            match docset.skip_next(target) {
-                                SkipResult::End => true,
-                                SkipResult::Reached | SkipResult::OverStep => false
-                            }
-                        }
-                        Ordering::Equal | Ordering::Greater => {
-                            false
-                        }
-                    }
+                .drain_filter(|docset| match docset.doc().cmp(&target) {
+                    Ordering::Less => match docset.skip_next(target) {
+                        SkipResult::End => true,
+                        SkipResult::Reached | SkipResult::OverStep => false,
+                    },
+                    Ordering::Equal | Ordering::Greater => false,
                 });
 
             // at this point all of the docsets
@@ -177,7 +175,6 @@ impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> DocSet for Union<TDocSet, T
                 SkipResult::End
             }
         }
-
     }
 
     fn doc(&self) -> DocId {
@@ -189,13 +186,11 @@ impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> DocSet for Union<TDocSet, T
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
 
     use super::Union;
-    use postings::{VecPostings, DocSet};
+    use postings::{DocSet, VecPostings};
     use tests;
     use test::Bencher;
     use DocId;
@@ -203,7 +198,8 @@ mod tests {
     use super::HORIZON;
     use postings::SkipResult;
     use postings::tests::test_skip_against_unoptimized;
-
+    use query::ConstScorer;
+    use query::score_combiner::DoNothingCombiner;
 
     fn aux_test_union(vals: Vec<Vec<u32>>) {
         use std::collections::BTreeSet;
@@ -213,15 +209,14 @@ mod tests {
                 val_set.insert(v);
             }
         }
-        let union_vals: Vec<u32> = val_set
-            .into_iter()
-            .collect();
+        let union_vals: Vec<u32> = val_set.into_iter().collect();
         let mut union_expected = VecPostings::from(union_vals);
 
-        let mut union = Union::from(
+        let mut union: Union<_, DoNothingCombiner> = Union::from(
             vals.into_iter()
                 .map(VecPostings::from)
-                .collect::<Vec<VecPostings>>()
+                .map(ConstScorer::new)
+                .collect::<Vec<ConstScorer<VecPostings>>>(),
         );
         while union.advance() {
             assert!(union_expected.advance());
@@ -232,29 +227,24 @@ mod tests {
 
     #[test]
     fn test_union() {
-        aux_test_union(
-            vec![
-                vec![1, 3333, 100000000u32],
-                vec![1,2, 100000000u32],
-                vec![1,2, 100000000u32],
-                vec![]
-            ]
-        );
-        aux_test_union(
-            vec![
-                vec![1, 3333, 100000000u32],
-                vec![1,2, 100000000u32],
-                vec![1,2, 100000000u32],
-                vec![]
-            ]
-        );
+        aux_test_union(vec![
+            vec![1, 3333, 100000000u32],
+            vec![1, 2, 100000000u32],
+            vec![1, 2, 100000000u32],
+            vec![],
+        ]);
+        aux_test_union(vec![
+            vec![1, 3333, 100000000u32],
+            vec![1, 2, 100000000u32],
+            vec![1, 2, 100000000u32],
+            vec![],
+        ]);
         aux_test_union(vec![
             tests::sample_with_seed(100_000, 0.01, 1),
             tests::sample_with_seed(100_000, 0.05, 2),
-            tests::sample_with_seed(100_000, 0.001, 3)
+            tests::sample_with_seed(100_000, 0.001, 3),
         ]);
     }
-
 
     fn test_aux_union_skip(docs_list: &[Vec<DocId>], skip_targets: Vec<DocId>) {
         let mut btree_set = BTreeSet::new();
@@ -264,12 +254,13 @@ mod tests {
             }
         }
         let docset_factory = || {
-            let res: Box<DocSet> = box Union::from(
+            let res: Box<DocSet> = box Union::<_, DoNothingCombiner>::from(
                 docs_list
                     .iter()
                     .map(|docs| docs.clone())
                     .map(VecPostings::from)
-                    .collect::<Vec<VecPostings>>()
+                    .map(ConstScorer::new)
+                    .collect::<Vec<_>>(),
             );
             res
         };
@@ -282,29 +273,24 @@ mod tests {
         test_skip_against_unoptimized(docset_factory, skip_targets);
     }
 
-
     #[test]
     fn test_union_skip_corner_case() {
-        test_aux_union_skip(
-            &[vec![165132, 167382], vec![25029, 25091]],
-            vec![25029],
-        );
+        test_aux_union_skip(&[vec![165132, 167382], vec![25029, 25091]], vec![25029]);
     }
 
     #[test]
     fn test_union_skip_corner_case2() {
         test_aux_union_skip(
-            &[
-                vec![1u32, 1u32 + HORIZON],
-                vec![2u32, 1000u32, 10_000u32]
-            ], vec![0u32, 1u32, 2u32, 3u32, 1u32 + HORIZON, 2u32 + HORIZON]);
+            &[vec![1u32, 1u32 + HORIZON], vec![2u32, 1000u32, 10_000u32]],
+            vec![0u32, 1u32, 2u32, 3u32, 1u32 + HORIZON, 2u32 + HORIZON],
+        );
     }
 
     #[test]
     fn test_union_skip_corner_case3() {
-        let mut docset = Union::from(vec![
-                VecPostings::from(vec![0u32, 5u32]),
-                VecPostings::from(vec![1u32, 4u32]),
+        let mut docset = Union::<_, DoNothingCombiner>::from(vec![
+            ConstScorer::new(VecPostings::from(vec![0u32, 5u32])),
+            ConstScorer::new(VecPostings::from(vec![1u32, 4u32]))
         ]);
         assert!(docset.advance());
         assert_eq!(docset.doc(), 0u32);
@@ -314,52 +300,69 @@ mod tests {
 
     #[test]
     fn test_union_skip_random() {
-        test_aux_union_skip(&[
-            vec![1,2,3,7],
-            vec![1,3,9,10000],
-            vec![1,3,8,9,100]
-        ], vec![1,2,3,5,6,7,8,100]);
-        test_aux_union_skip(&[
-            tests::sample_with_seed(100_000, 0.001, 1),
-            tests::sample_with_seed(100_000, 0.002, 2),
-            tests::sample_with_seed(100_000, 0.005, 3)
-        ],  tests::sample_with_seed(100_000, 0.01, 4));
+        test_aux_union_skip(
+            &[
+                vec![1, 2, 3, 7],
+                vec![1, 3, 9, 10000],
+                vec![1, 3, 8, 9, 100],
+            ],
+            vec![1, 2, 3, 5, 6, 7, 8, 100],
+        );
+        test_aux_union_skip(
+            &[
+                tests::sample_with_seed(100_000, 0.001, 1),
+                tests::sample_with_seed(100_000, 0.002, 2),
+                tests::sample_with_seed(100_000, 0.005, 3),
+            ],
+            tests::sample_with_seed(100_000, 0.01, 4),
+        );
     }
 
     #[test]
     fn test_union_skip_specific() {
-        test_aux_union_skip(&[
-            vec![1,2,3,7],
-            vec![1,3,9,10000],
-            vec![1,3,8,9,100]
-        ], vec![1,2,3,7,8,9,99,100,101,500,20000]);
+        test_aux_union_skip(
+            &[
+                vec![1, 2, 3, 7],
+                vec![1, 3, 9, 10000],
+                vec![1, 3, 8, 9, 100],
+            ],
+            vec![1, 2, 3, 7, 8, 9, 99, 100, 101, 500, 20000],
+        );
     }
 
     #[bench]
     fn bench_union_3_high(bench: &mut Bencher) {
-        let union_docset: Vec<Vec<DocId>>  = vec![
+        let union_docset: Vec<Vec<DocId>> = vec![
             tests::sample_with_seed(100_000, 0.1, 0),
             tests::sample_with_seed(100_000, 0.2, 1),
         ];
         bench.iter(|| {
-            let mut v = Union::from(union_docset.iter()
-                .map(|doc_ids| VecPostings::from(doc_ids.clone()))
-                .collect::<Vec<VecPostings>>());
-            while v.advance() {};
+            let mut v = Union::<_, DoNothingCombiner>::from(
+                union_docset
+                    .iter()
+                    .map(|doc_ids| VecPostings::from(doc_ids.clone()))
+                    .map(ConstScorer::new)
+                    .collect::<Vec<_>>(),
+            );
+            while v.advance() {}
         });
     }
     #[bench]
     fn bench_union_3_low(bench: &mut Bencher) {
-        let union_docset: Vec<Vec<DocId>>  = vec![
+        let union_docset: Vec<Vec<DocId>> = vec![
             tests::sample_with_seed(100_000, 0.01, 0),
             tests::sample_with_seed(100_000, 0.05, 1),
-            tests::sample_with_seed(100_000, 0.001, 2)
+            tests::sample_with_seed(100_000, 0.001, 2),
         ];
         bench.iter(|| {
-            let mut v = Union::from(union_docset.iter()
-                .map(|doc_ids| VecPostings::from(doc_ids.clone()))
-                .collect::<Vec<VecPostings>>());
-            while v.advance() {};
+            let mut v = Union::<_, DoNothingCombiner>::from(
+                union_docset
+                    .iter()
+                    .map(|doc_ids| VecPostings::from(doc_ids.clone()))
+                    .map(ConstScorer::new)
+                    .collect::<Vec<_>>(),
+            );
+            while v.advance() {}
         });
     }
 

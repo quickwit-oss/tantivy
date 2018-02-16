@@ -22,14 +22,14 @@ use query::Occur;
 #[derive(Debug)]
 pub struct BooleanQuery {
     subqueries: Vec<(Occur, Box<Query>)>,
-    scoring_disabled: bool
+    scoring_disabled: bool,
 }
 
 impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
     fn from(subqueries: Vec<(Occur, Box<Query>)>) -> BooleanQuery {
         BooleanQuery {
             subqueries,
-            scoring_disabled: false
+            scoring_disabled: false,
         }
     }
 }
@@ -49,9 +49,7 @@ impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
-            .map(|&(ref occur, ref subquery)| {
-                Ok((*occur, subquery.weight(searcher)?))
-            })
+            .map(|&(ref occur, ref subquery)| Ok((*occur, subquery.weight(searcher)?)))
             .collect::<Result<_>>()?;
         Ok(box BooleanWeight::new(sub_weights, self.scoring_disabled))
     }

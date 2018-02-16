@@ -29,7 +29,7 @@ impl<'a> Collector for MultiCollector<'a> {
         segment: &SegmentReader,
     ) -> Result<()> {
         for collector in &mut self.collectors {
-            try!(collector.set_segment(segment_local_id, segment));
+            collector.set_segment(segment_local_id, segment)?;
         }
         Ok(())
     }

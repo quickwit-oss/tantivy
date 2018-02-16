@@ -1,15 +1,17 @@
 use Score;
+use query::Scorer;
 
-pub trait ScoreCombiner: Default + Copy {
-    fn update(&mut self, score: Score);
+pub trait ScoreCombiner: Default + Clone + Copy {
+    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer);
     fn clear(&mut self);
     fn score(&self) -> Score;
 }
 
-
+#[derive(Default, Clone, Copy)] //< these should not be too much work :)
 pub struct DoNothingCombiner;
+
 impl ScoreCombiner for DoNothingCombiner {
-    fn update(&mut self, score: Score) {}
+    fn update<TScorer: Scorer>(&mut self, _scorer: &mut TScorer) {}
 
     fn clear(&mut self) {}
 
@@ -18,15 +20,35 @@ impl ScoreCombiner for DoNothingCombiner {
     }
 }
 
+#[derive(Default, Clone, Copy)]
+pub struct SumCombiner {
+    score: Score
+}
+
+
+impl ScoreCombiner for SumCombiner {
+    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
+        self.score += scorer.score();
+    }
+
+    fn clear(&mut self) {
+        self.score = 0f32;
+    }
+
+    fn score(&self) -> Score {
+        self.score
+    }
+}
+
+#[derive(Default, Clone, Copy)]
 pub struct SumWithCoordsCombiner {
-    coords: Vec<Score>,
     num_fields: usize,
     score: Score,
 }
 
 impl ScoreCombiner for SumWithCoordsCombiner {
-    fn update(&mut self, score: Score) {
-        self.score += score;
+    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
+        self.score += scorer.score();
         self.num_fields += 1;
     }
 
@@ -36,32 +58,7 @@ impl ScoreCombiner for SumWithCoordsCombiner {
     }
 
     fn score(&self) -> Score {
-        self.score * self.coord()
-    }
-
-}
-
-impl SumWithCoordsCombiner {
-    /// Compute the coord term
-    fn coord(&self) -> f32 {
-        self.coords[self.num_fields]
-    }
-
-
-    pub fn default_for_num_scorers(num_scorers: usize) -> Self {
-        let query_coords: Vec<Score> = (0..num_scorers + 1)
-            .map(|i| (i as Score) / (num_scorers as Score))
-            .collect();
-        ScoreCombiner::from(query_coords)
+        self.score
     }
 }
 
-impl From<Vec<Score>> for ScoreCombiner {
-    fn from(coords: Vec<Score>) -> SumWithCoordsCombiner {
-        SumWithCoordsCombiner {
-            coords,
-            num_fields: 0,
-            score: 0f32,
-        }
-    }
-}

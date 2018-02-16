@@ -4,7 +4,6 @@ use query::Scorer;
 use DocId;
 use Score;
 
-
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct Intersection<TDocSet: DocSet> {
     docsets: Vec<TDocSet>,
@@ -77,7 +76,6 @@ impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
         // We optimize skipping by skipping every single member
         // of the intersection to target.
 
-
         // TODO fix BUG...
         // what if we overstep on the second member of the intersection?
         // The first member is not necessarily correct.
@@ -112,8 +110,6 @@ impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
                 return SkipResult::OverStep;
             }
         }
-
-
     }
 
     fn doc(&self) -> DocId {
@@ -130,15 +126,13 @@ impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
 }
 
 impl<TScorer> Scorer for Intersection<TScorer>
-    where TScorer: Scorer {
+where
+    TScorer: Scorer,
+{
     fn score(&mut self) -> Score {
-        self.docsets
-            .iter_mut()
-            .map(Scorer::score)
-            .sum()
+        self.docsets.iter_mut().map(Scorer::score).sum()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -178,7 +172,6 @@ mod tests {
         assert_eq!(intersection.doc(), 0);
     }
 
-
     #[test]
     fn test_intersection_skip() {
         let left = VecPostings::from(vec![0, 1, 2, 4]);
@@ -188,30 +181,38 @@ mod tests {
         assert_eq!(intersection.doc(), 2);
     }
 
-
     #[test]
     fn test_intersection_skip_against_unoptimized() {
-        test_skip_against_unoptimized(|| {
-            let left = VecPostings::from(vec![4]);
-            let right = VecPostings::from(vec![2, 5]);
-            box Intersection::from(vec![left, right])
-        }, vec![0,2,4,5,6]);
-        test_skip_against_unoptimized(|| {
-            let mut left = VecPostings::from(vec![1, 4, 5, 6]);
-            let mut right = VecPostings::from(vec![2, 5, 10]);
-            left.advance();
-            right.advance();
-            box Intersection::from(vec![left, right])
-        }, vec![0,1,2,3,4,5,6,7,10,11]);
-        test_skip_against_unoptimized(|| {
-            box Intersection::from(vec![
-                VecPostings::from(vec![1, 4, 5, 6]),
-                VecPostings::from(vec![1, 2, 5, 6]),
-                VecPostings::from(vec![1, 4, 5, 6]),
-                VecPostings::from(vec![1, 5, 6]),
-                VecPostings::from(vec![2, 4, 5, 7, 8])
-            ])
-        }, vec![0,1,2,3,4,5,6,7,10,11]);
+        test_skip_against_unoptimized(
+            || {
+                let left = VecPostings::from(vec![4]);
+                let right = VecPostings::from(vec![2, 5]);
+                box Intersection::from(vec![left, right])
+            },
+            vec![0, 2, 4, 5, 6],
+        );
+        test_skip_against_unoptimized(
+            || {
+                let mut left = VecPostings::from(vec![1, 4, 5, 6]);
+                let mut right = VecPostings::from(vec![2, 5, 10]);
+                left.advance();
+                right.advance();
+                box Intersection::from(vec![left, right])
+            },
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
+        );
+        test_skip_against_unoptimized(
+            || {
+                box Intersection::from(vec![
+                    VecPostings::from(vec![1, 4, 5, 6]),
+                    VecPostings::from(vec![1, 2, 5, 6]),
+                    VecPostings::from(vec![1, 4, 5, 6]),
+                    VecPostings::from(vec![1, 5, 6]),
+                    VecPostings::from(vec![2, 4, 5, 7, 8]),
+                ])
+            },
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
+        );
     }
 
     #[test]

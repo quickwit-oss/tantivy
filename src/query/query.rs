@@ -45,7 +45,6 @@ pub trait Query: fmt::Debug {
     /// into a specific type. This is mostly useful for unit tests.
     fn as_any(&self) -> &Any;
 
-
     /// Disable scoring.
     ///
     /// For some query this may improve performance
