@@ -3,22 +3,25 @@ use postings::SkipResult;
 use common::TinySet;
 use std::cmp::Ordering;
 use DocId;
+use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 
 
-const HORIZON_NUM_TINYBITSETS: usize = 2048;
+const HORIZON_NUM_TINYBITSETS: usize = 32;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct UnionDocSet<TDocSet: DocSet> {
+pub struct Union<TDocSet: DocSet, TScoreCombiner=DoNothingCombiner>
+    where TDocSet: DocSet,  TScoreCombiner: ScoreCombiner {
     docsets: Vec<TDocSet>,
     bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
+    scores: Box<[TScoreCombiner; HORIZON as usize]>,
     cursor: usize,
     offset: DocId,
     doc: DocId,
 }
 
-impl<TDocSet: DocSet> From<Vec<TDocSet>> for UnionDocSet<TDocSet> {
-    fn from(docsets: Vec<TDocSet>) -> UnionDocSet<TDocSet> {
+impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> From<Vec<TDocSet>> for Union<TDocSet, TScoreCombiner> {
+    fn from(docsets: Vec<TDocSet>) -> Union<TDocSet> {
         let non_empty_docsets: Vec<TDocSet> =
             docsets
                 .into_iter()
@@ -30,9 +33,10 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for UnionDocSet<TDocSet> {
                     }
                 })
                 .collect();
-        UnionDocSet {
+        Union {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
+            scores: Box::new([TScoreCombiner::default(); HORIZON]),
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
             doc: 0
@@ -61,7 +65,7 @@ fn refill<TDocSet: DocSet>(docsets: &mut Vec<TDocSet>, bitsets: &mut [TinySet; H
         });
 }
 
-impl<TDocSet: DocSet> UnionDocSet<TDocSet> {
+impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> Union<TDocSet, TScoreCombiner> {
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets
             .iter_mut()
@@ -90,7 +94,7 @@ impl<TDocSet: DocSet> UnionDocSet<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
+impl<TDocSet: DocSet, TScoreCombiner: ScoreCombiner> DocSet for Union<TDocSet, TScoreCombiner> {
 
     fn advance(&mut self) -> bool {
         if self.advance_buffered() {
@@ -190,7 +194,7 @@ impl<TDocSet: DocSet> DocSet for UnionDocSet<TDocSet> {
 #[cfg(test)]
 mod tests {
 
-    use super::UnionDocSet;
+    use super::Union;
     use postings::{VecPostings, DocSet};
     use tests;
     use test::Bencher;
@@ -214,7 +218,7 @@ mod tests {
             .collect();
         let mut union_expected = VecPostings::from(union_vals);
 
-        let mut union = UnionDocSet::from(
+        let mut union = Union::from(
             vals.into_iter()
                 .map(VecPostings::from)
                 .collect::<Vec<VecPostings>>()
@@ -260,7 +264,7 @@ mod tests {
             }
         }
         let docset_factory = || {
-            let res: Box<DocSet> = box UnionDocSet::from(
+            let res: Box<DocSet> = box Union::from(
                 docs_list
                     .iter()
                     .map(|docs| docs.clone())
@@ -298,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_union_skip_corner_case3() {
-        let mut docset = UnionDocSet::from(vec![
+        let mut docset = Union::from(vec![
                 VecPostings::from(vec![0u32, 5u32]),
                 VecPostings::from(vec![1u32, 4u32]),
         ]);
@@ -338,7 +342,7 @@ mod tests {
             tests::sample_with_seed(100_000, 0.2, 1),
         ];
         bench.iter(|| {
-            let mut v = UnionDocSet::from(union_docset.iter()
+            let mut v = Union::from(union_docset.iter()
                 .map(|doc_ids| VecPostings::from(doc_ids.clone()))
                 .collect::<Vec<VecPostings>>());
             while v.advance() {};
@@ -352,7 +356,7 @@ mod tests {
             tests::sample_with_seed(100_000, 0.001, 2)
         ];
         bench.iter(|| {
-            let mut v = UnionDocSet::from(union_docset.iter()
+            let mut v = Union::from(union_docset.iter()
                 .map(|doc_ids| VecPostings::from(doc_ids.clone()))
                 .collect::<Vec<VecPostings>>());
             while v.advance() {};

@@ -4,7 +4,7 @@ use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use postings::DocSet;
 use query::OccurFilter;
-use query::boolean_query::ScoreCombiner;
+use query::score_combiner::{ScoreCombiner, SumWithCoordsCombiner};
 
 /// Each `HeapItem` represents the head of
 /// one of scorer being merged.

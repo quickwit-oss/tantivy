@@ -1,6 +1,6 @@
 use query::Weight;
 use core::SegmentReader;
-use postings::{Intersection, UnionDocSet};
+use postings::{Intersection, Union};
 use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
@@ -22,7 +22,7 @@ fn scorer_union<'a>(docsets: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a> {
             .unwrap() //< we checked the size beforehands
     } else {
         // TODO have a UnionScorer instead.
-        box ConstScorer::new(UnionDocSet::from(docsets))
+        box ConstScorer::new(Union::from(docsets))
     }
 }
 

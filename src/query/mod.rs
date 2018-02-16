@@ -17,6 +17,7 @@ mod range_query;
 mod exclude;
 mod reqopt_scorer;
 
+pub mod score_combiner;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::exclude::Exclude;
 pub use self::bitset::BitSetDocSet;
