@@ -10,24 +10,28 @@ enum State {
     Finished
 }
 
-pub struct ExcludeScorer<TDocSet, TDocSetExclude> {
+/// Filters a given `DocSet` by removing the docs from a given `DocSet`.
+///
+/// The excluding docset has no impact on scoring.
+pub struct Exclude<TDocSet, TDocSetExclude> {
     underlying_docset: TDocSet,
     excluding_docset: TDocSetExclude,
     excluding_state: State,
 }
 
 
-impl<TDocSet, TDocSetExclude> ExcludeScorer<TDocSet, TDocSetExclude>
+impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
     where TDocSetExclude: DocSet {
 
-    pub fn new(underlying_docset: TDocSet, mut excluding_docset: TDocSetExclude) -> ExcludeScorer<TDocSet, TDocSetExclude> {
+    /// Creates a new `ExcludeScorer`
+    pub fn new(underlying_docset: TDocSet, mut excluding_docset: TDocSetExclude) -> Exclude<TDocSet, TDocSetExclude> {
         let state =
             if excluding_docset.advance() {
                 State::ExcludeOne(excluding_docset.doc())
             } else {
                 State::Finished
             };
-        ExcludeScorer {
+        Exclude {
             underlying_docset,
             excluding_docset,
             excluding_state: state,
@@ -35,7 +39,7 @@ impl<TDocSet, TDocSetExclude> ExcludeScorer<TDocSet, TDocSetExclude>
     }
 }
 
-impl<TDocSet, TDocSetExclude> ExcludeScorer<TDocSet, TDocSetExclude>
+impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
     where TDocSet: DocSet, TDocSetExclude: DocSet {
 
     /// Returns true iff the doc is not removed.
@@ -73,7 +77,7 @@ impl<TDocSet, TDocSetExclude> ExcludeScorer<TDocSet, TDocSetExclude>
     }
 }
 
-impl<TDocSet, TDocSetExclude> DocSet for ExcludeScorer<TDocSet, TDocSetExclude>
+impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
     where TDocSet: DocSet, TDocSetExclude: DocSet {
 
     fn advance(&mut self) -> bool {
@@ -113,8 +117,8 @@ impl<TDocSet, TDocSetExclude> DocSet for ExcludeScorer<TDocSet, TDocSetExclude>
 }
 
 
-impl<TDocSet, TDocSetExclude> Scorer for ExcludeScorer<TDocSet, TDocSetExclude>
-    where TDocSet: Scorer, TDocSetExclude: Scorer {
+impl<TScorer, TDocSetExclude> Scorer for Exclude<TScorer, TDocSetExclude>
+    where TScorer: Scorer, TDocSetExclude: DocSet {
     fn score(&mut self) -> Score {
         self.underlying_docset.score()
     }
@@ -130,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_exclude() {
-        let mut exclude_scorer = ExcludeScorer::new(
+        let mut exclude_scorer = Exclude::new(
         VecPostings::from(vec![1,2,5,8,10,15,24]),
         VecPostings::from(vec![1,2,3,10,16,24])
         );
@@ -144,7 +148,7 @@ mod tests {
     #[test]
     fn test_exclude_skip() {
         test_skip_against_unoptimized(
-            || box ExcludeScorer::new(
+            || box Exclude::new(
                 VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
                 VecPostings::from(vec![1, 2, 3, 10, 16, 24])
             ),
@@ -158,7 +162,7 @@ mod tests {
         let sample_exclude = sample_with_seed(10_000, 0.05, 2);
         let sample_skip = sample_with_seed(10_000, 0.005, 3);
         test_skip_against_unoptimized(
-            || box ExcludeScorer::new(
+            || box Exclude::new(
                 VecPostings::from(sample_include.clone()),
                 VecPostings::from(sample_exclude.clone())
             ),

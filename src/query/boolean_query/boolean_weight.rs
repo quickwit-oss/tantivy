@@ -1,10 +1,10 @@
 use query::Weight;
 use core::SegmentReader;
-use postings::{IntersectionDocSet, UnionDocSet};
+use postings::{Intersection, UnionDocSet};
 use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
-use query::ExcludeScorer;
+use query::Exclude;
 use super::BooleanScorer;
 use query::OccurFilter;
 use query::ConstScorer;
@@ -60,7 +60,7 @@ impl BooleanWeight {
         let must_scorer_opt: Option<Box<Scorer + 'a>> = per_occur_scorers
             .remove(&Occur::Must)
             .map(|scorers| {
-                let scorer: Box<Scorer> = box ConstScorer::new(IntersectionDocSet::from(scorers));
+                let scorer: Box<Scorer> = box ConstScorer::new(Intersection::from(scorers));
                 scorer
             });
 
@@ -77,7 +77,7 @@ impl BooleanWeight {
         };
 
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            Ok(box ExcludeScorer::new(positive_scorer, exclude_scorer))
+            Ok(box Exclude::new(positive_scorer, exclude_scorer))
         } else {
             Ok(positive_scorer)
         }

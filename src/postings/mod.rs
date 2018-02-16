@@ -30,7 +30,7 @@ pub use self::postings::Postings;
 pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
-pub use self::intersection::IntersectionDocSet;
+pub use self::intersection::Intersection;
 pub use self::union::UnionDocSet;
 
 pub use common::HasLen;
@@ -551,7 +551,7 @@ pub mod tests {
                 .inverted_index(TERM_D.field())
                 .read_postings(&*TERM_D, IndexRecordOption::Basic)
                 .unwrap();
-            let mut intersection = IntersectionDocSet::from(vec![
+            let mut intersection = Intersection::from(vec![
                 segment_postings_a,
                 segment_postings_b,
                 segment_postings_c,

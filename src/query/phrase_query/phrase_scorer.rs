@@ -1,6 +1,6 @@
 use query::Scorer;
 use DocId;
-use postings::{DocSet, IntersectionDocSet, Postings, SegmentPostings, SkipResult};
+use postings::{DocSet, Intersection, Postings, SegmentPostings, SkipResult};
 
 struct PostingsWithOffset {
     offset: u32,
@@ -45,7 +45,7 @@ impl DocSet for PostingsWithOffset {
 }
 
 pub struct PhraseScorer {
-    intersection_docset: IntersectionDocSet<PostingsWithOffset>,
+    intersection_docset: Intersection<PostingsWithOffset>,
 }
 
 impl PhraseScorer {
@@ -56,7 +56,7 @@ impl PhraseScorer {
             .map(|(offset, postings)| PostingsWithOffset::new(postings, offset as u32))
             .collect();
         PhraseScorer {
-            intersection_docset: IntersectionDocSet::from(postings_with_offsets),
+            intersection_docset: Intersection::from(postings_with_offsets),
         }
     }
 

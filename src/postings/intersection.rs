@@ -1,20 +1,22 @@
 use postings::DocSet;
 use postings::SkipResult;
+use query::Scorer;
 use DocId;
+use Score;
 
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct IntersectionDocSet<TDocSet: DocSet> {
+pub struct Intersection<TDocSet: DocSet> {
     docsets: Vec<TDocSet>,
     finished: bool,
     doc: DocId,
 }
 
-impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
-    fn from(mut docsets: Vec<TDocSet>) -> IntersectionDocSet<TDocSet> {
+impl<TDocSet: DocSet> From<Vec<TDocSet>> for Intersection<TDocSet> {
+    fn from(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet> {
         assert!(docsets.len() >= 2);
         docsets.sort_by_key(|docset| docset.size_hint());
-        IntersectionDocSet {
+        Intersection {
             docsets,
             finished: false,
             doc: 0u32,
@@ -22,7 +24,7 @@ impl<TDocSet: DocSet> From<Vec<TDocSet>> for IntersectionDocSet<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
+impl<TDocSet: DocSet> Intersection<TDocSet> {
     /// Returns an array to the underlying `DocSet`s of the intersection.
     /// These `DocSet` are in the same position as the `IntersectionDocSet`,
     /// so that user can access their `docfreq` and `positions`.
@@ -31,7 +33,7 @@ impl<TDocSet: DocSet> IntersectionDocSet<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
+impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
     #[allow(never_loop)]
     fn advance(&mut self) -> bool {
         if self.finished {
@@ -114,10 +116,10 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
 
     }
 
-
     fn doc(&self) -> DocId {
         self.doc
     }
+
     fn size_hint(&self) -> u32 {
         self.docsets
             .iter()
@@ -127,10 +129,21 @@ impl<TDocSet: DocSet> DocSet for IntersectionDocSet<TDocSet> {
     }
 }
 
+impl<TScorer> Scorer for Intersection<TScorer>
+    where TScorer: Scorer {
+    fn score(&mut self) -> Score {
+        self.docsets
+            .iter_mut()
+            .map(Scorer::score)
+            .sum()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use postings::SkipResult;
-    use postings::{DocSet, IntersectionDocSet, VecPostings};
+    use postings::{DocSet, Intersection, VecPostings};
     use postings::tests::test_skip_against_unoptimized;
 
     #[test]
@@ -138,7 +151,7 @@ mod tests {
         {
             let left = VecPostings::from(vec![1, 3, 9]);
             let right = VecPostings::from(vec![3, 4, 9, 18]);
-            let mut intersection = IntersectionDocSet::from(vec![left, right]);
+            let mut intersection = Intersection::from(vec![left, right]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
             assert!(intersection.advance());
@@ -149,7 +162,7 @@ mod tests {
             let a = VecPostings::from(vec![1, 3, 9]);
             let b = VecPostings::from(vec![3, 4, 9, 18]);
             let c = VecPostings::from(vec![1, 5, 9, 111]);
-            let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
+            let mut intersection = Intersection::from(vec![a, b, c]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
             assert!(!intersection.advance());
@@ -160,7 +173,7 @@ mod tests {
     fn test_intersection_zero() {
         let left = VecPostings::from(vec![0]);
         let right = VecPostings::from(vec![0]);
-        let mut intersection = IntersectionDocSet::from(vec![left, right]);
+        let mut intersection = Intersection::from(vec![left, right]);
         assert!(intersection.advance());
         assert_eq!(intersection.doc(), 0);
     }
@@ -170,7 +183,7 @@ mod tests {
     fn test_intersection_skip() {
         let left = VecPostings::from(vec![0, 1, 2, 4]);
         let right = VecPostings::from(vec![2, 5]);
-        let mut intersection = IntersectionDocSet::from(vec![left, right]);
+        let mut intersection = Intersection::from(vec![left, right]);
         assert_eq!(intersection.skip_next(2), SkipResult::Reached);
         assert_eq!(intersection.doc(), 2);
     }
@@ -181,17 +194,17 @@ mod tests {
         test_skip_against_unoptimized(|| {
             let left = VecPostings::from(vec![4]);
             let right = VecPostings::from(vec![2, 5]);
-            box IntersectionDocSet::from(vec![left, right])
+            box Intersection::from(vec![left, right])
         }, vec![0,2,4,5,6]);
         test_skip_against_unoptimized(|| {
             let mut left = VecPostings::from(vec![1, 4, 5, 6]);
             let mut right = VecPostings::from(vec![2, 5, 10]);
             left.advance();
             right.advance();
-            box IntersectionDocSet::from(vec![left, right])
+            box Intersection::from(vec![left, right])
         }, vec![0,1,2,3,4,5,6,7,10,11]);
         test_skip_against_unoptimized(|| {
-            box IntersectionDocSet::from(vec![
+            box Intersection::from(vec![
                 VecPostings::from(vec![1, 4, 5, 6]),
                 VecPostings::from(vec![1, 2, 5, 6]),
                 VecPostings::from(vec![1, 4, 5, 6]),
@@ -206,7 +219,7 @@ mod tests {
         let a = VecPostings::from(vec![1, 3]);
         let b = VecPostings::from(vec![1, 4]);
         let c = VecPostings::from(vec![3, 9]);
-        let mut intersection = IntersectionDocSet::from(vec![a, b, c]);
+        let mut intersection = Intersection::from(vec![a, b, c]);
         assert!(!intersection.advance());
     }
 }

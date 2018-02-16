@@ -18,7 +18,7 @@ mod exclude;
 mod reqopt_scorer;
 
 pub use self::reqopt_scorer::RequiredOptionalScorer;
-pub use self::exclude::ExcludeScorer;
+pub use self::exclude::Exclude;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::occur_filter::OccurFilter;
