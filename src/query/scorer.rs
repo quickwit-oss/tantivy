@@ -31,9 +31,7 @@ impl<'a> Scorer for Box<Scorer + 'a> {
 
     fn collect(&mut self, collector: &mut Collector) {
         let scorer = self.deref_mut();
-        while scorer.advance() {
-            collector.collect(scorer.doc(), scorer.score());
-        }
+        scorer.collect(collector);
     }
 }
 
