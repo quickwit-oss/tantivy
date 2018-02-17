@@ -9,11 +9,15 @@ use Result;
 
 pub struct PhraseWeight {
     phrase_terms: Vec<Term>,
+    scoring_enabled: bool
 }
 
-impl From<Vec<Term>> for PhraseWeight {
-    fn from(phrase_terms: Vec<Term>) -> PhraseWeight {
-        PhraseWeight { phrase_terms }
+impl PhraseWeight {
+    pub fn new(phrase_terms: Vec<Term>, scoring_enabled: bool) -> PhraseWeight {
+        PhraseWeight {
+            phrase_terms,
+            scoring_enabled // TODO compute the phrase freq if scoring is enabled. stop at first match else.
+        }
     }
 }
 

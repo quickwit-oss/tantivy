@@ -95,14 +95,14 @@ pub mod tests {
             index_writer.add_document(doc!(title => r#"abc abc abc"#));
         }
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
-        index_writer.commit().unwrap();
+        index_writer    .commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let query = TermQuery::new(
             Term::from_field_text(title, "abc"),
             IndexRecordOption::WithFreqsAndPositions,
         );
-        let weight = query.specialized_weight(&*searcher);
+        let weight = query.specialized_weight(&*searcher, true);
         {
             let mut scorer = weight
                 .specialized_scorer(searcher.segment_reader(0u32))
@@ -282,7 +282,7 @@ pub mod tests {
             IndexRecordOption::Basic,
         );
         let searcher = index.searcher();
-        let mut term_weight = term_query.specialized_weight(&*searcher);
+        let mut term_weight = term_query.specialized_weight(&*searcher, true);
         term_weight.index_record_option = IndexRecordOption::WithFreqsAndPositions;
         let segment_reader = &searcher.segment_readers()[0];
         let mut term_scorer = term_weight.specialized_scorer(segment_reader).unwrap();

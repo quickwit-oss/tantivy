@@ -16,6 +16,10 @@ impl Collector for DoNothingCollector {
     }
     #[inline]
     fn collect(&mut self, _doc: DocId, _score: Score) {}
+    #[inline]
+    fn requires_scoring(&self) -> bool {
+        false
+    }
 }
 
 /// Zero-cost abstraction used to collect on multiple collectors.
@@ -50,6 +54,10 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
     fn collect(&mut self, doc: DocId, score: Score) {
         self.left.collect(doc, score);
         self.right.collect(doc, score);
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.left.requires_scoring() || self.right.requires_scoring()
     }
 }
 

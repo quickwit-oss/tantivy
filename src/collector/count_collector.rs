@@ -28,6 +28,10 @@ impl Collector for CountCollector {
     fn collect(&mut self, _: DocId, _: Score) {
         self.count += 1;
     }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -44,5 +48,8 @@ mod tests {
         assert_eq!(count_collector.count(), 1);
         count_collector.collect(1u32, 1f32);
         assert_eq!(count_collector.count(), 2);
+        assert!(!count_collector.requires_scoring());
     }
+
+
 }

@@ -1,7 +1,7 @@
 use DocId;
 use DocSet;
 use query::Scorer;
-use query::score_combiner::{ScoreCombiner, SumCombiner};
+use query::score_combiner::ScoreCombiner;
 use Score;
 use postings::SkipResult;
 use std::cmp::Ordering;

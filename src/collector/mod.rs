@@ -62,6 +62,9 @@ pub trait Collector {
     ) -> Result<()>;
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
+
+    /// Returns true iff the collector requires to compute scores for documents.
+    fn requires_scoring(&self) -> bool;
 }
 
 impl<'a, C: Collector> Collector for &'a mut C {
@@ -74,7 +77,11 @@ impl<'a, C: Collector> Collector for &'a mut C {
     }
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score) {
-        (*self).collect(doc, score);
+        C::collect(self, doc, score)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        C::requires_scoring(self)
     }
 }
 
@@ -128,6 +135,10 @@ pub mod tests {
         fn collect(&mut self, doc: DocId, _score: Score) {
             self.docs.push(doc + self.offset);
         }
+
+        fn requires_scoring(&self) -> bool {
+            false
+        }
     }
 
     /// Collects in order all of the fast fields for all of the
@@ -144,7 +155,7 @@ pub mod tests {
         pub fn for_field(field: Field) -> FastFieldTestCollector {
             FastFieldTestCollector {
                 vals: Vec::new(),
-                field: field,
+                field,
                 ff_reader: None,
             }
         }
@@ -163,6 +174,9 @@ pub mod tests {
         fn collect(&mut self, doc: DocId, _score: Score) {
             let val = self.ff_reader.as_ref().unwrap().get(doc);
             self.vals.push(val);
+        }
+        fn requires_scoring(&self) -> bool {
+            false
         }
     }
 

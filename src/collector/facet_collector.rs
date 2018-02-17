@@ -420,6 +420,10 @@ impl Collector for FacetCollector {
             previous_collapsed_ord = collapsed_ord;
         }
     }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
 }
 
 /// Intermediary result of the `FacetCollector` that stores

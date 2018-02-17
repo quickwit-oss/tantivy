@@ -45,16 +45,13 @@ pub trait Query: fmt::Debug {
     /// into a specific type. This is mostly useful for unit tests.
     fn as_any(&self) -> &Any;
 
-    /// Disable scoring.
-    ///
-    /// For some query this may improve performance
-    /// when scoring is not required.
-    fn disable_scoring(&mut self) {}
-
     /// Create the weight associated to a query.
     ///
+    /// If scoring is not required, setting `scoring_enabled` to `false`
+    /// can increase performances.
+    ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher) -> Result<Box<Weight>>;
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
 
     /// Search works as follows :
     ///
@@ -67,7 +64,8 @@ pub trait Query: fmt::Debug {
     ///
     fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<TimerTree> {
         let mut timer_tree = TimerTree::default();
-        let weight = self.weight(searcher)?;
+        let scoring_enabled = collector.requires_scoring();
+        let weight = self.weight(searcher, scoring_enabled)?;
         {
             let mut search_timer = timer_tree.open("search");
             for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {

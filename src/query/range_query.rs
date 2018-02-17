@@ -133,7 +133,7 @@ impl Query for RangeQuery {
         self
     }
 
-    fn weight(&self, _searcher: &Searcher) -> Result<Box<Weight>> {
+    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(box RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),

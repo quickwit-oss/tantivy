@@ -17,7 +17,7 @@ impl<'a> MultiCollector<'a> {
     /// Constructor
     pub fn from(collectors: Vec<&'a mut Collector>) -> MultiCollector {
         MultiCollector {
-            collectors: collectors,
+            collectors,
         }
     }
 }
@@ -38,6 +38,11 @@ impl<'a> Collector for MultiCollector<'a> {
         for collector in &mut self.collectors {
             collector.collect(doc, score);
         }
+    }
+    fn requires_scoring(&self) -> bool {
+        self.collectors
+            .iter()
+            .any(|collector| collector.requires_scoring())
     }
 }
 

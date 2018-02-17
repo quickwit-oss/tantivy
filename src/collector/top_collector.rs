@@ -125,6 +125,10 @@ impl Collector for TopCollector {
             self.heap.push(wrapped_doc);
         }
     }
+
+    fn requires_scoring(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

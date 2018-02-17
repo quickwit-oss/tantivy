@@ -20,7 +20,7 @@ impl Query for AllQuery {
         self
     }
 
-    fn weight(&self, _: &Searcher) -> Result<Box<Weight>> {
+    fn weight(&self, _: &Searcher, _: bool) -> Result<Box<Weight>> {
         Ok(box AllWeight)
     }
 }

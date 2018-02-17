@@ -46,7 +46,7 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
         );
-        let term_weight = term_query.weight(&searcher).unwrap();
+        let term_weight = term_query.weight(&searcher, true).unwrap();
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader).unwrap();
         assert!(term_scorer.advance());

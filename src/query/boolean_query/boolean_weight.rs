@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
 use query::Exclude;
-use query::ConstScorer;
 use query::Occur;
 use query::RequiredOptionalScorer;
 use query::score_combiner::{SumWithCoordsCombiner, DoNothingCombiner, ScoreCombiner};
@@ -25,14 +24,14 @@ fn scorer_union<'a, TScoreCombiner>(docsets: Vec<Box<Scorer + 'a>>) -> Box<Score
 
 pub struct BooleanWeight {
     weights: Vec<(Occur, Box<Weight>)>,
-    scoring_disabled: bool,
+    scoring_enabled: bool,
 }
 
 impl BooleanWeight {
-    pub fn new(weights: Vec<(Occur, Box<Weight>)>, scoring_disabled: bool) -> BooleanWeight {
+    pub fn new(weights: Vec<(Occur, Box<Weight>)>, scoring_enabled: bool) -> BooleanWeight {
         BooleanWeight {
             weights,
-            scoring_disabled,
+            scoring_enabled,
         }
     }
 
@@ -67,10 +66,10 @@ impl BooleanWeight {
 
         let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {
-                if self.scoring_disabled {
-                    must_scorer
-                } else {
+                if self.scoring_enabled {
                     box RequiredOptionalScorer::<_,_,TScoreCombiner>::new(must_scorer, should_scorer)
+                } else {
+                    must_scorer
                 }
             }
             (None, Some(must_scorer)) => must_scorer,
@@ -99,10 +98,10 @@ impl Weight for BooleanWeight {
             } else {
                 weight.scorer(reader)
             }
-        } else if self.scoring_disabled {
-            self.complex_scorer::<DoNothingCombiner>(reader)
-        } else {
+        } else if self.scoring_enabled {
             self.complex_scorer::<SumWithCoordsCombiner>(reader)
+        } else {
+            self.complex_scorer::<DoNothingCombiner>(reader)
         }
     }
 }
