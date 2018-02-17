@@ -104,6 +104,17 @@ pub trait DocSet {
             bitset.insert(self.doc());
         }
     }
+
+    /// Returns the number documents matching.
+    ///
+    /// Calling this method consumes the `DocSet`.
+    fn count(&mut self) -> u32 {
+        let mut count = 0u32;
+        while self.advance() {
+            count += 1u32;
+        }
+        count
+    }
 }
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {

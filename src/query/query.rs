@@ -53,7 +53,7 @@ pub trait Query: fmt::Debug {
     /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
 
-
+    /// Returns the number of documents matching the query.
     fn count(&self, searcher: &Searcher) -> Result<usize> {
         let weight = self.weight(searcher, false)?;
         let mut result = 0;

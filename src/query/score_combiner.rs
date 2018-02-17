@@ -5,8 +5,16 @@ use query::Scorer;
 /// The `ScoreCombiner` trait defines how to compute
 /// an overall score given a list of scores.
 pub trait ScoreCombiner: Default + Clone + Copy {
+    /// Aggregates the score combiner with the given scorer.
+    ///
+    /// The `ScoreCombiner` may decide to call `.scorer.score()`
+    /// or not.
     fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer);
+
+    /// Clears the score combiner state back to its initial state.
     fn clear(&mut self);
+
+    /// Returns the aggregate score.
     fn score(&self) -> Score;
 }
 
