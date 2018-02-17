@@ -4,6 +4,7 @@ use postings::SkipResult;
 use common::TinySet;
 use std::cmp::Ordering;
 use DocId;
+use Score;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 
 const HORIZON_NUM_TINYBITSETS: usize = 32;
@@ -18,6 +19,7 @@ pub struct Union<TScorer, TScoreCombiner=DoNothingCombiner>
     cursor: usize,
     offset: DocId,
     doc: DocId,
+    score: Score,
 }
 
 impl<TScorer, TScoreCombiner> From<Vec<TScorer>>
@@ -44,6 +46,7 @@ impl<TScorer, TScoreCombiner> From<Vec<TScorer>>
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
             doc: 0,
+            score: 0f32
         }
     }
 }
@@ -89,7 +92,11 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
     fn advance_buffered(&mut self) -> bool {
         while self.cursor < HORIZON_NUM_TINYBITSETS {
             if let Some(val) = self.bitsets[self.cursor].pop_lowest() {
-                self.doc = self.offset + val + (self.cursor as u32) * 64;
+                let delta = val + (self.cursor as u32) * 64;
+                self.doc = self.offset + delta;
+                let score_combiner = &mut self.scores[delta as usize];
+                self.score = score_combiner.score();
+                score_combiner.clear();
                 return true;
             } else {
                 self.cursor += 1;
@@ -129,6 +136,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             for obsolete_tinyset in &mut self.bitsets[self.cursor..new_cursor] {
                 *obsolete_tinyset = TinySet::empty();
             }
+            for score_combiner in &mut self.scores[self.cursor*64..new_cursor*64] {
+                score_combiner.clear();
+            }
             self.cursor = new_cursor;
 
             // Advancing until we reach the end of the bucket
@@ -149,6 +159,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             // clear the buffered info.
             for obsolete_tinyset in self.bitsets.iter_mut() {
                 *obsolete_tinyset = TinySet::empty();
+            }
+            for score_combiner in self.scores.iter_mut() {
+                score_combiner.clear();
             }
 
             // The target is outside of the buffered horizon.
@@ -183,6 +196,14 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
 
     fn size_hint(&self) -> u32 {
         0u32
+    }
+}
+
+impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
+    where TScoreCombiner: ScoreCombiner,
+          TScorer: Scorer {
+    fn score(&mut self) -> Score {
+        self.score
     }
 }
 

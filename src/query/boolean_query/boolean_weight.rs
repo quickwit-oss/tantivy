@@ -11,13 +11,15 @@ use query::RequiredOptionalScorer;
 use query::score_combiner::{SumWithCoordsCombiner, DoNothingCombiner, ScoreCombiner};
 use Result;
 
-fn scorer_union<'a, TScoreCombiner: ScoreCombiner + 'static>(docsets: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a> {
+fn scorer_union<'a, TScoreCombiner>(docsets: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a>
+    where TScoreCombiner: ScoreCombiner + 'static
+{
     assert!(!docsets.is_empty());
     if docsets.len() == 1 {
         docsets.into_iter().next().unwrap() //< we checked the size beforehands
     } else {
         // TODO have a UnionScorer instead.
-        box ConstScorer::new(Union::<_, TScoreCombiner>::from(docsets))
+        box Union::<_, TScoreCombiner>::from(docsets)
     }
 }
 
@@ -84,21 +86,6 @@ impl BooleanWeight {
             Ok(positive_scorer)
         }
     }
-
-//    fn scorer_if_scoring_enabled<'a>(
-//        &'a self,
-//        reader: &'a SegmentReader,
-//    ) -> Result<Box<Scorer + 'a>> {
-//        let sub_scorers: Vec<Box<Scorer + 'a>> = self.weights
-//            .iter()
-//            .map(|&(_, ref weight)| weight)
-//            .map(|weight| weight.scorer(reader))
-//            .collect::<Result<_>>()?;
-//        let occurs: Vec<Occur> = self.weights.iter().map(|&(ref occur, _)| *occur).collect();
-//        let occur_filter = OccurFilter::new(&occurs);
-//        let boolean_scorer = BooleanScorer::new(sub_scorers, occur_filter);
-//        Ok(box boolean_scorer)
-//    }
 }
 
 impl Weight for BooleanWeight {
