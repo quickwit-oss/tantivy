@@ -4,9 +4,11 @@ use common::BitSet;
 use postings::{DocSet, HasLen, Postings, SkipResult};
 use std::cmp;
 use fst::Streamer;
+use compression::compute_block_size;
 use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
+use postings::FreqReadingOption;
 
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
@@ -299,7 +301,7 @@ impl Postings for SegmentPostings {
 pub struct BlockSegmentPostings {
     doc_decoder: BlockDecoder,
     freq_decoder: BlockDecoder,
-    has_freq: bool,
+    freq_reading_option: FreqReadingOption,
 
     doc_freq: usize,
     doc_offset: DocId,
@@ -312,7 +314,7 @@ impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: usize,
         data: SourceRead,
-        has_freq: bool,
+        freq_reading_option: FreqReadingOption,
     ) -> BlockSegmentPostings {
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
@@ -321,7 +323,7 @@ impl BlockSegmentPostings {
             num_vint_docs,
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
-            has_freq,
+            freq_reading_option,
             remaining_data: data,
             doc_offset: 0,
             doc_freq,
@@ -401,11 +403,16 @@ impl BlockSegmentPostings {
             let num_consumed_bytes = self.doc_decoder
                 .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
             self.remaining_data.advance(num_consumed_bytes);
-
-            if self.has_freq {
-                let num_consumed_bytes = self.freq_decoder
-                    .uncompress_block_unsorted(self.remaining_data.as_ref());
-                self.remaining_data.advance(num_consumed_bytes);
+            match self.freq_reading_option {
+                FreqReadingOption::NoFreq => {}
+                FreqReadingOption::SkipFreq => {
+                    let num_bytes_to_skip = compute_block_size(self.remaining_data.as_ref()[0]);
+                    self.remaining_data.advance(num_bytes_to_skip);
+                }
+                FreqReadingOption::ReadFreq => {
+                    let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(self.remaining_data.as_ref());
+                    self.remaining_data.advance(num_consumed_bytes);
+                }
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
@@ -418,9 +425,12 @@ impl BlockSegmentPostings {
                 self.num_vint_docs,
             );
             self.remaining_data.advance(num_compressed_bytes);
-            if self.has_freq {
-                self.freq_decoder
-                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+            match self.freq_reading_option {
+                FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
+                FreqReadingOption::ReadFreq => {
+                    self.freq_decoder
+                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+                }
             }
             self.num_vint_docs = 0;
             true
@@ -437,7 +447,7 @@ impl BlockSegmentPostings {
 
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
-            has_freq: false,
+            freq_reading_option: FreqReadingOption::NoFreq,
 
             remaining_data: From::from(ReadOnlySource::empty()),
             doc_offset: 0,

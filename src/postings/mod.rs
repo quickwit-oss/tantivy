@@ -37,6 +37,12 @@ pub use common::HasLen;
 
 pub(crate) type UnorderedTermId = usize;
 
+pub(crate) enum FreqReadingOption {
+    NoFreq,
+    SkipFreq,
+    ReadFreq
+}
+
 #[cfg(test)]
 pub mod tests {
 

@@ -3,7 +3,7 @@ use common::bitpacker::{BitPacker, BitUnpacker};
 use common::CountingWriter;
 use std::cmp;
 use std::io::Write;
-use super::super::COMPRESSION_BLOCK_SIZE;
+use super::super::{compute_block_size, COMPRESSION_BLOCK_SIZE};
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
@@ -29,7 +29,9 @@ pub fn compress_sorted(vals: &mut [u32], output: &mut [u8], offset: u32) -> usiz
             .write(*val as u64, num_bits, &mut counting_writer)
             .unwrap();
     }
-    counting_writer.written_bytes()
+    let compressed_size = counting_writer.written_bytes();
+    assert_eq!(compressed_size, compute_block_size(num_bits));
+    compressed_size
 }
 
 pub struct BlockEncoder {
@@ -117,7 +119,7 @@ impl BlockDecoder {
                 self.output[i] = val;
                 offset = val;
             }
-            1 + (num_bits as usize * COMPRESSION_BLOCK_SIZE + 7) / 8
+            compute_block_size(num_bits)
         };
         self.output_len = COMPRESSION_BLOCK_SIZE;
         consumed_size

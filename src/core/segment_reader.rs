@@ -37,6 +37,8 @@ use fastfield::MultiValueIntFastFieldReader;
 /// The segment reader has a very low memory footprint,
 /// as close to all of the memory data is mmapped.
 ///
+///
+/// TODO fix not decoding docfreq
 #[derive(Clone)]
 pub struct SegmentReader {
     inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
@@ -223,9 +225,14 @@ impl SegmentReader {
             return Arc::clone(inv_idx_reader);
         }
 
+
+        let record_option = self.schema.get_field_entry(field).field_type()
+            .get_index_record_option()
+            .expect("Field does not seem indexed.");
+
         let termdict_source: ReadOnlySource = self.termdict_composite
             .open_read(field)
-            .expect("Index corrupted. Failed to open field term dictionary in composite file.");
+            .expect("Failed to open field term dictionary in composite file. Is the field indexed");
 
         let postings_source = self.postings_composite
             .open_read(field)
@@ -240,7 +247,7 @@ impl SegmentReader {
             postings_source,
             positions_source,
             self.delete_bitset.clone(),
-            self.schema.clone(),
+            record_option
         ));
 
         // by releasing the lock in between, we may end up opening the inverting index

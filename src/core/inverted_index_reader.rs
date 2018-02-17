@@ -8,6 +8,7 @@ use std::cmp;
 use fastfield::DeleteBitSet;
 use schema::Schema;
 use compression::CompressedIntStream;
+use postings::FreqReadingOption;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -27,7 +28,7 @@ pub struct InvertedIndexReader {
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
     delete_bitset: DeleteBitSet,
-    schema: Schema,
+    record_option: IndexRecordOption
 }
 
 impl InvertedIndexReader {
@@ -36,14 +37,14 @@ impl InvertedIndexReader {
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
         delete_bitset: DeleteBitSet,
-        schema: Schema,
+        record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
         InvertedIndexReader {
             termdict: TermDictionaryImpl::from_source(termdict_source),
             postings_source,
             positions_source,
             delete_bitset,
-            schema,
+            record_option
         }
     }
 
@@ -86,15 +87,19 @@ impl InvertedIndexReader {
     pub fn read_block_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
-        option: IndexRecordOption,
+        requested_option: IndexRecordOption
     ) -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = self.postings_source.slice_from(offset);
-        let has_freq = option.has_freq();
+        let freq_reading_option = match (self.record_option, requested_option) {
+            (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
+            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
+            (_, _) => FreqReadingOption::ReadFreq
+        };
         BlockSegmentPostings::from_data(
             term_info.doc_freq as usize,
             SourceRead::from(postings_data),
-            has_freq,
+            freq_reading_option
         )
     }
 
@@ -135,11 +140,8 @@ impl InvertedIndexReader {
     /// with `DocId`s and frequencies.
     pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
         let field = term.field();
-        let field_entry = self.schema.get_field_entry(field);
         let term_info = get!(self.get_term_info(term));
-        let maximum_option = get!(field_entry.field_type().get_index_record_option());
-        let best_effort_option = cmp::min(maximum_option, option);
-        Some(self.read_postings_from_terminfo(&term_info, best_effort_option))
+        Some(self.read_postings_from_terminfo(&term_info, option))
     }
 
     /// Returns the number of documents containing the term.

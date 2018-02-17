@@ -1,4 +1,4 @@
-use super::super::COMPRESSION_BLOCK_SIZE;
+use super::super::{compute_block_size, COMPRESSION_BLOCK_SIZE};
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
@@ -51,11 +51,13 @@ impl BlockEncoder {
 
     pub fn compress_block_sorted(&mut self, vals: &[u32], offset: u32) -> &[u8] {
         let compressed_size = compress_sorted(vals, &mut self.output, offset);
+        assert_eq!(compressed_size, compute_block_size(self.output[0]));
         &self.output[..compressed_size]
     }
 
     pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
         let compressed_size = compress_unsorted(vals, &mut self.output);
+        assert_eq!(compressed_size, compute_block_size(self.output[0]));
         &self.output[..compressed_size]
     }
 }

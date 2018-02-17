@@ -5,6 +5,13 @@ mod stream;
 
 pub use self::stream::CompressedIntStream;
 
+
+pub const COMPRESSION_BLOCK_SIZE: usize = 128;
+
+pub(crate) fn compute_block_size(num_bits: u8) -> usize {
+    1 + (num_bits as usize * COMPRESSION_BLOCK_SIZE + 7) / 8
+}
+
 #[cfg(not(feature = "simdcompression"))]
 mod pack {
     mod compression_pack_nosimd;
@@ -112,7 +119,6 @@ impl VIntDecoder for BlockDecoder {
     }
 }
 
-pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 
 #[cfg(test)]
 pub mod tests {
