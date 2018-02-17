@@ -9,6 +9,7 @@ use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;
+use postings::serializer::PostingsSerializer;
 
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
@@ -70,6 +71,24 @@ pub struct SegmentPostings {
 }
 
 impl SegmentPostings {
+
+    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
+        let mut buffer = Vec::new();
+        {
+            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
+            for &doc in docs {
+                postings_serializer.write_doc(doc, 1u32).unwrap();
+            }
+            postings_serializer.close_term().unwrap();
+        }
+        let data = ReadOnlySource::from(buffer);
+        let block_segment_postings = BlockSegmentPostings::from_data(
+            docs.len(),
+            SourceRead::from(data),
+            FreqReadingOption::NoFreq);
+        SegmentPostings::from_block_postings(block_segment_postings, DeleteBitSet::empty(), None)
+    }
+
     /// Reads a Segment postings from an &[u8]
     ///
     /// * `len` - number of document in the posting lists.
@@ -314,7 +333,7 @@ impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: usize,
         data: SourceRead,
-        freq_reading_option: FreqReadingOption,
+        freq_reading_option: FreqReadingOption
     ) -> BlockSegmentPostings {
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;

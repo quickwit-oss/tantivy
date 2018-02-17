@@ -9,7 +9,7 @@ pub use self::term_scorer::TermScorer;
 #[cfg(test)]
 mod tests {
 
-    use postings::{DocSet, VecPostings};
+    use postings::{DocSet, SegmentPostings};
     use query::Scorer;
     use query::term_query::TermScorer;
     use query::Query;
@@ -59,7 +59,7 @@ mod tests {
         let left_fieldnorms = U64FastFieldReader::from(vec![10, 4]);
         assert_eq!(left_fieldnorms.get(0), 10);
         assert_eq!(left_fieldnorms.get(1), 4);
-        let left = VecPostings::from(vec![1]);
+        let left = SegmentPostings::create_from_docs(&[1]);
         let mut left_scorer = TermScorer {
             idf: 0.30685282,
             fieldnorm_reader_opt: Some(left_fieldnorms),

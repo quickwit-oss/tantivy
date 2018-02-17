@@ -4,9 +4,7 @@ use postings::{BlockSegmentPostings, SegmentPostings};
 use postings::TermInfo;
 use schema::IndexRecordOption;
 use schema::Term;
-use std::cmp;
 use fastfield::DeleteBitSet;
-use schema::Schema;
 use compression::CompressedIntStream;
 use postings::FreqReadingOption;
 
@@ -139,7 +137,6 @@ impl InvertedIndexReader {
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
     pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
-        let field = term.field();
         let term_info = get!(self.get_term_info(term));
         Some(self.read_postings_from_terminfo(&term_info, option))
     }

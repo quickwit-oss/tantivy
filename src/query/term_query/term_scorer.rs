@@ -3,32 +3,24 @@ use DocId;
 use postings::SkipResult;
 use fastfield::U64FastFieldReader;
 use postings::DocSet;
+use postings::SegmentPostings;
 use query::Scorer;
 use postings::Postings;
 use fastfield::FastFieldReader;
 
-pub struct TermScorer<TPostings>
-where
-    TPostings: Postings,
-{
+pub struct TermScorer {
     pub idf: Score,
     pub fieldnorm_reader_opt: Option<U64FastFieldReader>,
-    pub postings: TPostings,
+    pub postings: SegmentPostings,
 }
 
-impl<TPostings> TermScorer<TPostings>
-where
-    TPostings: Postings,
-{
-    pub fn postings(&self) -> &TPostings {
+impl TermScorer {
+    pub fn postings(&self) -> &SegmentPostings {
         &self.postings
     }
 }
 
-impl<TPostings> DocSet for TermScorer<TPostings>
-where
-    TPostings: Postings,
-{
+impl DocSet for TermScorer {
     fn advance(&mut self) -> bool {
         self.postings.advance()
     }
@@ -46,10 +38,7 @@ where
     }
 }
 
-impl<TPostings> Scorer for TermScorer<TPostings>
-where
-    TPostings: Postings,
-{
+impl Scorer for TermScorer {
     fn score(&mut self) -> Score {
         let doc = self.postings.doc();
         let tf = match self.fieldnorm_reader_opt {

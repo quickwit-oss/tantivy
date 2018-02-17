@@ -13,7 +13,6 @@ mod tests {
     use collector::tests::TestCollector;
     use Index;
     use schema::*;
-    use fastfield::U64FastFieldReader;
     use schema::IndexRecordOption;
 
     #[test]

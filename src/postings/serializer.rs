@@ -232,7 +232,7 @@ impl<'a> FieldSerializer<'a> {
     }
 }
 
-struct PostingsSerializer<W: Write> {
+pub struct PostingsSerializer<W: Write> {
     postings_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
@@ -244,7 +244,7 @@ struct PostingsSerializer<W: Write> {
 }
 
 impl<W: Write> PostingsSerializer<W> {
-    fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
+    pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
             postings_write: CountingWriter::wrap(write),
 
@@ -257,7 +257,7 @@ impl<W: Write> PostingsSerializer<W> {
         }
     }
 
-    fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
         self.doc_ids.push(doc_id);
         if self.termfreq_enabled {
             self.term_freqs.push(term_freq as u32);
@@ -282,7 +282,7 @@ impl<W: Write> PostingsSerializer<W> {
         Ok(())
     }
 
-    fn close_term(&mut self) -> io::Result<()> {
+    pub fn close_term(&mut self) -> io::Result<()> {
         if !self.doc_ids.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is

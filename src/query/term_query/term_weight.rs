@@ -39,7 +39,7 @@ impl TermWeight {
     pub fn specialized_scorer(
         &self,
         reader: &SegmentReader,
-    ) -> Result<TermScorer<SegmentPostings>> {
+    ) -> Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);
