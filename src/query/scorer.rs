@@ -22,6 +22,14 @@ pub trait Scorer: DocSet {
             collector.collect(self.doc(), self.score());
         }
     }
+
+    fn count(&mut self) -> u32 {
+        let mut count = 0u32;
+        while self.advance() {
+            count += 1u32;
+        }
+        count
+    }
 }
 
 impl<'a> Scorer for Box<Scorer + 'a> {
@@ -32,6 +40,11 @@ impl<'a> Scorer for Box<Scorer + 'a> {
     fn collect(&mut self, collector: &mut Collector) {
         let scorer = self.deref_mut();
         scorer.collect(collector);
+    }
+
+    fn count(&mut self) -> u32 {
+        let scorer = self.deref_mut();
+        scorer.count()
     }
 }
 

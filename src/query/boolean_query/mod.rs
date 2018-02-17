@@ -1,15 +1,12 @@
 mod boolean_query;
-//mod boolean_scorer;
 mod boolean_weight;
 
 pub use self::boolean_query::BooleanQuery;
-//pub use self::boolean_scorer::BooleanScorer;
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use query::Scorer;
     use query::Occur;
     use query::Query;
     use query::TermQuery;
@@ -18,10 +15,6 @@ mod tests {
     use schema::*;
     use fastfield::U64FastFieldReader;
     use schema::IndexRecordOption;
-
-    fn abs_diff(left: f32, right: f32) -> f32 {
-        (right - left).abs()
-    }
 
     #[test]
     pub fn test_boolean_query() {
@@ -107,41 +100,4 @@ mod tests {
             assert_eq!(matching_docs(&boolean_query), Vec::<u32>::new());
         }
     }
-
-//    #[test]
-//    pub fn test_boolean_scorer() {
-//        let occurs = vec![Occur::Should, Occur::Should];
-//        let occur_filter = OccurFilter::new(&occurs);
-//
-//        let left_fieldnorms =
-//            U64FastFieldReader::from((0u64..9u64).map(|doc| doc * 3).collect::<Vec<u64>>());
-//
-//        let left = VecPostings::from(vec![1, 2, 3]);
-//        let left_scorer = TermScorer {
-//            idf: 1f32,
-//            fieldnorm_reader_opt: Some(left_fieldnorms),
-//            postings: left,
-//        };
-//
-//        let right_fieldnorms =
-//            U64FastFieldReader::from((0u64..9u64).map(|doc| doc * 5).collect::<Vec<u64>>());
-//        let right = VecPostings::from(vec![1, 3, 8]);
-//
-//        let right_scorer = TermScorer {
-//            idf: 4f32,
-//            fieldnorm_reader_opt: Some(right_fieldnorms),
-//            postings: right,
-//        };
-//
-//        let mut boolean_scorer = BooleanScorer::new(vec![left_scorer, right_scorer], occur_filter);
-//        assert_eq!(boolean_scorer.next(), Some(1u32));
-//        assert!(abs_diff(boolean_scorer.score(), 2.3662047) < 0.001);
-//        assert_eq!(boolean_scorer.next(), Some(2u32));
-//        assert!(abs_diff(boolean_scorer.score(), 0.20412415) < 0.001f32);
-//        assert_eq!(boolean_scorer.next(), Some(3u32));
-//        assert_eq!(boolean_scorer.next(), Some(8u32));
-//        assert!(abs_diff(boolean_scorer.score(), 0.31622776) < 0.001f32);
-//        assert!(!boolean_scorer.advance());
-//    }
-
 }

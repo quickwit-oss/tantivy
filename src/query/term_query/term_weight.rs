@@ -2,6 +2,7 @@ use Term;
 use query::Weight;
 use core::SegmentReader;
 use query::Scorer;
+use DocSet;
 use postings::SegmentPostings;
 use schema::IndexRecordOption;
 use super::term_scorer::TermScorer;
@@ -18,6 +19,14 @@ impl Weight for TermWeight {
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
         let specialized_scorer = self.specialized_scorer(reader)?;
         Ok(box specialized_scorer)
+    }
+
+    fn count(&self, reader: &SegmentReader) -> Result<u32> {
+        if reader.num_deleted_docs() == 0 {
+            Ok(self.doc_freq)
+        } else {
+            Ok(self.specialized_scorer(reader)?.count())
+        }
     }
 }
 

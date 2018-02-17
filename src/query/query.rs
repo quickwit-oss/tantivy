@@ -53,6 +53,16 @@ pub trait Query: fmt::Debug {
     /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
 
+
+    fn count(&self, searcher: &Searcher) -> Result<usize> {
+        let weight = self.weight(searcher, false)?;
+        let mut result = 0;
+        for reader in searcher.segment_readers() {
+            result += weight.count(reader)? as usize;
+        }
+        Ok(result)
+    }
+
     /// Search works as follows :
     ///
     /// First the weight object associated to the query is created.

@@ -10,4 +10,8 @@ pub trait Weight {
     /// Returns the scorer for the given segment.
     /// See [`Query`](./trait.Query.html).
     fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>>;
+
+    fn count(&self, reader: &SegmentReader) -> Result<u32> {
+        Ok(self.scorer(reader)?.count())
+    }
 }
