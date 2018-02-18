@@ -23,7 +23,12 @@ impl Weight for TermWeight {
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
         if reader.num_deleted_docs() == 0 {
-            Ok(self.doc_freq)
+            let field = self.term.field();
+            Ok(reader
+                .inverted_index(field)
+                .get_term_info(&self.term)
+                .map(|term_info| term_info.doc_freq)
+                .unwrap_or(0))
         } else {
             Ok(self.specialized_scorer(reader)?.count())
         }
