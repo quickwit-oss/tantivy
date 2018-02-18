@@ -35,26 +35,26 @@ impl BooleanWeight {
         }
     }
 
-    fn complex_scorer<'a, TScoreCombiner: ScoreCombiner + 'static>(
-        &'a self,
-        reader: &'a SegmentReader,
-    ) -> Result<Box<Scorer + 'a>> {
-        let mut per_occur_scorers: HashMap<Occur, Vec<Box<Scorer + 'a>>> = HashMap::new();
+    fn complex_scorer<TScoreCombiner: ScoreCombiner>(
+        &self,
+        reader: &SegmentReader,
+    ) -> Result<Box<Scorer>> {
+        let mut per_occur_scorers: HashMap<Occur, Vec<Box<Scorer>>> = HashMap::new();
         for &(ref occur, ref subweight) in self.weights.iter() {
-            let sub_scorer: Box<Scorer + 'a> = subweight.scorer(reader)?;
+            let sub_scorer: Box<Scorer> = subweight.scorer(reader)?;
             per_occur_scorers
                 .entry(*occur)
                 .or_insert_with(Vec::new)
                 .push(sub_scorer);
         }
 
-        let should_scorer_opt: Option<Box<Scorer + 'a>> =
+        let should_scorer_opt: Option<Box<Scorer>> =
             per_occur_scorers.remove(&Occur::Should).map(scorer_union::<TScoreCombiner>);
 
-        let exclude_scorer_opt: Option<Box<Scorer + 'a>> =
+        let exclude_scorer_opt: Option<Box<Scorer>> =
             per_occur_scorers.remove(&Occur::MustNot).map(scorer_union::<TScoreCombiner>);
 
-        let must_scorer_opt: Option<Box<Scorer + 'a>> =
+        let must_scorer_opt: Option<Box<Scorer>> =
             per_occur_scorers.remove(&Occur::Must).map(|scorers| {
                 if scorers.len() == 1 {
                     scorers.into_iter().next().unwrap()
@@ -64,7 +64,7 @@ impl BooleanWeight {
                 }
             });
 
-        let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
+        let positive_scorer: Box<Scorer > = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {
                 if self.scoring_enabled {
                     box RequiredOptionalScorer::<_,_,TScoreCombiner>::new(must_scorer, should_scorer)
@@ -88,7 +88,7 @@ impl BooleanWeight {
 }
 
 impl Weight for BooleanWeight {
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         if self.weights.is_empty() {
             Ok(box EmptyScorer)
         } else if self.weights.len() == 1 {

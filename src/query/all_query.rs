@@ -29,7 +29,7 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         Ok(box AllScorer {
             started: false,
             doc: 0u32,

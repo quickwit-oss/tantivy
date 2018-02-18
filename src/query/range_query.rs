@@ -170,7 +170,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 

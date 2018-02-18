@@ -9,7 +9,7 @@ use core::SegmentReader;
 pub trait Weight {
     /// Returns the scorer for the given segment.
     /// See [`Query`](./trait.Query.html).
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>>;
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>>;
 
     /// Returns the number documents within the given `SegmentReader`.
     fn count(&self, reader: &SegmentReader) -> Result<u32> {

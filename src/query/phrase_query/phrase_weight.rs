@@ -22,7 +22,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let mut term_postings_list = Vec::new();
         for term in &self.phrase_terms {
             if let Some(postings) = reader

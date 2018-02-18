@@ -9,7 +9,7 @@ use std::ops::DerefMut;
 /// Scored set of documents matching a query within a specific segment.
 ///
 /// See [`Query`](./trait.Query.html).
-pub trait Scorer: DocSet {
+pub trait Scorer: DocSet + 'static {
     /// Returns the score.
     ///
     /// This method will perform a bit of computation and is not cached.
@@ -112,7 +112,7 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> Scorer for ConstScorer<TDocSet> {
+impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
     fn score(&mut self) -> Score {
         1f32
     }

@@ -16,7 +16,7 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer<'a>(&'a self, reader: &'a SegmentReader) -> Result<Box<Scorer + 'a>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let specialized_scorer = self.specialized_scorer(reader)?;
         Ok(box specialized_scorer)
     }

@@ -120,7 +120,7 @@ where
 impl<TScorer, TDocSetExclude> Scorer for Exclude<TScorer, TDocSetExclude>
 where
     TScorer: Scorer,
-    TDocSetExclude: DocSet,
+    TDocSetExclude: DocSet + 'static
 {
     fn score(&mut self) -> Score {
         self.underlying_docset.score()

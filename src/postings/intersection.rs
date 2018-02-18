@@ -75,10 +75,6 @@ impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         // We optimize skipping by skipping every single member
         // of the intersection to target.
-
-        // TODO fix BUG...
-        // what if we overstep on the second member of the intersection?
-        // The first member is not necessarily correct.
         let mut current_target: DocId = target;
         let mut current_ord = self.docsets.len();
 
