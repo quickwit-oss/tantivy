@@ -4,7 +4,6 @@ use termdict::{TermDictionary, TermStreamer, TermStreamerBuilder};
 use core::SegmentReader;
 use common::BitSet;
 use Result;
-use std::any::Any;
 use core::Searcher;
 use query::BitSetDocSet;
 use query::ConstScorer;
@@ -129,10 +128,6 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn as_any(&self) -> &Any {
-        self
-    }
-
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(box RangeWeight {
             field: self.field,

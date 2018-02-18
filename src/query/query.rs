@@ -5,7 +5,6 @@ use common::TimerTree;
 use SegmentLocalId;
 use super::Weight;
 use std::fmt;
-use std::any::Any;
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -41,9 +40,6 @@ use std::any::Any;
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, `Weight` and `Scorer`.
 pub trait Query: fmt::Debug {
-    /// Used to make it possible to cast Box<Query>
-    /// into a specific type. This is mostly useful for unit tests.
-    fn as_any(&self) -> &Any;
 
     /// Create the weight associated to a query.
     ///

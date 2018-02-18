@@ -6,7 +6,6 @@ use Result;
 use DocSet;
 use Score;
 use DocId;
-use std::any::Any;
 use core::Searcher;
 
 /// Query that matches all of the documents.
@@ -16,10 +15,6 @@ use core::Searcher;
 pub struct AllQuery;
 
 impl Query for AllQuery {
-    fn as_any(&self) -> &Any {
-        self
-    }
-
     fn weight(&self, _: &Searcher, _: bool) -> Result<Box<Weight>> {
         Ok(box AllWeight)
     }

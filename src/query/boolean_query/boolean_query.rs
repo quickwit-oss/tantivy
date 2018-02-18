@@ -1,5 +1,4 @@
 use Result;
-use std::any::Any;
 use super::boolean_weight::BooleanWeight;
 use query::Weight;
 use Searcher;
@@ -33,10 +32,6 @@ impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
-    fn as_any(&self) -> &Any {
-        self
-    }
-
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()

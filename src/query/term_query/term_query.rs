@@ -5,7 +5,6 @@ use query::Query;
 use query::Weight;
 use schema::IndexRecordOption;
 use Searcher;
-use std::any::Any;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -53,10 +52,6 @@ impl TermQuery {
 }
 
 impl Query for TermQuery {
-    fn as_any(&self) -> &Any {
-        self
-    }
-
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(box self.specialized_weight(searcher, scoring_enabled))
     }

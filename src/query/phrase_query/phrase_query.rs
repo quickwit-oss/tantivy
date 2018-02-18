@@ -2,7 +2,6 @@ use schema::Term;
 use query::Query;
 use core::searcher::Searcher;
 use super::PhraseWeight;
-use std::any::Any;
 use query::Weight;
 use Result;
 
@@ -26,12 +25,6 @@ pub struct PhraseQuery {
 }
 
 impl Query for PhraseQuery {
-    /// Used to make it possible to cast Box<Query>
-    /// into a specific type. This is mostly useful for unit tests.
-    fn as_any(&self) -> &Any {
-        self
-    }
-
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).
