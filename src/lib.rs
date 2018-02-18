@@ -167,6 +167,9 @@ extern crate test;
 
 extern crate tinysegmenter;
 
+#[macro_use]
+extern crate downcast;
+
 #[cfg(test)]
 mod functional_test;
 

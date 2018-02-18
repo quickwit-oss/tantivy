@@ -5,11 +5,12 @@ use collector::Collector;
 use postings::SkipResult;
 use common::BitSet;
 use std::ops::DerefMut;
+use downcast;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
 /// See [`Query`](./trait.Query.html).
-pub trait Scorer: DocSet + 'static {
+pub trait Scorer: downcast::Any + DocSet + 'static {
     /// Returns the score.
     ///
     /// This method will perform a bit of computation and is not cached.
@@ -23,6 +24,8 @@ pub trait Scorer: DocSet + 'static {
         }
     }
 }
+
+downcast!(Scorer);
 
 impl<'a> Scorer for Box<Scorer + 'a> {
     fn score(&mut self) -> Score {

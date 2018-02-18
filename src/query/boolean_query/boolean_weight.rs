@@ -4,6 +4,9 @@ use postings::{Intersection, Union};
 use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
+use downcast::Downcast;
+use query::term_query::TermScorer;
+use std::borrow::Borrow;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
@@ -59,8 +62,26 @@ impl BooleanWeight {
                 if scorers.len() == 1 {
                     scorers.into_iter().next().unwrap()
                 } else {
-                    let scorer: Box<Scorer> = box Intersection::from(scorers);
-                    scorer
+                    if scorers
+                        .iter()
+                        .all(|scorer| {
+                            let scorer_ref:&Scorer = scorer.borrow();
+                            Downcast::<TermScorer>::is_type(scorer_ref)
+                        }) {
+                        let scorers: Vec<TermScorer> = scorers.into_iter()
+                            .map(|scorer| {
+                                *Downcast::<TermScorer>::downcast(scorer)
+                                    .expect("downcasting should not have failed, we\
+                                    checked in advance that the type were correct.")
+
+                            })
+                            .collect();
+                        let scorer: Box<Scorer> = box Intersection::from(scorers);
+                        scorer
+                    } else {
+                        let scorer: Box<Scorer> = box Intersection::from(scorers);
+                        scorer
+                    }
                 }
             });
 
