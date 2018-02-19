@@ -109,7 +109,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
     }
 }
 
-impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, TScoreCombiner> {
+impl<TScorer, TScoreCombiner> DocSet for Union<TScorer, TScoreCombiner>
+    where TScorer: Scorer, TScoreCombiner: ScoreCombiner
+{
     fn advance(&mut self) -> bool {
         if self.advance_buffered() {
             return true;
@@ -252,7 +254,6 @@ mod tests {
     use query::score_combiner::DoNothingCombiner;
 
     fn aux_test_union(vals: Vec<Vec<u32>>) {
-        use std::collections::BTreeSet;
         let mut val_set: BTreeSet<u32> = BTreeSet::new();
         for vs in &vals {
             for &v in vs {
@@ -261,17 +262,24 @@ mod tests {
         }
         let union_vals: Vec<u32> = val_set.into_iter().collect();
         let mut union_expected = VecDocSet::from(union_vals);
-        let mut union: Union<_, DoNothingCombiner> = Union::from(
-            vals.into_iter()
-                .map(VecDocSet::from)
-                .map(ConstScorer::new)
-                .collect::<Vec<ConstScorer<VecDocSet>>>(),
-        );
+        let make_union = || {
+            Union::from(
+                vals.iter()
+                    .cloned()
+                    .map(VecDocSet::from)
+                    .map(ConstScorer::new)
+                    .collect::<Vec<ConstScorer<VecDocSet>>>(),
+            )
+        };
+        let mut union: Union<_, DoNothingCombiner> = make_union();
+        let mut count = 0;
         while union.advance() {
             assert!(union_expected.advance());
             assert_eq!(union_expected.doc(), union.doc());
+            count += 1;
         }
         assert!(!union_expected.advance());
+        assert_eq!(count, make_union().count());
     }
 
     #[test]

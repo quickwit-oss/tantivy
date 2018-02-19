@@ -3,7 +3,9 @@ Tantivy 0.5
 - Faceting
 - RangeQuery
 - Configurable tokenization pipeline
-- Allowing super large indexes
+- Bugfix in PhraseQuery
+- Various query optimisation
+- Allowing very large indexes
     - 64 bits file address
     - Smarter encoding of the `TermInfo` objects
 
