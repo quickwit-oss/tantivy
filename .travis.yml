@@ -30,6 +30,7 @@ before_script:
 script:
   - cargo build
   - cargo test
+  - cargo test -- --ignored
   - cargo run --example simple_search
   - cargo doc
 after_success:
