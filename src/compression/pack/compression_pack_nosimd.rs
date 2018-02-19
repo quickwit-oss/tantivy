@@ -3,7 +3,7 @@ use common::bitpacker::{BitPacker, BitUnpacker};
 use common::CountingWriter;
 use std::cmp;
 use std::io::Write;
-use super::super::{compute_block_size, COMPRESSION_BLOCK_SIZE};
+use super::super::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
 
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 

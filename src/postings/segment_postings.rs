@@ -7,7 +7,7 @@ use postings::Postings;
 use docset::{DocSet, SkipResult};
 use std::cmp;
 use fst::Streamer;
-use compression::compute_block_size;
+use compression::compressed_block_size;
 use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
@@ -436,7 +436,7 @@ impl BlockSegmentPostings {
             match self.freq_reading_option {
                 FreqReadingOption::NoFreq => {}
                 FreqReadingOption::SkipFreq => {
-                    let num_bytes_to_skip = compute_block_size(self.remaining_data.as_ref()[0]);
+                    let num_bytes_to_skip = compressed_block_size(self.remaining_data.as_ref()[0]);
                     self.remaining_data.advance(num_bytes_to_skip);
                 }
                 FreqReadingOption::ReadFreq => {

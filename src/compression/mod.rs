@@ -7,8 +7,9 @@ pub use self::stream::CompressedIntStream;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 
-pub(crate) fn compute_block_size(num_bits: u8) -> usize {
-    1 + (num_bits as usize * COMPRESSION_BLOCK_SIZE + 7) / 8
+/// Returns the size in bytes of a compressed block, given `num_bits`.
+pub fn compressed_block_size(num_bits: u8) -> usize {
+    1 + (num_bits as usize) * 16
 }
 
 #[cfg(not(feature = "simdcompression"))]
@@ -35,11 +36,6 @@ mod vint {
 mod vint {
     mod compression_vint_simd;
     pub(crate) use self::compression_vint_simd::*;
-}
-
-/// Returns the size in bytes of a compressed block, given `num_bits`.
-pub fn compressed_block_size(num_bits: u8) -> usize {
-    1 + (num_bits as usize) * 16
 }
 
 pub trait VIntEncoder {
