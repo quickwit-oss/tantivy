@@ -14,9 +14,21 @@ mod all_query;
 mod bitset;
 mod range_query;
 mod exclude;
+mod union;
+mod intersection;
 mod reqopt_scorer;
 
-pub mod score_combiner;
+#[cfg(test)]
+mod vec_docset;
+
+pub(crate) mod score_combiner;
+
+pub use self::intersection::Intersection;
+pub use self::union::Union;
+
+#[cfg(test)]
+pub use self::vec_docset::VecDocSet;
+
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::exclude::Exclude;
 pub use self::bitset::BitSetDocSet;

@@ -1,5 +1,4 @@
-use std::borrow::Borrow;
-use postings::docset::DocSet;
+use docset::DocSet;
 
 /// Postings (also called inverted list)
 ///
@@ -19,14 +18,3 @@ pub trait Postings: DocSet {
     fn positions(&self) -> &[u32];
 }
 
-impl<TPostings: Postings> Postings for Box<TPostings> {
-    fn term_freq(&self) -> u32 {
-        let unboxed: &TPostings = self.borrow();
-        unboxed.term_freq()
-    }
-
-    fn positions(&self) -> &[u32] {
-        let unboxed: &TPostings = self.borrow();
-        unboxed.positions()
-    }
-}

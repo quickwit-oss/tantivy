@@ -60,9 +60,9 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .collect();
 
         MultiFieldPostingsWriter {
-            heap: heap,
-            term_index: term_index,
-            per_field_postings_writers: per_field_postings_writers,
+            heap,
+            term_index,
+            per_field_postings_writers
         }
     }
 
@@ -200,7 +200,7 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
     /// constructor
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
         SpecializedPostingsWriter {
-            heap: heap,
+            heap,
             _recorder_type: PhantomData,
         }
     }

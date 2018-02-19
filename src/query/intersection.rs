@@ -1,5 +1,4 @@
-use postings::DocSet;
-use postings::SkipResult;
+use docset::{DocSet, SkipResult};
 use query::Scorer;
 use DocId;
 use Score;
@@ -132,15 +131,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use postings::SkipResult;
-    use postings::{DocSet, Intersection, VecPostings};
+    use docset::{DocSet, SkipResult};
+    use super::Intersection;
+    use query::VecDocSet;
     use postings::tests::test_skip_against_unoptimized;
 
     #[test]
     fn test_intersection() {
         {
-            let left = VecPostings::from(vec![1, 3, 9]);
-            let right = VecPostings::from(vec![3, 4, 9, 18]);
+            let left = VecDocSet::from(vec![1, 3, 9]);
+            let right = VecDocSet::from(vec![3, 4, 9, 18]);
             let mut intersection = Intersection::from(vec![left, right]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
@@ -149,9 +149,9 @@ mod tests {
             assert!(!intersection.advance());
         }
         {
-            let a = VecPostings::from(vec![1, 3, 9]);
-            let b = VecPostings::from(vec![3, 4, 9, 18]);
-            let c = VecPostings::from(vec![1, 5, 9, 111]);
+            let a = VecDocSet::from(vec![1, 3, 9]);
+            let b = VecDocSet::from(vec![3, 4, 9, 18]);
+            let c = VecDocSet::from(vec![1, 5, 9, 111]);
             let mut intersection = Intersection::from(vec![a, b, c]);
             assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
@@ -161,8 +161,8 @@ mod tests {
 
     #[test]
     fn test_intersection_zero() {
-        let left = VecPostings::from(vec![0]);
-        let right = VecPostings::from(vec![0]);
+        let left = VecDocSet::from(vec![0]);
+        let right = VecDocSet::from(vec![0]);
         let mut intersection = Intersection::from(vec![left, right]);
         assert!(intersection.advance());
         assert_eq!(intersection.doc(), 0);
@@ -170,8 +170,8 @@ mod tests {
 
     #[test]
     fn test_intersection_skip() {
-        let left = VecPostings::from(vec![0, 1, 2, 4]);
-        let right = VecPostings::from(vec![2, 5]);
+        let left = VecDocSet::from(vec![0, 1, 2, 4]);
+        let right = VecDocSet::from(vec![2, 5]);
         let mut intersection = Intersection::from(vec![left, right]);
         assert_eq!(intersection.skip_next(2), SkipResult::Reached);
         assert_eq!(intersection.doc(), 2);
@@ -181,16 +181,16 @@ mod tests {
     fn test_intersection_skip_against_unoptimized() {
         test_skip_against_unoptimized(
             || {
-                let left = VecPostings::from(vec![4]);
-                let right = VecPostings::from(vec![2, 5]);
+                let left = VecDocSet::from(vec![4]);
+                let right = VecDocSet::from(vec![2, 5]);
                 box Intersection::from(vec![left, right])
             },
             vec![0, 2, 4, 5, 6],
         );
         test_skip_against_unoptimized(
             || {
-                let mut left = VecPostings::from(vec![1, 4, 5, 6]);
-                let mut right = VecPostings::from(vec![2, 5, 10]);
+                let mut left = VecDocSet::from(vec![1, 4, 5, 6]);
+                let mut right = VecDocSet::from(vec![2, 5, 10]);
                 left.advance();
                 right.advance();
                 box Intersection::from(vec![left, right])
@@ -200,11 +200,11 @@ mod tests {
         test_skip_against_unoptimized(
             || {
                 box Intersection::from(vec![
-                    VecPostings::from(vec![1, 4, 5, 6]),
-                    VecPostings::from(vec![1, 2, 5, 6]),
-                    VecPostings::from(vec![1, 4, 5, 6]),
-                    VecPostings::from(vec![1, 5, 6]),
-                    VecPostings::from(vec![2, 4, 5, 7, 8]),
+                    VecDocSet::from(vec![1, 4, 5, 6]),
+                    VecDocSet::from(vec![1, 2, 5, 6]),
+                    VecDocSet::from(vec![1, 4, 5, 6]),
+                    VecDocSet::from(vec![1, 5, 6]),
+                    VecDocSet::from(vec![2, 4, 5, 7, 8]),
                 ])
             },
             vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
@@ -213,9 +213,9 @@ mod tests {
 
     #[test]
     fn test_intersection_empty() {
-        let a = VecPostings::from(vec![1, 3]);
-        let b = VecPostings::from(vec![1, 4]);
-        let c = VecPostings::from(vec![3, 9]);
+        let a = VecDocSet::from(vec![1, 3]);
+        let b = VecDocSet::from(vec![1, 4]);
+        let c = VecDocSet::from(vec![3, 9]);
         let mut intersection = Intersection::from(vec![a, b, c]);
         assert!(!intersection.advance());
     }

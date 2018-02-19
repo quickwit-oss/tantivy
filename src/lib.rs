@@ -200,6 +200,9 @@ pub mod postings;
 pub mod schema;
 pub mod fastfield;
 
+mod docset;
+pub use self::docset::{SkipResult, DocSet};
+
 pub use directory::Directory;
 pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};
 pub use indexer::IndexWriter;
@@ -207,7 +210,6 @@ pub use schema::{Document, Term};
 pub use core::{InvertedIndexReader, SegmentReader};
 pub use self::common::TimerTree;
 
-pub use postings::DocSet;
 pub use postings::Postings;
 pub use core::SegmentComponent;
 
@@ -280,9 +282,8 @@ mod tests {
     use Index;
     use core::SegmentReader;
     use query::BooleanQuery;
-    use schema::IndexRecordOption;
     use schema::*;
-    use DocSet;
+    use docset::DocSet;
     use IndexWriter;
     use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;

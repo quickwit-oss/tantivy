@@ -1,8 +1,7 @@
 use Score;
 use DocId;
-use postings::SkipResult;
+use docset::{DocSet, SkipResult};
 use fastfield::U64FastFieldReader;
-use postings::DocSet;
 use postings::SegmentPostings;
 use query::Scorer;
 use postings::Postings;

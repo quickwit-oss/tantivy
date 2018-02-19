@@ -8,15 +8,21 @@ use query::EmptyScorer;
 use Result;
 
 pub struct PhraseWeight {
-    phrase_terms: Vec<Term>,
-    scoring_enabled: bool
+    phrase_terms: Vec<Term>
 }
 
 impl PhraseWeight {
-    pub fn new(phrase_terms: Vec<Term>, scoring_enabled: bool) -> PhraseWeight {
+
+    /// Creates a new phrase weight.
+    ///
+    /// Right now `scoring_enabled` is actually ignored.
+    /// In the future, disabling scoring will result in a small performance boost.
+    // TODO use the scoring disable information to avoid compute the
+    // phrase freq in that case, and compute the phrase freq when scoring is enabled.
+    // Right now we never compute it :|
+    pub fn new(phrase_terms: Vec<Term>, _scoring_enabled: bool) -> PhraseWeight {
         PhraseWeight {
-            phrase_terms,
-            scoring_enabled // TODO compute the phrase freq if scoring is enabled. stop at first match else.
+            phrase_terms
         }
     }
 }

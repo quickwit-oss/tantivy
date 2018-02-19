@@ -1,6 +1,5 @@
-use postings::DocSet;
+use docset::{DocSet, SkipResult};
 use query::Scorer;
-use postings::SkipResult;
 use common::TinySet;
 use std::cmp::Ordering;
 use DocId;
@@ -117,7 +116,6 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             false
         }
     }
-
 
     fn count(&mut self) -> u32 {
         let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
@@ -238,14 +236,14 @@ impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
 mod tests {
 
     use super::Union;
-    use postings::{DocSet, VecPostings};
     use tests;
     use test::Bencher;
     use DocId;
     use std::collections::BTreeSet;
     use super::HORIZON;
-    use postings::SkipResult;
+    use docset::{DocSet, SkipResult};
     use postings::tests::test_skip_against_unoptimized;
+    use query::VecDocSet;
     use query::ConstScorer;
     use query::score_combiner::DoNothingCombiner;
 
@@ -258,13 +256,12 @@ mod tests {
             }
         }
         let union_vals: Vec<u32> = val_set.into_iter().collect();
-        let mut union_expected = VecPostings::from(union_vals);
-
+        let mut union_expected = VecDocSet::from(union_vals);
         let mut union: Union<_, DoNothingCombiner> = Union::from(
             vals.into_iter()
-                .map(VecPostings::from)
+                .map(VecDocSet::from)
                 .map(ConstScorer::new)
-                .collect::<Vec<ConstScorer<VecPostings>>>(),
+                .collect::<Vec<ConstScorer<VecDocSet>>>(),
         );
         while union.advance() {
             assert!(union_expected.advance());
@@ -306,7 +303,7 @@ mod tests {
                 docs_list
                     .iter()
                     .map(|docs| docs.clone())
-                    .map(VecPostings::from)
+                    .map(VecDocSet::from)
                     .map(ConstScorer::new)
                     .collect::<Vec<_>>(),
             );
@@ -337,8 +334,8 @@ mod tests {
     #[test]
     fn test_union_skip_corner_case3() {
         let mut docset = Union::<_, DoNothingCombiner>::from(vec![
-            ConstScorer::new(VecPostings::from(vec![0u32, 5u32])),
-            ConstScorer::new(VecPostings::from(vec![1u32, 4u32]))
+            ConstScorer::new(VecDocSet::from(vec![0u32, 5u32])),
+            ConstScorer::new(VecDocSet::from(vec![1u32, 4u32]))
         ]);
         assert!(docset.advance());
         assert_eq!(docset.doc(), 0u32);
@@ -388,7 +385,7 @@ mod tests {
             let mut v = Union::<_, DoNothingCombiner>::from(
                 union_docset
                     .iter()
-                    .map(|doc_ids| VecPostings::from(doc_ids.clone()))
+                    .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(ConstScorer::new)
                     .collect::<Vec<_>>(),
             );
@@ -406,7 +403,7 @@ mod tests {
             let mut v = Union::<_, DoNothingCombiner>::from(
                 union_docset
                     .iter()
-                    .map(|doc_ids| VecPostings::from(doc_ids.clone()))
+                    .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
                     .map(ConstScorer::new)
                     .collect::<Vec<_>>(),
             );

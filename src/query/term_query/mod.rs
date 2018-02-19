@@ -9,10 +9,10 @@ pub use self::term_scorer::TermScorer;
 #[cfg(test)]
 mod tests {
 
-    use postings::{DocSet, SegmentPostings};
-    use query::Scorer;
+    use docset::DocSet;
+    use postings::SegmentPostings;
+    use query::{Query, Scorer};
     use query::term_query::TermScorer;
-    use query::Query;
     use fastfield::U64FastFieldReader;
     use query::TermQuery;
     use Index;

@@ -1,8 +1,7 @@
-use DocSet;
 use DocId;
 use Score;
 use collector::Collector;
-use postings::SkipResult;
+use docset::{DocSet, SkipResult};
 use common::BitSet;
 use std::ops::DerefMut;
 use downcast;
@@ -25,7 +24,10 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
     }
 }
 
-downcast!(Scorer);
+#[allow(missing_docs)]
+mod downcast_impl {
+    downcast!(super::Scorer);
+}
 
 impl<'a> Scorer for Box<Scorer + 'a> {
     fn score(&mut self) -> Score {

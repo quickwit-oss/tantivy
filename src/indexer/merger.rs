@@ -8,7 +8,7 @@ use postings::InvertedIndexSerializer;
 use fastfield::U64FastFieldReader;
 use itertools::Itertools;
 use postings::Postings;
-use postings::DocSet;
+use docset::DocSet;
 use fastfield::DeleteBitSet;
 use schema::{Field, Schema};
 use termdict::TermMerger;

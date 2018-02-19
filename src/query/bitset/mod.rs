@@ -1,7 +1,6 @@
 use common::{BitSet, TinySet};
 use DocId;
-use postings::DocSet;
-use postings::SkipResult;
+use docset::{DocSet, SkipResult};
 use std::cmp::Ordering;
 
 /// A `BitSetDocSet` makes it possible to iterate through a bitset as if it was a `DocSet`.
@@ -136,9 +135,11 @@ impl DocSet for BitSetDocSet {
 mod tests {
     use DocId;
     use common::BitSet;
-    use postings::{DocSet, SkipResult};
+    use docset::{DocSet, SkipResult};
     use super::BitSetDocSet;
     extern crate test;
+    use tests;
+
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
@@ -257,8 +258,6 @@ mod tests {
 
     #[bench]
     fn bench_bitset_1pct_clone_iterate(b: &mut test::Bencher) {
-        use tests;
-        use DocSet;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
         for el in els {

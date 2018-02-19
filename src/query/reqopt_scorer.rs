@@ -1,9 +1,8 @@
 use DocId;
-use DocSet;
 use query::Scorer;
 use query::score_combiner::ScoreCombiner;
 use Score;
-use postings::SkipResult;
+use docset::{DocSet, SkipResult};
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 
@@ -105,9 +104,9 @@ where
 mod tests {
     use tests::sample_with_seed;
     use super::RequiredOptionalScorer;
-    use postings::VecPostings;
+    use query::VecDocSet;
     use query::ConstScorer;
-    use DocSet;
+    use docset::DocSet;
     use postings::tests::test_skip_against_unoptimized;
     use query::Scorer;
     use query::score_combiner::{DoNothingCombiner, SumCombiner};
@@ -116,8 +115,8 @@ mod tests {
     fn test_reqopt_scorer_empty() {
         let req = vec![1, 3, 7];
         let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> = RequiredOptionalScorer::new(
-            ConstScorer::new(VecPostings::from(req.clone())),
-            ConstScorer::new(VecPostings::from(vec![])),
+            ConstScorer::new(VecDocSet::from(req.clone())),
+            ConstScorer::new(VecDocSet::from(vec![])),
         );
         let mut docs = vec![];
         while reqoptscorer.advance() {
@@ -129,8 +128,8 @@ mod tests {
     #[test]
     fn test_reqopt_scorer() {
         let mut reqoptscorer: RequiredOptionalScorer<_,_,SumCombiner> = RequiredOptionalScorer::new(
-            ConstScorer::new(VecPostings::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
-            ConstScorer::new(VecPostings::from(vec![1, 2, 7, 11, 12, 15])),
+            ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
+            ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15])),
         );
         {
             assert!(reqoptscorer.advance());
@@ -183,8 +182,8 @@ mod tests {
         test_skip_against_unoptimized(
             || {
                 box RequiredOptionalScorer::<_,_,DoNothingCombiner>::new(
-                    ConstScorer::new(VecPostings::from(req_docs.clone())),
-                    ConstScorer::new(VecPostings::from(opt_docs.clone())),
+                    ConstScorer::new(VecDocSet::from(req_docs.clone())),
+                    ConstScorer::new(VecDocSet::from(opt_docs.clone())),
                 )
             },
             skip_docs,

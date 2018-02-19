@@ -1,7 +1,10 @@
 use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
+
 use common::BitSet;
-use postings::{DocSet, HasLen, Postings, SkipResult};
+use common::HasLen;
+use postings::Postings;
+use docset::{DocSet, SkipResult};
 use std::cmp;
 use fst::Streamer;
 use compression::compute_block_size;
@@ -72,6 +75,14 @@ pub struct SegmentPostings {
 
 impl SegmentPostings {
 
+    /// Creates a segment postings object with the given documents
+    /// and no frequency encoded.
+    ///
+    /// This method is mostly useful for unit tests.
+    ///
+    /// It serializes the doc ids using tantivy's codec
+    /// and returns a `SegmentPostings` object that embeds a
+    /// buffer with the serialized data.
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut buffer = Vec::new();
         {
@@ -490,7 +501,7 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
-    use DocSet;
+    use docset::DocSet;
     use super::SegmentPostings;
     use schema::SchemaBuilder;
     use core::Index;

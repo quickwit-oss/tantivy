@@ -1,6 +1,6 @@
 use query::Weight;
 use core::SegmentReader;
-use postings::{Intersection, Union};
+use query::{Intersection, Union};
 use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;

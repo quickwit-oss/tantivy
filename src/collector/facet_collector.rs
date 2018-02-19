@@ -12,7 +12,7 @@ use termdict::TermStreamer;
 use termdict::TermStreamerBuilder;
 use std::collections::BTreeSet;
 use termdict::TermMerger;
-use postings::SkipResult;
+use docset::SkipResult;
 use std::{usize, u64};
 use std::iter::Peekable;
 

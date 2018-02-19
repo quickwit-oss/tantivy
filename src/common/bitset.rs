@@ -220,7 +220,7 @@ mod tests {
     use tests::generate_nonunique_unsorted;
     use std::collections::BTreeSet;
     use query::BitSetDocSet;
-    use DocSet;
+    use docset::DocSet;
 
     #[test]
     fn test_tiny_set() {

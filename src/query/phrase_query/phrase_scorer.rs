@@ -1,6 +1,7 @@
-use query::Scorer;
 use DocId;
-use postings::{DocSet, Intersection, Postings, SegmentPostings, SkipResult};
+use docset::{DocSet, SkipResult};
+use postings::{Postings, SegmentPostings};
+use query::{Scorer, Intersection};
 
 struct PostingsWithOffset {
     offset: u32,
@@ -31,16 +32,16 @@ impl DocSet for PostingsWithOffset {
         self.segment_postings.advance()
     }
 
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        self.segment_postings.skip_next(target)
+    }
+
     fn doc(&self) -> DocId {
         self.segment_postings.doc()
     }
 
     fn size_hint(&self) -> u32 {
         self.segment_postings.size_hint()
-    }
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.segment_postings.skip_next(target)
     }
 }
 
@@ -118,14 +119,6 @@ impl DocSet for PhraseScorer {
         false
     }
 
-    fn doc(&self) -> DocId {
-        self.intersection_docset.doc()
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.intersection_docset.size_hint()
-    }
-
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if self.intersection_docset.skip_next(target) == SkipResult::End {
             SkipResult::End
@@ -142,6 +135,14 @@ impl DocSet for PhraseScorer {
                 SkipResult::End
             }
         }
+    }
+
+    fn doc(&self) -> DocId {
+        self.intersection_docset.doc()
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.intersection_docset.size_hint()
     }
 }
 

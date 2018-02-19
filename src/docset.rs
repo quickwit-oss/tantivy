@@ -143,3 +143,8 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.append_to_bitset(bitset);
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+}

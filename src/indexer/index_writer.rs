@@ -20,7 +20,7 @@ use indexer::MergePolicy;
 use indexer::operation::DeleteOperation;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
-use postings::DocSet;
+use docset::DocSet;
 use schema::IndexRecordOption;
 use schema::Document;
 use schema::Term;

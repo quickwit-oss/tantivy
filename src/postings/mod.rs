@@ -12,13 +12,8 @@ mod recorder;
 mod serializer;
 mod postings_writer;
 mod term_info;
-mod vec_postings;
 mod segment_postings;
-mod intersection;
-mod union;
-mod docset;
 
-pub use self::docset::{DocSet, SkipResult};
 use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
@@ -26,12 +21,8 @@ pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
-#[cfg(test)]
-pub use self::vec_postings::VecPostings;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
-pub use self::intersection::Intersection;
-pub use self::union::Union;
 
 pub use common::HasLen;
 
@@ -47,7 +38,11 @@ pub(crate) enum FreqReadingOption {
 pub mod tests {
 
     use super::*;
+    use docset::{DocSet, SkipResult};
     use DocId;
+    use Score;
+    use query::Intersection;
+    use query::Scorer;
     use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
@@ -662,6 +657,12 @@ pub mod tests {
 
         fn size_hint(&self) -> u32 {
             self.0.size_hint()
+        }
+    }
+
+    impl<TScorer: Scorer> Scorer for UnoptimizedDocSet<TScorer> {
+        fn score(&mut self) -> Score {
+            self.0.score()
         }
     }
 

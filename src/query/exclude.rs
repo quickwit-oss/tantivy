@@ -1,6 +1,5 @@
 use query::Scorer;
-use postings::SkipResult;
-use DocSet;
+use docset::{DocSet, SkipResult};
 use Score;
 use DocId;
 
@@ -133,13 +132,13 @@ mod tests {
     use tests::sample_with_seed;
     use postings::tests::test_skip_against_unoptimized;
     use super::*;
-    use postings::VecPostings;
+    use query::VecDocSet;
 
     #[test]
     fn test_exclude() {
         let mut exclude_scorer = Exclude::new(
-            VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
-            VecPostings::from(vec![1, 2, 3, 10, 16, 24]),
+            VecDocSet::from(vec![1, 2, 5, 8, 10, 15, 24]),
+            VecDocSet::from(vec![1, 2, 3, 10, 16, 24]),
         );
         let mut els = vec![];
         while exclude_scorer.advance() {
@@ -153,8 +152,8 @@ mod tests {
         test_skip_against_unoptimized(
             || {
                 box Exclude::new(
-                    VecPostings::from(vec![1, 2, 5, 8, 10, 15, 24]),
-                    VecPostings::from(vec![1, 2, 3, 10, 16, 24]),
+                    VecDocSet::from(vec![1, 2, 5, 8, 10, 15, 24]),
+                    VecDocSet::from(vec![1, 2, 3, 10, 16, 24]),
                 )
             },
             vec![1, 2, 5, 8, 10, 15, 24],
@@ -169,8 +168,8 @@ mod tests {
         test_skip_against_unoptimized(
             || {
                 box Exclude::new(
-                    VecPostings::from(sample_include.clone()),
-                    VecPostings::from(sample_exclude.clone()),
+                    VecDocSet::from(sample_include.clone()),
+                    VecDocSet::from(sample_exclude.clone()),
                 )
             },
             sample_skip,

@@ -2,7 +2,7 @@ use Term;
 use query::Weight;
 use core::SegmentReader;
 use query::Scorer;
-use DocSet;
+use docset::DocSet;
 use postings::SegmentPostings;
 use schema::IndexRecordOption;
 use super::term_scorer::TermScorer;
