@@ -665,7 +665,7 @@
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Streamer</span>;
-<span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">compute_block_size</span>;
+<span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">compressed_block_size</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">UnsafeCell</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">SourceRead</span>};
@@ -1094,7 +1094,7 @@
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">freq_reading_option</span> {
                 <span class="ident">FreqReadingOption</span>::<span class="ident">NoFreq</span> <span class="op">=&gt;</span> {}
                 <span class="ident">FreqReadingOption</span>::<span class="ident">SkipFreq</span> <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">num_bytes_to_skip</span> <span class="op">=</span> <span class="ident">compute_block_size</span>(<span class="self">self</span>.<span class="ident">remaining_data</span>.<span class="ident">as_ref</span>()[<span class="number">0</span>]);
+                    <span class="kw">let</span> <span class="ident">num_bytes_to_skip</span> <span class="op">=</span> <span class="ident">compressed_block_size</span>(<span class="self">self</span>.<span class="ident">remaining_data</span>.<span class="ident">as_ref</span>()[<span class="number">0</span>]);
                     <span class="self">self</span>.<span class="ident">remaining_data</span>.<span class="ident">advance</span>(<span class="ident">num_bytes_to_skip</span>);
                 }
                 <span class="ident">FreqReadingOption</span>::<span class="ident">ReadFreq</span> <span class="op">=&gt;</span> {
