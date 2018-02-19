@@ -74,13 +74,11 @@ impl DocSet for BitSetDocSet {
                 self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
                 if !self.advance() {
                     SkipResult::End
+                } else if self.doc() == target {
+                    SkipResult::Reached
                 } else {
-                    if self.doc() == target {
-                        SkipResult::Reached
-                    } else {
-                        debug_assert!(self.doc() > target);
-                        SkipResult::OverStep
-                    }
+                    debug_assert!(self.doc() > target);
+                    SkipResult::OverStep
                 }
             }
             Ordering::Equal => loop {

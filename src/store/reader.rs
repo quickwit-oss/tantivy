@@ -40,7 +40,7 @@ impl StoreReader {
 
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
         self.block_index()
-            .seek(doc_id as u64 + 1)
+            .seek(u64::from(doc_id) + 1)
             .map(|(doc, offset)| (doc as DocId, offset))
             .unwrap_or((0u32, 0u64))
     }

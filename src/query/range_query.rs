@@ -150,15 +150,15 @@ impl RangeWeight {
     {
         use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
-        term_stream_builder = match &self.left_bound {
-            &Included(ref term_val) => term_stream_builder.ge(term_val),
-            &Excluded(ref term_val) => term_stream_builder.gt(term_val),
-            &Unbounded => term_stream_builder,
+        term_stream_builder = match self.left_bound {
+            Included(ref term_val) => term_stream_builder.ge(term_val),
+            Excluded(ref term_val) => term_stream_builder.gt(term_val),
+            Unbounded => term_stream_builder,
         };
-        term_stream_builder = match &self.right_bound {
-            &Included(ref term_val) => term_stream_builder.le(term_val),
-            &Excluded(ref term_val) => term_stream_builder.lt(term_val),
-            &Unbounded => term_stream_builder,
+        term_stream_builder = match self.right_bound {
+            Included(ref term_val) => term_stream_builder.le(term_val),
+            Excluded(ref term_val) => term_stream_builder.lt(term_val),
+            Unbounded => term_stream_builder,
         };
         term_stream_builder.into_stream()
     }

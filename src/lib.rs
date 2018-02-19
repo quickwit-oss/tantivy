@@ -12,6 +12,7 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![allow(unknown_lints)]
 #![allow(new_without_default)]
+#![allow(decimal_literal_representation)]
 #![warn(missing_docs)]
 
 //! # `tantivy`

@@ -116,7 +116,7 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         let fst_index = open_fst_index(fst_source);
         TermDictionaryImpl {
             fst_index,
-            term_info_store: TermInfoStore::open(values_source),
+            term_info_store: TermInfoStore::open(&values_source),
         }
     }
 

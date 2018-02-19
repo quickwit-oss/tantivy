@@ -27,6 +27,7 @@ pub use common::HasLen;
 
 pub(crate) type UnorderedTermId = usize;
 
+#[allow(enum_variant_names)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
     SkipFreq,

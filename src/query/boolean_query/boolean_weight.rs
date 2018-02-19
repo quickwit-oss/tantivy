@@ -21,18 +21,14 @@ where
     if scorers.len() == 1 {
         scorers.into_iter().next().unwrap() //< we checked the size beforehands
     } else {
-        if scorers.iter().all(|scorer| {
+        let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
             Downcast::<TermScorer>::is_type(scorer_ref)
-        }) {
+        });
+        if is_all_term_queries {
             let scorers: Vec<TermScorer> = scorers
                 .into_iter()
-                .map(|scorer| {
-                    *Downcast::<TermScorer>::downcast(scorer).expect(
-                        "downcasting should not have failed, we\
-                         checked in advance that the type were correct.",
-                    )
-                })
+                .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
                 .collect();
             let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
             scorer
@@ -61,7 +57,7 @@ impl BooleanWeight {
         reader: &SegmentReader,
     ) -> Result<Box<Scorer>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<Scorer>>> = HashMap::new();
-        for &(ref occur, ref subweight) in self.weights.iter() {
+        for &(ref occur, ref subweight) in &self.weights {
             let sub_scorer: Box<Scorer> = subweight.scorer(reader)?;
             per_occur_scorers
                 .entry(*occur)
@@ -82,18 +78,14 @@ impl BooleanWeight {
                 if scorers.len() == 1 {
                     scorers.into_iter().next().unwrap()
                 } else {
-                    if scorers.iter().all(|scorer| {
+                    let is_all_term_queries = scorers.iter().all(|scorer| {
                         let scorer_ref: &Scorer = scorer.borrow();
                         Downcast::<TermScorer>::is_type(scorer_ref)
-                    }) {
+                    });
+                    if is_all_term_queries {
                         let scorers: Vec<TermScorer> = scorers
                             .into_iter()
-                            .map(|scorer| {
-                                *Downcast::<TermScorer>::downcast(scorer).expect(
-                                    "downcasting should not have failed, we\
-                                     checked in advance that the type were correct.",
-                                )
-                            })
+                            .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
                             .collect();
                         let scorer: Box<Scorer> = box Intersection::from(scorers);
                         scorer

@@ -37,7 +37,7 @@ impl Searcher {
         self.segment_readers
             .iter()
             .map(|segment_reader| segment_reader.num_docs())
-            .fold(0u32, |acc, val| acc + val)
+            .sum::<u32>()
     }
 
     /// Return the overall number of documents containing
@@ -46,7 +46,7 @@ impl Searcher {
         self.segment_readers
             .iter()
             .map(|segment_reader| segment_reader.inverted_index(term.field()).doc_freq(term))
-            .fold(0u32, |acc, val| acc + val)
+            .sum::<u32>()
     }
 
     /// Return the list of segment readers

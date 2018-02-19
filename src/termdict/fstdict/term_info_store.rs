@@ -1,3 +1,4 @@
+
 use std::io;
 use std::cmp;
 use std::io::{Read, Write};
@@ -94,12 +95,12 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     let bit_shift = (addr_bits % 8) as u64;
     let val_unshifted_unmasked: u64 = unsafe { *(data[addr_byte..].as_ptr() as *const u64) };
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
-    let mask = (1u64 << (num_bits as u64)) - 1;
+    let mask = (1u64 << u64::from(num_bits)) - 1;
     val_shifted_unmasked & mask
 }
 
 impl TermInfoStore {
-    pub fn open(data: ReadOnlySource) -> TermInfoStore {
+    pub fn open(data: &ReadOnlySource) -> TermInfoStore {
         let buffer = data.as_slice();
         let len = Endianness::read_u64(&buffer[0..8]) as usize;
         let num_terms = Endianness::read_u64(&buffer[8..16]) as usize;
@@ -149,7 +150,7 @@ fn bitpack_serialize<W: Write>(
     term_info: &TermInfo,
 ) -> io::Result<()> {
     bit_packer.write(
-        term_info.doc_freq as u64,
+        u64::from(term_info.doc_freq),
         term_info_block_meta.doc_freq_nbits,
         write,
     )?;
@@ -163,7 +164,7 @@ fn bitpack_serialize<W: Write>(
         term_info_block_meta.positions_offset_nbits,
         write,
     )?;
-    bit_packer.write(term_info.positions_inner_offset as u64, 7, write)?;
+    bit_packer.write(u64::from(term_info.positions_inner_offset), 7, write)?;
     Ok(())
 }
 
@@ -197,7 +198,7 @@ impl TermInfoStoreWriter {
             max_positions_offset = cmp::max(max_positions_offset, term_info.positions_offset);
         }
 
-        let max_doc_freq_nbits: u8 = compute_num_bits(max_doc_freq as u64);
+        let max_doc_freq_nbits: u8 = compute_num_bits(u64::from(max_doc_freq));
         let max_postings_offset_nbits = compute_num_bits(max_postings_offset);
         let max_positions_offset_nbits = compute_num_bits(max_positions_offset);
 
@@ -321,7 +322,7 @@ mod tests {
         }
         let mut buffer = Vec::new();
         store_writer.serialize(&mut buffer).unwrap();
-        let term_info_store = TermInfoStore::open(ReadOnlySource::from(buffer));
+        let term_info_store = TermInfoStore::open(&ReadOnlySource::from(buffer));
         for i in 0..1000 {
             assert_eq!(term_info_store.get(i as u64), term_infos[i]);
         }

@@ -51,7 +51,7 @@ impl TinySet {
     /// within `[0; 64[`
     #[inline(always)]
     pub fn singleton(el: u32) -> TinySet {
-        TinySet(1u64 << (el as u64))
+        TinySet(1u64 << u64::from(el))
     }
 
     /// Insert a new element within [0..64[
@@ -109,7 +109,7 @@ impl TinySet {
     ///
     /// The limit is assumed to be strictly lower than 64.
     pub fn range_lower(upper_bound: u32) -> TinySet {
-        TinySet((1u64 << ((upper_bound % 64u32) as u64)) - 1u64)
+        TinySet((1u64 << u64::from(upper_bound % 64u32)) - 1u64)
     }
 
     /// Returns a `TinySet` that contains all values greater

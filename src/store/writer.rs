@@ -67,7 +67,7 @@ impl StoreWriter {
         if !self.current_block.is_empty() {
             self.write_and_compress_block()?;
             self.offset_index_writer
-                .insert(self.doc as u64, &(self.writer.written_bytes() as u64))?;
+                .insert(u64::from(self.doc), &(self.writer.written_bytes() as u64))?;
         }
         let doc_offset = self.doc;
         let start_offset = self.writer.written_bytes() as u64;
@@ -80,7 +80,7 @@ impl StoreWriter {
         for (next_doc_id, block_addr) in store_reader.block_index() {
             self.doc = doc_offset + next_doc_id as u32;
             self.offset_index_writer
-                .insert(self.doc as u64, &(start_offset + block_addr))?;
+                .insert(u64::from(self.doc), &(start_offset + block_addr))?;
         }
         Ok(())
     }
@@ -96,7 +96,7 @@ impl StoreWriter {
         (self.intermediary_buffer.len() as u32).serialize(&mut self.writer)?;
         self.writer.write_all(&self.intermediary_buffer)?;
         self.offset_index_writer
-            .insert(self.doc as u64, &(self.writer.written_bytes() as u64))?;
+            .insert(u64::from(self.doc), &(self.writer.written_bytes() as u64))?;
         self.current_block.clear();
         Ok(())
     }

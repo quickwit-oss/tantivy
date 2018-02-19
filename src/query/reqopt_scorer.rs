@@ -50,11 +50,7 @@ where
 {
     fn advance(&mut self) -> bool {
         self.score_cache = None;
-        if self.req_scorer.advance() {
-            true
-        } else {
-            false
-        }
+        self.req_scorer.advance()
     }
 
     fn doc(&self) -> DocId {
