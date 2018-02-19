@@ -36,17 +36,16 @@ impl TermQuery {
     /// this method return a specific implementation.
     /// This is useful for optimization purpose.
     pub fn specialized_weight(&self, searcher: &Searcher, scoring_enabled: bool) -> TermWeight {
-        let index_record_option =
-            if scoring_enabled {
-                self.index_record_option
-            } else {
-                IndexRecordOption::Basic
-            };
+        let index_record_option = if scoring_enabled {
+            self.index_record_option
+        } else {
+            IndexRecordOption::Basic
+        };
         TermWeight {
             num_docs: searcher.num_docs(),
             doc_freq: searcher.doc_freq(&self.term),
             term: self.term.clone(),
-            index_record_option
+            index_record_option,
         }
     }
 }

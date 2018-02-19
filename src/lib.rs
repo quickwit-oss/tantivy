@@ -201,7 +201,7 @@ pub mod schema;
 pub mod fastfield;
 
 mod docset;
-pub use self::docset::{SkipResult, DocSet};
+pub use self::docset::{DocSet, SkipResult};
 
 pub use directory::Directory;
 pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};

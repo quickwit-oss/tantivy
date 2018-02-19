@@ -62,7 +62,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         MultiFieldPostingsWriter {
             heap,
             term_index,
-            per_field_postings_writers
+            per_field_postings_writers,
         }
     }
 

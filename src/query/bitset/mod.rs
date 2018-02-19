@@ -140,7 +140,6 @@ mod tests {
     extern crate test;
     use tests;
 
-
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
         for &doc in docs {

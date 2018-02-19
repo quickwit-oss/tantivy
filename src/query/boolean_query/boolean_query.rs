@@ -25,9 +25,7 @@ pub struct BooleanQuery {
 
 impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
     fn from(subqueries: Vec<(Occur, Box<Query>)>) -> BooleanQuery {
-        BooleanQuery {
-            subqueries
-        }
+        BooleanQuery { subqueries }
     }
 }
 
@@ -35,7 +33,9 @@ impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
-            .map(|&(ref occur, ref subquery)| Ok((*occur, subquery.weight(searcher, scoring_enabled)?)))
+            .map(|&(ref occur, ref subquery)| {
+                Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
+            })
             .collect::<Result<_>>()?;
         Ok(box BooleanWeight::new(sub_weights, scoring_enabled))
     }

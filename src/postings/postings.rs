@@ -17,4 +17,3 @@ pub trait Postings: DocSet {
     /// token ordinals.
     fn positions(&self) -> &[u32];
 }
-

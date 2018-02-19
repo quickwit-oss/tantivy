@@ -18,10 +18,11 @@ pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
     opt_scorer: TOptScorer,
     score_cache: Option<Score>,
     opt_finished: bool,
-    _phantom: PhantomData<TScoreCombiner>
+    _phantom: PhantomData<TScoreCombiner>,
 }
 
-impl<TReqScorer, TOptScorer, TScoreCombiner> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+impl<TReqScorer, TOptScorer, TScoreCombiner>
+    RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
 where
     TOptScorer: DocSet,
 {
@@ -36,12 +37,13 @@ where
             opt_scorer,
             score_cache: None,
             opt_finished,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<TReqScorer, TOptScorer, TScoreCombiner> DocSet for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+impl<TReqScorer, TOptScorer, TScoreCombiner> DocSet
+    for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
 where
     TReqScorer: DocSet,
     TOptScorer: DocSet,
@@ -64,11 +66,12 @@ where
     }
 }
 
-impl<TReqScorer, TOptScorer, TScoreCombiner> Scorer for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
+impl<TReqScorer, TOptScorer, TScoreCombiner> Scorer
+    for RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
 where
     TReqScorer: Scorer,
     TOptScorer: Scorer,
-    TScoreCombiner: ScoreCombiner
+    TScoreCombiner: ScoreCombiner,
 {
     fn score(&mut self) -> Score {
         if let Some(score) = self.score_cache {
@@ -114,10 +117,11 @@ mod tests {
     #[test]
     fn test_reqopt_scorer_empty() {
         let req = vec![1, 3, 7];
-        let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> = RequiredOptionalScorer::new(
-            ConstScorer::new(VecDocSet::from(req.clone())),
-            ConstScorer::new(VecDocSet::from(vec![])),
-        );
+        let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> =
+            RequiredOptionalScorer::new(
+                ConstScorer::new(VecDocSet::from(req.clone())),
+                ConstScorer::new(VecDocSet::from(vec![])),
+            );
         let mut docs = vec![];
         while reqoptscorer.advance() {
             docs.push(reqoptscorer.doc());
@@ -127,10 +131,11 @@ mod tests {
 
     #[test]
     fn test_reqopt_scorer() {
-        let mut reqoptscorer: RequiredOptionalScorer<_,_,SumCombiner> = RequiredOptionalScorer::new(
-            ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
-            ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15])),
-        );
+        let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> =
+            RequiredOptionalScorer::new(
+                ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
+                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15])),
+            );
         {
             assert!(reqoptscorer.advance());
             assert_eq!(reqoptscorer.doc(), 1);
@@ -181,7 +186,7 @@ mod tests {
         let skip_docs = sample_with_seed(10_000, 0.001, 3);
         test_skip_against_unoptimized(
             || {
-                box RequiredOptionalScorer::<_,_,DoNothingCombiner>::new(
+                box RequiredOptionalScorer::<_, _, DoNothingCombiner>::new(
                     ConstScorer::new(VecDocSet::from(req_docs.clone())),
                     ConstScorer::new(VecDocSet::from(opt_docs.clone())),
                 )

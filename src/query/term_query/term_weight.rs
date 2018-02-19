@@ -41,10 +41,7 @@ impl TermWeight {
     }
 
     /// If the field is not found, returns an empty `DocSet`.
-    pub fn specialized_scorer(
-        &self,
-        reader: &SegmentReader,
-    ) -> Result<TermScorer> {
+    pub fn specialized_scorer(&self, reader: &SegmentReader) -> Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);

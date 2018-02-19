@@ -5,7 +5,6 @@ mod stream;
 
 pub use self::stream::CompressedIntStream;
 
-
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 
 pub(crate) fn compute_block_size(num_bits: u8) -> usize {
@@ -118,7 +117,6 @@ impl VIntDecoder for BlockDecoder {
         vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
     }
 }
-
 
 #[cfg(test)]
 pub mod tests {

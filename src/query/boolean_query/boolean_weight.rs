@@ -10,27 +10,28 @@ use std::borrow::Borrow;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
-use query::score_combiner::{SumWithCoordsCombiner, DoNothingCombiner, ScoreCombiner};
+use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
 
 fn scorer_union<'a, TScoreCombiner>(scorers: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a>
-    where TScoreCombiner: ScoreCombiner + 'static
+where
+    TScoreCombiner: ScoreCombiner + 'static,
 {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
         scorers.into_iter().next().unwrap() //< we checked the size beforehands
     } else {
-        if scorers
-            .iter()
-            .all(|scorer| {
-                let scorer_ref:&Scorer = scorer.borrow();
-                Downcast::<TermScorer>::is_type(scorer_ref)
-            }) {
-            let scorers: Vec<TermScorer> = scorers.into_iter()
+        if scorers.iter().all(|scorer| {
+            let scorer_ref: &Scorer = scorer.borrow();
+            Downcast::<TermScorer>::is_type(scorer_ref)
+        }) {
+            let scorers: Vec<TermScorer> = scorers
+                .into_iter()
                 .map(|scorer| {
-                    *Downcast::<TermScorer>::downcast(scorer)
-                        .expect("downcasting should not have failed, we\
-                                    checked in advance that the type were correct.")
+                    *Downcast::<TermScorer>::downcast(scorer).expect(
+                        "downcasting should not have failed, we\
+                         checked in advance that the type were correct.",
+                    )
                 })
                 .collect();
             let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
@@ -68,29 +69,30 @@ impl BooleanWeight {
                 .push(sub_scorer);
         }
 
-        let should_scorer_opt: Option<Box<Scorer>> =
-            per_occur_scorers.remove(&Occur::Should).map(scorer_union::<TScoreCombiner>);
+        let should_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+            .remove(&Occur::Should)
+            .map(scorer_union::<TScoreCombiner>);
 
-        let exclude_scorer_opt: Option<Box<Scorer>> =
-            per_occur_scorers.remove(&Occur::MustNot).map(scorer_union::<TScoreCombiner>);
+        let exclude_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+            .remove(&Occur::MustNot)
+            .map(scorer_union::<TScoreCombiner>);
 
         let must_scorer_opt: Option<Box<Scorer>> =
             per_occur_scorers.remove(&Occur::Must).map(|scorers| {
                 if scorers.len() == 1 {
                     scorers.into_iter().next().unwrap()
                 } else {
-                    if scorers
-                        .iter()
-                        .all(|scorer| {
-                            let scorer_ref:&Scorer = scorer.borrow();
-                            Downcast::<TermScorer>::is_type(scorer_ref)
-                        }) {
-                        let scorers: Vec<TermScorer> = scorers.into_iter()
+                    if scorers.iter().all(|scorer| {
+                        let scorer_ref: &Scorer = scorer.borrow();
+                        Downcast::<TermScorer>::is_type(scorer_ref)
+                    }) {
+                        let scorers: Vec<TermScorer> = scorers
+                            .into_iter()
                             .map(|scorer| {
-                                *Downcast::<TermScorer>::downcast(scorer)
-                                    .expect("downcasting should not have failed, we\
-                                    checked in advance that the type were correct.")
-
+                                *Downcast::<TermScorer>::downcast(scorer).expect(
+                                    "downcasting should not have failed, we\
+                                     checked in advance that the type were correct.",
+                                )
                             })
                             .collect();
                         let scorer: Box<Scorer> = box Intersection::from(scorers);
@@ -102,10 +104,13 @@ impl BooleanWeight {
                 }
             });
 
-        let positive_scorer: Box<Scorer > = match (should_scorer_opt, must_scorer_opt) {
+        let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {
                 if self.scoring_enabled {
-                    box RequiredOptionalScorer::<_,_,TScoreCombiner>::new(must_scorer, should_scorer)
+                    box RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
+                        must_scorer,
+                        should_scorer,
+                    )
                 } else {
                     must_scorer
                 }

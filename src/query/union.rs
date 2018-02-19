@@ -10,8 +10,7 @@ const HORIZON_NUM_TINYBITSETS: usize = 32;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct Union<TScorer, TScoreCombiner=DoNothingCombiner>
-{
+pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TScorer>,
     bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
     scores: Box<[TScoreCombiner; HORIZON as usize]>,
@@ -21,9 +20,10 @@ pub struct Union<TScorer, TScoreCombiner=DoNothingCombiner>
     score: Score,
 }
 
-impl<TScorer, TScoreCombiner> From<Vec<TScorer>>
-    for Union<TScorer, TScoreCombiner>
-    where TScoreCombiner: ScoreCombiner, TScorer: Scorer
+impl<TScorer, TScoreCombiner> From<Vec<TScorer>> for Union<TScorer, TScoreCombiner>
+where
+    TScoreCombiner: ScoreCombiner,
+    TScorer: Scorer,
 {
     fn from(docsets: Vec<TScorer>) -> Union<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
@@ -45,7 +45,7 @@ impl<TScorer, TScoreCombiner> From<Vec<TScorer>>
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
             doc: 0,
-            score: 0f32
+            score: 0f32,
         }
     }
 }
@@ -80,7 +80,12 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
         if let Some(min_doc) = self.docsets.iter_mut().map(|docset| docset.doc()).min() {
             self.offset = min_doc;
             self.cursor = 0;
-            refill(&mut self.docsets, &mut *self.bitsets, &mut *self.scores, min_doc);
+            refill(
+                &mut self.docsets,
+                &mut *self.bitsets,
+                &mut *self.scores,
+                min_doc,
+            );
             true
         } else {
             false
@@ -126,10 +131,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             bitset.clear();
         }
         while self.refill() {
-            count += self.bitsets
-                .iter()
-                .map(|bitset| bitset.len())
-                .sum::<u32>();
+            count += self.bitsets.iter().map(|bitset| bitset.len()).sum::<u32>();
             for bitset in self.bitsets.iter_mut() {
                 bitset.clear();
             }
@@ -160,7 +162,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             for obsolete_tinyset in &mut self.bitsets[self.cursor..new_cursor] {
                 obsolete_tinyset.clear();
             }
-            for score_combiner in &mut self.scores[self.cursor*64..new_cursor*64] {
+            for score_combiner in &mut self.scores[self.cursor * 64..new_cursor * 64] {
                 score_combiner.clear();
             }
             self.cursor = new_cursor;
@@ -225,8 +227,10 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
 }
 
 impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
-    where TScoreCombiner: ScoreCombiner,
-          TScorer: Scorer {
+where
+    TScoreCombiner: ScoreCombiner,
+    TScorer: Scorer,
+{
     fn score(&mut self) -> Score {
         self.score
     }
@@ -335,7 +339,7 @@ mod tests {
     fn test_union_skip_corner_case3() {
         let mut docset = Union::<_, DoNothingCombiner>::from(vec![
             ConstScorer::new(VecDocSet::from(vec![0u32, 5u32])),
-            ConstScorer::new(VecDocSet::from(vec![1u32, 4u32]))
+            ConstScorer::new(VecDocSet::from(vec![1u32, 4u32])),
         ]);
         assert!(docset.advance());
         assert_eq!(docset.doc(), 0u32);

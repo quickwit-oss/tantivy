@@ -8,11 +8,10 @@ use query::EmptyScorer;
 use Result;
 
 pub struct PhraseWeight {
-    phrase_terms: Vec<Term>
+    phrase_terms: Vec<Term>,
 }
 
 impl PhraseWeight {
-
     /// Creates a new phrase weight.
     ///
     /// Right now `scoring_enabled` is actually ignored.
@@ -21,9 +20,7 @@ impl PhraseWeight {
     // phrase freq in that case, and compute the phrase freq when scoring is enabled.
     // Right now we never compute it :|
     pub fn new(phrase_terms: Vec<Term>, _scoring_enabled: bool) -> PhraseWeight {
-        PhraseWeight {
-            phrase_terms
-        }
+        PhraseWeight { phrase_terms }
     }
 }
 

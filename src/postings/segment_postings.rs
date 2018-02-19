@@ -74,7 +74,6 @@ pub struct SegmentPostings {
 }
 
 impl SegmentPostings {
-
     /// Creates a segment postings object with the given documents
     /// and no frequency encoded.
     ///
@@ -96,7 +95,8 @@ impl SegmentPostings {
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),
             SourceRead::from(data),
-            FreqReadingOption::NoFreq);
+            FreqReadingOption::NoFreq,
+        );
         SegmentPostings::from_block_postings(block_segment_postings, DeleteBitSet::empty(), None)
     }
 
@@ -344,7 +344,7 @@ impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: usize,
         data: SourceRead,
-        freq_reading_option: FreqReadingOption
+        freq_reading_option: FreqReadingOption,
     ) -> BlockSegmentPostings {
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
@@ -440,7 +440,8 @@ impl BlockSegmentPostings {
                     self.remaining_data.advance(num_bytes_to_skip);
                 }
                 FreqReadingOption::ReadFreq => {
-                    let num_consumed_bytes = self.freq_decoder.uncompress_block_unsorted(self.remaining_data.as_ref());
+                    let num_consumed_bytes = self.freq_decoder
+                        .uncompress_block_unsorted(self.remaining_data.as_ref());
                     self.remaining_data.advance(num_consumed_bytes);
                 }
             }

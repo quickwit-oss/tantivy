@@ -21,7 +21,6 @@ pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
-
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
 pub use common::HasLen;
@@ -31,7 +30,7 @@ pub(crate) type UnorderedTermId = usize;
 pub(crate) enum FreqReadingOption {
     NoFreq,
     SkipFreq,
-    ReadFreq
+    ReadFreq,
 }
 
 #[cfg(test)]
@@ -96,7 +95,7 @@ pub mod tests {
             index_writer.add_document(doc!(title => r#"abc abc abc"#));
         }
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
-        index_writer    .commit().unwrap();
+        index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let query = TermQuery::new(

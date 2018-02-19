@@ -225,8 +225,9 @@ impl SegmentReader {
             return Arc::clone(inv_idx_reader);
         }
 
-
-        let record_option = self.schema.get_field_entry(field).field_type()
+        let record_option = self.schema
+            .get_field_entry(field)
+            .field_type()
             .get_index_record_option()
             .expect("Field does not seem indexed.");
 
@@ -247,7 +248,7 @@ impl SegmentReader {
             postings_source,
             positions_source,
             self.delete_bitset.clone(),
-            record_option
+            record_option,
         ));
 
         // by releasing the lock in between, we may end up opening the inverting index

@@ -1,7 +1,7 @@
 use DocId;
 use docset::{DocSet, SkipResult};
 use postings::{Postings, SegmentPostings};
-use query::{Scorer, Intersection};
+use query::{Intersection, Scorer};
 
 struct PostingsWithOffset {
     offset: u32,

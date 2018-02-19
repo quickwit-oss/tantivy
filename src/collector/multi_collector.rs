@@ -16,9 +16,7 @@ pub struct MultiCollector<'a> {
 impl<'a> MultiCollector<'a> {
     /// Constructor
     pub fn from(collectors: Vec<&'a mut Collector>) -> MultiCollector {
-        MultiCollector {
-            collectors,
-        }
+        MultiCollector { collectors }
     }
 }
 

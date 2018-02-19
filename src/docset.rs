@@ -145,6 +145,4 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
 }
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

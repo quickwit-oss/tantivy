@@ -1,7 +1,6 @@
 use Score;
 use query::Scorer;
 
-
 /// The `ScoreCombiner` trait defines how to compute
 /// an overall score given a list of scores.
 pub trait ScoreCombiner: Default + Clone + Copy + 'static {
@@ -36,13 +35,11 @@ impl ScoreCombiner for DoNothingCombiner {
     }
 }
 
-
 /// Sums the score of different scorers.
 #[derive(Default, Clone, Copy)]
 pub struct SumCombiner {
-    score: Score
+    score: Score,
 }
-
 
 impl ScoreCombiner for SumCombiner {
     fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
@@ -57,7 +54,6 @@ impl ScoreCombiner for SumCombiner {
         self.score
     }
 }
-
 
 /// Sums the score of different scorers and keeps the count
 /// of scorers which matched.
@@ -82,4 +78,3 @@ impl ScoreCombiner for SumWithCoordsCombiner {
         self.score
     }
 }
-

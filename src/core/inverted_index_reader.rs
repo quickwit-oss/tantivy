@@ -26,7 +26,7 @@ pub struct InvertedIndexReader {
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
     delete_bitset: DeleteBitSet,
-    record_option: IndexRecordOption
+    record_option: IndexRecordOption,
 }
 
 impl InvertedIndexReader {
@@ -42,7 +42,7 @@ impl InvertedIndexReader {
             postings_source,
             positions_source,
             delete_bitset,
-            record_option
+            record_option,
         }
     }
 
@@ -85,19 +85,19 @@ impl InvertedIndexReader {
     pub fn read_block_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
-        requested_option: IndexRecordOption
+        requested_option: IndexRecordOption,
     ) -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = self.postings_source.slice_from(offset);
         let freq_reading_option = match (self.record_option, requested_option) {
             (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
             (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
-            (_, _) => FreqReadingOption::ReadFreq
+            (_, _) => FreqReadingOption::ReadFreq,
         };
         BlockSegmentPostings::from_data(
             term_info.doc_freq as usize,
             SourceRead::from(postings_data),
-            freq_reading_option
+            freq_reading_option,
         )
     }
 

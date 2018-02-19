@@ -51,5 +51,4 @@ mod tests {
         assert!(!count_collector.requires_scoring());
     }
 
-
 }
