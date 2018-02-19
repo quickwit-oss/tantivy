@@ -189,11 +189,11 @@ impl<'a> TermHashMap<'a> {
                 let (addr, val): (u32, &mut V) = self.heap.allocate_object();
                 assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
                 self.set_bucket(hash, key_bytes_ref, bucket);
-                return (bucket, val);
+                return (bucket as UnorderedTermId, val);
             } else if kv.hash == hash {
                 let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    return (bucket, self.heap.get_mut_ref(expull_addr));
+                    return (bucket as UnorderedTermId, self.heap.get_mut_ref(expull_addr));
                 }
             }
         }

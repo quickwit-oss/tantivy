@@ -37,7 +37,7 @@ impl FastFieldSerializer {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
         Ok(FastFieldSerializer {
-            composite_write: composite_write,
+            composite_write
         })
     }
 

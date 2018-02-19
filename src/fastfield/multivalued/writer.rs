@@ -1,22 +1,28 @@
 use fastfield::FastFieldSerializer;
+use fastfield::serializer::FastSingleFieldSerializer;
+use fastfield::value_to_u64;
 use std::collections::HashMap;
 use postings::UnorderedTermId;
-use schema::Field;
+use schema::{Document, Field};
 use std::io;
+use itertools::Itertools;
+
 
 pub struct MultiValueIntFastFieldWriter {
     field: Field,
-    vals: Vec<UnorderedTermId>,
+    vals: Vec<u64>,
     doc_index: Vec<u64>,
+    is_facet: bool
 }
 
 impl MultiValueIntFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
-    pub fn new(field: Field) -> Self {
+    pub fn new(field: Field, is_facet: bool) -> Self {
         MultiValueIntFastFieldWriter {
-            field: field,
+            field,
             vals: Vec::new(),
             doc_index: Vec::new(),
+            is_facet
         }
     }
 
@@ -37,11 +43,32 @@ impl MultiValueIntFastFieldWriter {
         self.vals.push(val);
     }
 
-    /// Push the fast fields value to the `FastFieldWriter`.
+    pub fn add_document(&mut self, doc: &Document) {
+        if !self.is_facet {
+            for field_value in doc.field_values() {
+                if field_value.field() == self.field {
+                    self.add_val(value_to_u64(field_value.value()));
+                }
+            }
+        }
+
+    }
+
+    /// Serializes fast field values by pushing them to the `FastFieldSerializer`.
+    ///
+    /// HashMap makes it possible to remap them before serializing.
+    /// Specifically, string terms are first stored in the writer as their
+    /// position in the `IndexWriter`'s `HashMap`. This value is called
+    /// an `UnorderedTermId`.
+    ///
+    /// During the serialization of the segment, terms gets sorted and
+    /// `tantivy` builds a mapping to convert this `UnorderedTermId` into
+    /// term ordinals.
+    ///
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: &HashMap<UnorderedTermId, usize>,
+        mapping_opt: Option<&HashMap<UnorderedTermId, usize>>,
     ) -> io::Result<()> {
         {
             // writing the offset index
@@ -55,10 +82,25 @@ impl MultiValueIntFastFieldWriter {
         }
         {
             // writing the values themselves.
-            let mut value_serializer =
-                serializer.new_u64_fast_field_with_idx(self.field, 0u64, mapping.len() as u64, 1)?;
-            for val in &self.vals {
-                value_serializer.add_val(*mapping.get(val).expect("Missing term ordinal") as u64)?;
+            let mut value_serializer: FastSingleFieldSerializer<_>;
+            match mapping_opt {
+                Some(mapping) => {
+                    value_serializer =
+                        serializer.new_u64_fast_field_with_idx(self.field, 0u64, mapping.len() as u64, 1)?;
+                    for val in &self.vals {
+                        let remapped_val = *mapping.get(val).expect("Missing term ordinal") as u64;
+                        value_serializer.add_val(remapped_val)?;
+                    }
+                }
+                None => {
+                    let val_min_max = self.vals.iter().cloned().minmax();
+                    let (val_min, val_max) = val_min_max.into_option().unwrap_or((0u64, 0));
+                    value_serializer =
+                        serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
+                    for &val in &self.vals {
+                        value_serializer.add_val(val)?;
+                    }
+                }
             }
             value_serializer.close_field()?;
         }

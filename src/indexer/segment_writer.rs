@@ -160,7 +160,6 @@ impl<'a> SegmentWriter<'a> {
                                 self.multifield_postings.subscribe(doc_id, &term);
                             unordered_term_id_opt = Some(unordered_term_id);
                         });
-
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
                                 .get_multivalue_writer(field)

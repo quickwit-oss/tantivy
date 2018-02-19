@@ -221,7 +221,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         heap: &Heap,
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
-        let (term_ord, recorder): (usize, &mut Rec) = term_index.get_or_create(term);
+        let (term_ord, recorder): (UnorderedTermId, &mut Rec) = term_index.get_or_create(term);
         let current_doc = recorder.current_doc();
         if current_doc != doc {
             if current_doc != u32::max_value() {

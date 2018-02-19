@@ -41,6 +41,18 @@ pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::MultiValueIntFastFieldReader;
 
+use common;
+use schema::Value;
+
+fn value_to_u64(value: &Value) -> u64 {
+    match *value {
+        Value::U64(ref val) => *val,
+        Value::I64(ref val) => common::i64_to_u64(*val),
+        _ => panic!("Expected a u64/i64 field, got {:?} ", value),
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -18,7 +18,7 @@ use termdict::{TermDictionary, TermDictionaryImpl};
 /// list of facets. This ordinal is segment local and
 /// only makes sense for a given segment.
 pub struct FacetReader {
-    term_ords: MultiValueIntFastFieldReader,
+    term_ords: MultiValueIntFastFieldReader<u64>,
     term_dict: TermDictionaryImpl,
 }
 
@@ -31,12 +31,12 @@ impl FacetReader {
     /// - a `TermDictionaryImpl` that helps associating a facet to
     /// an ordinal and vice versa.
     pub fn new(
-        term_ords: MultiValueIntFastFieldReader,
+        term_ords: MultiValueIntFastFieldReader<u64>,
         term_dict: TermDictionaryImpl,
     ) -> FacetReader {
         FacetReader {
-            term_ords: term_ords,
-            term_dict: term_dict,
+            term_ords,
+            term_dict
         }
     }
 

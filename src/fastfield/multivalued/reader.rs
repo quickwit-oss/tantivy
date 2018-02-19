@@ -1,7 +1,11 @@
 use DocId;
 use fastfield::FastFieldReader;
-
 use fastfield::U64FastFieldReader;
+use std::marker::PhantomData;
+use common;
+
+
+
 
 /// Reader for a multivalued `u64` fast field.
 ///
@@ -12,30 +16,55 @@ use fastfield::U64FastFieldReader;
 /// The `idx_reader` associated, for each document, the index of its first value.
 ///
 #[derive(Clone)]
-pub struct MultiValueIntFastFieldReader {
+pub struct MultiValueIntFastFieldReader<Item> {
     idx_reader: U64FastFieldReader,
     vals_reader: U64FastFieldReader,
+    __phantom__: PhantomData<Item>
 }
 
-impl MultiValueIntFastFieldReader {
+trait ConvertU64<Item> {
+    fn from_u64(val: u64) -> Item;
+}
+
+impl<Item> ConvertU64<Item> for MultiValueIntFastFieldReader<Item> {
+    default fn from_u64(_: u64) -> Item {
+        unimplemented!("MultiValueIntFastField only exists for u64 and i64.");
+    }
+}
+
+impl ConvertU64<u64> for MultiValueIntFastFieldReader<u64> {
+    fn from_u64(val: u64) -> u64 {
+        val
+    }
+}
+
+impl ConvertU64<i64> for MultiValueIntFastFieldReader<i64> {
+    fn from_u64(val: u64) -> i64 {
+        common::u64_to_i64(val)
+    }
+}
+
+
+impl<Item> MultiValueIntFastFieldReader<Item> {
     pub(crate) fn open(
         idx_reader: U64FastFieldReader,
         vals_reader: U64FastFieldReader,
-    ) -> MultiValueIntFastFieldReader {
+    ) -> MultiValueIntFastFieldReader<Item> {
         MultiValueIntFastFieldReader {
-            idx_reader: idx_reader,
-            vals_reader: vals_reader,
+            idx_reader,
+            vals_reader,
+            __phantom__: PhantomData,
         }
     }
 
     /// Returns the array of values associated to the given `doc`.
-    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<u64>) {
+    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let start = self.idx_reader.get(doc) as u32;
         let stop = self.idx_reader.get(doc + 1) as u32;
         vals.clear();
         for val_id in start..stop {
             let val = self.vals_reader.get(val_id);
-            vals.push(val);
+            vals.push(Self::from_u64(val));
         }
     }
 }

@@ -58,7 +58,7 @@ fn extract_fast_field_reader(
     segment_reader: &SegmentReader,
     field: Field,
 ) -> Option<U64FastFieldReader> {
-    segment_reader.get_fast_field_reader(field).ok()
+    segment_reader.fast_field_reader(field).ok()
 }
 
 struct DeltaComputer {
@@ -630,14 +630,14 @@ mod tests {
 
             let score_field_reader: U64FastFieldReader = searcher
                 .segment_reader(0)
-                .get_fast_field_reader(score_field)
+                .fast_field_reader(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 1);
             assert_eq!(score_field_reader.max_value(), 3);
 
             let score_field_reader: U64FastFieldReader = searcher
                 .segment_reader(1)
-                .get_fast_field_reader(score_field)
+                .fast_field_reader(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 4000);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -687,7 +687,7 @@ mod tests {
             );
             let score_field_reader: U64FastFieldReader = searcher
                 .segment_reader(0)
-                .get_fast_field_reader(score_field)
+                .fast_field_reader(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -733,7 +733,7 @@ mod tests {
             );
             let score_field_reader: U64FastFieldReader = searcher
                 .segment_reader(0)
-                .get_fast_field_reader(score_field)
+                .fast_field_reader(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -784,7 +784,7 @@ mod tests {
             );
             let score_field_reader: U64FastFieldReader = searcher
                 .segment_reader(0)
-                .get_fast_field_reader(score_field)
+                .fast_field_reader(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 6000);
             assert_eq!(score_field_reader.max_value(), 7000);

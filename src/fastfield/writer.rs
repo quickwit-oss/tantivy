@@ -1,7 +1,6 @@
 use schema::{Cardinality, Document, Field, Schema};
 use fastfield::FastFieldSerializer;
 use std::io;
-use schema::Value;
 use DocId;
 use schema::FieldType;
 use common;
@@ -39,14 +38,14 @@ impl FastFieldsWriter {
                             single_value_writers.push(fast_field_writer);
                         }
                         Some(Cardinality::MultiValues) => {
-                            let fast_field_writer = MultiValueIntFastFieldWriter::new(field);
+                            let fast_field_writer = MultiValueIntFastFieldWriter::new(field, false);
                             multi_values_writers.push(fast_field_writer);
                         }
                         None => {}
                     }
                 }
                 FieldType::HierarchicalFacet => {
-                    let fast_field_writer = MultiValueIntFastFieldWriter::new(field);
+                    let fast_field_writer = MultiValueIntFastFieldWriter::new(field, true);
                     multi_values_writers.push(fast_field_writer);
                 }
                 _ => {}
@@ -97,6 +96,7 @@ impl FastFieldsWriter {
         }
         for field_writer in &mut self.multi_values_writers {
             field_writer.next_doc();
+            field_writer.add_document(doc);
         }
     }
 
@@ -112,11 +112,7 @@ impl FastFieldsWriter {
         }
         for field_writer in &self.multi_values_writers {
             let field = field_writer.field();
-            if let Some(mapping) = mapping.get(&field) {
-                field_writer.serialize(serializer, mapping)?;
-            } else {
-                panic!("Term ordinal mapping missing for {:?}", field);
-            }
+            field_writer.serialize(serializer, mapping.get(&field))?;
         }
         Ok(())
     }
@@ -160,7 +156,7 @@ impl IntFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
     pub fn new(field: Field) -> IntFastFieldWriter {
         IntFastFieldWriter {
-            field: field,
+            field,
             vals: Vec::new(),
             val_count: 0,
             val_if_missing: 0u64,
@@ -227,11 +223,7 @@ impl IntFastFieldWriter {
     /// only the first one is taken in account.
     fn extract_val(&self, doc: &Document) -> u64 {
         match doc.get_first(self.field) {
-            Some(v) => match *v {
-                Value::U64(ref val) => *val,
-                Value::I64(ref val) => common::i64_to_u64(*val),
-                _ => panic!("Expected a u64field, got {:?} ", v),
-            },
+            Some(v) => super::value_to_u64(v),
             None => self.val_if_missing,
         }
     }
