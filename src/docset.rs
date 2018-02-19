@@ -83,17 +83,6 @@ pub trait DocSet {
     /// Returns the current document
     fn doc(&self) -> DocId;
 
-    /// Advances the cursor to the next document
-    /// None is returned if the iterator has `DocSet`
-    /// has already been entirely consumed.
-    fn next(&mut self) -> Option<DocId> {
-        if self.advance() {
-            Some(self.doc())
-        } else {
-            None
-        }
-    }
-
     /// Returns a best-effort hint of the
     /// length of the docset.
     fn size_hint(&self) -> u32;
@@ -117,6 +106,7 @@ pub trait DocSet {
     }
 }
 
+
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn advance(&mut self) -> bool {
         let unboxed: &mut TDocSet = self.borrow_mut();
@@ -138,11 +128,16 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.size_hint()
     }
 
+    fn count(&mut self) -> u32 {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.count()
+    }
+
+
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.append_to_bitset(bitset);
     }
 }
 
-#[cfg(test)]
-mod tests {}
+

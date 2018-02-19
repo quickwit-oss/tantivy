@@ -13,9 +13,9 @@ use query::RequiredOptionalScorer;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
 
-fn scorer_union<'a, TScoreCombiner>(scorers: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a>
+fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
-    TScoreCombiner: ScoreCombiner + 'static,
+    TScoreCombiner: ScoreCombiner,
 {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {

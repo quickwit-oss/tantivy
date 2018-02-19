@@ -29,7 +29,7 @@ mod downcast_impl {
     downcast!(super::Scorer);
 }
 
-impl<'a> Scorer for Box<Scorer + 'a> {
+impl Scorer for Box<Scorer> {
     fn score(&mut self) -> Score {
         self.deref_mut().score()
     }

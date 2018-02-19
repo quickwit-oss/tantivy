@@ -109,17 +109,6 @@ impl DocSet for BitSetDocSet {
         self.doc
     }
 
-    /// Advances the cursor to the next document
-    /// None is returned if the iterator has `DocSet`
-    /// has already been entirely consumed.
-    fn next(&mut self) -> Option<DocId> {
-        if self.advance() {
-            Some(self.doc())
-        } else {
-            None
-        }
-    }
-
     /// Returns half of the `max_doc`
     /// This is quite a terrible heuristic,
     /// but we don't have access to any better
