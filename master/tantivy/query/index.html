@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/query/mod.rs.html#1-33' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/tantivy/query/mod.rs.html#1-47' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Query</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
@@ -122,11 +122,18 @@ you needed a scorer.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.OccurFilter.html"
-                                  title='struct tantivy::query::OccurFilter'>OccurFilter</a></td>
+                           <td><a class="struct" href="struct.Exclude.html"
+                                  title='struct tantivy::query::Exclude'>Exclude</a></td>
                            <td class='docblock-short'>
-                                <p>An <code>OccurFilter</code> represents a filter over a bitset of
-at most 64 elements.</p>
+                                <p>Filters a given <code>DocSet</code> by removing the docs from a given <code>DocSet</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Intersection.html"
+                                  title='struct tantivy::query::Intersection'>Intersection</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a <code>DocSet</code> that iterator through the intersection of two <code>DocSet</code>s.</p>
 
                            </td>
                        </tr>
@@ -155,11 +162,29 @@ at most 64 elements.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
+                           <td><a class="struct" href="struct.RequiredOptionalScorer.html"
+                                  title='struct tantivy::query::RequiredOptionalScorer'>RequiredOptionalScorer</a></td>
+                           <td class='docblock-short'>
+                                <p>Given a required scorer and an optional scorer
+matches all document from the required scorer
+and complements the score using the optional scorer.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class="struct" href="struct.TermQuery.html"
                                   title='struct tantivy::query::TermQuery'>TermQuery</a></td>
                            <td class='docblock-short'>
                                 <p>A Term query matches all of the documents
 containing a specific term.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Union.html"
+                                  title='struct tantivy::query::Union'>Union</a></td>
+                           <td class='docblock-short'>
+                                <p>Creates a <code>DocSet</code> that iterator through the intersection of two <code>DocSet</code>s.</p>
 
                            </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>

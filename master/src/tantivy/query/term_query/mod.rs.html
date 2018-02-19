@@ -138,10 +138,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">DocSet</span>, <span class="ident">VecPostings</span>};
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Scorer</span>};
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::<span class="ident">TermScorer</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
     <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
@@ -175,7 +175,7 @@
             <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>),
             <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>,
         );
-        <span class="kw">let</span> <span class="ident">term_weight</span> <span class="op">=</span> <span class="ident">term_query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">term_weight</span> <span class="op">=</span> <span class="ident">term_query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_scorer</span> <span class="op">=</span> <span class="ident">term_weight</span>.<span class="ident">scorer</span>(<span class="ident">segment_reader</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">advance</span>());
@@ -188,7 +188,7 @@
         <span class="kw">let</span> <span class="ident">left_fieldnorms</span> <span class="op">=</span> <span class="ident">U64FastFieldReader</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">10</span>, <span class="number">4</span>]);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">10</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">4</span>);
-        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecPostings</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>]);
+        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">SegmentPostings</span>::<span class="ident">create_from_docs</span>(<span class="kw-2">&amp;</span>[<span class="number">1</span>]);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">left_scorer</span> <span class="op">=</span> <span class="ident">TermScorer</span> {
             <span class="ident">idf</span>: <span class="number">0.30685282</span>,
             <span class="ident">fieldnorm_reader_opt</span>: <span class="prelude-val">Some</span>(<span class="ident">left_fieldnorms</span>),

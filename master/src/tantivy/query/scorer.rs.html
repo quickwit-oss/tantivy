@@ -175,23 +175,26 @@
 <span id="119">119</span>
 <span id="120">120</span>
 <span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocSet</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SkipResult</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BitSet</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
+<span class="kw">use</span> <span class="ident">downcast</span>;
 
 <span class="doccomment">/// Scored set of documents matching a query within a specific segment.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [`Query`](./trait.Query.html).</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Scorer</span>: <span class="ident">DocSet</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Scorer</span>: <span class="ident">downcast</span>::<span class="ident">Any</span> <span class="op">+</span> <span class="ident">DocSet</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {
     <span class="doccomment">/// Returns the score.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This method will perform a bit of computation and is not cached.</span>
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span>;
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span>;
 
     <span class="doccomment">/// Consumes the complete `DocSet` and</span>
     <span class="doccomment">/// push the scored documents to the collector.</span>
@@ -202,16 +205,19 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
+<span class="kw">mod</span> <span class="ident">downcast_impl</span> {
+    <span class="macro">downcast</span><span class="macro">!</span>(<span class="kw">super</span>::<span class="ident">Scorer</span>);
+}
+
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
-        <span class="self">self</span>.<span class="ident">deref</span>().<span class="ident">score</span>()
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
+        <span class="self">self</span>.<span class="ident">deref_mut</span>().<span class="ident">score</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Collector</span>) {
         <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">deref_mut</span>();
-        <span class="kw">while</span> <span class="ident">scorer</span>.<span class="ident">advance</span>() {
-            <span class="ident">collector</span>.<span class="ident">collect</span>(<span class="ident">scorer</span>.<span class="ident">doc</span>(), <span class="ident">scorer</span>.<span class="ident">score</span>());
-        }
+        <span class="ident">scorer</span>.<span class="ident">collect</span>(<span class="ident">collector</span>);
     }
 }
 
@@ -235,7 +241,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">EmptyScorer</span> {
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
         <span class="number">0f32</span>
     }
 }
@@ -292,8 +298,8 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">ConstScorer</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">ConstScorer</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
         <span class="number">1f32</span>
     }
 }

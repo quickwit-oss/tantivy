@@ -89,6 +89,13 @@
 <span id="33">33</span>
 <span id="34">34</span>
 <span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
@@ -103,14 +110,21 @@
     <span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">PhraseWeight</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">PhraseWeight</span> {
+<span class="kw">impl</span> <span class="ident">PhraseWeight</span> {
+    <span class="doccomment">/// Creates a new phrase weight.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Right now `scoring_enabled` is actually ignored.</span>
+    <span class="doccomment">/// In the future, disabling scoring will result in a small performance boost.</span>
+    <span class="comment">// TODO use the scoring disable information to avoid compute the</span>
+    <span class="comment">// phrase freq in that case, and compute the phrase freq when scoring is enabled.</span>
+    <span class="comment">// Right now we never compute it :|</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>, <span class="ident">_scoring_enabled</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">PhraseWeight</span> {
         <span class="ident">PhraseWeight</span> { <span class="ident">phrase_terms</span> }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Weight</span> <span class="kw">for</span> <span class="ident">PhraseWeight</span> {
-    <span class="kw">fn</span> <span class="ident">scorer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">scorer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_postings_list</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">phrase_terms</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">postings</span>) <span class="op">=</span> <span class="ident">reader</span>

@@ -87,6 +87,20 @@
 <span id="31">31</span>
 <span id="32">32</span>
 <span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Query
@@ -97,17 +111,32 @@ Query
 <span class="kw">mod</span> <span class="ident">scorer</span>;
 <span class="kw">mod</span> <span class="ident">occur</span>;
 <span class="kw">mod</span> <span class="ident">weight</span>;
-<span class="kw">mod</span> <span class="ident">occur_filter</span>;
 <span class="kw">mod</span> <span class="ident">term_query</span>;
 <span class="kw">mod</span> <span class="ident">query_parser</span>;
 <span class="kw">mod</span> <span class="ident">phrase_query</span>;
 <span class="kw">mod</span> <span class="ident">all_query</span>;
 <span class="kw">mod</span> <span class="ident">bitset</span>;
 <span class="kw">mod</span> <span class="ident">range_query</span>;
+<span class="kw">mod</span> <span class="ident">exclude</span>;
+<span class="kw">mod</span> <span class="ident">union</span>;
+<span class="kw">mod</span> <span class="ident">intersection</span>;
+<span class="kw">mod</span> <span class="ident">reqopt_scorer</span>;
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">vec_docset</span>;
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod</span> <span class="ident">score_combiner</span>;
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">intersection</span>::<span class="ident">Intersection</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">union</span>::<span class="ident">Union</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vec_docset</span>::<span class="ident">VecDocSet</span>;
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reqopt_scorer</span>::<span class="ident">RequiredOptionalScorer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">exclude</span>::<span class="ident">Exclude</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">bitset</span>::<span class="ident">BitSetDocSet</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">boolean_query</span>::<span class="ident">BooleanQuery</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">occur_filter</span>::<span class="ident">OccurFilter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">occur</span>::<span class="ident">Occur</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">phrase_query</span>::<span class="ident">PhraseQuery</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">query_parser</span>::<span class="ident">QueryParserError</span>;
@@ -117,7 +146,6 @@ Query
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">scorer</span>::<span class="ident">Scorer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_query</span>::<span class="ident">TermQuery</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">weight</span>::<span class="ident">Weight</span>;
-
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">all_query</span>::{<span class="ident">AllQuery</span>, <span class="ident">AllScorer</span>, <span class="ident">AllWeight</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">range_query</span>::<span class="ident">RangeQuery</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">scorer</span>::<span class="ident">ConstScorer</span>;

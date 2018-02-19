@@ -98,16 +98,11 @@
 <span id="42">42</span>
 <span id="43">43</span>
 <span id="44">44</span>
-<span id="45">45</span>
-<span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">PhraseWeight</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">any</span>::<span class="ident">Any</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
@@ -131,17 +126,14 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Query</span> <span class="kw">for</span> <span class="ident">PhraseQuery</span> {
-    <span class="doccomment">/// Used to make it possible to cast Box&lt;Query&gt;</span>
-    <span class="doccomment">/// into a specific type. This is mostly useful for unit tests.</span>
-    <span class="kw">fn</span> <span class="ident">as_any</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Any</span> {
-        <span class="self">self</span>
-    }
-
     <span class="doccomment">/// Create the weight associated to a query.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// See [`Weight`](./trait.Weight.html).</span>
-    <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_searcher</span>: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseWeight</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">phrase_terms</span>.<span class="ident">clone</span>()))
+    <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_searcher</span>: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>, <span class="ident">scoring_enabled</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseWeight</span>::<span class="ident">new</span>(
+            <span class="self">self</span>.<span class="ident">phrase_terms</span>.<span class="ident">clone</span>(),
+            <span class="ident">scoring_enabled</span>,
+        ))
     }
 }
 

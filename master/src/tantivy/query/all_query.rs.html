@@ -120,21 +120,15 @@
 <span id="64">64</span>
 <span id="65">65</span>
 <span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">DocSet</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">any</span>::<span class="ident">Any</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Searcher</span>;
 
 <span class="doccomment">/// Query that matches all of the documents.</span>
@@ -144,11 +138,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AllQuery</span>;
 
 <span class="kw">impl</span> <span class="ident">Query</span> <span class="kw">for</span> <span class="ident">AllQuery</span> {
-    <span class="kw">fn</span> <span class="ident">as_any</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Any</span> {
-        <span class="self">self</span>
-    }
-
-    <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>, _: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">AllWeight</span>)
     }
 }
@@ -157,7 +147,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AllWeight</span>;
 
 <span class="kw">impl</span> <span class="ident">Weight</span> <span class="kw">for</span> <span class="ident">AllWeight</span> {
-    <span class="kw">fn</span> <span class="ident">scorer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">scorer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">AllScorer</span> {
             <span class="ident">started</span>: <span class="bool-val">false</span>,
             <span class="ident">doc</span>: <span class="number">0u32</span>,
@@ -193,7 +183,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">AllScorer</span> {
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
         <span class="number">1f32</span>
     }
 }

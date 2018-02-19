@@ -188,10 +188,30 @@
 <span id="132">132</span>
 <span id="133">133</span>
 <span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">DocSet</span>, <span class="ident">IntersectionDocSet</span>, <span class="ident">Postings</span>, <span class="ident">SegmentPostings</span>, <span class="ident">SkipResult</span>};
+<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">Postings</span>, <span class="ident">SegmentPostings</span>};
+<span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Intersection</span>, <span class="ident">Scorer</span>};
 
 <span class="kw">struct</span> <span class="ident">PostingsWithOffset</span> {
     <span class="ident">offset</span>: <span class="ident">u32</span>,
@@ -222,6 +242,10 @@
         <span class="self">self</span>.<span class="ident">segment_postings</span>.<span class="ident">advance</span>()
     }
 
+    <span class="kw">fn</span> <span class="ident">skip_next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">target</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
+        <span class="self">self</span>.<span class="ident">segment_postings</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>)
+    }
+
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">segment_postings</span>.<span class="ident">doc</span>()
     }
@@ -229,14 +253,10 @@
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">segment_postings</span>.<span class="ident">size_hint</span>()
     }
-
-    <span class="kw">fn</span> <span class="ident">skip_next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">target</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
-        <span class="self">self</span>.<span class="ident">segment_postings</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>)
-    }
 }
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PhraseScorer</span> {
-    <span class="ident">intersection_docset</span>: <span class="ident">IntersectionDocSet</span><span class="op">&lt;</span><span class="ident">PostingsWithOffset</span><span class="op">&gt;</span>,
+    <span class="ident">intersection_docset</span>: <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">PostingsWithOffset</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">PhraseScorer</span> {
@@ -247,7 +267,7 @@
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">offset</span>, <span class="ident">postings</span>)<span class="op">|</span> <span class="ident">PostingsWithOffset</span>::<span class="ident">new</span>(<span class="ident">postings</span>, <span class="ident">offset</span> <span class="kw">as</span> <span class="ident">u32</span>))
             .<span class="ident">collect</span>();
         <span class="ident">PhraseScorer</span> {
-            <span class="ident">intersection_docset</span>: <span class="ident">IntersectionDocSet</span>::<span class="ident">from</span>(<span class="ident">postings_with_offsets</span>),
+            <span class="ident">intersection_docset</span>: <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="ident">postings_with_offsets</span>),
         }
     }
 
@@ -309,6 +329,24 @@
         <span class="bool-val">false</span>
     }
 
+    <span class="kw">fn</span> <span class="ident">skip_next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">target</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">intersection_docset</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>) <span class="op">==</span> <span class="ident">SkipResult</span>::<span class="ident">End</span> {
+            <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">End</span>;
+        }
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">phrase_match</span>() {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">doc</span>() <span class="op">==</span> <span class="ident">target</span> {
+                <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span>;
+            } <span class="kw">else</span> {
+                <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>;
+            }
+        }
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">advance</span>() {
+            <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>
+        } <span class="kw">else</span> {
+            <span class="ident">SkipResult</span>::<span class="ident">End</span>
+        }
+    }
+
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">intersection_docset</span>.<span class="ident">doc</span>()
     }
@@ -319,7 +357,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">PhraseScorer</span> {
-    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">f32</span> {
+    <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">f32</span> {
         <span class="number">1f32</span>
     }
 }

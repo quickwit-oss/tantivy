@@ -71,7 +71,7 @@
 </pre><pre class="rust ">
 <span class="doccomment">/// Defines whether a term in a query must be present,</span>
 <span class="doccomment">/// should be present or must not be present.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Hash</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Occur</span> {
     <span class="doccomment">/// For a given document to be considered for scoring,</span>
     <span class="doccomment">/// at least one of the document with the Should or the Must</span>

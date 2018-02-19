@@ -659,7 +659,7 @@
     }
 }
 
-<span class="kw">struct</span> <span class="ident">PostingsSerializer</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PostingsSerializer</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span> {
     <span class="ident">postings_write</span>: <span class="ident">CountingWriter</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>,
     <span class="ident">last_doc_id_encoded</span>: <span class="ident">u32</span>,
 
@@ -671,7 +671,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span> <span class="ident">PostingsSerializer</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">write</span>: <span class="ident">W</span>, <span class="ident">termfreq_enabled</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">PostingsSerializer</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">write</span>: <span class="ident">W</span>, <span class="ident">termfreq_enabled</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">PostingsSerializer</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span> {
         <span class="ident">PostingsSerializer</span> {
             <span class="ident">postings_write</span>: <span class="ident">CountingWriter</span>::<span class="ident">wrap</span>(<span class="ident">write</span>),
 
@@ -684,7 +684,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">write_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>, <span class="ident">term_freq</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>, <span class="ident">term_freq</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">doc_ids</span>.<span class="ident">push</span>(<span class="ident">doc_id</span>);
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">termfreq_enabled</span> {
             <span class="self">self</span>.<span class="ident">term_freqs</span>.<span class="ident">push</span>(<span class="ident">term_freq</span> <span class="kw">as</span> <span class="ident">u32</span>);
@@ -709,7 +709,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">close_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">close_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">doc_ids</span>.<span class="ident">is_empty</span>() {
             <span class="comment">// we have doc ids waiting to be written</span>
             <span class="comment">// this happens when the number of doc ids is</span>

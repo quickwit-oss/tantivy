@@ -367,9 +367,9 @@
             .<span class="ident">collect</span>();
 
         <span class="ident">MultiFieldPostingsWriter</span> {
-            <span class="ident">heap</span>: <span class="ident">heap</span>,
-            <span class="ident">term_index</span>: <span class="ident">term_index</span>,
-            <span class="ident">per_field_postings_writers</span>: <span class="ident">per_field_postings_writers</span>,
+            <span class="ident">heap</span>,
+            <span class="ident">term_index</span>,
+            <span class="ident">per_field_postings_writers</span>,
         }
     }
 
@@ -507,7 +507,7 @@
     <span class="doccomment">/// constructor</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>) <span class="op">-&gt;</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span><span class="op">&gt;</span> {
         <span class="ident">SpecializedPostingsWriter</span> {
-            <span class="ident">heap</span>: <span class="ident">heap</span>,
+            <span class="ident">heap</span>,
             <span class="ident">_recorder_type</span>: <span class="ident">PhantomData</span>,
         }
     }

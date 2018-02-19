@@ -436,6 +436,14 @@
 <span id="380">380</span>
 <span id="381">381</span>
 <span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
@@ -490,7 +498,7 @@
     <span class="doccomment">/// within `[0; 64[`</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">singleton</span>(<span class="ident">el</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">TinySet</span> {
-        <span class="ident">TinySet</span>(<span class="number">1u64</span> <span class="op">&lt;&lt;</span> (<span class="ident">el</span> <span class="kw">as</span> <span class="ident">u64</span>))
+        <span class="ident">TinySet</span>(<span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">el</span>))
     }
 
     <span class="doccomment">/// Insert a new element within [0..64[</span>
@@ -548,7 +556,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The limit is assumed to be strictly lower than 64.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range_lower</span>(<span class="ident">upper_bound</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">TinySet</span> {
-        <span class="ident">TinySet</span>((<span class="number">1u64</span> <span class="op">&lt;&lt;</span> ((<span class="ident">upper_bound</span> <span class="op">%</span> <span class="number">64u32</span>) <span class="kw">as</span> <span class="ident">u64</span>)) <span class="op">-</span> <span class="number">1u64</span>)
+        <span class="ident">TinySet</span>((<span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">upper_bound</span> <span class="op">%</span> <span class="number">64u32</span>)) <span class="op">-</span> <span class="number">1u64</span>)
     }
 
     <span class="doccomment">/// Returns a `TinySet` that contains all values greater</span>
@@ -557,6 +565,14 @@
     <span class="doccomment">/// The limit is assumed to be strictly lower than 64.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range_greater_or_equal</span>(<span class="ident">from_included</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">TinySet</span> {
         <span class="ident">TinySet</span>::<span class="ident">range_lower</span>(<span class="ident">from_included</span>).<span class="ident">complement</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> <span class="number">0u64</span>;
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">count_ones</span>()
     }
 }
 
@@ -651,7 +667,7 @@
     <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">generate_nonunique_unsorted</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BitSetDocSet</span>;
-    <span class="kw">use</span> <span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_tiny_set</span>() {

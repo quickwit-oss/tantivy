@@ -234,6 +234,20 @@
 <span id="178">178</span>
 <span id="179">179</span>
 <span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Defines how the documents matching a search query should be processed.
@@ -299,6 +313,9 @@ Defines how the documents matching a search query should be processed.
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
     <span class="doccomment">/// The query pushes the scored document to the collector via this method.</span>
     <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">score</span>: <span class="ident">Score</span>);
+
+    <span class="doccomment">/// Returns true iff the collector requires to compute scores for documents.</span>
+    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">C</span>: <span class="ident">Collector</span><span class="op">&gt;</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">C</span> {
@@ -311,7 +328,11 @@ Defines how the documents matching a search query should be processed.
     }
     <span class="doccomment">/// The query pushes the scored document to the collector via this method.</span>
     <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">score</span>: <span class="ident">Score</span>) {
-        (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">collect</span>(<span class="ident">doc</span>, <span class="ident">score</span>);
+        <span class="ident">C</span>::<span class="ident">collect</span>(<span class="self">self</span>, <span class="ident">doc</span>, <span class="ident">score</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">C</span>::<span class="ident">requires_scoring</span>(<span class="self">self</span>)
     }
 }
 
@@ -365,6 +386,10 @@ Defines how the documents matching a search query should be processed.
         <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">_score</span>: <span class="ident">Score</span>) {
             <span class="self">self</span>.<span class="ident">docs</span>.<span class="ident">push</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">offset</span>);
         }
+
+        <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+            <span class="bool-val">false</span>
+        }
     }
 
     <span class="doccomment">/// Collects in order all of the fast fields for all of the</span>
@@ -381,7 +406,7 @@ Defines how the documents matching a search query should be processed.
         <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span>(<span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">FastFieldTestCollector</span> {
             <span class="ident">FastFieldTestCollector</span> {
                 <span class="ident">vals</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-                <span class="ident">field</span>: <span class="ident">field</span>,
+                <span class="ident">field</span>,
                 <span class="ident">ff_reader</span>: <span class="prelude-val">None</span>,
             }
         }
@@ -400,6 +425,9 @@ Defines how the documents matching a search query should be processed.
         <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">_score</span>: <span class="ident">Score</span>) {
             <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">ff_reader</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">get</span>(<span class="ident">doc</span>);
             <span class="self">self</span>.<span class="ident">vals</span>.<span class="ident">push</span>(<span class="ident">val</span>);
+        }
+        <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+            <span class="bool-val">false</span>
         }
     }
 

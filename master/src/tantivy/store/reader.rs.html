@@ -205,7 +205,7 @@
 
     <span class="kw">fn</span> <span class="ident">block_offset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> (<span class="ident">DocId</span>, <span class="ident">u64</span>) {
         <span class="self">self</span>.<span class="ident">block_index</span>()
-            .<span class="ident">seek</span>(<span class="ident">doc_id</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>)
+            .<span class="ident">seek</span>(<span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">doc_id</span>) <span class="op">+</span> <span class="number">1</span>)
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">doc</span>, <span class="ident">offset</span>)<span class="op">|</span> (<span class="ident">doc</span> <span class="kw">as</span> <span class="ident">DocId</span>, <span class="ident">offset</span>))
             .<span class="ident">unwrap_or</span>((<span class="number">0u32</span>, <span class="number">0u64</span>))
     }

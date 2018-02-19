@@ -686,6 +686,77 @@
 <span id="630">630</span>
 <span id="631">631</span>
 <span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Postings module (also called inverted index)
@@ -701,12 +772,8 @@ Postings module (also called inverted index)
 <span class="kw">mod</span> <span class="ident">serializer</span>;
 <span class="kw">mod</span> <span class="ident">postings_writer</span>;
 <span class="kw">mod</span> <span class="ident">term_info</span>;
-<span class="kw">mod</span> <span class="ident">vec_postings</span>;
 <span class="kw">mod</span> <span class="ident">segment_postings</span>;
-<span class="kw">mod</span> <span class="ident">intersection</span>;
-<span class="kw">mod</span> <span class="ident">docset</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings_writer</span>::<span class="ident">MultiFieldPostingsWriter</span>;
@@ -714,19 +781,28 @@ Postings module (also called inverted index)
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_info</span>::<span class="ident">TermInfo</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings</span>::<span class="ident">Postings</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vec_postings</span>::<span class="ident">VecPostings</span>;
-
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_postings</span>::{<span class="ident">BlockSegmentPostings</span>, <span class="ident">SegmentPostings</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">intersection</span>::<span class="ident">IntersectionDocSet</span>;
+
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">UnorderedTermId</span> <span class="op">=</span> <span class="ident">usize</span>;
 
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">enum_variant_names</span>)]</span>
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum</span> <span class="ident">FreqReadingOption</span> {
+    <span class="ident">NoFreq</span>,
+    <span class="ident">SkipFreq</span>,
+    <span class="ident">ReadFreq</span>,
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+    <span class="kw">use</span> <span class="ident">DocId</span>;
+    <span class="kw">use</span> <span class="ident">Score</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Intersection</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
     <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentWriter</span>;
@@ -787,7 +863,7 @@ Postings module (also called inverted index)
             <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">title</span>, <span class="string">&quot;abc&quot;</span>),
             <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>,
         );
-        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>);
+        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>);
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
                 .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
@@ -967,7 +1043,7 @@ Postings module (also called inverted index)
             <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>,
         );
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_weight</span> <span class="op">=</span> <span class="ident">term_query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_weight</span> <span class="op">=</span> <span class="ident">term_query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>);
         <span class="ident">term_weight</span>.<span class="ident">index_record_option</span> <span class="op">=</span> <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>;
         <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">searcher</span>.<span class="ident">segment_readers</span>()[<span class="number">0</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_scorer</span> <span class="op">=</span> <span class="ident">term_weight</span>.<span class="ident">specialized_scorer</span>(<span class="ident">segment_reader</span>).<span class="ident">unwrap</span>();
@@ -1236,7 +1312,7 @@ Postings module (also called inverted index)
                 .<span class="ident">inverted_index</span>(<span class="ident">TERM_D</span>.<span class="ident">field</span>())
                 .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">TERM_D</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">IntersectionDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">segment_postings_a</span>,
                 <span class="ident">segment_postings_b</span>,
                 <span class="ident">segment_postings_c</span>,
@@ -1316,6 +1392,72 @@ Postings module (also called inverted index)
             }
             <span class="ident">s</span>
         });
+    }
+
+    <span class="doccomment">/// Wraps a given docset, and forward alls call but the</span>
+    <span class="doccomment">/// `.skip_next(...)`. This is useful to test that a specialized</span>
+    <span class="doccomment">/// implementation of `.skip_next(...)` is consistent</span>
+    <span class="doccomment">/// with the default implementation.</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">UnoptimizedDocSet</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span>(<span class="ident">TDocSet</span>);
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">UnoptimizedDocSet</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wrap</span>(<span class="ident">docset</span>: <span class="ident">TDocSet</span>) <span class="op">-&gt;</span> <span class="ident">UnoptimizedDocSet</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
+            <span class="ident">UnoptimizedDocSet</span>(<span class="ident">docset</span>)
+        }
+    }
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">UnoptimizedDocSet</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+            <span class="self">self</span>.<span class="number">0</span>.<span class="ident">advance</span>()
+        }
+
+        <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
+            <span class="self">self</span>.<span class="number">0</span>.<span class="ident">doc</span>()
+        }
+
+        <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+            <span class="self">self</span>.<span class="number">0</span>.<span class="ident">size_hint</span>()
+        }
+    }
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TScorer</span>: <span class="ident">Scorer</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">UnoptimizedDocSet</span><span class="op">&lt;</span><span class="ident">TScorer</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
+            <span class="self">self</span>.<span class="number">0</span>.<span class="ident">score</span>()
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_skip_against_unoptimized</span><span class="op">&lt;</span><span class="ident">F</span>: <span class="ident">Fn</span>() <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DocSet</span><span class="op">&gt;&gt;</span>(
+        <span class="ident">postings_factory</span>: <span class="ident">F</span>,
+        <span class="ident">targets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+    ) {
+        <span class="kw">for</span> <span class="ident">target</span> <span class="kw">in</span> <span class="ident">targets</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings_opt</span> <span class="op">=</span> <span class="ident">postings_factory</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings_unopt</span> <span class="op">=</span> <span class="ident">UnoptimizedDocSet</span>::<span class="ident">wrap</span>(<span class="ident">postings_factory</span>());
+            <span class="kw">let</span> <span class="ident">skip_result_opt</span> <span class="op">=</span> <span class="ident">postings_opt</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>);
+            <span class="kw">let</span> <span class="ident">skip_result_unopt</span> <span class="op">=</span> <span class="ident">postings_unopt</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(
+                <span class="ident">skip_result_unopt</span>, <span class="ident">skip_result_opt</span>,
+                <span class="string">&quot;Failed while skipping to {}&quot;</span>,
+                <span class="ident">target</span>
+            );
+            <span class="kw">match</span> <span class="ident">skip_result_opt</span> {
+                <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_opt</span>.<span class="ident">doc</span>(), <span class="ident">target</span>),
+                <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_opt</span>.<span class="ident">doc</span>() <span class="op">&gt;</span> <span class="ident">target</span>),
+                <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span>;
+                }
+            }
+            <span class="kw">while</span> <span class="ident">postings_opt</span>.<span class="ident">advance</span>() {
+                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_unopt</span>.<span class="ident">advance</span>());
+                <span class="macro">assert_eq</span><span class="macro">!</span>(
+                    <span class="ident">postings_opt</span>.<span class="ident">doc</span>(),
+                    <span class="ident">postings_unopt</span>.<span class="ident">doc</span>(),
+                    <span class="string">&quot;Failed while skipping to {}&quot;</span>,
+                    <span class="ident">target</span>
+                );
+            }
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">postings_unopt</span>.<span class="ident">advance</span>());
+        }
     }
 
 }

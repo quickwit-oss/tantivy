@@ -322,6 +322,10 @@
 <span id="266">266</span>
 <span id="267">267</span>
 <span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -329,6 +333,12 @@
 <span class="kw">mod</span> <span class="ident">stream</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stream</span>::<span class="ident">CompressedIntStream</span>;
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">128</span>;
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">compute_block_size</span>(<span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="number">1</span> <span class="op">+</span> (<span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">*</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> <span class="op">+</span> <span class="number">7</span>) <span class="op">/</span> <span class="number">8</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simdcompression&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">pack</span> {
@@ -436,8 +446,6 @@
         <span class="ident">vint</span>::<span class="ident">uncompress_unsorted</span>(<span class="ident">compressed_data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>[..<span class="ident">num_els</span>])
     }
 }
-
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">128</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {

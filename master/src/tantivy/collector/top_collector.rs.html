@@ -239,6 +239,10 @@
 <span id="183">183</span>
 <span id="184">184</span>
 <span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Collector</span>;
 <span class="kw">use</span> <span class="ident">SegmentReader</span>;
@@ -366,6 +370,10 @@
             };
             <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">push</span>(<span class="ident">wrapped_doc</span>);
         }
+    }
+
+    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
     }
 }
 

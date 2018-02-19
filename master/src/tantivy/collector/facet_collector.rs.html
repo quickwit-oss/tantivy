@@ -687,6 +687,10 @@
 <span id="631">631</span>
 <span id="632">632</span>
 <span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
@@ -702,7 +706,7 @@
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamerBuilder</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermMerger</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SkipResult</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">SkipResult</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">usize</span>, <span class="ident">u64</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
 
@@ -1109,6 +1113,10 @@
             };
             <span class="ident">previous_collapsed_ord</span> <span class="op">=</span> <span class="ident">collapsed_ord</span>;
         }
+    }
+
+    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">false</span>
     }
 }
 

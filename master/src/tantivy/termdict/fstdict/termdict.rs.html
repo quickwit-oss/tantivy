@@ -336,7 +336,7 @@
         <span class="kw">let</span> <span class="ident">fst_index</span> <span class="op">=</span> <span class="ident">open_fst_index</span>(<span class="ident">fst_source</span>);
         <span class="ident">TermDictionaryImpl</span> {
             <span class="ident">fst_index</span>,
-            <span class="ident">term_info_store</span>: <span class="ident">TermInfoStore</span>::<span class="ident">open</span>(<span class="ident">values_source</span>),
+            <span class="ident">term_info_store</span>: <span class="ident">TermInfoStore</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">values_source</span>),
         }
     }
 

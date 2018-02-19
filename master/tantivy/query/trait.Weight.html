@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Trait Weight</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.scorer">scorer</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a></p><script>window.sidebarCurrent = {name: 'Weight', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Trait Weight</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.scorer">scorer</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.count">count</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a></p><script>window.sidebarCurrent = {name: 'Weight', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,9 +59,11 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/query/weight.rs.html#9-13' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/tantivy/query/weight.rs.html#9-18' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Weight {
-    fn <a href='#tymethod.scorer' class='fnname'>scorer</a>&lt;'a&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;'a self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reader: &amp;'a <a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="../../tantivy/query/trait.Scorer.html" title="trait tantivy::query::Scorer">Scorer</a> + 'a&gt;&gt;;
+    fn <a href='#tymethod.scorer' class='fnname'>scorer</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="../../tantivy/query/trait.Scorer.html" title="trait tantivy::query::Scorer">Scorer</a>&gt;&gt;;
+
+    fn <a href='#method.count' class='fnname'>count</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt; { ... }
 }</pre><div class='docblock'><p>A Weight is the specialization of a Query
 for a given set of segments.</p>
 <p>See <a href="./trait.Query.html"><code>Query</code></a>.</p>
@@ -70,14 +72,20 @@ for a given set of segments.</p>
               Required Methods<a href='#required-methods' class='anchor'></a>
             </h2>
             <div class='methods'>
-        <h3 id='tymethod.scorer' class='method'><span id='scorer.v' class='invisible'><code>fn <a href='#tymethod.scorer' class='fnname'>scorer</a>&lt;'a&gt;(&amp;'a self, reader: &amp;'a <a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="../../tantivy/query/trait.Scorer.html" title="trait tantivy::query::Scorer">Scorer</a> + 'a&gt;&gt;</code></span></h3><div class='docblock'><p>Returns the scorer for the given segment.
+        <h3 id='tymethod.scorer' class='method'><span id='scorer.v' class='invisible'><code>fn <a href='#tymethod.scorer' class='fnname'>scorer</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="../../tantivy/query/trait.Scorer.html" title="trait tantivy::query::Scorer">Scorer</a>&gt;&gt;</code></span></h3><div class='docblock'><p>Returns the scorer for the given segment.
 See <a href="./trait.Query.html"><code>Query</code></a>.</p>
+</div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.count' class='method'><span id='count.v' class='invisible'><code>fn <a href='#method.count' class='fnname'>count</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;</code></span></h3><div class='docblock'><p>Returns the number documents within the given <code>SegmentReader</code>.</p>
 </div></div>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/all_query.rs.html#31-39' title='goto source code'>[src]</a></div><code>impl Weight for <a class="struct" href="../../tantivy/query/struct.AllWeight.html" title="struct tantivy::query::AllWeight">AllWeight</a></code></li>
+    <li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/query/all_query.rs.html#26-34' title='goto source code'>[src]</a></div><code>impl Weight for <a class="struct" href="../../tantivy/query/struct.AllWeight.html" title="struct tantivy::query::AllWeight">AllWeight</a></code></li>
 </ul><script type="text/javascript" async
                          src="../../implementors/tantivy/query/trait.Weight.js">
                  </script></section>
