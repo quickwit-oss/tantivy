@@ -212,9 +212,9 @@
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::{<span class="ident">DoNothingCombiner</span>, <span class="ident">ScoreCombiner</span>, <span class="ident">SumWithCoordsCombiner</span>};
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
-<span class="kw">fn</span> <span class="ident">scorer_union</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">TScoreCombiner</span><span class="op">&gt;</span>(<span class="ident">scorers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span>
+<span class="kw">fn</span> <span class="ident">scorer_union</span><span class="op">&lt;</span><span class="ident">TScoreCombiner</span><span class="op">&gt;</span>(<span class="ident">scorers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">TScoreCombiner</span>: <span class="ident">ScoreCombiner</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+    <span class="ident">TScoreCombiner</span>: <span class="ident">ScoreCombiner</span>,
 {
     <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">scorers</span>.<span class="ident">is_empty</span>());
     <span class="kw">if</span> <span class="ident">scorers</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {

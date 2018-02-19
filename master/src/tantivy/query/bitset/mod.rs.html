@@ -311,17 +311,6 @@
 <span id="255">255</span>
 <span id="256">256</span>
 <span id="257">257</span>
-<span id="258">258</span>
-<span id="259">259</span>
-<span id="260">260</span>
-<span id="261">261</span>
-<span id="262">262</span>
-<span id="263">263</span>
-<span id="264">264</span>
-<span id="265">265</span>
-<span id="266">266</span>
-<span id="267">267</span>
-<span id="268">268</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">BitSet</span>, <span class="ident">TinySet</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -432,17 +421,6 @@
     <span class="doccomment">/// Returns the current document</span>
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">doc</span>
-    }
-
-    <span class="doccomment">/// Advances the cursor to the next document</span>
-    <span class="doccomment">/// None is returned if the iterator has `DocSet`</span>
-    <span class="doccomment">/// has already been entirely consumed.</span>
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">advance</span>() {
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">doc</span>())
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
     }
 
     <span class="doccomment">/// Returns half of the `max_doc`</span>

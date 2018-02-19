@@ -197,11 +197,6 @@
 <span id="141">141</span>
 <span id="142">142</span>
 <span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
@@ -288,17 +283,6 @@
     <span class="doccomment">/// Returns the current document</span>
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span>;
 
-    <span class="doccomment">/// Advances the cursor to the next document</span>
-    <span class="doccomment">/// None is returned if the iterator has `DocSet`</span>
-    <span class="doccomment">/// has already been entirely consumed.</span>
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">advance</span>() {
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">doc</span>())
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
-    }
-
     <span class="doccomment">/// Returns a best-effort hint of the</span>
     <span class="doccomment">/// length of the docset.</span>
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span>;
@@ -322,6 +306,7 @@
     }
 }
 
+
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">unboxed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">borrow_mut</span>();
@@ -343,14 +328,19 @@
         <span class="ident">unboxed</span>.<span class="ident">size_hint</span>()
     }
 
+    <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+        <span class="kw">let</span> <span class="ident">unboxed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">borrow_mut</span>();
+        <span class="ident">unboxed</span>.<span class="ident">count</span>()
+    }
+
+
     <span class="kw">fn</span> <span class="ident">append_to_bitset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">bitset</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BitSet</span>) {
         <span class="kw">let</span> <span class="ident">unboxed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">borrow_mut</span>();
         <span class="ident">unboxed</span>.<span class="ident">append_to_bitset</span>(<span class="ident">bitset</span>);
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {}
+
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

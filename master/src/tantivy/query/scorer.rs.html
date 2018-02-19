@@ -210,7 +210,7 @@
     <span class="macro">downcast</span><span class="macro">!</span>(<span class="kw">super</span>::<span class="ident">Scorer</span>);
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
         <span class="self">self</span>.<span class="ident">deref_mut</span>().<span class="ident">score</span>()
     }
