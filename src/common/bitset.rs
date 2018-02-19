@@ -119,6 +119,14 @@ impl TinySet {
     pub fn range_greater_or_equal(from_included: u32) -> TinySet {
         TinySet::range_lower(from_included).complement()
     }
+
+    pub fn clear(&mut self) {
+        self.0 = 0u64;
+    }
+
+    pub fn len(&self) -> u32 {
+        self.0.count_ones()
+    }
 }
 
 #[derive(Clone)]

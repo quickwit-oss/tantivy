@@ -13,15 +13,32 @@ use query::RequiredOptionalScorer;
 use query::score_combiner::{SumWithCoordsCombiner, DoNothingCombiner, ScoreCombiner};
 use Result;
 
-fn scorer_union<'a, TScoreCombiner>(docsets: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a>
+fn scorer_union<'a, TScoreCombiner>(scorers: Vec<Box<Scorer + 'a>>) -> Box<Scorer + 'a>
     where TScoreCombiner: ScoreCombiner + 'static
 {
-    assert!(!docsets.is_empty());
-    if docsets.len() == 1 {
-        docsets.into_iter().next().unwrap() //< we checked the size beforehands
+    assert!(!scorers.is_empty());
+    if scorers.len() == 1 {
+        scorers.into_iter().next().unwrap() //< we checked the size beforehands
     } else {
-        // TODO have a UnionScorer instead.
-        box Union::<_, TScoreCombiner>::from(docsets)
+        if scorers
+            .iter()
+            .all(|scorer| {
+                let scorer_ref:&Scorer = scorer.borrow();
+                Downcast::<TermScorer>::is_type(scorer_ref)
+            }) {
+            let scorers: Vec<TermScorer> = scorers.into_iter()
+                .map(|scorer| {
+                    *Downcast::<TermScorer>::downcast(scorer)
+                        .expect("downcasting should not have failed, we\
+                                    checked in advance that the type were correct.")
+                })
+                .collect();
+            let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
+            scorer
+        } else {
+            let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
+            scorer
+        }
     }
 }
 

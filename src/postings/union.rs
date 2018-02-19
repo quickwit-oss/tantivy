@@ -82,7 +82,6 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
             self.offset = min_doc;
             self.cursor = 0;
             refill(&mut self.docsets, &mut *self.bitsets, &mut *self.scores, min_doc);
-            self.advance();
             true
         } else {
             false
@@ -111,7 +110,34 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
         if self.advance_buffered() {
             return true;
         }
-        self.refill()
+        if self.refill() {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+
+    fn count(&mut self) -> u32 {
+        let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
+            .iter()
+            .map(|bitset| bitset.len())
+            .sum::<u32>();
+        for bitset in self.bitsets.iter_mut() {
+            bitset.clear();
+        }
+        while self.refill() {
+            count += self.bitsets
+                .iter()
+                .map(|bitset| bitset.len())
+                .sum::<u32>();
+            for bitset in self.bitsets.iter_mut() {
+                bitset.clear();
+            }
+        }
+        self.cursor = HORIZON_NUM_TINYBITSETS;
+        count
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
@@ -134,7 +160,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             // Skipping to  corresponding bucket.
             let new_cursor = gap as usize / 64;
             for obsolete_tinyset in &mut self.bitsets[self.cursor..new_cursor] {
-                *obsolete_tinyset = TinySet::empty();
+                obsolete_tinyset.clear();
             }
             for score_combiner in &mut self.scores[self.cursor*64..new_cursor*64] {
                 score_combiner.clear();
@@ -178,6 +204,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet for Union<TScorer, T
             // at this point all of the docsets
             // are positionned on a doc >= to the target.
             if self.refill() {
+                self.advance();
                 if self.doc() == target {
                     SkipResult::Reached
                 } else {
