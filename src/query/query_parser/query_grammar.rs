@@ -41,10 +41,10 @@ fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
-    (char('-'), parser(literal)).map(|(_, expr)| UserInputAST::Not(box expr))
-        .or((char('+'), parser(literal)).map(|(_, expr)| UserInputAST::Must(box expr)))
-        .or(parser(literal))
+    (char('-'), parser(leaf)).map(|(_, expr)| UserInputAST::Not(box expr))
+        .or((char('+'), parser(leaf)).map(|(_, expr)| UserInputAST::Must(box expr)))
         .or((char('('), parser(parse_to_ast), char(')')).map(|(_, expr, _)| expr))
+        .or(parser(literal))
         .parse_stream(input)
 }
 
@@ -80,6 +80,7 @@ mod test {
 
     #[test]
     fn test_parse_query_to_ast() {
+        test_parse_query_to_ast_helper("+(a b) +d", "(+((\"a\" \"b\")) +(\"d\"))");
         test_parse_query_to_ast_helper("(+a +b) d", "((+(\"a\") +(\"b\")) \"d\")");
         test_parse_query_to_ast_helper("(+a)", "+(\"a\")");
         test_parse_query_to_ast_helper("(+a +b)", "(+(\"a\") +(\"b\"))");

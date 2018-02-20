@@ -41,7 +41,7 @@ error-chain = "0.8"
 owning_ref = "0.3"
 stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
-downcast = "0.9"
+downcast = { version="0.9", features = ["nightly"]}
 matches = "0.1"
 
 [target.'cfg(windows)'.dependencies]
