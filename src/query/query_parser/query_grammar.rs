@@ -41,10 +41,10 @@ fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
-    (char('-'), parser(literal))
-        .map(|(_, expr)| UserInputAST::Not(box expr))
+    (char('-'), parser(literal)).map(|(_, expr)| UserInputAST::Not(box expr))
         .or((char('+'), parser(literal)).map(|(_, expr)| UserInputAST::Must(box expr)))
         .or(parser(literal))
+        .or((char('('), parser(parse_to_ast), char(')')).map(|(_, expr, _)| expr))
         .parse_stream(input)
 }
 
@@ -80,11 +80,14 @@ mod test {
 
     #[test]
     fn test_parse_query_to_ast() {
+        test_parse_query_to_ast_helper("(+a +b) d", "((+(\"a\") +(\"b\")) \"d\")");
+        test_parse_query_to_ast_helper("(+a)", "+(\"a\")");
+        test_parse_query_to_ast_helper("(+a +b)", "(+(\"a\") +(\"b\"))");
         test_parse_query_to_ast_helper("abc:toto", "abc:\"toto\"");
         test_parse_query_to_ast_helper("+abc:toto", "+(abc:\"toto\")");
-        test_parse_query_to_ast_helper("+abc:toto -titi", "+(abc:\"toto\") -(\"titi\")");
+        test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+(abc:\"toto\") -(\"titi\"))");
         test_parse_query_to_ast_helper("-abc:toto", "-(abc:\"toto\")");
-        test_parse_query_to_ast_helper("abc:a b", "abc:\"a\" \"b\"");
+        test_parse_query_to_ast_helper("abc:a b", "(abc:\"a\" \"b\")");
         test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
         test_is_parse_err("abc +    ");
     }

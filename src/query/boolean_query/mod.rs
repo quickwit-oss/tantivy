@@ -14,9 +14,10 @@ mod tests {
     use Index;
     use schema::*;
     use schema::IndexRecordOption;
+    use query::QueryParser;
 
-    #[test]
-    pub fn test_boolean_query() {
+
+    fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -46,6 +47,23 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
+        index.load_searchers().unwrap();
+        (index, text_field)
+    }
+
+    #[test]
+    pub fn test_boolean_non_all_term_disjunction() {
+        let (index, text_field) = aux_test_helper();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let query = query_parser.parse_query("(+a +b) d").unwrap();
+        println!("{:?}", query);
+        assert_eq!(query.count(&*index.searcher()).unwrap(), 3);
+    }
+
+    #[test]
+    pub fn test_boolean_query() {
+
+        let (index, text_field) = aux_test_helper();
 
         let make_term_query = |text: &str| {
             let term_query = TermQuery::new(
@@ -56,14 +74,13 @@ mod tests {
             query
         };
 
-        index.load_searchers().unwrap();
-
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
             let mut test_collector = TestCollector::default();
             searcher.search(boolean_query, &mut test_collector).unwrap();
             test_collector.docs()
         };
+
         {
             let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a"))]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);

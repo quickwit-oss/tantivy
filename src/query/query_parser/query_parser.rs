@@ -155,7 +155,7 @@ impl QueryParser {
     fn compute_logical_ast_for_leaf(
         &self,
         field: Field,
-        phrase: &str,
+        phrase: &str
     ) -> Result<Option<LogicalLiteral>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();

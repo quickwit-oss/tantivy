@@ -35,10 +35,12 @@ impl fmt::Debug for UserInputAST {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
+                    write!(formatter, "(")?;
                     write!(formatter, "{:?}", &subqueries[0])?;
                     for subquery in &subqueries[1..] {
                         write!(formatter, " {:?}", subquery)?;
                     }
+                    write!(formatter, ")")?;
                 }
                 Ok(())
             }
