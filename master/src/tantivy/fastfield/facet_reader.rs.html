@@ -143,7 +143,7 @@
 <span class="doccomment">/// list of facets. This ordinal is segment local and</span>
 <span class="doccomment">/// only makes sense for a given segment.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FacetReader</span> {
-    <span class="ident">term_ords</span>: <span class="ident">MultiValueIntFastFieldReader</span>,
+    <span class="ident">term_ords</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="ident">term_dict</span>: <span class="ident">TermDictionaryImpl</span>,
 }
 
@@ -156,12 +156,12 @@
     <span class="doccomment">/// - a `TermDictionaryImpl` that helps associating a facet to</span>
     <span class="doccomment">/// an ordinal and vice versa.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">term_ords</span>: <span class="ident">MultiValueIntFastFieldReader</span>,
+        <span class="ident">term_ords</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
         <span class="ident">term_dict</span>: <span class="ident">TermDictionaryImpl</span>,
     ) <span class="op">-&gt;</span> <span class="ident">FacetReader</span> {
         <span class="ident">FacetReader</span> {
-            <span class="ident">term_ords</span>: <span class="ident">term_ords</span>,
-            <span class="ident">term_dict</span>: <span class="ident">term_dict</span>,
+            <span class="ident">term_ords</span>,
+            <span class="ident">term_dict</span>
         }
     }
 

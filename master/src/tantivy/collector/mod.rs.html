@@ -247,7 +247,6 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
-<span id="194">194</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Defines how the documents matching a search query should be processed.
@@ -345,7 +344,6 @@ Defines how the documents matching a search query should be processed.
     <span class="kw">use</span> <span class="ident">Score</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
     <span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
 
@@ -399,7 +397,7 @@ Defines how the documents matching a search query should be processed.
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FastFieldTestCollector</span> {
         <span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
-        <span class="ident">ff_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>,
+        <span class="ident">ff_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span>,
     }
 
     <span class="kw">impl</span> <span class="ident">FastFieldTestCollector</span> {
@@ -418,7 +416,7 @@ Defines how the documents matching a search query should be processed.
 
     <span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">FastFieldTestCollector</span> {
         <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, _: <span class="ident">SegmentLocalId</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-            <span class="self">self</span>.<span class="ident">ff_reader</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">reader</span>.<span class="ident">get_fast_field_reader</span>(<span class="self">self</span>.<span class="ident">field</span>)<span class="question-mark">?</span>);
+            <span class="self">self</span>.<span class="ident">ff_reader</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">reader</span>.<span class="ident">fast_field_reader</span>(<span class="self">self</span>.<span class="ident">field</span>)<span class="question-mark">?</span>);
             <span class="prelude-val">Ok</span>(())
         }
 

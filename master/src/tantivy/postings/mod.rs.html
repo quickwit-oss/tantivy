@@ -756,7 +756,6 @@
 <span id="700">700</span>
 <span id="701">701</span>
 <span id="702">702</span>
-<span id="703">703</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Postings module (also called inverted index)
@@ -785,7 +784,7 @@ Postings module (also called inverted index)
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">UnorderedTermId</span> <span class="op">=</span> <span class="ident">usize</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">UnorderedTermId</span> <span class="op">=</span> <span class="ident">u64</span>;
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">enum_variant_names</span>)]</span>
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum</span> <span class="ident">FreqReadingOption</span> {
@@ -811,7 +810,6 @@ Postings module (also called inverted index)
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
     <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::<span class="ident">Heap</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">test</span>::{<span class="self">self</span>, <span class="ident">Bencher</span>};

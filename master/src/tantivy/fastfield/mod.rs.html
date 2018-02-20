@@ -492,6 +492,79 @@
 <span id="436">436</span>
 <span id="437">437</span>
 <span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Column oriented field storage for tantivy.
@@ -518,6 +591,19 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */</span>
 
+<span class="kw">use</span> <span class="ident">common</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">delete</span>::<span class="ident">DeleteBitSet</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">delete</span>::<span class="ident">write_delete_bitset</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">error</span>::{<span class="ident">FastFieldNotAvailableError</span>, <span class="prelude-ty">Result</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet_reader</span>::<span class="ident">FacetReader</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">multivalued</span>::<span class="ident">MultiValueIntFastFieldReader</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::<span class="ident">FastFieldReader</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::<span class="ident">FastFieldSerializer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::{<span class="ident">FastFieldsWriter</span>, <span class="ident">IntFastFieldWriter</span>};
+
 <span class="kw">mod</span> <span class="ident">reader</span>;
 <span class="kw">mod</span> <span class="ident">writer</span>;
 <span class="kw">mod</span> <span class="ident">serializer</span>;
@@ -526,33 +612,104 @@ Read access performance is comparable to that of an array lookup.
 <span class="kw">mod</span> <span class="ident">facet_reader</span>;
 <span class="kw">mod</span> <span class="ident">multivalued</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">delete</span>::<span class="ident">write_delete_bitset</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">delete</span>::<span class="ident">DeleteBitSet</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::{<span class="ident">FastFieldsWriter</span>, <span class="ident">IntFastFieldWriter</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::{<span class="ident">I64FastFieldReader</span>, <span class="ident">U64FastFieldReader</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::<span class="ident">FastFieldReader</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::<span class="ident">FastFieldSerializer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">error</span>::{<span class="ident">FastFieldNotAvailableError</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet_reader</span>::<span class="ident">FacetReader</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">multivalued</span>::<span class="ident">MultiValueIntFastFieldReader</span>;
+<span class="doccomment">/// Trait for types that are allowed for fast fields: (u64 or i64).</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FastValue</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Copy</span> {
+    <span class="doccomment">/// Converts a value from u64</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Internally all fast field values are encoded as u64.</span>
+    <span class="kw">fn</span> <span class="ident">from_u64</span>(<span class="ident">val</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
+
+    <span class="doccomment">/// Converts a value to u64.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Internally all fast field values are encoded as u64.</span>
+    <span class="kw">fn</span> <span class="ident">to_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
+
+    <span class="doccomment">/// Returns the fast field cardinality that can be extracted from the given</span>
+    <span class="doccomment">/// `FieldType`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the type is not a fast field, `None` is returned.</span>
+    <span class="kw">fn</span> <span class="ident">fast_field_cardinality</span>(<span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cardinality</span><span class="op">&gt;</span>;
+
+    <span class="doccomment">/// Cast value to `u64`.</span>
+    <span class="doccomment">/// The value is just reinterpreted in memory.</span>
+    <span class="kw">fn</span> <span class="ident">as_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
+}
+
+
+<span class="kw">impl</span> <span class="ident">FastValue</span> <span class="kw">for</span> <span class="ident">u64</span> {
+    <span class="kw">fn</span> <span class="ident">from_u64</span>(<span class="ident">val</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">val</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="kw-2">*</span><span class="self">self</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">as_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="kw-2">*</span><span class="self">self</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">fast_field_cardinality</span>(<span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cardinality</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_type</span> {
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">integer_options</span>) <span class="op">=&gt;</span>
+                <span class="ident">integer_options</span>.<span class="ident">get_fastfield_cardinality</span>(),
+            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span>
+                <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FastValue</span> <span class="kw">for</span> <span class="ident">i64</span> {
+    <span class="kw">fn</span> <span class="ident">from_u64</span>(<span class="ident">val</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">common</span>::<span class="ident">u64_to_i64</span>(<span class="ident">val</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="ident">common</span>::<span class="ident">i64_to_u64</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+
+
+    <span class="kw">fn</span> <span class="ident">fast_field_cardinality</span>(<span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cardinality</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_type</span> {
+            <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">integer_options</span>) <span class="op">=&gt;</span>
+                <span class="ident">integer_options</span>.<span class="ident">get_fastfield_cardinality</span>(),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">as_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">u64</span>
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">value_to_u64</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">value</span> {
+        <span class="ident">Value</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">val</span>,
+        <span class="ident">Value</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">common</span>::<span class="ident">i64_to_u64</span>(<span class="kw-2">*</span><span class="ident">val</span>),
+        _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Expected a u64/i64 field, got {:?} &quot;</span>, <span class="ident">value</span>),
+    }
+}
+
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
+
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
     <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Schema</span>, <span class="ident">SchemaBuilder</span>};
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FAST</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
-    <span class="kw">use</span> <span class="ident">test</span>;
     <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">Rng</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">SeedableRng</span>;
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">XorShiftRng</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Schema</span>, <span class="ident">SchemaBuilder</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FAST</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">test</span>;
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
 
     <span class="macro">lazy_static</span><span class="macro">!</span> {
         <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">SCHEMA</span>: <span class="ident">Schema</span> <span class="op">=</span> {
@@ -565,15 +722,9 @@ Read access performance is comparable to that of an array lookup.
         };
     }
 
-    <span class="kw">fn</span> <span class="ident">add_single_field_doc</span>(<span class="ident">fast_field_writers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldsWriter</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">value</span>: <span class="ident">u64</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">Document</span>::<span class="ident">default</span>();
-        <span class="ident">doc</span>.<span class="ident">add_u64</span>(<span class="ident">field</span>, <span class="ident">value</span>);
-        <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="ident">doc</span>);
-    }
-
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_fastfield</span>() {
-        <span class="kw">let</span> <span class="ident">test_fastfield</span> <span class="op">=</span> <span class="ident">U64FastFieldReader</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">100</span>, <span class="number">200</span>, <span class="number">300</span>]);
+        <span class="kw">let</span> <span class="ident">test_fastfield</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">100</span>, <span class="number">200</span>, <span class="number">300</span>]);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">test_fastfield</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">100</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">test_fastfield</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">200</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">test_fastfield</span>.<span class="ident">get</span>(<span class="number">2</span>), <span class="number">300</span>);
@@ -587,9 +738,9 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="ident">write</span>: <span class="ident">WritePtr</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">13u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">14u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">2u64</span>);
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">13u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">14u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">2u64</span>));
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
                 .<span class="ident">unwrap</span>();
@@ -602,7 +753,7 @@ Read access performance is comparable to that of an array lookup.
         {
             <span class="kw">let</span> <span class="ident">composite_file</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">field_source</span> <span class="op">=</span> <span class="ident">composite_file</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">field_source</span>);
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">field_source</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">13u64</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">14u64</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">2</span>), <span class="number">2u64</span>);
@@ -617,15 +768,15 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="ident">write</span>: <span class="ident">WritePtr</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">4u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">14_082_001u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">3_052u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">9002u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">15_001u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">777u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">1_002u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">1_501u64</span>);
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">215u64</span>);
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">4u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">14_082_001u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">3_052u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">9_002u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">15_001u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">777u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">1_002u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">1_501u64</span>));
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">215u64</span>));
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
                 .<span class="ident">unwrap</span>();
@@ -637,8 +788,8 @@ Read access performance is comparable to that of an array lookup.
         }
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">4u64</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">14_082_001u64</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">2</span>), <span class="number">3_052u64</span>);
@@ -661,7 +812,7 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
             <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">10_000</span> {
-                <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">100_000u64</span>);
+                <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">100_000u64</span>));
             }
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
@@ -674,8 +825,8 @@ Read access performance is comparable to that of an array lookup.
         }
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
             <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10_000</span> {
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>), <span class="number">100_000u64</span>);
             }
@@ -692,13 +843,9 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
             <span class="comment">// forcing the amplitude to be high</span>
-            <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="number">0u64</span>);
+            <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">0u64</span>));
             <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0u64</span>..<span class="number">10_000u64</span> {
-                <span class="ident">add_single_field_doc</span>(
-                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>,
-                    <span class="kw-2">*</span><span class="ident">FIELD</span>,
-                    <span class="number">5_000_000_000_000_000_000u64</span> <span class="op">+</span> <span class="ident">i</span>,
-                );
+                <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="number">5_000_000_000_000_000_000u64</span> <span class="op">+</span> <span class="ident">i</span>));
             }
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
@@ -711,9 +858,8 @@ Read access performance is comparable to that of an array lookup.
         }
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
-
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">0u64</span>);
             <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">1</span>..<span class="number">10_001</span> {
                 <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -752,8 +898,8 @@ Read access performance is comparable to that of an array lookup.
         }
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">I64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">I64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="ident">i64_field</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="ident">i64_field</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
 
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">min_value</span>(), <span class="op">-</span><span class="number">100i64</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">9_999i64</span>);
@@ -791,8 +937,8 @@ Read access performance is comparable to that of an array lookup.
         <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">I64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">I64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="ident">i64_field</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="ident">i64_field</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0u32</span>), <span class="number">0i64</span>);
         }
     }
@@ -815,8 +961,8 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="ident">write</span>: <span class="ident">WritePtr</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
-            <span class="kw">for</span> <span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
-                <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="kw-2">*</span><span class="ident">x</span>);
+            <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
+                <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="ident">x</span>));
             }
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
@@ -826,8 +972,8 @@ Read access performance is comparable to that of an array lookup.
         <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">a</span> <span class="op">=</span> <span class="number">0u64</span>;
             <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">n</span> {
@@ -872,8 +1018,8 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="ident">write</span>: <span class="ident">WritePtr</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
-            <span class="kw">for</span> <span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
-                <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="kw-2">*</span><span class="ident">x</span>);
+            <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
+                <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="ident">x</span>));
             }
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
@@ -883,8 +1029,8 @@ Read access performance is comparable to that of an array lookup.
         <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
 
             <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
                 <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="number">7000u32</span>);
@@ -906,8 +1052,8 @@ Read access performance is comparable to that of an array lookup.
             <span class="kw">let</span> <span class="ident">write</span>: <span class="ident">WritePtr</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;test&quot;</span>)).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">FastFieldSerializer</span>::<span class="ident">from_write</span>(<span class="ident">write</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_field_writers</span> <span class="op">=</span> <span class="ident">FastFieldsWriter</span>::<span class="ident">from_schema</span>(<span class="kw-2">&amp;</span><span class="ident">SCHEMA</span>);
-            <span class="kw">for</span> <span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
-                <span class="ident">add_single_field_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fast_field_writers</span>, <span class="kw-2">*</span><span class="ident">FIELD</span>, <span class="kw-2">*</span><span class="ident">x</span>);
+            <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">x</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">permutation</span> {
+                <span class="ident">fast_field_writers</span>.<span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="macro">doc</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">FIELD</span><span class="op">=&gt;</span><span class="ident">x</span>));
             }
             <span class="ident">fast_field_writers</span>
                 .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>, <span class="kw-2">&amp;</span><span class="ident">HashMap</span>::<span class="ident">new</span>())
@@ -917,8 +1063,8 @@ Read access performance is comparable to that of an array lookup.
         <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
         {
             <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">fast_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span>
-                <span class="ident">U64FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">fast_fields_composite</span>.<span class="ident">open_read</span>(<span class="kw-2">*</span><span class="ident">FIELD</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>::<span class="ident">open</span>(<span class="ident">data</span>);
 
             <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
                 <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="number">1000u32</span>);

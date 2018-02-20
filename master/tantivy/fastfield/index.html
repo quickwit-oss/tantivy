@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/fastfield/mod.rs.html#1-438' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/tantivy/fastfield/mod.rs.html#1-511' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Column oriented field storage for tantivy.</p>
 <p>It is the equivalent of <code>Lucene</code>'s <code>DocValues</code>.</p>
 <p>Fast fields is a column-oriented fashion storage of <code>tantivy</code>.</p>
@@ -105,6 +105,14 @@ defined in the schema as a fast field.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
+                           <td><a class="struct" href="struct.FastFieldReader.html"
+                                  title='struct tantivy::fastfield::FastFieldReader'>FastFieldReader</a></td>
+                           <td class='docblock-short'>
+                                <p>Trait for accessing a fastfield.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class="struct" href="struct.FastFieldSerializer.html"
                                   title='struct tantivy::fastfield::FastFieldSerializer'>FastFieldSerializer</a></td>
                            <td class='docblock-short'>
@@ -118,14 +126,6 @@ fastfields on disk.</p>
                                   title='struct tantivy::fastfield::FastFieldsWriter'>FastFieldsWriter</a></td>
                            <td class='docblock-short'>
                                 <p>The fastfieldswriter regroup all of the fast field writers.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.I64FastFieldReader.html"
-                                  title='struct tantivy::fastfield::I64FastFieldReader'>I64FastFieldReader</a></td>
-                           <td class='docblock-short'>
-                                <p><code>FastFieldReader</code> for signed 64-bits integers.</p>
 
                            </td>
                        </tr>
@@ -145,21 +145,13 @@ The fast field writer just keeps the values in memory.</p>
                                 <p>Reader for a multivalued <code>u64</code> fast field.</p>
 
                            </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.U64FastFieldReader.html"
-                                  title='struct tantivy::fastfield::U64FastFieldReader'>U64FastFieldReader</a></td>
-                           <td class='docblock-short'>
-                                <p><code>FastFieldReader</code> for unsigned 64-bits integers.</p>
-
-                           </td>
                        </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="trait" href="trait.FastFieldReader.html"
-                                  title='trait tantivy::fastfield::FastFieldReader'>FastFieldReader</a></td>
+                           <td><a class="trait" href="trait.FastValue.html"
+                                  title='trait tantivy::fastfield::FastValue'>FastValue</a></td>
                            <td class='docblock-short'>
-                                <p>Trait for accessing a fastfield.</p>
+                                <p>Trait for types that are allowed for fast fields: (u64 or i64).</p>
 
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>

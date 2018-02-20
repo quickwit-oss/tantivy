@@ -177,7 +177,7 @@
             (<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Document</span>::<span class="ident">default</span>())
         }
     }; <span class="comment">// avoids a warning due to the useless `mut`.</span>
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span>:<span class="ident">ident</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span>),<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span>:<span class="ident">expr</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span>),<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">document</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Document</span>::<span class="ident">default</span>();
             $(

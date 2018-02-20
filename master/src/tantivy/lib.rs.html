@@ -942,7 +942,6 @@
 <span id="886">886</span>
 <span id="887">887</span>
 <span id="888">888</span>
-<span id="889">889</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
@@ -1232,7 +1231,6 @@
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
     <span class="kw">use</span> <span class="ident">IndexWriter</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastFieldReader</span>, <span class="ident">I64FastFieldReader</span>, <span class="ident">U64FastFieldReader</span>};
     <span class="kw">use</span> <span class="ident">Postings</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">IndependentSample</span>, <span class="ident">Range</span>};
@@ -1803,22 +1801,22 @@
         <span class="kw">let</span> <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>);
         {
             <span class="kw">let</span> <span class="ident">fast_field_reader_res</span> <span class="op">=</span>
-                <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>(<span class="ident">text_field</span>);
+                <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">text_field</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">fast_field_reader_res</span>.<span class="ident">is_err</span>());
         }
         {
             <span class="kw">let</span> <span class="ident">fast_field_reader_res</span> <span class="op">=</span>
-                <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>(<span class="ident">stored_int_field</span>);
+                <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">stored_int_field</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">fast_field_reader_res</span>.<span class="ident">is_err</span>());
         }
         {
             <span class="kw">let</span> <span class="ident">fast_field_reader_res</span> <span class="op">=</span>
-                <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
+                <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">fast_field_reader_res</span>.<span class="ident">is_err</span>());
         }
         {
             <span class="kw">let</span> <span class="ident">fast_field_reader_res</span> <span class="op">=</span>
-                <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">I64FastFieldReader</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
+                <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">fast_field_reader_res</span>.<span class="ident">is_ok</span>());
             <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">fast_field_reader_res</span>.<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">4i64</span>)
@@ -1826,7 +1824,7 @@
 
         {
             <span class="kw">let</span> <span class="ident">fast_field_reader_res</span> <span class="op">=</span>
-                <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">I64FastFieldReader</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
+                <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>(<span class="ident">fast_field_signed</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">fast_field_reader_res</span>.<span class="ident">is_ok</span>());
             <span class="kw">let</span> <span class="ident">fast_field_reader</span> <span class="op">=</span> <span class="ident">fast_field_reader_res</span>.<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">4i64</span>)

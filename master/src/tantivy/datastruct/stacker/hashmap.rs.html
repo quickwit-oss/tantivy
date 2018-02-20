@@ -553,11 +553,11 @@
                 <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">val</span>): (<span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">V</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">allocate_object</span>();
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">addr</span>, <span class="ident">key_bytes_ref</span>.<span class="ident">addr</span>() <span class="op">+</span> <span class="number">2</span> <span class="op">+</span> <span class="ident">key_bytes</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>);
                 <span class="self">self</span>.<span class="ident">set_bucket</span>(<span class="ident">hash</span>, <span class="ident">key_bytes_ref</span>, <span class="ident">bucket</span>);
-                <span class="kw">return</span> (<span class="ident">bucket</span>, <span class="ident">val</span>);
+                <span class="kw">return</span> (<span class="ident">bucket</span> <span class="kw">as</span> <span class="ident">UnorderedTermId</span>, <span class="ident">val</span>);
             } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">kv</span>.<span class="ident">hash</span> <span class="op">==</span> <span class="ident">hash</span> {
                 <span class="kw">let</span> (<span class="ident">stored_key</span>, <span class="ident">expull_addr</span>): (<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_key_value</span>(<span class="ident">kv</span>.<span class="ident">key_value_addr</span>);
                 <span class="kw">if</span> <span class="ident">stored_key</span> <span class="op">==</span> <span class="ident">key_bytes</span> {
-                    <span class="kw">return</span> (<span class="ident">bucket</span>, <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">get_mut_ref</span>(<span class="ident">expull_addr</span>));
+                    <span class="kw">return</span> (<span class="ident">bucket</span> <span class="kw">as</span> <span class="ident">UnorderedTermId</span>, <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">get_mut_ref</span>(<span class="ident">expull_addr</span>));
                 }
             }
         }

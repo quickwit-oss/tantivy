@@ -862,8 +862,6 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
-<span id="809">809</span>
-<span id="810">810</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -872,7 +870,6 @@
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SerializableSegment</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentSerializer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">InvertedIndexSerializer</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
 <span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
@@ -893,7 +890,7 @@
 }
 
 <span class="kw">fn</span> <span class="ident">compute_min_max_val</span>(
-    <span class="ident">u64_reader</span>: <span class="kw-2">&amp;</span><span class="ident">U64FastFieldReader</span>,
+    <span class="ident">u64_reader</span>: <span class="kw-2">&amp;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="ident">max_doc</span>: <span class="ident">DocId</span>,
     <span class="ident">delete_bitset</span>: <span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">u64</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> {
@@ -917,15 +914,15 @@
 <span class="kw">fn</span> <span class="ident">extract_fieldnorm_reader</span>(
     <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
     <span class="ident">field</span>: <span class="ident">Field</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span> {
+) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span> {
     <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>)
 }
 
 <span class="kw">fn</span> <span class="ident">extract_fast_field_reader</span>(
     <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
     <span class="ident">field</span>: <span class="ident">Field</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span> {
-    <span class="ident">segment_reader</span>.<span class="ident">get_fast_field_reader</span>(<span class="ident">field</span>).<span class="ident">ok</span>()
+) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span> {
+    <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>(<span class="ident">field</span>).<span class="ident">ok</span>()
 }
 
 <span class="kw">struct</span> <span class="ident">DeltaComputer</span> {
@@ -1004,7 +1001,7 @@
     <span class="kw">fn</span> <span class="ident">generic_write_fast_field</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span>,
-        <span class="ident">field_reader_extractor</span>: <span class="kw-2">&amp;</span><span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>, <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>,
+        <span class="ident">field_reader_extractor</span>: <span class="kw-2">&amp;</span><span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>, <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span>,
         <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
@@ -1235,7 +1232,6 @@
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">Searcher</span>;
     <span class="kw">use</span> <span class="ident">DocAddress</span>;
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::<span class="ident">FastFieldTestCollector</span>;
@@ -1495,16 +1491,16 @@
                 <span class="macro">vec</span><span class="macro">!</span>[<span class="number">6_000</span>, <span class="number">7_000</span>]
             );
 
-            <span class="kw">let</span> <span class="ident">score_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">searcher</span>
+            <span class="kw">let</span> <span class="ident">score_field_reader</span> <span class="op">=</span> <span class="ident">searcher</span>
                 .<span class="ident">segment_reader</span>(<span class="number">0</span>)
-                .<span class="ident">get_fast_field_reader</span>(<span class="ident">score_field</span>)
+                .<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">score_field</span>)
                 .<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">min_value</span>(), <span class="number">1</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">3</span>);
 
-            <span class="kw">let</span> <span class="ident">score_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">searcher</span>
+            <span class="kw">let</span> <span class="ident">score_field_reader</span> <span class="op">=</span> <span class="ident">searcher</span>
                 .<span class="ident">segment_reader</span>(<span class="number">1</span>)
-                .<span class="ident">get_fast_field_reader</span>(<span class="ident">score_field</span>)
+                .<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">score_field</span>)
                 .<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">min_value</span>(), <span class="number">4000</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">7000</span>);
@@ -1552,9 +1548,9 @@
                 <span class="ident">search_term</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;g&quot;</span>)),
                 <span class="macro">vec</span><span class="macro">!</span>[<span class="number">6_000</span>, <span class="number">7_000</span>]
             );
-            <span class="kw">let</span> <span class="ident">score_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">searcher</span>
+            <span class="kw">let</span> <span class="ident">score_field_reader</span> <span class="op">=</span> <span class="ident">searcher</span>
                 .<span class="ident">segment_reader</span>(<span class="number">0</span>)
-                .<span class="ident">get_fast_field_reader</span>(<span class="ident">score_field</span>)
+                .<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">score_field</span>)
                 .<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">min_value</span>(), <span class="number">3</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">7000</span>);
@@ -1598,9 +1594,9 @@
                 <span class="ident">search_term</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;g&quot;</span>)),
                 <span class="macro">vec</span><span class="macro">!</span>[<span class="number">6_000</span>, <span class="number">7_000</span>]
             );
-            <span class="kw">let</span> <span class="ident">score_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">searcher</span>
+            <span class="kw">let</span> <span class="ident">score_field_reader</span> <span class="op">=</span> <span class="ident">searcher</span>
                 .<span class="ident">segment_reader</span>(<span class="number">0</span>)
-                .<span class="ident">get_fast_field_reader</span>(<span class="ident">score_field</span>)
+                .<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">score_field</span>)
                 .<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">min_value</span>(), <span class="number">3</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">7000</span>);
@@ -1649,9 +1645,9 @@
                 <span class="ident">search_term</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;g&quot;</span>)),
                 <span class="macro">vec</span><span class="macro">!</span>[<span class="number">6_000</span>, <span class="number">7_000</span>]
             );
-            <span class="kw">let</span> <span class="ident">score_field_reader</span>: <span class="ident">U64FastFieldReader</span> <span class="op">=</span> <span class="ident">searcher</span>
+            <span class="kw">let</span> <span class="ident">score_field_reader</span> <span class="op">=</span> <span class="ident">searcher</span>
                 .<span class="ident">segment_reader</span>(<span class="number">0</span>)
-                .<span class="ident">get_fast_field_reader</span>(<span class="ident">score_field</span>)
+                .<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">score_field</span>)
                 .<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">min_value</span>(), <span class="number">6000</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_field_reader</span>.<span class="ident">max_value</span>(), <span class="number">7000</span>);

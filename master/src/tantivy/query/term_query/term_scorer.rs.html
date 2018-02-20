@@ -105,12 +105,10 @@
 <span id="49">49</span>
 <span id="50">50</span>
 <span id="51">51</span>
-<span id="52">52</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
@@ -118,7 +116,7 @@
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermScorer</span> {
     <span class="kw">pub</span> <span class="ident">idf</span>: <span class="ident">Score</span>,
-    <span class="kw">pub</span> <span class="ident">fieldnorm_reader_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">U64FastFieldReader</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">fieldnorm_reader_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span>,
     <span class="kw">pub</span> <span class="ident">postings</span>: <span class="ident">SegmentPostings</span>,
 }
 

@@ -528,7 +528,7 @@
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
     ) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span> {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">term</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">4</span>);
-        <span class="kw">let</span> (<span class="ident">term_ord</span>, <span class="ident">recorder</span>): (<span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Rec</span>) <span class="op">=</span> <span class="ident">term_index</span>.<span class="ident">get_or_create</span>(<span class="ident">term</span>);
+        <span class="kw">let</span> (<span class="ident">term_ord</span>, <span class="ident">recorder</span>): (<span class="ident">UnorderedTermId</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Rec</span>) <span class="op">=</span> <span class="ident">term_index</span>.<span class="ident">get_or_create</span>(<span class="ident">term</span>);
         <span class="kw">let</span> <span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">recorder</span>.<span class="ident">current_doc</span>();
         <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">doc</span> {
             <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">u32</span>::<span class="ident">max_value</span>() {

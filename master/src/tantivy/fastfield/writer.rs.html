@@ -309,19 +309,10 @@
 <span id="253">253</span>
 <span id="254">254</span>
 <span id="255">255</span>
-<span id="256">256</span>
-<span id="257">257</span>
-<span id="258">258</span>
-<span id="259">259</span>
-<span id="260">260</span>
-<span id="261">261</span>
-<span id="262">262</span>
-<span id="263">263</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">common</span>;
@@ -359,22 +350,22 @@
                             <span class="ident">single_value_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
                         }
                         <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>) <span class="op">=&gt;</span> {
-                            <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>);
+                            <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="bool-val">false</span>);
                             <span class="ident">multi_values_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
                         }
                         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
                     }
                 }
                 <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>);
+                    <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="bool-val">true</span>);
                     <span class="ident">multi_values_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
                 }
                 _ <span class="op">=&gt;</span> {}
             }
         }
         <span class="ident">FastFieldsWriter</span> {
-            <span class="ident">single_value_writers</span>: <span class="ident">single_value_writers</span>,
-            <span class="ident">multi_values_writers</span>: <span class="ident">multi_values_writers</span>,
+            <span class="ident">single_value_writers</span>,
+            <span class="ident">multi_values_writers</span>
         }
     }
 
@@ -417,6 +408,7 @@
         }
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">multi_values_writers</span> {
             <span class="ident">field_writer</span>.<span class="ident">next_doc</span>();
+            <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
     }
 
@@ -432,11 +424,7 @@
         }
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">multi_values_writers</span> {
             <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">field_writer</span>.<span class="ident">field</span>();
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">mapping</span>) <span class="op">=</span> <span class="ident">mapping</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>) {
-                <span class="ident">field_writer</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>, <span class="ident">mapping</span>)<span class="question-mark">?</span>;
-            } <span class="kw">else</span> {
-                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Term ordinal mapping missing for {:?}&quot;</span>, <span class="ident">field</span>);
-            }
+            <span class="ident">field_writer</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>, <span class="ident">mapping</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -480,7 +468,7 @@
     <span class="doccomment">/// Creates a new `IntFastFieldWriter`</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">IntFastFieldWriter</span> {
         <span class="ident">IntFastFieldWriter</span> {
-            <span class="ident">field</span>: <span class="ident">field</span>,
+            <span class="ident">field</span>,
             <span class="ident">vals</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">val_count</span>: <span class="number">0</span>,
             <span class="ident">val_if_missing</span>: <span class="number">0u64</span>,
@@ -547,11 +535,7 @@
     <span class="doccomment">/// only the first one is taken in account.</span>
     <span class="kw">fn</span> <span class="ident">extract_val</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="kw-2">&amp;</span><span class="ident">Document</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
         <span class="kw">match</span> <span class="ident">doc</span>.<span class="ident">get_first</span>(<span class="self">self</span>.<span class="ident">field</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
-                <span class="ident">Value</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">val</span>,
-                <span class="ident">Value</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">common</span>::<span class="ident">i64_to_u64</span>(<span class="kw-2">*</span><span class="ident">val</span>),
-                _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Expected a u64field, got {:?} &quot;</span>, <span class="ident">v</span>),
-            },
+            <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="kw">super</span>::<span class="ident">value_to_u64</span>(<span class="ident">v</span>),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">val_if_missing</span>,
         }
     }

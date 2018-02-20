@@ -125,7 +125,6 @@
 <span id="69">69</span>
 <span id="70">70</span>
 <span id="71">71</span>
-<span id="72">72</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">term_query</span>;
 <span class="kw">mod</span> <span class="ident">term_weight</span>;
@@ -142,7 +141,6 @@
     <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
     <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Scorer</span>};
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::<span class="ident">TermScorer</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
@@ -185,7 +183,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_scorer</span>() {
-        <span class="kw">let</span> <span class="ident">left_fieldnorms</span> <span class="op">=</span> <span class="ident">U64FastFieldReader</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">10</span>, <span class="number">4</span>]);
+        <span class="kw">let</span> <span class="ident">left_fieldnorms</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">10</span>, <span class="number">4</span>]);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">10</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">4</span>);
         <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">SegmentPostings</span>::<span class="ident">create_from_docs</span>(<span class="kw-2">&amp;</span>[<span class="number">1</span>]);

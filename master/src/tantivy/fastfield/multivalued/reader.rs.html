@@ -164,14 +164,10 @@
 <span id="108">108</span>
 <span id="109">109</span>
 <span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastFieldReader</span>, <span class="ident">FastValue</span>};
 
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">U64FastFieldReader</span>;
 
 <span class="doccomment">/// Reader for a multivalued `u64` fast field.</span>
 <span class="doccomment">///</span>
@@ -182,31 +178,29 @@
 <span class="doccomment">/// The `idx_reader` associated, for each document, the index of its first value.</span>
 <span class="doccomment">///</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiValueIntFastFieldReader</span> {
-    <span class="ident">idx_reader</span>: <span class="ident">U64FastFieldReader</span>,
-    <span class="ident">vals_reader</span>: <span class="ident">U64FastFieldReader</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span> {
+    <span class="ident">idx_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="ident">vals_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>
 }
 
-<span class="kw">impl</span> <span class="ident">MultiValueIntFastFieldReader</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">open</span>(
-        <span class="ident">idx_reader</span>: <span class="ident">U64FastFieldReader</span>,
-        <span class="ident">vals_reader</span>: <span class="ident">U64FastFieldReader</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">MultiValueIntFastFieldReader</span> {
+        <span class="ident">idx_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+        <span class="ident">vals_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="ident">MultiValueIntFastFieldReader</span> {
-            <span class="ident">idx_reader</span>: <span class="ident">idx_reader</span>,
-            <span class="ident">vals_reader</span>: <span class="ident">vals_reader</span>,
+            <span class="ident">idx_reader</span>,
+            <span class="ident">vals_reader</span>
         }
     }
 
     <span class="doccomment">/// Returns the array of values associated to the given `doc`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">vals</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">vals</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>) <span class="kw">as</span> <span class="ident">u32</span>;
         <span class="kw">let</span> <span class="ident">stop</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u32</span>;
-        <span class="ident">vals</span>.<span class="ident">clear</span>();
-        <span class="kw">for</span> <span class="ident">val_id</span> <span class="kw">in</span> <span class="ident">start</span>..<span class="ident">stop</span> {
-            <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vals_reader</span>.<span class="ident">get</span>(<span class="ident">val_id</span>);
-            <span class="ident">vals</span>.<span class="ident">push</span>(<span class="ident">val</span>);
-        }
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> (<span class="ident">stop</span> <span class="op">-</span> <span class="ident">start</span>) <span class="kw">as</span> <span class="ident">usize</span>;
+        <span class="ident">vals</span>.<span class="ident">resize</span>(<span class="ident">len</span>, <span class="ident">Item</span>::<span class="ident">default</span>());
+        <span class="self">self</span>.<span class="ident">vals_reader</span>.<span class="ident">get_range</span>(<span class="ident">start</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>[..]);
     }
 }
 
