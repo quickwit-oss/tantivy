@@ -359,7 +359,11 @@ impl IndexWriter {
             .add_segment(self.generation, segment_entry);
     }
 
-    #[doc(hidden)]
+    /// *Experimental & Advanced API* Creates a new segment.
+    /// and marks it as currently in write.
+    ///
+    /// This method is useful only for users trying to do complex
+    /// operations, like converting an index format to another.
     pub fn new_segment(&self) -> Segment {
         self.segment_updater.new_segment()
     }
