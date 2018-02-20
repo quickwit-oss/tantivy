@@ -25,7 +25,7 @@ pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
 pub use common::HasLen;
 
-pub(crate) type UnorderedTermId = usize;
+pub(crate) type UnorderedTermId = u64;
 
 #[allow(enum_variant_names)]
 pub(crate) enum FreqReadingOption {
@@ -51,7 +51,6 @@ pub mod tests {
     use schema::IndexRecordOption;
     use std::iter;
     use datastruct::stacker::Heap;
-    use fastfield::FastFieldReader;
     use query::TermQuery;
     use schema::Field;
     use test::{self, Bencher};

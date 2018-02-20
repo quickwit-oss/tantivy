@@ -1,7 +1,6 @@
 use Score;
 use DocId;
 use docset::{DocSet, SkipResult};
-use fastfield::U64FastFieldReader;
 use postings::SegmentPostings;
 use query::Scorer;
 use postings::Postings;
@@ -9,7 +8,7 @@ use fastfield::FastFieldReader;
 
 pub struct TermScorer {
     pub idf: Score,
-    pub fieldnorm_reader_opt: Option<U64FastFieldReader>,
+    pub fieldnorm_reader_opt: Option<FastFieldReader<u64>>,
     pub postings: SegmentPostings,
 }
 

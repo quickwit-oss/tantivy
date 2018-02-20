@@ -89,7 +89,7 @@ where
 
     pub fn get(&self, idx: usize) -> u64 {
         if self.num_bits == 0 {
-            return 0;
+            return 0u64;
         }
         let data: &[u8] = &*self.data;
         let num_bits = self.num_bits;
@@ -107,7 +107,7 @@ where
             );
             let val_unshifted_unmasked: u64 = unsafe { *(data[addr..].as_ptr() as *const u64) };
             let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-            (val_shifted & mask)
+            val_shifted & mask
         } else {
             let val_unshifted_unmasked: u64 = if addr + 8 <= data.len() {
                 unsafe { *(data[addr..].as_ptr() as *const u64) }
@@ -119,14 +119,18 @@ where
                 unsafe { *(buffer[..].as_ptr() as *const u64) }
             };
             let val_shifted = val_unshifted_unmasked >> (bit_shift as u64);
-            (val_shifted & mask)
+            val_shifted & mask
         }
     }
 
+    /// Reads a range of values from the fast field.
+    ///
+    /// The range of values read is from
+    /// `[start..start + output.len()[`
     pub fn get_range(&self, start: u32, output: &mut [u64]) {
         if self.num_bits == 0 {
             for val in output.iter_mut() {
-                *val = 0;
+                *val = 0u64;
             }
         } else {
             let data: &[u8] = &*self.data;

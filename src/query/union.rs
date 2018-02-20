@@ -6,7 +6,7 @@ use DocId;
 use Score;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 
-const HORIZON_NUM_TINYBITSETS: usize = 32;
+const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.

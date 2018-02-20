@@ -94,7 +94,6 @@ pub mod tests {
     use Score;
     use core::SegmentReader;
     use SegmentLocalId;
-    use fastfield::U64FastFieldReader;
     use fastfield::FastFieldReader;
     use schema::Field;
 
@@ -148,7 +147,7 @@ pub mod tests {
     pub struct FastFieldTestCollector {
         vals: Vec<u64>,
         field: Field,
-        ff_reader: Option<U64FastFieldReader>,
+        ff_reader: Option<FastFieldReader<u64>>,
     }
 
     impl FastFieldTestCollector {
@@ -167,7 +166,7 @@ pub mod tests {
 
     impl Collector for FastFieldTestCollector {
         fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
-            self.ff_reader = Some(reader.get_fast_field_reader(self.field)?);
+            self.ff_reader = Some(reader.fast_field_reader(self.field)?);
             Ok(())
         }
 

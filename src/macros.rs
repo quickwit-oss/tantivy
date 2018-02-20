@@ -54,7 +54,7 @@ macro_rules! doc(
             ($crate::Document::default())
         }
     }; // avoids a warning due to the useless `mut`.
-    ($($field:ident => $value:expr),*) => {
+    ($($field:expr => $value:expr),*) => {
         {
             let mut document = $crate::Document::default();
             $(

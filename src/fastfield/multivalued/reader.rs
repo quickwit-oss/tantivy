@@ -1,7 +1,6 @@
 use DocId;
-use fastfield::FastFieldReader;
+use fastfield::{FastFieldReader, FastValue};
 
-use fastfield::U64FastFieldReader;
 
 /// Reader for a multivalued `u64` fast field.
 ///
@@ -12,31 +11,29 @@ use fastfield::U64FastFieldReader;
 /// The `idx_reader` associated, for each document, the index of its first value.
 ///
 #[derive(Clone)]
-pub struct MultiValueIntFastFieldReader {
-    idx_reader: U64FastFieldReader,
-    vals_reader: U64FastFieldReader,
+pub struct MultiValueIntFastFieldReader<Item: FastValue> {
+    idx_reader: FastFieldReader<u64>,
+    vals_reader: FastFieldReader<Item>
 }
 
-impl MultiValueIntFastFieldReader {
+impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
     pub(crate) fn open(
-        idx_reader: U64FastFieldReader,
-        vals_reader: U64FastFieldReader,
-    ) -> MultiValueIntFastFieldReader {
+        idx_reader: FastFieldReader<u64>,
+        vals_reader: FastFieldReader<Item>,
+    ) -> MultiValueIntFastFieldReader<Item> {
         MultiValueIntFastFieldReader {
-            idx_reader: idx_reader,
-            vals_reader: vals_reader,
+            idx_reader,
+            vals_reader
         }
     }
 
     /// Returns the array of values associated to the given `doc`.
-    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<u64>) {
+    pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let start = self.idx_reader.get(doc) as u32;
         let stop = self.idx_reader.get(doc + 1) as u32;
-        vals.clear();
-        for val_id in start..stop {
-            let val = self.vals_reader.get(val_id);
-            vals.push(val);
-        }
+        let len = (stop - start) as usize;
+        vals.resize(len, Item::default());
+        self.vals_reader.get_range(start, &mut vals[..]);
     }
 }
 
