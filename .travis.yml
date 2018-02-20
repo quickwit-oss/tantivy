@@ -34,5 +34,5 @@ script:
   - cargo run --example simple_search
   - cargo doc
 after_success:
-  - cargo coveralls --exclude-pattern cpp/
+  - cargo coveralls --exclude-pattern cpp/,src/functional_test.rs
   - cargo doc-upload
