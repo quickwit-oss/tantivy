@@ -894,6 +894,10 @@
 <span id="838">838</span>
 <span id="839">839</span>
 <span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">bit_set</span>::<span class="ident">BitSet</span>;
 <span class="kw">use</span> <span class="ident">chan</span>;
@@ -1256,7 +1260,11 @@
             .<span class="ident">add_segment</span>(<span class="self">self</span>.<span class="ident">generation</span>, <span class="ident">segment_entry</span>);
     }
 
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="doccomment">/// *Experimental &amp; Advanced API* Creates a new segment.</span>
+    <span class="doccomment">/// and marks it as currently in write.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method is useful only for users trying to do complex</span>
+    <span class="doccomment">/// operations, like converting an index format to another.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_segment</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Segment</span> {
         <span class="self">self</span>.<span class="ident">segment_updater</span>.<span class="ident">new_segment</span>()
     }
