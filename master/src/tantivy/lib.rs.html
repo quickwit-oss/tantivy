@@ -942,6 +942,10 @@
 <span id="886">886</span>
 <span id="887">887</span>
 <span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
@@ -1096,6 +1100,10 @@
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tempfile</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">time</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">uuid</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">matches</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">env_logger</span>;

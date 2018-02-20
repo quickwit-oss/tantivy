@@ -585,6 +585,74 @@
 <span id="529">529</span>
 <span id="530">530</span>
 <span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
@@ -916,8 +984,11 @@
     <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">TextOptions</span>, <span class="ident">TextFieldIndexing</span>, <span class="ident">IndexRecordOption</span>};
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParser</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParserError</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">logical_ast</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn</span> <span class="ident">make_query_parser</span>() <span class="op">-&gt;</span> <span class="ident">QueryParser</span> {
@@ -1074,6 +1145,71 @@
             <span class="string">&quot;\&quot;[Term([0, 0, 0, 0, 97]), \
              Term([0, 0, 0, 0, 98])]\&quot;&quot;</span>,
             <span class="bool-val">false</span>,
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_field_does_not_exist</span>() {
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;boujou:\&quot;18446744073709551615\&quot;&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotExist</span>(_))
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_field_not_indexed</span>() {
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;notindexed_text:\&quot;18446744073709551615\&quot;&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(_))
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_unknown_tokenizer</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
+            .<span class="ident">set_tokenizer</span>(<span class="string">&quot;nonexistingtokenizer&quot;</span>)
+            .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
+        <span class="kw">let</span> <span class="ident">text_options</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>().<span class="ident">set_indexing_options</span>(<span class="ident">text_field_indexing</span>);
+        <span class="kw">let</span> <span class="ident">title</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">text_options</span>);
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+        <span class="kw">let</span> <span class="ident">default_fields</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>];
+        <span class="kw">let</span> <span class="ident">tokenizer_manager</span> <span class="op">=</span> <span class="ident">TokenizerManager</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">new</span>(<span class="ident">schema</span>, <span class="ident">default_fields</span>, <span class="ident">tokenizer_manager</span>);
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;title:\&quot;happy tax payer\&quot;&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(_, _))
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_from_index</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
+            .<span class="ident">set_tokenizer</span>(<span class="string">&quot;customtokenizer&quot;</span>)
+            .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
+        <span class="kw">let</span> <span class="ident">text_options</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>().<span class="ident">set_indexing_options</span>(<span class="ident">text_field_indexing</span>);
+        <span class="kw">let</span> <span class="ident">title</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">text_options</span>);
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+        <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
+        <span class="ident">index</span>.<span class="ident">tokenizers</span>().<span class="ident">register</span>(<span class="string">&quot;customtokenizer&quot;</span>, <span class="ident">SimpleTokenizer</span>);
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>]);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;title:\&quot;happy tax\&quot;&quot;</span>).<span class="ident">is_ok</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_expected_int</span>() {
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:18a&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(_))
+        );
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;18\&quot;&quot;</span>).<span class="ident">is_ok</span>());
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:18b&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(_))
         );
     }
 

@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `Score` type in crate `tantivy`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, Score">
+    <meta name="description" content="API documentation for the Rust `assert_matches` macro in crate `matches`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, assert_matches">
 
-    <title>tantivy::Score - Rust</title>
+    <title>matches::assert_matches - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
     <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
@@ -20,7 +20,7 @@
     
     
 </head>
-<body class="rustdoc type">
+<body class="rustdoc macro">
     <!--[if lte IE 8]>
     <div class="warning">
         This old browser is unsupported and will most likely display funky
@@ -32,8 +32,8 @@
 
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
-        <a href='../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Type Definition Score</p><div class="sidebar-elems"><p class='location'><a href='index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'Score', ty: 'type', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        
+        <p class='location'><a href='index.html'>matches</a></p><script>window.sidebarCurrent = {name: 'assert_matches', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
     </nav>
 
     <div class="theme-picker">
@@ -55,15 +55,28 @@
     </nav>
 
     <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Type Definition <a href='index.html'>tantivy</a>::<wbr><a class="type" href=''>Score</a></span><span class='out-of-band'><span id='render-detail'>
+<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>matches</a>::<wbr><a class="macro" href=''>assert_matches</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/tantivy/lib.rs.html#251' title='goto source code'>[src]</a></span></h1>
-<pre class='rust typedef'>type Score = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f32.html">f32</a>;</pre><div class='docblock'><p>A f32 that represents the relevance of the document to the query</p>
-<p>This is modelled internally as a <code>f32</code>. The
-larger the number, the more relevant the document
-to the search</p>
+               </span><a class='srclink' href='../src/matches/lib.rs.html#68-77' title='goto source code'>[src]</a></span></h1>
+<pre class="rust macro">
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">assert_matches</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expression</span>:<span class="ident">expr</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">pattern</span>:<span class="ident">tt</span>)<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+}</pre>
+<div class='docblock'><p>Assert that an expression matches a refutable pattern.</p>
+<p>Syntax: <code>assert_matches!(</code> <em>expression</em> <code>,</code> <em>pattern</em> <code>)</code></p>
+<p>Panic with a message that shows the expression if it does not match the
+pattern.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">matches</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>];
+    <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(_));
+}</pre>
 </div></section>
     <section id='search' class="content hidden"></section>
 
@@ -123,7 +136,7 @@ to the search</p>
 
     <script>
         window.rootPath = "../";
-        window.currentCrate = "tantivy";
+        window.currentCrate = "matches";
     </script>
     <script src="../main.js"></script>
     <script defer src="../search-index.js"></script>
