@@ -156,6 +156,23 @@
 <span id="100">100</span>
 <span id="101">101</span>
 <span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">boolean_query</span>;
 <span class="kw">mod</span> <span class="ident">boolean_weight</span>;
@@ -173,9 +190,10 @@
     <span class="kw">use</span> <span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">QueryParser</span>;
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_query</span>() {
+
+    <span class="kw">fn</span> <span class="ident">aux_test_helper</span>() <span class="op">-&gt;</span> (<span class="ident">Index</span>, <span class="ident">Field</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
@@ -205,6 +223,23 @@
             }
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">is_ok</span>());
         }
+        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
+        (<span class="ident">index</span>, <span class="ident">text_field</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_non_all_term_disjunction</span>() {
+        <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">text_field</span>]);
+        <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;(+a +b) d&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">query</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">query</span>.<span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">index</span>.<span class="ident">searcher</span>()).<span class="ident">unwrap</span>(), <span class="number">3</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_query</span>() {
+
+        <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
 
         <span class="kw">let</span> <span class="ident">make_term_query</span> <span class="op">=</span> <span class="op">|</span><span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(
@@ -215,14 +250,13 @@
             <span class="ident">query</span>
         };
 
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-
         <span class="kw">let</span> <span class="ident">matching_docs</span> <span class="op">=</span> <span class="op">|</span><span class="ident">boolean_query</span>: <span class="kw-2">&amp;</span><span class="ident">Query</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_collector</span> <span class="op">=</span> <span class="ident">TestCollector</span>::<span class="ident">default</span>();
             <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="ident">boolean_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test_collector</span>).<span class="ident">unwrap</span>();
             <span class="ident">test_collector</span>.<span class="ident">docs</span>()
         };
+
         {
             <span class="kw">let</span> <span class="ident">boolean_query</span> <span class="op">=</span> <span class="ident">BooleanQuery</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[(<span class="ident">Occur</span>::<span class="ident">Must</span>, <span class="ident">make_term_query</span>(<span class="string">&quot;a&quot;</span>))]);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">matching_docs</span>(<span class="kw-2">&amp;</span><span class="ident">boolean_query</span>), <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]);

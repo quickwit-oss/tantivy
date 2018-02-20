@@ -811,7 +811,7 @@
     <span class="kw">fn</span> <span class="ident">compute_logical_ast_for_leaf</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
-        <span class="ident">phrase</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+        <span class="ident">phrase</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LogicalLiteral</span><span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>();

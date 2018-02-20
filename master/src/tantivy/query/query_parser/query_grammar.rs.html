@@ -145,6 +145,9 @@
 <span id="89">89</span>
 <span id="90">90</span>
 <span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="ident">char</span>::<span class="kw-2">*</span>;
@@ -189,10 +192,10 @@
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">char</span><span class="op">&gt;</span>,
 {
-    (<span class="ident">char</span>(<span class="string">&#39;-&#39;</span>), <span class="ident">parser</span>(<span class="ident">literal</span>))
-        .<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
+    (<span class="ident">char</span>(<span class="string">&#39;-&#39;</span>), <span class="ident">parser</span>(<span class="ident">literal</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
         .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;+&#39;</span>), <span class="ident">parser</span>(<span class="ident">literal</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Must</span>(<span class="kw">box</span> <span class="ident">expr</span>)))
         .<span class="ident">or</span>(<span class="ident">parser</span>(<span class="ident">literal</span>))
+        .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;(&#39;</span>), <span class="ident">parser</span>(<span class="ident">parse_to_ast</span>), <span class="ident">char</span>(<span class="string">&#39;)&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>, _)<span class="op">|</span> <span class="ident">expr</span>))
         .<span class="ident">parse_stream</span>(<span class="ident">input</span>)
 }
 
@@ -228,11 +231,14 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_query_to_ast</span>() {
+        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;(+a +b) d&quot;</span>, <span class="string">&quot;((+(\&quot;a\&quot;) +(\&quot;b\&quot;)) \&quot;d\&quot;)&quot;</span>);
+        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;(+a)&quot;</span>, <span class="string">&quot;+(\&quot;a\&quot;)&quot;</span>);
+        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;(+a +b)&quot;</span>, <span class="string">&quot;(+(\&quot;a\&quot;) +(\&quot;b\&quot;))&quot;</span>);
         <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;abc:toto&quot;</span>, <span class="string">&quot;abc:\&quot;toto\&quot;&quot;</span>);
         <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;+abc:toto&quot;</span>, <span class="string">&quot;+(abc:\&quot;toto\&quot;)&quot;</span>);
-        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;+abc:toto -titi&quot;</span>, <span class="string">&quot;+(abc:\&quot;toto\&quot;) -(\&quot;titi\&quot;)&quot;</span>);
+        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;(+abc:toto -titi)&quot;</span>, <span class="string">&quot;(+(abc:\&quot;toto\&quot;) -(\&quot;titi\&quot;))&quot;</span>);
         <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;-abc:toto&quot;</span>, <span class="string">&quot;-(abc:\&quot;toto\&quot;)&quot;</span>);
-        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;abc:a b&quot;</span>, <span class="string">&quot;abc:\&quot;a\&quot; \&quot;b\&quot;&quot;</span>);
+        <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;abc:a b&quot;</span>, <span class="string">&quot;(abc:\&quot;a\&quot; \&quot;b\&quot;)&quot;</span>);
         <span class="ident">test_parse_query_to_ast_helper</span>(<span class="string">&quot;abc:\&quot;a b\&quot;&quot;</span>, <span class="string">&quot;abc:\&quot;a b\&quot;&quot;</span>);
         <span class="ident">test_is_parse_err</span>(<span class="string">&quot;abc +    &quot;</span>);
     }
