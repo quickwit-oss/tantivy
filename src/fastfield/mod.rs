@@ -23,6 +23,19 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
+use common;
+use schema::Cardinality;
+use schema::FieldType;
+use schema::Value;
+pub use self::delete::DeleteBitSet;
+pub use self::delete::write_delete_bitset;
+pub use self::error::{FastFieldNotAvailableError, Result};
+pub use self::facet_reader::FacetReader;
+pub use self::multivalued::MultiValueIntFastFieldReader;
+pub use self::reader::FastFieldReader;
+pub use self::serializer::FastFieldSerializer;
+pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
+
 mod reader;
 mod writer;
 mod serializer;
@@ -31,18 +44,76 @@ mod delete;
 mod facet_reader;
 mod multivalued;
 
-pub use self::delete::write_delete_bitset;
-pub use self::delete::DeleteBitSet;
-pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-pub use self::reader::{I64FastFieldReader, U64FastFieldReader};
-pub use self::reader::FastFieldReader;
-pub use self::serializer::FastFieldSerializer;
-pub use self::error::{FastFieldNotAvailableError, Result};
-pub use self::facet_reader::FacetReader;
-pub use self::multivalued::MultiValueIntFastFieldReader;
+/// Trait for types that are allowed for fast fields: (u64 or i64).
+pub trait FastValue: Default + Clone + Copy {
+    /// Converts a value from u64
+    ///
+    /// Internally all fast field values are encoded as u64.
+    fn from_u64(val: u64) -> Self;
 
-use common;
-use schema::Value;
+    /// Converts a value to u64.
+    ///
+    /// Internally all fast field values are encoded as u64.
+    fn to_u64(&self) -> u64;
+
+    /// Returns the fast field cardinality that can be extracted from the given
+    /// `FieldType`.
+    ///
+    /// If the type is not a fast field, `None` is returned.
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality>;
+
+    /// Cast value to `u64`.
+    /// The value is just reinterpreted in memory.
+    fn as_u64(&self) -> u64;
+}
+
+
+impl FastValue for u64 {
+    fn from_u64(val: u64) -> Self {
+        val
+    }
+
+    fn to_u64(&self) -> u64 {
+        *self
+    }
+
+    fn as_u64(&self) -> u64 {
+        *self
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::U64(ref integer_options) =>
+                integer_options.get_fastfield_cardinality(),
+            FieldType::HierarchicalFacet =>
+                Some(Cardinality::MultiValues),
+            _ => None,
+        }
+    }
+}
+
+impl FastValue for i64 {
+    fn from_u64(val: u64) -> Self {
+        common::u64_to_i64(val)
+    }
+
+    fn to_u64(&self) -> u64 {
+        common::i64_to_u64(*self)
+    }
+
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::I64(ref integer_options) =>
+                integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        *self as u64
+    }
+}
 
 fn value_to_u64(value: &Value) -> u64 {
     match *value {
@@ -55,21 +126,22 @@ fn value_to_u64(value: &Value) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use schema::Field;
-    use std::path::Path;
+
+    use common::CompositeFile;
     use directory::{Directory, RAMDirectory, WritePtr};
-    use schema::Document;
-    use schema::{Schema, SchemaBuilder};
-    use schema::FAST;
-    use std::collections::HashMap;
-    use test::Bencher;
-    use test;
     use fastfield::FastFieldReader;
     use rand::Rng;
     use rand::SeedableRng;
-    use common::CompositeFile;
     use rand::XorShiftRng;
+    use schema::{Schema, SchemaBuilder};
+    use schema::Document;
+    use schema::FAST;
+    use schema::Field;
+    use std::collections::HashMap;
+    use std::path::Path;
+    use super::*;
+    use test;
+    use test::Bencher;
 
     lazy_static! {
         static ref SCHEMA: Schema = {
@@ -84,7 +156,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield() {
-        let test_fastfield = U64FastFieldReader::from(vec![100, 200, 300]);
+        let test_fastfield = FastFieldReader::<u64>::from(vec![100, 200, 300]);
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
@@ -113,7 +185,7 @@ mod tests {
         {
             let composite_file = CompositeFile::open(&source).unwrap();
             let field_source = composite_file.open_read(*FIELD).unwrap();
-            let fast_field_reader: U64FastFieldReader = U64FastFieldReader::open(field_source);
+            let fast_field_reader = FastFieldReader::<u64>::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
             assert_eq!(fast_field_reader.get(1), 14u64);
             assert_eq!(fast_field_reader.get(2), 2u64);
@@ -148,8 +220,8 @@ mod tests {
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
             assert_eq!(fast_field_reader.get(0), 4u64);
             assert_eq!(fast_field_reader.get(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get(2), 3_052u64);
@@ -185,8 +257,8 @@ mod tests {
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u64);
             }
@@ -218,9 +290,8 @@ mod tests {
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
-
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(
@@ -259,8 +330,8 @@ mod tests {
         }
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: I64FastFieldReader =
-                I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
+            let data = fast_fields_composite.open_read(i64_field).unwrap();
+            let fast_field_reader = FastFieldReader::<i64>::open(data);
 
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
@@ -298,8 +369,8 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: I64FastFieldReader =
-                I64FastFieldReader::open(fast_fields_composite.open_read(i64_field).unwrap());
+            let data = fast_fields_composite.open_read(i64_field).unwrap();
+            let fast_field_reader = FastFieldReader::<i64>::open(data);
             assert_eq!(fast_field_reader.get(0u32), 0i64);
         }
     }
@@ -333,8 +404,8 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
 
             let mut a = 0u64;
             for _ in 0..n {
@@ -390,8 +461,8 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
 
             b.iter(|| {
                 let n = test::black_box(7000u32);
@@ -424,8 +495,8 @@ mod tests {
         let source = directory.open_read(&path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&source).unwrap();
-            let fast_field_reader: U64FastFieldReader =
-                U64FastFieldReader::open(fast_fields_composite.open_read(*FIELD).unwrap());
+            let data = fast_fields_composite.open_read(*FIELD).unwrap();
+            let fast_field_reader = FastFieldReader::<u64>::open(data);
 
             b.iter(|| {
                 let n = test::black_box(1000u32);

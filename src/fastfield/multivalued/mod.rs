@@ -4,8 +4,6 @@ mod reader;
 pub use self::writer::MultiValueIntFastFieldWriter;
 pub use self::reader::MultiValueIntFastFieldReader;
 
-
-
 #[cfg(test)]
 mod tests {
 
@@ -87,27 +85,5 @@ mod tests {
             multi_value_reader.get_vals(3, &mut vals);
             assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
         }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_multivalued_unreachable() {
-        let mut schema_builder = SchemaBuilder::default();
-        let field = schema_builder.add_i64_field(
-            "multifield",
-            IntOptions::default().set_fast(Cardinality::MultiValues)
-        );
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        index_writer.add_document(doc!(field=> 1i64, field => 3i64));
-        assert!(index_writer.commit().is_ok());
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        let reader = searcher.segment_reader(0);
-        let multi_value_reader = reader.multi_fast_field_reader::<String>(field).unwrap();
-        let mut vals = Vec::new();
-        multi_value_reader.get_vals(0, &mut vals);
     }
 }

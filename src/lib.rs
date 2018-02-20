@@ -3,7 +3,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]
-#![feature(specialization)]
 #![feature(conservative_impl_trait)]
 #![feature(collections_range)]
 #![feature(integer_atomics)]
@@ -287,7 +286,6 @@ mod tests {
     use schema::*;
     use docset::DocSet;
     use IndexWriter;
-    use fastfield::{FastFieldReader, I64FastFieldReader, U64FastFieldReader};
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use rand::distributions::{IndependentSample, Range};
@@ -858,22 +856,22 @@ mod tests {
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
             let fast_field_reader_res =
-                segment_reader.fast_field_reader::<U64FastFieldReader>(text_field);
+                segment_reader.fast_field_reader::<u64>(text_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
             let fast_field_reader_res =
-                segment_reader.fast_field_reader::<U64FastFieldReader>(stored_int_field);
+                segment_reader.fast_field_reader::<u64>(stored_int_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
             let fast_field_reader_res =
-                segment_reader.fast_field_reader::<U64FastFieldReader>(fast_field_signed);
+                segment_reader.fast_field_reader::<u64>(fast_field_signed);
             assert!(fast_field_reader_res.is_err());
         }
         {
             let fast_field_reader_res =
-                segment_reader.fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+                segment_reader.fast_field_reader::<i64>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
@@ -881,7 +879,7 @@ mod tests {
 
         {
             let fast_field_reader_res =
-                segment_reader.fast_field_reader::<I64FastFieldReader>(fast_field_signed);
+                segment_reader.fast_field_reader::<i64>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)

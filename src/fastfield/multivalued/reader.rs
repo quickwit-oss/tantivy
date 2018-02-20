@@ -1,10 +1,5 @@
 use DocId;
-use fastfield::FastFieldReader;
-use fastfield::U64FastFieldReader;
-use std::marker::PhantomData;
-use common;
-
-
+use fastfield::{FastFieldReader, FastValue};
 
 
 /// Reader for a multivalued `u64` fast field.
@@ -16,44 +11,19 @@ use common;
 /// The `idx_reader` associated, for each document, the index of its first value.
 ///
 #[derive(Clone)]
-pub struct MultiValueIntFastFieldReader<Item> {
-    idx_reader: U64FastFieldReader,
-    vals_reader: U64FastFieldReader,
-    __phantom__: PhantomData<Item>
+pub struct MultiValueIntFastFieldReader<Item: FastValue> {
+    idx_reader: FastFieldReader<u64>,
+    vals_reader: FastFieldReader<Item>
 }
 
-trait ConvertU64<Item> {
-    fn from_u64(val: u64) -> Item;
-}
-
-impl<Item> ConvertU64<Item> for MultiValueIntFastFieldReader<Item> {
-    default fn from_u64(_: u64) -> Item {
-        unimplemented!("MultiValueIntFastField only exists for u64 and i64.");
-    }
-}
-
-impl ConvertU64<u64> for MultiValueIntFastFieldReader<u64> {
-    fn from_u64(val: u64) -> u64 {
-        val
-    }
-}
-
-impl ConvertU64<i64> for MultiValueIntFastFieldReader<i64> {
-    fn from_u64(val: u64) -> i64 {
-        common::u64_to_i64(val)
-    }
-}
-
-
-impl<Item> MultiValueIntFastFieldReader<Item> {
+impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
     pub(crate) fn open(
-        idx_reader: U64FastFieldReader,
-        vals_reader: U64FastFieldReader,
+        idx_reader: FastFieldReader<u64>,
+        vals_reader: FastFieldReader<Item>,
     ) -> MultiValueIntFastFieldReader<Item> {
         MultiValueIntFastFieldReader {
             idx_reader,
-            vals_reader,
-            __phantom__: PhantomData,
+            vals_reader
         }
     }
 
@@ -61,11 +31,9 @@ impl<Item> MultiValueIntFastFieldReader<Item> {
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let start = self.idx_reader.get(doc) as u32;
         let stop = self.idx_reader.get(doc + 1) as u32;
-        vals.clear();
-        for val_id in start..stop {
-            let val = self.vals_reader.get(val_id);
-            vals.push(Self::from_u64(val));
-        }
+        let len = (stop - start) as usize;
+        vals.resize(len, Item::default());
+        self.vals_reader.get_range(start, &mut vals[..]);
     }
 }
 

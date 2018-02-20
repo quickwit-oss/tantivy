@@ -51,7 +51,6 @@ pub mod tests {
     use schema::IndexRecordOption;
     use std::iter;
     use datastruct::stacker::Heap;
-    use fastfield::FastFieldReader;
     use query::TermQuery;
     use schema::Field;
     use test::{self, Bencher};

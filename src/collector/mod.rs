@@ -94,7 +94,6 @@ pub mod tests {
     use Score;
     use core::SegmentReader;
     use SegmentLocalId;
-    use fastfield::U64FastFieldReader;
     use fastfield::FastFieldReader;
     use schema::Field;
 
@@ -148,7 +147,7 @@ pub mod tests {
     pub struct FastFieldTestCollector {
         vals: Vec<u64>,
         field: Field,
-        ff_reader: Option<U64FastFieldReader>,
+        ff_reader: Option<FastFieldReader<u64>>,
     }
 
     impl FastFieldTestCollector {

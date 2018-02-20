@@ -5,7 +5,6 @@ use DocId;
 use core::SerializableSegment;
 use indexer::SegmentSerializer;
 use postings::InvertedIndexSerializer;
-use fastfield::U64FastFieldReader;
 use itertools::Itertools;
 use postings::Postings;
 use docset::DocSet;
@@ -26,7 +25,7 @@ pub struct IndexMerger {
 }
 
 fn compute_min_max_val(
-    u64_reader: &U64FastFieldReader,
+    u64_reader: &FastFieldReader<u64>,
     max_doc: DocId,
     delete_bitset: &DeleteBitSet,
 ) -> Option<(u64, u64)> {
@@ -50,14 +49,14 @@ fn compute_min_max_val(
 fn extract_fieldnorm_reader(
     segment_reader: &SegmentReader,
     field: Field,
-) -> Option<U64FastFieldReader> {
+) -> Option<FastFieldReader<u64>> {
     segment_reader.get_fieldnorms_reader(field)
 }
 
 fn extract_fast_field_reader(
     segment_reader: &SegmentReader,
     field: Field,
-) -> Option<U64FastFieldReader> {
+) -> Option<FastFieldReader<u64>> {
     segment_reader.fast_field_reader(field).ok()
 }
 
@@ -137,7 +136,7 @@ impl IndexMerger {
     fn generic_write_fast_field(
         &self,
         fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<U64FastFieldReader>,
+        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<FastFieldReader<u64>>,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> Result<()> {
         for field in fields {
@@ -368,7 +367,6 @@ mod tests {
     use query::TermQuery;
     use schema::Field;
     use core::Index;
-    use fastfield::U64FastFieldReader;
     use Searcher;
     use DocAddress;
     use collector::tests::FastFieldTestCollector;
@@ -628,16 +626,16 @@ mod tests {
                 vec![6_000, 7_000]
             );
 
-            let score_field_reader: U64FastFieldReader = searcher
+            let score_field_reader = searcher
                 .segment_reader(0)
-                .fast_field_reader(score_field)
+                .fast_field_reader::<u64>(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 1);
             assert_eq!(score_field_reader.max_value(), 3);
 
-            let score_field_reader: U64FastFieldReader = searcher
+            let score_field_reader = searcher
                 .segment_reader(1)
-                .fast_field_reader(score_field)
+                .fast_field_reader::<u64>(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 4000);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -685,9 +683,9 @@ mod tests {
                 search_term(&searcher, Term::from_field_text(text_field, "g")),
                 vec![6_000, 7_000]
             );
-            let score_field_reader: U64FastFieldReader = searcher
+            let score_field_reader = searcher
                 .segment_reader(0)
-                .fast_field_reader(score_field)
+                .fast_field_reader::<u64>(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -731,9 +729,9 @@ mod tests {
                 search_term(&searcher, Term::from_field_text(text_field, "g")),
                 vec![6_000, 7_000]
             );
-            let score_field_reader: U64FastFieldReader = searcher
+            let score_field_reader = searcher
                 .segment_reader(0)
-                .fast_field_reader(score_field)
+                .fast_field_reader::<u64>(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 3);
             assert_eq!(score_field_reader.max_value(), 7000);
@@ -782,9 +780,9 @@ mod tests {
                 search_term(&searcher, Term::from_field_text(text_field, "g")),
                 vec![6_000, 7_000]
             );
-            let score_field_reader: U64FastFieldReader = searcher
+            let score_field_reader = searcher
                 .segment_reader(0)
-                .fast_field_reader(score_field)
+                .fast_field_reader::<u64>(score_field)
                 .unwrap();
             assert_eq!(score_field_reader.min_value(), 6000);
             assert_eq!(score_field_reader.max_value(), 7000);

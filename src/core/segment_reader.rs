@@ -21,10 +21,11 @@ use schema::FieldType;
 use error::ErrorKind;
 use termdict::TermDictionaryImpl;
 use fastfield::FacetReader;
-use fastfield::{FastFieldReader, U64FastFieldReader};
+use fastfield::FastFieldReader;
 use schema::Schema;
 use termdict::TermDictionary;
-use fastfield::MultiValueIntFastFieldReader;
+use fastfield::{FastValue, MultiValueIntFastFieldReader};
+use schema::Cardinality;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -91,18 +92,37 @@ impl SegmentReader {
     ///
     /// # Panics
     /// May panic if the index is corrupted.
-    pub fn fast_field_reader<TFastFieldReader: FastFieldReader>(
+    pub fn fast_field_reader<Item: FastValue>(
         &self,
         field: Field,
-    ) -> fastfield::Result<TFastFieldReader> {
+    ) -> fastfield::Result<FastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
-        if !TFastFieldReader::is_enabled(field_entry.field_type()) {
-            Err(FastFieldNotAvailableError::new(field_entry))
-        } else {
+        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue) {
             self.fast_fields_composite
                 .open_read(field)
                 .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(TFastFieldReader::open)
+                .map(FastFieldReader::open)
+        } else {
+            Err(FastFieldNotAvailableError::new(field_entry))
+        }
+    }
+
+    /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
+    /// May panick if the field is not a multivalued fastfield of the type `Item`.
+    pub fn multi_fast_field_reader<Item: FastValue>(&self, field: Field) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
+        let field_entry = self.schema.get_field_entry(field);
+        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues) {
+            let idx_reader = self.fast_fields_composite
+                .open_read_with_idx(field, 0)
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                .map(FastFieldReader::open)?;
+            let vals_reader = self.fast_fields_composite
+                .open_read_with_idx(field, 1)
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                .map(FastFieldReader::open)?;
+            Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
+        } else {
+            Err(FastFieldNotAvailableError::new(field_entry))
         }
     }
 
@@ -138,25 +158,10 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<U64FastFieldReader> {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<FastFieldReader<u64>> {
         self.fieldnorms_composite
             .open_read(field)
-            .map(U64FastFieldReader::open)
-    }
-
-    /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
-    /// <TFastFieldReader: FastFieldReader>
-    pub fn multi_fast_field_reader<Item>(&self, field: Field) -> Result<MultiValueIntFastFieldReader<Item>> {
-        let field_entry = self.schema.get_field_entry(field);
-        let idx_reader = self.fast_fields_composite
-            .open_read_with_idx(field, 0)
-            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-            .map(U64FastFieldReader::open)?;
-        let vals_reader = self.fast_fields_composite
-            .open_read_with_idx(field, 1)
-            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-            .map(U64FastFieldReader::open)?;
-        Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
+            .map(FastFieldReader::open)
     }
 
     /// Accessor to the segment's `StoreReader`.
