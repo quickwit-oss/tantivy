@@ -123,7 +123,7 @@ impl Default for SchemaBuilder {
     }
 }
 
-#[derive(Debug)]
+
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
@@ -243,11 +243,6 @@ impl Schema {
     }
 }
 
-impl fmt::Debug for Schema {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.0.fmt(f)
-    }
-}
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -297,11 +292,6 @@ impl<'de> Deserialize<'de> for Schema {
     }
 }
 
-impl From<SchemaBuilder> for Schema {
-    fn from(schema_builder: SchemaBuilder) -> Schema {
-        schema_builder.build()
-    }
-}
 
 /// Error that may happen when deserializing
 /// a document from JSON.
@@ -465,14 +455,7 @@ mod tests {
                 "jambon": "bayonne"
             }"#,
             );
-            match json_err {
-                Err(DocParsingError::NoSuchFieldInSchema(field_name)) => {
-                    assert_eq!(field_name, "jambon");
-                }
-                _ => {
-                    panic!("expected additional field 'jambon' to fail but didn't");
-                }
-            }
+            assert_matches!(json_err, Err(DocParsingError::NoSuchFieldInSchema(_)));
         }
         {
             let json_err = schema.parse_document(
@@ -484,14 +467,7 @@ mod tests {
                 "jambon": "bayonne"
             }"#,
             );
-            match json_err {
-                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))) => {
-                    assert!(true);
-                }
-                _ => {
-                    panic!("expected string of 5 to fail but didn't");
-                }
-            }
+            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))));
         }
         {
             let json_err = schema.parse_document(
@@ -502,14 +478,7 @@ mod tests {
                 "popularity": 10
             }"#,
             );
-            match json_err {
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
-                    assert!(true);
-                }
-                _ => {
-                    panic!("expected -5 to fail but didn't");
-                }
-            }
+            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))));
         }
         {
             let json_err = schema.parse_document(
@@ -520,14 +489,7 @@ mod tests {
                 "popularity": 10
             }"#,
             );
-            match json_err {
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
-                    panic!("expected 9223372036854775808 to fit into u64, but it didn't");
-                }
-                _ => {
-                    assert!(true);
-                }
-            }
+            assert!(!matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))));
         }
         {
             let json_err = schema.parse_document(
@@ -538,14 +500,7 @@ mod tests {
                 "popularity": 9223372036854775808
             }"#,
             );
-            match json_err {
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))) => {
-                    assert!(true);
-                }
-                _ => {
-                    panic!("expected 9223372036854775808 to overflow i64, but it didn't");
-                }
-            }
+            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))));
         }
         {
             let json_err = schema.parse_document(
@@ -555,14 +510,7 @@ mod tests {
                 "count": 50,
             }"#,
             );
-            match json_err {
-                Err(NotJSON(_)) => {
-                    assert!(true);
-                }
-                _ => {
-                    panic!("expected invalid JSON to fail parsing, but it didn't");
-                }
-            }
+            assert_matches!(json_err, Err(NotJSON(_)));
         }
     }
 }

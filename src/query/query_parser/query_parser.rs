@@ -328,8 +328,11 @@ mod test {
     use tokenizer::TokenizerManager;
     use query::Query;
     use schema::Field;
+    use schema::{TextOptions, TextFieldIndexing, IndexRecordOption};
     use super::QueryParser;
     use super::QueryParserError;
+    use Index;
+    use tokenizer::SimpleTokenizer;
     use super::super::logical_ast::*;
 
     fn make_query_parser() -> QueryParser {
@@ -486,6 +489,71 @@ mod test {
             "\"[Term([0, 0, 0, 0, 97]), \
              Term([0, 0, 0, 0, 98])]\"",
             false,
+        );
+    }
+
+    #[test]
+    pub fn test_query_parser_field_does_not_exist() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("boujou:\"18446744073709551615\""),
+            Err(QueryParserError::FieldDoesNotExist(_))
+        );
+    }
+
+    #[test]
+    pub fn test_query_parser_field_not_indexed() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("notindexed_text:\"18446744073709551615\""),
+            Err(QueryParserError::FieldNotIndexed(_))
+        );
+    }
+
+    #[test]
+    pub fn test_unknown_tokenizer() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("nonexistingtokenizer")
+            .set_index_option(IndexRecordOption::Basic);
+        let text_options = TextOptions::default().set_indexing_options(text_field_indexing);
+        let title = schema_builder.add_text_field("title", text_options);
+        let schema = schema_builder.build();
+        let default_fields = vec![title];
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser = QueryParser::new(schema, default_fields, tokenizer_manager);
+        assert_matches!(
+            query_parser.parse_query("title:\"happy tax payer\""),
+            Err(QueryParserError::UnknownTokenizer(_, _))
+        );
+    }
+
+    #[test]
+    pub fn test_query_parser_from_index() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("customtokenizer")
+            .set_index_option(IndexRecordOption::Basic);
+        let text_options = TextOptions::default().set_indexing_options(text_field_indexing);
+        let title = schema_builder.add_text_field("title", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        index.tokenizers().register("customtokenizer", SimpleTokenizer);
+        let query_parser = QueryParser::for_index(&index, vec![title]);
+        assert!(query_parser.parse_query("title:\"happy tax\"").is_ok());
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_int() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("unsigned:18a"),
+            Err(QueryParserError::ExpectedInt(_))
+        );
+        assert!(query_parser.parse_query("unsigned:\"18\"").is_ok());
+        assert_matches!(
+            query_parser.parse_query("signed:18b"),
+            Err(QueryParserError::ExpectedInt(_))
         );
     }
 

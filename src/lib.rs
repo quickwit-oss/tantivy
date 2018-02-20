@@ -153,6 +153,10 @@ extern crate time;
 extern crate uuid;
 
 #[cfg(test)]
+#[macro_use]
+extern crate matches;
+
+#[cfg(test)]
 extern crate env_logger;
 
 #[cfg(feature = "simdcompression")]

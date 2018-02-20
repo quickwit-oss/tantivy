@@ -1,5 +1,7 @@
 use schema::Schema;
 use core::SegmentMeta;
+use std::fmt;
+use serde_json;
 
 /// Meta information about the `Index`.
 ///
@@ -9,7 +11,7 @@ use core::SegmentMeta;
 /// * the index `docstamp`
 /// * the schema
 ///
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IndexMeta {
     pub segments: Vec<SegmentMeta>,
     pub schema: Schema,
@@ -26,6 +28,12 @@ impl IndexMeta {
             opstamp: 0u64,
             payload: None,
         }
+    }
+}
+
+impl fmt::Debug for IndexMeta {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", serde_json::ser::to_string(self).expect("JSON serialization for IndexMeta should never fail."))
     }
 }
 
