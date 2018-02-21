@@ -7,7 +7,7 @@ use postings::SegmentPostings;
 use schema::IndexRecordOption;
 use super::term_scorer::TermScorer;
 use fastfield::DeleteBitSet;
-use postings::{DeleteSet, NoDelete};
+use postings::NoDelete;
 use Result;
 
 pub struct TermWeight {

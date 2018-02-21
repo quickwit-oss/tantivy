@@ -9,7 +9,6 @@ use std::cmp;
 use fst::Streamer;
 use compression::compressed_block_size;
 use postings::{NoDelete, DeleteSet};
-use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;

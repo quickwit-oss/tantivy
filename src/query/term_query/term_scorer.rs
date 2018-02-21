@@ -1,25 +1,17 @@
 use Score;
 use DocId;
 use docset::{DocSet, SkipResult};
-use postings::SegmentPostings;
 use query::Scorer;
-use postings::Postings;
 use fastfield::FastFieldReader;
-use postings::{NoDelete, DeleteSet};
+use postings::Postings;
 
-pub struct TermScorer<TDeleteSet: DeleteSet=NoDelete> {
+pub struct TermScorer<TPostings: Postings> {
     pub idf: Score,
     pub fieldnorm_reader_opt: Option<FastFieldReader<u64>>,
-    pub postings: SegmentPostings<TDeleteSet>,
+    pub postings: TPostings,
 }
 
-impl<TDeleteSet: DeleteSet> TermScorer<TDeleteSet> {
-    pub fn postings(&self) -> &SegmentPostings<TDeleteSet> {
-        &self.postings
-    }
-}
-
-impl<TDeleteSet: DeleteSet> DocSet for TermScorer<TDeleteSet> {
+impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     fn advance(&mut self) -> bool {
         self.postings.advance()
     }
@@ -37,7 +29,7 @@ impl<TDeleteSet: DeleteSet> DocSet for TermScorer<TDeleteSet> {
     }
 }
 
-impl<TDeleteSet: DeleteSet> Scorer for TermScorer<TDeleteSet> {
+impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.postings.doc();
         let tf = match self.fieldnorm_reader_opt {

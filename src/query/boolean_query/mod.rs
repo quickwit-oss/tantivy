@@ -12,7 +12,6 @@ mod tests {
     use query::TermQuery;
     use query::Intersection;
     use query::Scorer;
-    use query::term_query::TermScorer;
     use collector::tests::TestCollector;
     use Index;
     use downcast::Downcast;
@@ -20,8 +19,7 @@ mod tests {
     use query::QueryParser;
     use query::RequiredOptionalScorer;
     use query::score_combiner::SumWithCoordsCombiner;
-
-
+    use query::term_query::TermScorerNoDeletes;
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = SchemaBuilder::default();
@@ -73,7 +71,7 @@ mod tests {
         let searcher = index.searcher();
         let weight = query.weight(&*searcher, true).unwrap();
         let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-        assert!(Downcast::<TermScorer>::is_type(&*scorer));
+        assert!(Downcast::<TermScorerNoDeletes>::is_type(&*scorer));
     }
 
     #[test]
@@ -85,7 +83,7 @@ mod tests {
             let query = query_parser.parse_query("+a +b +c").unwrap();
             let weight = query.weight(&*searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<Intersection<TermScorer<NoDelete>>>::is_type(&*scorer));
+            assert!(Downcast::<Intersection<TermScorerNoDeletes>>::is_type(&*scorer));
         }
         {
             let query = query_parser.parse_query("+a +(b c)").unwrap();
@@ -94,8 +92,6 @@ mod tests {
             assert!(Downcast::<Intersection<Box<Scorer>>>::is_type(&*scorer));
         }
     }
-
-    use postings::NoDelete;
 
     #[test]
     pub fn test_boolean_reqopt() {
@@ -112,7 +108,8 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&*searcher, false).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<TermScorer<NoDelete>>::is_type(&*scorer));
+            println!("{:?}", scorer.type_name());
+            assert!(Downcast::<TermScorerNoDeletes>::is_type(&*scorer));
         }
     }
 

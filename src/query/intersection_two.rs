@@ -2,9 +2,6 @@ use docset::DocSet;
 use query::Scorer;
 use DocId;
 use Score;
-use std::mem;
-use query::term_query::TermScorer;
-use postings::DeleteSet;
 use SkipResult;
 
 
@@ -15,7 +12,7 @@ pub struct IntersectionTwoTerms<TDocSet> {
 }
 
 impl<TDocSet: DocSet> IntersectionTwoTerms<TDocSet> {
-    pub fn new(left: TDocSet, mut right: TDocSet) -> IntersectionTwoTerms<TDocSet> {
+    pub fn new(left: TDocSet, right: TDocSet) -> IntersectionTwoTerms<TDocSet> {
         IntersectionTwoTerms {
             left,
             right

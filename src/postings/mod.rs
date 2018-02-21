@@ -44,7 +44,7 @@ pub mod tests {
     use DocId;
     use Score;
     use query::Intersection;
-    use query::{Weight, Scorer};
+    use query::Scorer;
     use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
@@ -53,7 +53,6 @@ pub mod tests {
     use schema::IndexRecordOption;
     use std::iter;
     use datastruct::stacker::Heap;
-    use query::TermQuery;
     use schema::Field;
     use test::{self, Bencher};
     use indexer::operation::AddOperation;

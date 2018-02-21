@@ -11,7 +11,7 @@ pub trait DeleteSet: 'static + From<Option<DeleteBitSet>> {
 pub struct NoDelete;
 impl DeleteSet for NoDelete {
     #[inline(always)]
-    fn is_deleted(&self, doc: DocId) -> bool {
+    fn is_deleted(&self, _doc: DocId) -> bool {
         false
     }
     fn empty() -> Self {

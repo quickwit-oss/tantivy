@@ -10,7 +10,7 @@ use docset::DocSet;
 /// Its main implementation is `SegmentPostings`,
 /// but other implementations mocking `SegmentPostings` exist,
 /// for merging segments or for testing.
-pub trait Postings: DocSet {
+pub trait Postings: DocSet + 'static {
     /// Returns the term frequency
     fn term_freq(&self) -> u32;
     /// Returns the list of positions of the term, expressed as a list of

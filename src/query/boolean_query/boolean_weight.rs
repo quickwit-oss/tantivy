@@ -5,16 +5,15 @@ use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
 use downcast::Downcast;
-use query::term_query::TermScorer;
 use std::borrow::Borrow;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
 use query::IntersectionTwoTerms;
-use fastfield::DeleteBitSet;
-use postings::NoDelete;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
+use query::term_query::{TermScorerWithDeletes, TermScorerNoDeletes};
+
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -28,14 +27,14 @@ where
     {
         let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorer<DeleteBitSet>>::is_type(scorer_ref)
+            Downcast::<TermScorerWithDeletes>::is_type(scorer_ref)
         });
         if is_all_term_queries {
-            let scorers: Vec<TermScorer<DeleteBitSet>> = scorers
+            let scorers: Vec<TermScorerWithDeletes> = scorers
                 .into_iter()
-                .map(|scorer| *Downcast::<TermScorer<DeleteBitSet>>::downcast(scorer).unwrap())
+                .map(|scorer| *Downcast::<TermScorerWithDeletes>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorer<DeleteBitSet>, TScoreCombiner>::from(scorers);
+            let scorer: Box<Scorer> = box Union::<TermScorerWithDeletes, TScoreCombiner>::from(scorers);
             return scorer;
         }
     }
@@ -43,14 +42,14 @@ where
     {
         let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorer<NoDelete>>::is_type(scorer_ref)
+            Downcast::<TermScorerNoDeletes>::is_type(scorer_ref)
         });
         if is_all_term_queries {
-            let scorers: Vec<TermScorer<NoDelete>> = scorers
+            let scorers: Vec<TermScorerNoDeletes> = scorers
                 .into_iter()
-                .map(|scorer| *Downcast::<TermScorer<NoDelete>>::downcast(scorer).unwrap())
+                .map(|scorer| *Downcast::<TermScorerNoDeletes>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorer<NoDelete>, TScoreCombiner>::from(scorers);
+            let scorer: Box<Scorer> = box Union::<TermScorerNoDeletes, TScoreCombiner>::from(scorers);
             return scorer;
         }
     }
@@ -102,7 +101,7 @@ impl BooleanWeight {
                 {
                     let is_all_term_queries = scorers.iter().all(|scorer| {
                         let scorer_ref: &Scorer = scorer.borrow();
-                        Downcast::<TermScorer<DeleteBitSet>>::is_type(scorer_ref)
+                        Downcast::<TermScorerWithDeletes>::is_type(scorer_ref)
                     });
                     if is_all_term_queries {
                         if scorers.len() == 2 {
@@ -110,9 +109,9 @@ impl BooleanWeight {
                             let left = scorers.pop().unwrap();
                             return box IntersectionTwoTerms::new(left, right);
                         } else {
-                            let mut scorers: Vec<TermScorer<DeleteBitSet>> = scorers
+                            let scorers: Vec<TermScorerWithDeletes> = scorers
                                 .into_iter()
-                                .map(|scorer| *Downcast::<TermScorer<DeleteBitSet>>::downcast(scorer).unwrap())
+                                .map(|scorer| *Downcast::<TermScorerWithDeletes>::downcast(scorer).unwrap())
                                 .collect();
                             let scorer: Box<Scorer> = box Intersection::from(scorers);
                             return scorer;
@@ -122,7 +121,7 @@ impl BooleanWeight {
                 {
                     let is_all_term_queries = scorers.iter().all(|scorer| {
                         let scorer_ref: &Scorer = scorer.borrow();
-                        Downcast::<TermScorer<NoDelete>>::is_type(scorer_ref)
+                        Downcast::<TermScorerNoDeletes>::is_type(scorer_ref)
                     });
                     if is_all_term_queries {
                         if scorers.len() == 2 {
@@ -130,9 +129,9 @@ impl BooleanWeight {
                             let left = scorers.pop().unwrap();
                             return box IntersectionTwoTerms::new(left, right);
                         } else {
-                            let mut scorers: Vec<TermScorer<NoDelete>> = scorers
+                            let scorers: Vec<TermScorerNoDeletes> = scorers
                                 .into_iter()
-                                .map(|scorer| *Downcast::<TermScorer<NoDelete>>::downcast(scorer).unwrap())
+                                .map(|scorer| *Downcast::<TermScorerNoDeletes>::downcast(scorer).unwrap())
                                 .collect();
                             let scorer: Box<Scorer> = box Intersection::from(scorers);
                             return scorer;
