@@ -26,6 +26,7 @@ use schema::Schema;
 use termdict::TermDictionary;
 use fastfield::{FastValue, MultiValueIntFastFieldReader};
 use schema::Cardinality;
+use postings::DeleteSet;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -54,7 +55,7 @@ pub struct SegmentReader {
     fieldnorms_composite: CompositeFile,
 
     store_reader: StoreReader,
-    delete_bitset: DeleteBitSet,
+    delete_bitset_opt: Option<DeleteBitSet>,
     schema: Schema,
 }
 
@@ -79,7 +80,13 @@ impl SegmentReader {
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
-        self.delete_bitset.len() as DocId
+        self.delete_bitset()
+            .map(|delete_set| delete_set.len() as DocId)
+            .unwrap_or(0u32)
+    }
+
+    pub fn has_deletes(&self) -> bool {
+        self.num_deleted_docs() > 0
     }
 
     /// Accessor to a segment's fast field reader given a field.
@@ -194,12 +201,13 @@ impl SegmentReader {
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
 
-        let delete_bitset = if segment.meta().has_deletes() {
-            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
-            DeleteBitSet::open(delete_data)
-        } else {
-            DeleteBitSet::empty()
-        };
+        let delete_bitset_opt =
+            if segment.meta().has_deletes() {
+                let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+                Some(DeleteBitSet::open(delete_data))
+            } else {
+                None
+            };
 
         let schema = segment.schema();
         Ok(SegmentReader {
@@ -211,7 +219,7 @@ impl SegmentReader {
             fieldnorms_composite,
             segment_id: segment.id(),
             store_reader,
-            delete_bitset,
+            delete_bitset_opt,
             positions_composite,
             schema,
         })
@@ -253,7 +261,7 @@ impl SegmentReader {
             termdict_source,
             postings_source,
             positions_source,
-            self.delete_bitset.clone(),
+            self.delete_bitset_opt.clone(),
             record_option,
         ));
 
@@ -282,14 +290,16 @@ impl SegmentReader {
 
     /// Returns the bitset representing
     /// the documents that have been deleted.
-    pub fn delete_bitset(&self) -> &DeleteBitSet {
-        &self.delete_bitset
+    pub fn delete_bitset(&self) -> Option<&DeleteBitSet> {
+        self.delete_bitset_opt.as_ref()
     }
 
     /// Returns true iff the `doc` is marked
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        self.delete_bitset.is_deleted(doc)
+        self.delete_bitset()
+            .map(|delete_set| delete_set.is_deleted(doc))
+            .unwrap_or(false)
     }
 }
 

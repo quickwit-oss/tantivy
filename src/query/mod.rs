@@ -16,6 +16,7 @@ mod range_query;
 mod exclude;
 mod union;
 mod intersection;
+mod intersection_two;
 mod reqopt_scorer;
 
 #[cfg(test)]
@@ -45,3 +46,4 @@ pub use self::weight::Weight;
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::range_query::RangeQuery;
 pub use self::scorer::ConstScorer;
+pub use self::intersection_two::IntersectionTwoTerms;

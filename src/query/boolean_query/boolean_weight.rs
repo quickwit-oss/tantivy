@@ -10,6 +10,9 @@ use std::borrow::Borrow;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
+use query::IntersectionTwoTerms;
+use fastfield::DeleteBitSet;
+use postings::NoDelete;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
 
@@ -19,24 +22,41 @@ where
 {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
-        scorers.into_iter().next().unwrap() //< we checked the size beforehands
-    } else {
+        return scorers.into_iter().next().unwrap(); //< we checked the size beforehands
+    }
+
+    {
         let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorer>::is_type(scorer_ref)
+            Downcast::<TermScorer<DeleteBitSet>>::is_type(scorer_ref)
         });
         if is_all_term_queries {
-            let scorers: Vec<TermScorer> = scorers
+            let scorers: Vec<TermScorer<DeleteBitSet>> = scorers
                 .into_iter()
-                .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
+                .map(|scorer| *Downcast::<TermScorer<DeleteBitSet>>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
-            scorer
-        } else {
-            let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
-            scorer
+            let scorer: Box<Scorer> = box Union::<TermScorer<DeleteBitSet>, TScoreCombiner>::from(scorers);
+            return scorer;
         }
     }
+
+    {
+        let is_all_term_queries = scorers.iter().all(|scorer| {
+            let scorer_ref: &Scorer = scorer.borrow();
+            Downcast::<TermScorer<NoDelete>>::is_type(scorer_ref)
+        });
+        if is_all_term_queries {
+            let scorers: Vec<TermScorer<NoDelete>> = scorers
+                .into_iter()
+                .map(|scorer| *Downcast::<TermScorer<NoDelete>>::downcast(scorer).unwrap())
+                .collect();
+            let scorer: Box<Scorer> = box Union::<TermScorer<NoDelete>, TScoreCombiner>::from(scorers);
+            return scorer;
+        }
+    }
+    let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
+    return scorer;
+
 }
 
 pub struct BooleanWeight {
@@ -74,25 +94,54 @@ impl BooleanWeight {
             .map(scorer_union::<TScoreCombiner>);
 
         let must_scorer_opt: Option<Box<Scorer>> =
-            per_occur_scorers.remove(&Occur::Must).map(|scorers| {
+            per_occur_scorers.remove(&Occur::Must).map(|mut scorers| {
                 if scorers.len() == 1 {
-                    scorers.into_iter().next().unwrap()
-                } else {
+                    return scorers.into_iter().next().unwrap();
+                }
+                scorers.sort_by_key(|scorer| scorer.size_hint());
+                {
                     let is_all_term_queries = scorers.iter().all(|scorer| {
                         let scorer_ref: &Scorer = scorer.borrow();
-                        Downcast::<TermScorer>::is_type(scorer_ref)
+                        Downcast::<TermScorer<DeleteBitSet>>::is_type(scorer_ref)
                     });
                     if is_all_term_queries {
-                        let scorers: Vec<TermScorer> = scorers
-                            .into_iter()
-                            .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
-                            .collect();
-                        let scorer: Box<Scorer> = box Intersection::from(scorers);
-                        scorer
-                    } else {
-                        let scorer: Box<Scorer> = box Intersection::from(scorers);
-                        scorer
+                        if scorers.len() == 2 {
+                            let right = scorers.pop().unwrap();
+                            let left = scorers.pop().unwrap();
+                            return box IntersectionTwoTerms::new(left, right);
+                        } else {
+                            let mut scorers: Vec<TermScorer<DeleteBitSet>> = scorers
+                                .into_iter()
+                                .map(|scorer| *Downcast::<TermScorer<DeleteBitSet>>::downcast(scorer).unwrap())
+                                .collect();
+                            let scorer: Box<Scorer> = box Intersection::from(scorers);
+                            return scorer;
+                        }
                     }
+                }
+                {
+                    let is_all_term_queries = scorers.iter().all(|scorer| {
+                        let scorer_ref: &Scorer = scorer.borrow();
+                        Downcast::<TermScorer<NoDelete>>::is_type(scorer_ref)
+                    });
+                    if is_all_term_queries {
+                        if scorers.len() == 2 {
+                            let right = scorers.pop().unwrap();
+                            let left = scorers.pop().unwrap();
+                            return box IntersectionTwoTerms::new(left, right);
+                        } else {
+                            let mut scorers: Vec<TermScorer<NoDelete>> = scorers
+                                .into_iter()
+                                .map(|scorer| *Downcast::<TermScorer<NoDelete>>::downcast(scorer).unwrap())
+                                .collect();
+                            let scorer: Box<Scorer> = box Intersection::from(scorers);
+                            return scorer;
+                        }
+                    }
+                }
+                {
+                    let scorer: Box<Scorer> = box Intersection::from(scorers);
+                    scorer
                 }
             });
 

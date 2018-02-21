@@ -5,6 +5,7 @@ use std::io;
 use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
+use postings::DeleteSet;
 
 /// Write a delete `BitSet`
 ///
@@ -51,22 +52,19 @@ impl DeleteBitSet {
         }
     }
 
-    /// Returns an empty delete bit set.
-    pub fn empty() -> DeleteBitSet {
+}
+
+
+impl DeleteSet for DeleteBitSet {
+
+    fn empty() -> DeleteBitSet {
         DeleteBitSet {
             data: ReadOnlySource::empty(),
             len: 0,
         }
     }
 
-    /// Returns true iff the segment has some deleted documents.
-    pub fn has_deletes(&self) -> bool {
-        self.len() > 0
-    }
-
-    /// Returns true iff the document is deleted.
-    #[inline]
-    pub fn is_deleted(&self, doc: DocId) -> bool {
+    fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false
         } else {
@@ -74,6 +72,18 @@ impl DeleteBitSet {
             let b: u8 = (*self.data)[byte_offset as usize];
             let shift = (doc & 7u32) as u8;
             b & (1u8 << shift) != 0
+        }
+    }
+
+}
+
+
+impl From<Option<DeleteBitSet>> for DeleteBitSet {
+    fn from(delete_bitset_opt: Option<DeleteBitSet>) -> Self {
+        if let Some(delete_bitset) = delete_bitset_opt {
+            delete_bitset
+        } else {
+            DeleteBitSet::empty()
         }
     }
 }

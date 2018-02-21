@@ -2,14 +2,15 @@ use DocId;
 use docset::{DocSet, SkipResult};
 use postings::{Postings, SegmentPostings};
 use query::{Intersection, Scorer};
+use fastfield::DeleteBitSet;
 
 struct PostingsWithOffset {
     offset: u32,
-    segment_postings: SegmentPostings,
+    segment_postings: SegmentPostings<DeleteBitSet>,
 }
 
 impl PostingsWithOffset {
-    pub fn new(segment_postings: SegmentPostings, offset: u32) -> PostingsWithOffset {
+    pub fn new(segment_postings: SegmentPostings<DeleteBitSet>, offset: u32) -> PostingsWithOffset {
         PostingsWithOffset {
             offset,
             segment_postings,
@@ -50,7 +51,7 @@ pub struct PhraseScorer {
 }
 
 impl PhraseScorer {
-    pub fn new(term_postings: Vec<SegmentPostings>) -> PhraseScorer {
+    pub fn new(term_postings: Vec<SegmentPostings<DeleteBitSet>>) -> PhraseScorer {
         let postings_with_offsets: Vec<_> = term_postings
             .into_iter()
             .enumerate()

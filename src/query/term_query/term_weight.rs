@@ -6,6 +6,8 @@ use docset::DocSet;
 use postings::SegmentPostings;
 use schema::IndexRecordOption;
 use super::term_scorer::TermScorer;
+use fastfield::DeleteBitSet;
+use postings::{DeleteSet, NoDelete};
 use Result;
 
 pub struct TermWeight {
@@ -17,8 +19,46 @@ pub struct TermWeight {
 
 impl Weight for TermWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
-        let specialized_scorer = self.specialized_scorer(reader)?;
-        Ok(box specialized_scorer)
+        let field = self.term.field();
+        let inverted_index = reader.inverted_index(field);
+        let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);
+        let scorer: Box<Scorer>;
+        if reader.has_deletes() {
+            let postings_opt: Option<SegmentPostings<DeleteBitSet>> =
+                inverted_index.read_postings(&self.term, self.index_record_option);
+            scorer =
+                if let Some(segment_postings) = postings_opt {
+                    box TermScorer {
+                        idf: self.idf(),
+                        fieldnorm_reader_opt,
+                        postings: segment_postings,
+                    }
+                } else {
+                    box TermScorer {
+                        idf: 1f32,
+                        fieldnorm_reader_opt: None,
+                        postings: SegmentPostings::<NoDelete>::empty(),
+                    }
+                };
+        } else {
+            let postings_opt: Option<SegmentPostings<NoDelete>> =
+                inverted_index.read_postings_no_deletes(&self.term, self.index_record_option);
+            scorer =
+                if let Some(segment_postings) = postings_opt {
+                    box TermScorer {
+                        idf: self.idf(),
+                        fieldnorm_reader_opt,
+                        postings: segment_postings,
+                    }
+                } else {
+                    box TermScorer {
+                        idf: 1f32,
+                        fieldnorm_reader_opt: None,
+                        postings: SegmentPostings::<NoDelete>::empty(),
+                    }
+                };
+        }
+        Ok(scorer)
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
@@ -30,7 +70,7 @@ impl Weight for TermWeight {
                 .map(|term_info| term_info.doc_freq)
                 .unwrap_or(0))
         } else {
-            Ok(self.specialized_scorer(reader)?.count())
+            Ok(self.scorer(reader)?.count())
         }
     }
 }
@@ -38,27 +78,5 @@ impl Weight for TermWeight {
 impl TermWeight {
     fn idf(&self) -> f32 {
         1.0 + (self.num_docs as f32 / (self.doc_freq as f32 + 1.0)).ln()
-    }
-
-    /// If the field is not found, returns an empty `DocSet`.
-    pub fn specialized_scorer(&self, reader: &SegmentReader) -> Result<TermScorer> {
-        let field = self.term.field();
-        let inverted_index = reader.inverted_index(field);
-        let fieldnorm_reader_opt = reader.get_fieldnorms_reader(field);
-        let postings_opt: Option<SegmentPostings> =
-            inverted_index.read_postings(&self.term, self.index_record_option);
-        if let Some(segment_postings) = postings_opt {
-            Ok(TermScorer {
-                idf: self.idf(),
-                fieldnorm_reader_opt,
-                postings: segment_postings,
-            })
-        } else {
-            Ok(TermScorer {
-                idf: 1f32,
-                fieldnorm_reader_opt: None,
-                postings: SegmentPostings::empty(),
-            })
-        }
     }
 }

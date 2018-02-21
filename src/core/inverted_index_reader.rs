@@ -7,6 +7,7 @@ use schema::Term;
 use fastfield::DeleteBitSet;
 use compression::CompressedIntStream;
 use postings::FreqReadingOption;
+use postings::{DeleteSet, NoDelete};
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -25,7 +26,7 @@ pub struct InvertedIndexReader {
     termdict: TermDictionaryImpl,
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
-    delete_bitset: DeleteBitSet,
+    delete_bitset_opt: Option<DeleteBitSet>,
     record_option: IndexRecordOption,
 }
 
@@ -34,14 +35,14 @@ impl InvertedIndexReader {
         termdict_source: ReadOnlySource,
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
-        delete_bitset: DeleteBitSet,
+        delete_bitset_opt: Option<DeleteBitSet>,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
         InvertedIndexReader {
             termdict: TermDictionaryImpl::from_source(termdict_source),
             postings_source,
             positions_source,
-            delete_bitset,
+            delete_bitset_opt,
             record_option,
         }
     }
@@ -105,13 +106,15 @@ impl InvertedIndexReader {
     /// This method is for an advanced usage only.
     ///
     /// Most user should prefer using `read_postings` instead.
-    pub fn read_postings_from_terminfo(
+    pub fn read_postings_from_terminfo<TDeleteSet: DeleteSet>(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> SegmentPostings {
+    ) -> SegmentPostings<TDeleteSet> {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
-        let delete_bitset = self.delete_bitset.clone();
+        let delete_set = TDeleteSet::from(self.delete_bitset_opt.iter()
+            .cloned()
+            .next());
         let position_stream = {
             if option.has_positions() {
                 let position_offset = term_info.positions_offset;
@@ -123,7 +126,7 @@ impl InvertedIndexReader {
                 None
             }
         };
-        SegmentPostings::from_block_postings(block_postings, delete_bitset, position_stream)
+        SegmentPostings::from_block_postings(block_postings, delete_set, position_stream)
     }
 
     /// Returns the segment postings associated with the term, and with the given option,
@@ -136,10 +139,16 @@ impl InvertedIndexReader {
     /// For instance, requesting `IndexRecordOption::Freq` for a
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
-    pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
+    pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings<DeleteBitSet>> {
         let term_info = get!(self.get_term_info(term));
         Some(self.read_postings_from_terminfo(&term_info, option))
     }
+
+    pub(crate) fn read_postings_no_deletes(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings<NoDelete>> {
+        let term_info = get!(self.get_term_info(term));
+        Some(self.read_postings_from_terminfo(&term_info, option))
+    }
+
 
     /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> u32 {

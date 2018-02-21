@@ -13,11 +13,13 @@ mod serializer;
 mod postings_writer;
 mod term_info;
 mod segment_postings;
+mod delete_set;
 
 use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 
+pub use self::delete_set::{DeleteSet, NoDelete};
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
@@ -42,7 +44,7 @@ pub mod tests {
     use DocId;
     use Score;
     use query::Intersection;
-    use query::Scorer;
+    use query::{Weight, Scorer};
     use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
     use indexer::SegmentWriter;
@@ -97,53 +99,54 @@ pub mod tests {
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
+
         let searcher = index.searcher();
-        let query = TermQuery::new(
-            Term::from_field_text(title, "abc"),
-            IndexRecordOption::WithFreqsAndPositions,
-        );
-        let weight = query.specialized_weight(&*searcher, true);
+        let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
+        let term = Term::from_field_text(title, "abc");
+
+
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            scorer.advance();
-            assert_eq!(&[0, 1, 2], scorer.postings().positions());
-            scorer.advance();
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            postings.advance();
+            assert_eq!(&[0, 1, 2], postings.positions());
+            postings.advance();
+            assert_eq!(&[0, 5], postings.positions());
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            scorer.advance();
-            scorer.advance();
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            postings.advance();
+            postings.advance();
+            assert_eq!(&[0, 5], postings.positions());
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(1), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(1), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1);
+            assert_eq!(&[0, 5], postings.positions());
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(1002), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1002);
+            assert_eq!(&[0, 5], postings.positions());
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(100), SkipResult::Reached);
-            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(100), SkipResult::Reached);
+            assert_eq!(postings.skip_next(1002), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1002);
+            assert_eq!(&[0, 5], postings.positions());
         }
     }
 
@@ -277,18 +280,16 @@ pub mod tests {
             assert!(index_writer.commit().is_ok());
         }
         index.load_searchers().unwrap();
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "a"),
-            IndexRecordOption::Basic,
-        );
+        let term_a = Term::from_field_text(text_field, "a");
         let searcher = index.searcher();
-        let mut term_weight = term_query.specialized_weight(&*searcher, true);
-        term_weight.index_record_option = IndexRecordOption::WithFreqsAndPositions;
-        let segment_reader = &searcher.segment_readers()[0];
-        let mut term_scorer = term_weight.specialized_scorer(segment_reader).unwrap();
-        assert!(term_scorer.advance());
-        assert_eq!(term_scorer.doc(), 1u32);
-        assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
+        let segment_reader = searcher.segment_reader(0);
+        let mut postings = segment_reader
+            .inverted_index(text_field)
+            .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+            .unwrap();
+        assert!(postings.advance());
+        assert_eq!(postings.doc(), 1u32);
+        assert_eq!(postings.positions(), &[1u32, 4]);
     }
 
     #[test]

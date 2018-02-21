@@ -8,6 +8,7 @@ use docset::{DocSet, SkipResult};
 use std::cmp;
 use fst::Streamer;
 use compression::compressed_block_size;
+use postings::{NoDelete, DeleteSet};
 use fastfield::DeleteBitSet;
 use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
@@ -66,14 +67,25 @@ impl PositionComputer {
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-pub struct SegmentPostings {
+pub struct SegmentPostings<TDeleteSet: DeleteSet> {
     block_cursor: BlockSegmentPostings,
     cur: usize,
-    delete_bitset: DeleteBitSet,
+    delete_bitset: TDeleteSet,
     position_computer: Option<UnsafeCell<PositionComputer>>,
 }
 
-impl SegmentPostings {
+impl SegmentPostings<NoDelete> {
+    /// Returns an empty segment postings object
+    pub fn empty() -> Self {
+        let empty_block_cursor = BlockSegmentPostings::empty();
+        SegmentPostings {
+            block_cursor: empty_block_cursor,
+            delete_bitset: NoDelete,
+            cur: COMPRESSION_BLOCK_SIZE,
+            position_computer: None,
+        }
+    }
+
     /// Creates a segment postings object with the given documents
     /// and no frequency encoded.
     ///
@@ -82,14 +94,14 @@ impl SegmentPostings {
     /// It serializes the doc ids using tantivy's codec
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
-    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
+    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings<NoDelete> {
         let mut buffer = Vec::new();
         {
             let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
-            postings_serializer.close_term().unwrap();
+            postings_serializer.close_term().expect("In memory Serialization should never fail.");
         }
         let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
@@ -97,8 +109,20 @@ impl SegmentPostings {
             SourceRead::from(data),
             FreqReadingOption::NoFreq,
         );
-        SegmentPostings::from_block_postings(block_segment_postings, DeleteBitSet::empty(), None)
+        SegmentPostings::from_block_postings(block_segment_postings, NoDelete, None)
     }
+}
+
+impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
+    fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
+        if let Some(position_computer) = self.position_computer.as_ref() {
+            let num_skips = num_skips_fn();
+            unsafe {
+                (*position_computer.get()).add_skip(num_skips);
+            }
+        }
+    }
+
 
     /// Reads a Segment postings from an &[u8]
     ///
@@ -108,9 +132,9 @@ impl SegmentPostings {
     ///   frequencies and/or positions
     pub fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        delete_bitset: DeleteBitSet,
+        delete_bitset: TDeleteSet,
         positions_stream_opt: Option<CompressedIntStream>,
-    ) -> SegmentPostings {
+    ) -> SegmentPostings<TDeleteSet> {
         let position_computer =
             positions_stream_opt.map(|stream| UnsafeCell::new(PositionComputer::new(stream)));
         SegmentPostings {
@@ -120,29 +144,9 @@ impl SegmentPostings {
             position_computer,
         }
     }
-
-    /// Returns an empty segment postings object
-    pub fn empty() -> SegmentPostings {
-        let empty_block_cursor = BlockSegmentPostings::empty();
-        SegmentPostings {
-            block_cursor: empty_block_cursor,
-            delete_bitset: DeleteBitSet::empty(),
-            cur: COMPRESSION_BLOCK_SIZE,
-            position_computer: None,
-        }
-    }
-
-    fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
-        if let Some(position_computer) = self.position_computer.as_ref() {
-            let num_skips = num_skips_fn();
-            unsafe {
-                (*position_computer.get()).add_skip(num_skips);
-            }
-        }
-    }
 }
 
-impl DocSet for SegmentPostings {
+impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     #[inline]
@@ -299,13 +303,14 @@ impl DocSet for SegmentPostings {
     }
 }
 
-impl HasLen for SegmentPostings {
+
+impl<TDeleteSet: DeleteSet> HasLen for SegmentPostings<TDeleteSet> {
     fn len(&self) -> usize {
         self.block_cursor.doc_freq()
     }
 }
 
-impl Postings for SegmentPostings {
+impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
     fn term_freq(&self) -> u32 {
         self.block_cursor.freq(self.cur)
     }
