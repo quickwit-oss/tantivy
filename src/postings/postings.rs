@@ -13,7 +13,12 @@ use docset::DocSet;
 pub trait Postings: DocSet + 'static {
     /// Returns the term frequency
     fn term_freq(&self) -> u32;
+
     /// Returns the list of positions of the term, expressed as a list of
     /// token ordinals.
-    fn positions(&self) -> &[u32];
+    fn positions_with_offset(&self, offset: u32) -> &[u32];
+
+    fn positions(&self) -> &[u32] {
+        self.positions_with_offset(0u32)
+    }
 }

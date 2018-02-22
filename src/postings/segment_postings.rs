@@ -44,20 +44,27 @@ impl PositionComputer {
         );
     }
 
-    pub fn positions(&mut self, term_freq: usize) -> &[u32] {
+    pub fn positions(&mut self, term_freq: usize, offset: u32) -> &[u32] {
         if let Some(num_skip) = self.position_to_skip {
-            self.positions.resize(term_freq, 0u32);
-            self.positions_stream.skip(num_skip);
-            self.positions_stream.read(&mut self.positions[..term_freq]);
-
-            let mut cum = 0u32;
-            for i in 0..term_freq as usize {
-                cum += self.positions[i];
-                self.positions[i] = cum;
+            let capacity = self.positions.capacity();
+            if capacity < term_freq {
+                let extra_capacity = term_freq - self.positions.len();
+                self.positions.reserve(extra_capacity);
             }
+            unsafe {self.positions.set_len(term_freq)};
+            self.positions_stream.skip(num_skip);
+            let positions_buf = &mut self.positions[..term_freq];
+            self.positions_stream.read(positions_buf);
             self.position_to_skip = None;
+            let mut cum = offset;
+            for position_mut in positions_buf.iter_mut() {
+                cum += *position_mut;
+                *position_mut = cum;
+            }
+            positions_buf
+        } else {
+            &self.positions[..term_freq]
         }
-        &self.positions[..term_freq]
     }
 }
 
@@ -314,12 +321,12 @@ impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions(&self) -> &[u32] {
+    fn positions_with_offset(&self, offset: u32) -> &[u32] {
         let term_freq = self.term_freq();
         self.position_computer
             .as_ref()
             .map(|position_computer| unsafe {
-                (&mut *position_computer.get()).positions(term_freq as usize)
+                (&mut *position_computer.get()).positions(term_freq as usize, offset)
             })
             .unwrap_or(&EMPTY_POSITIONS[..])
     }

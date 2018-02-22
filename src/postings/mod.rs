@@ -551,7 +551,7 @@ pub mod tests {
                 .inverted_index(TERM_D.field())
                 .read_postings(&*TERM_D, IndexRecordOption::Basic)
                 .unwrap();
-            let mut intersection = Intersection::from(vec![
+            let mut intersection = Intersection::new(vec![
                 segment_postings_a,
                 segment_postings_b,
                 segment_postings_c,

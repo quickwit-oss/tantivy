@@ -1,116 +1,126 @@
 use DocId;
 use docset::{DocSet, SkipResult};
-use postings::{Postings, SegmentPostings};
+use postings::Postings;
 use query::{Intersection, Scorer};
 use fastfield::DeleteBitSet;
+use query::intersect_scorers;
+use Score;
+use std::cmp::Ordering;
+use std::mem;
 
-struct PostingsWithOffset {
+
+struct PostingsWithOffset<TPostings> {
     offset: u32,
-    segment_postings: SegmentPostings<DeleteBitSet>,
+    postings: TPostings
 }
 
-impl PostingsWithOffset {
-    pub fn new(segment_postings: SegmentPostings<DeleteBitSet>, offset: u32) -> PostingsWithOffset {
+impl<TPostings: Postings> PostingsWithOffset<TPostings> {
+    pub fn new(segment_postings: TPostings, offset: u32) -> PostingsWithOffset<TPostings> {
         PostingsWithOffset {
             offset,
-            segment_postings,
+            postings: segment_postings
         }
     }
-}
 
-impl Postings for PostingsWithOffset {
-    fn term_freq(&self) -> u32 {
-        self.segment_postings.term_freq()
-    }
-
-    fn positions(&self) -> &[u32] {
-        self.segment_postings.positions()
+    pub fn positions(&self) -> &[u32] {
+        self.postings.positions_with_offset(self.offset)
     }
 }
 
-impl DocSet for PostingsWithOffset {
+impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
     fn advance(&mut self) -> bool {
-        self.segment_postings.advance()
+        self.postings.advance()
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.segment_postings.skip_next(target)
+        self.postings.skip_next(target)
     }
 
     fn doc(&self) -> DocId {
-        self.segment_postings.doc()
+        self.postings.doc()
     }
 
     fn size_hint(&self) -> u32 {
-        self.segment_postings.size_hint()
+        self.postings.size_hint()
     }
 }
 
-pub struct PhraseScorer {
-    intersection_docset: Intersection<PostingsWithOffset>,
+pub struct PhraseScorer<TPostings: Postings> {
+    intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
+    num_docsets: usize,
+    source: Vec<u32>,
+    result: Vec<u32>
 }
 
-impl PhraseScorer {
-    pub fn new(term_postings: Vec<SegmentPostings<DeleteBitSet>>) -> PhraseScorer {
-        let postings_with_offsets: Vec<_> = term_postings
+#[inline(always)]
+fn intersection_arr(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
+    let mut left_i = 0;
+    let mut right_i = 0;
+    let mut count = 0;
+    while left_i < left.len() && right_i < right.len() {
+        if left[left_i] < right[right_i] {
+            left_i += 1;
+        } else if right[right_i] < left[left_i] {
+            right_i += 1;
+        } else {
+            output[count] = left[left_i];
+            count+=1;
+            left_i += 1;
+            right_i += 1;
+        }
+    }
+    count
+}
+
+impl<TPostings: Postings> PhraseScorer<TPostings> {
+
+    pub fn new(term_postings: Vec<TPostings>) -> PhraseScorer<TPostings> {
+        let num_docsets = term_postings.len();
+        let postings_with_offsets = term_postings
             .into_iter()
             .enumerate()
-            .map(|(offset, postings)| PostingsWithOffset::new(postings, offset as u32))
-            .collect();
+            .map(|(offset, postings)| PostingsWithOffset::new(postings, (num_docsets - offset) as u32))
+            .collect::<Vec<_>>();
         PhraseScorer {
-            intersection_docset: Intersection::from(postings_with_offsets),
+            intersection_docset: Intersection::new(postings_with_offsets),
+            num_docsets,
+            source: Vec::with_capacity(100),
+            result: Vec::with_capacity(100)
         }
     }
 
-    fn phrase_match(&self) -> bool {
-        // TODO maybe we could avoid decoding positions lazily for all terms
-        // when there is > 2 terms.
-        //
-        // For instance for the query "A B C", the position of "C" do not need
-        // to be decoded if "A B" had no match.
-        let docsets = self.intersection_docset.docsets();
-        let mut positions_arr: Vec<&[u32]> = vec![&[]; docsets.len()];
-        for docset in docsets {
-            positions_arr[docset.offset as usize] = docset.positions();
-        }
-
-        let num_postings = positions_arr.len() as u32;
-
-        let mut ord = 1u32;
-        let mut pos_candidate = positions_arr[0][0];
-        positions_arr[0] = &(positions_arr[0])[1..];
-        let mut count_matching = 1;
-
-        #[cfg_attr(feature = "cargo-clippy", allow(never_loop))]
-        'outer: loop {
-            let target = pos_candidate + ord;
-            let positions = positions_arr[ord as usize];
-            for (i, pos_i) in positions.iter().cloned().enumerate() {
-                if pos_i < target {
-                    continue;
-                }
-                if pos_i == target {
-                    count_matching += 1;
-                    if count_matching == num_postings {
-                        return true;
-                    }
-                } else if pos_i > target {
-                    count_matching = 1;
-                    pos_candidate = positions[i] - ord;
-                    positions_arr[ord as usize] = &(positions_arr[ord as usize])[(i + 1)..];
-                }
-                ord += 1;
-                if ord == num_postings {
-                    ord = 0;
-                }
-                continue 'outer;
+    fn phrase_match(&mut self) -> bool {
+        // TODO early exit when we don't care about th phrase frequency
+        let mut intersection_len;
+        {
+            let left = self.intersection_docset.docset(0).positions();
+            let right = self.intersection_docset.docset(1).positions();
+            let max_intersection_len = left.len().min(right.len());
+            if max_intersection_len > self.result.len() {
+                self.result.resize(max_intersection_len, 0u32);
+                self.source.resize(max_intersection_len, 0u32)
             }
+            intersection_len = intersection_arr(left, right, &mut self.result[..]);
+        }
+        if intersection_len == 0 {
             return false;
         }
+        for i in 2..self.num_docsets {
+            mem::swap(&mut self.source, &mut self.result);
+            let term_positions = self.intersection_docset.docset(i).positions();
+            intersection_len = intersection_arr(
+                &self.source[..intersection_len],
+                term_positions,
+                &mut self.result[..]);
+            if intersection_len == 0 {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
-impl DocSet for PhraseScorer {
+impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     fn advance(&mut self) -> bool {
         while self.intersection_docset.advance() {
             if self.phrase_match() {
@@ -147,7 +157,7 @@ impl DocSet for PhraseScorer {
     }
 }
 
-impl Scorer for PhraseScorer {
+impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> f32 {
         1f32
     }
