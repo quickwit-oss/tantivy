@@ -5,10 +5,10 @@ use DocId;
 use downcast::Downcast;
 use std::borrow::Borrow;
 use Score;
-use postings::Postings;
 use query::term_query::{TermScorerNoDeletes, TermScorerWithDeletes};
 
 pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
+    let num_docsets = docsets.len();
     docsets.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
     let rarest_opt = docsets.pop();
     let second_rarest_opt = docsets.pop();
@@ -28,6 +28,7 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                         left,
                         right,
                         others: docsets,
+                        num_docsets
                     }
                 }
             }
@@ -43,6 +44,7 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                         left,
                         right,
                         others: docsets,
+                        num_docsets
                     }
                 }
             }
@@ -50,7 +52,8 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                 return box Intersection {
                     left,
                     right,
-                    others: docsets
+                    others: docsets,
+                    num_docsets
                 }
             }
         }
@@ -62,12 +65,14 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
 pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet=Box<Scorer>> {
     left: TDocSet,
     right: TDocSet,
-    others: Vec<TOtherDocSet>
+    others: Vec<TOtherDocSet>,
+    num_docsets: usize
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     pub(crate) fn new(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet, TDocSet> {
-        assert!(docsets.len() >= 2);
+        let num_docsets = docsets.len();
+        assert!(num_docsets >= 2);
         docsets.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
         let left = docsets.pop().unwrap();
         let right = docsets.pop().unwrap();
@@ -75,7 +80,8 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
         Intersection {
             left,
             right,
-            others: docsets
+            others: docsets,
+            num_docsets
         }
     }
 }
@@ -90,13 +96,25 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     }
 }
 
+impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> {
+    pub fn docset_mut(&mut self, ord: usize) -> &mut DocSet {
+        match ord {
+            0 => &mut self.left,
+            1 => &mut self.right,
+            n => &mut self.others[n - 2]
+        }
+    }
+}
+
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
     #[allow(never_loop)]
     fn advance(&mut self) -> bool {
         let (left, right) = (&mut self.left, &mut self.right);
+
         if !left.advance() {
             return false;
         }
+
         let mut candidate = left.doc();
         let mut other_candidate_ord: usize = usize::max_value();
 
@@ -112,6 +130,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                     }
                     SkipResult::End => { return false; }
                 }
+
                 match left.skip_next(candidate) {
                     SkipResult::Reached => { break; }
                     SkipResult::OverStep => {
@@ -120,8 +139,8 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                     }
                     SkipResult::End => { return false; }
                 }
-            }
 
+            }
             // test the remaining scorers;
             for (ord, docset) in self.others.iter_mut().enumerate() {
                 if ord != other_candidate_ord {
@@ -137,41 +156,34 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                             // let's update our candidate.
                             candidate = docset.doc();
                             match left.skip_next(candidate) {
-                                SkipResult::Reached => {
-                                    other_candidate_ord = ord;
-                                }
+                                SkipResult::Reached => { other_candidate_ord = ord; }
                                 SkipResult::OverStep => {
+                                    candidate = left.doc();
                                     other_candidate_ord = usize::max_value();
                                 }
-                                SkipResult::End => {
-                                    return false;
-                                }
+                                SkipResult::End => { return false; }
                             }
                             continue 'outer;
                         }
-                        SkipResult::End => {
-                            return false;
-                        }
+                        SkipResult::End => { return false; }
                     }
                 }
             }
-
             return true;
         }
     }
 
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
 
-        unimplemented!("werwer");
-
-        /*
         // We optimize skipping by skipping every single member
         // of the intersection to target.
         let mut current_target: DocId = target;
-        let mut current_ord = self.docsets.len();
+        let mut current_ord = self.num_docsets;
 
         'outer: loop {
-            for (ord, docset) in self.docsets.iter_mut().enumerate() {
+            for ord in 0..self.num_docsets {
+                let docset = self.docset_mut(ord);
                 if ord == current_ord {
                     continue;
                 }
@@ -196,7 +208,6 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                 return SkipResult::OverStep;
             }
         }
-        */
     }
 
     fn doc(&self) -> DocId {

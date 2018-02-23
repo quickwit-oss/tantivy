@@ -2,10 +2,6 @@ use DocId;
 use docset::{DocSet, SkipResult};
 use postings::Postings;
 use query::{Intersection, Scorer};
-use fastfield::DeleteBitSet;
-use query::intersect_scorers;
-use Score;
-use std::cmp::Ordering;
 use std::mem;
 
 
@@ -52,7 +48,6 @@ pub struct PhraseScorer<TPostings: Postings> {
     result: Vec<u32>
 }
 
-#[inline(always)]
 fn intersection_arr(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
