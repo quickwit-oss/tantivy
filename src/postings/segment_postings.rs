@@ -35,11 +35,9 @@ impl PositionComputer {
     }
 
     pub fn add_skip(&mut self, num_skip: usize) {
-        self.position_to_skip = Some(
-            self.position_to_skip
-                .map(|prev_skip| prev_skip + num_skip)
-                .unwrap_or(0),
-        );
+        self.position_to_skip = self.position_to_skip
+            .map(|prev_skip| prev_skip + num_skip)
+            .or(Some(0));
     }
 
     pub fn positions(&mut self, offset: u32, output: &mut [u32]) {
@@ -68,7 +66,7 @@ pub struct SegmentPostings<TDeleteSet: DeleteSet> {
     block_cursor: BlockSegmentPostings,
     cur: usize,
     delete_bitset: TDeleteSet,
-    position_computer: Option<UnsafeCell<PositionComputer>>,
+    position_computer: Option<PositionComputer>,
 }
 
 impl SegmentPostings<NoDelete> {
@@ -111,14 +109,7 @@ impl SegmentPostings<NoDelete> {
 }
 
 impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
-    fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
-        if let Some(position_computer) = self.position_computer.as_ref() {
-            let num_skips = num_skips_fn();
-            unsafe {
-                (*position_computer.get()).add_skip(num_skips);
-            }
-        }
-    }
+
 
 
     /// Reads a Segment postings from an &[u8]
@@ -132,13 +123,11 @@ impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
         delete_bitset: TDeleteSet,
         positions_stream_opt: Option<CompressedIntStream>,
     ) -> SegmentPostings<TDeleteSet> {
-        let position_computer =
-            positions_stream_opt.map(|stream| UnsafeCell::new(PositionComputer::new(stream)));
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             delete_bitset,
-            position_computer,
+            position_computer: positions_stream_opt.map(PositionComputer::new),
         }
     }
 }
@@ -149,7 +138,12 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
     #[inline]
     fn advance(&mut self) -> bool {
         loop {
-            self.position_add_skip(|| self.term_freq() as usize);
+            {
+                if self.position_computer.is_some() {
+                    let term_freq = self.term_freq() as usize;
+                    self.position_computer.as_mut().unwrap().add_skip(term_freq);
+                }
+            }
             self.cur += 1;
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
@@ -163,6 +157,7 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
             }
         }
     }
+
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
@@ -185,17 +180,16 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
                 // so that position_add_skip will decide if it should
                 // just set itself to Some(0) or effectively
                 // add the term freq.
-                //let num_skips: u32 = ;
-                self.position_add_skip(|| {
+                if self.position_computer.is_some() {
                     let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
-                    let sum_freq: u32 = freqs_skipped.iter().cloned().sum();
-                    sum_freq as usize
-                });
-
+                    let sum_freq: u32 = freqs_skipped.iter().sum()
+                    self.position_computer.as_mut()
+                        .unwrap()
+                        .add_skip(sum_freq as usize);
+                }
                 if !self.block_cursor.advance() {
                     return SkipResult::End;
                 }
-
                 self.cur = 0;
             } else {
                 if target < current_doc {
@@ -246,11 +240,13 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
             // `doc` is now >= `target`
             let doc = block_docs[start];
 
-            self.position_add_skip(|| {
+            if self.position_computer.is_some() {
                 let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
                 let sum_freqs: u32 = freqs_skipped.iter().sum();
-                sum_freqs as usize
-            });
+                self.position_computer.as_mut()
+                    .unwrap()
+                    .add_skip(sum_freqs as usize);
+            }
 
             self.cur = start;
 
@@ -312,8 +308,8 @@ impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions_with_offset(&self, offset: u32, output: &mut Vec<u32>) {
-        if let Some(ref position_computer) = self.position_computer.as_ref() {
+    fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
+        if self.position_computer.is_some() {
             let prev_capacity = output.capacity();
             let term_freq = self.term_freq() as usize;
             if term_freq > prev_capacity {
@@ -322,7 +318,7 @@ impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
             }
             unsafe {
                 output.set_len(term_freq);
-                (&mut *position_computer.get()).positions(offset, &mut output[..])
+                self.position_computer.as_mut().unwrap().positions(offset, &mut output[..])
             }
         } else {
             unimplemented!("You may not read positions twice!");
@@ -608,3 +604,4 @@ mod tests {
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
     }
 }
+

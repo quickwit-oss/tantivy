@@ -18,7 +18,7 @@ impl<TPostings: Postings> PostingsWithOffset<TPostings> {
         }
     }
 
-    pub fn positions(&self, output: &mut Vec<u32>) {
+    pub fn positions(&mut self, output: &mut Vec<u32>) {
         self.postings.positions_with_offset(self.offset, output)
     }
 }
@@ -86,11 +86,15 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
-        // TODO early exit when we don't care about th phrase frequency
-        self.intersection_docset.docset(0).positions(&mut self.left);
+        // TODO early exit when we don't care about the phrase frequency
+        {
+            self.intersection_docset.docset_mut_specialized(0).positions(&mut self.left);
+        }
         let mut intersection_len = self.left.len();
         for i in 1..self.num_docsets {
-            self.intersection_docset.docset(i).positions(&mut self.right);
+            {
+                self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
+            }
             intersection_len = intersection_arr(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
                 return false;

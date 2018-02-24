@@ -86,12 +86,13 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     }
 }
 
+
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
-    pub fn docset(&self, ord: usize) -> &TDocSet {
+    pub fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
         match ord {
-            0 => &self.left,
-            1 => &self.right,
-            n => &self.others[n - 2]
+            0 => &mut self.left,
+            1 => &mut self.right,
+            n => &mut self.others[n - 2]
         }
     }
 }
