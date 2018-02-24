@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct SymmetricDifference</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Streamer%3C%27a%3E">Streamer&lt;&#39;a&gt;</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>set</a></p><script>window.sidebarCurrent = {name: 'SymmetricDifference', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct SymmetricDifference</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Streamer%3C%27a%3E">Streamer&lt;&#39;a&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">!Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>set</a></p><script>window.sidebarCurrent = {name: 'SymmetricDifference', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -67,12 +67,20 @@ order.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Streamer%3C%27a%3E' class='impl'><span class='in-band'><code>impl&lt;'a, 's&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a&gt; for <a class="struct" href="../../fst/set/struct.SymmetricDifference.html" title="struct fst::set::SymmetricDifference">SymmetricDifference</a>&lt;'s&gt;</code><a href='#impl-Streamer%3C%27a%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#811-817' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../fst/trait.Streamer.html#associatedtype.Item' class="type">Item</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span></h4>
 <div class='docblock'><p>The type of the item emitted by this stream.</p>
 </div><h4 id='method.next' class="method"><span id='next.v' class='invisible'><code>fn <a href='../../fst/trait.Streamer.html#tymethod.next' class='fnname'>next</a>(&amp;'a mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="../../fst/trait.Streamer.html#associatedtype.Item" title="type fst::Streamer::Item">Item</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/set.rs.html#814-816' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Emits the next element in this stream, or <code>None</code> to indicate the stream has been exhausted. <a href="../../fst/trait.Streamer.html#tymethod.next">Read more</a></p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'s&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../fst/set/struct.SymmetricDifference.html" title="struct fst::set::SymmetricDifference">SymmetricDifference</a>&lt;'s&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'s&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../fst/set/struct.SymmetricDifference.html" title="struct fst::set::SymmetricDifference">SymmetricDifference</a>&lt;'s&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

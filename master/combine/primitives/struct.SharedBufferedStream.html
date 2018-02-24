@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct SharedBufferedStream</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.as_stream">as_stream</a></div></div><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a></p><script>window.sidebarCurrent = {name: 'SharedBufferedStream', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct SharedBufferedStream</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.as_stream">as_stream</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a></p><script>window.sidebarCurrent = {name: 'SharedBufferedStream', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -66,7 +66,19 @@
                     </h2>
                 <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;I&gt; <a class="struct" href="../../combine/primitives/struct.SharedBufferedStream.html" title="struct combine::primitives::SharedBufferedStream">SharedBufferedStream</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;I::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;I::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1986-2006' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.as_stream' class="method"><span id='as_stream.v' class='invisible'><code>pub fn <a href='#method.as_stream' class='fnname'>as_stream</a>(&amp;self) -&gt; <a class="struct" href="../../combine/primitives/struct.BufferedStream.html" title="struct combine::primitives::BufferedStream">BufferedStream</a>&lt;I&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/combine/primitives.rs.html#1992-1997' title='goto source code'>[src]</a></span></h4>
-</div></section>
+</div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;I&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../combine/primitives/struct.SharedBufferedStream.html" title="struct combine::primitives::SharedBufferedStream">SharedBufferedStream</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;I as <a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt;::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;&lt;I as <a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt;::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;I&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../combine/primitives/struct.SharedBufferedStream.html" title="struct combine::primitives::SharedBufferedStream">SharedBufferedStream</a>&lt;I&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

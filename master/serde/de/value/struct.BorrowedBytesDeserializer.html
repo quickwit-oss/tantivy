@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct BorrowedBytesDeserializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a><a href="#impl-Deserializer%3C%27de%3E">Deserializer&lt;&#39;de&gt;</a></div></div><p class='location'><a href='../../index.html'>serde</a>::<wbr><a href='../index.html'>de</a>::<wbr><a href='index.html'>value</a></p><script>window.sidebarCurrent = {name: 'BorrowedBytesDeserializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct BorrowedBytesDeserializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Clone">Clone</a><a href="#impl-Debug">Debug</a><a href="#impl-Deserializer%3C%27de%3E">Deserializer&lt;&#39;de&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../../index.html'>serde</a>::<wbr><a href='../index.html'>de</a>::<wbr><a href='index.html'>value</a></p><script>window.sidebarCurrent = {name: 'BorrowedBytesDeserializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -73,6 +73,7 @@ deserializer.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl&lt;'de, E:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../../../serde/de/value/struct.BorrowedBytesDeserializer.html" title="struct serde::de::value::BorrowedBytesDeserializer">BorrowedBytesDeserializer</a>&lt;'de, E&gt;</code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/serde/de/value.rs.html#588' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../../../serde/de/value/struct.BorrowedBytesDeserializer.html" title="struct serde::de::value::BorrowedBytesDeserializer">BorrowedBytesDeserializer</a>&lt;'de, E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/serde/de/value.rs.html#588' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
@@ -144,7 +145,14 @@ deserializer.</p>
 <div class='docblock'><p>Hint that the <code>Deserialize</code> type is expecting an enum value with a particular name and possible variants. <a href="../../../serde/trait.Deserializer.html#tymethod.deserialize_enum">Read more</a></p>
 </div><h4 id='method.is_human_readable' class="method"><span id='is_human_readable.v' class='invisible'><code>fn <a href='../../../serde/trait.Deserializer.html#method.is_human_readable' class='fnname'>is_human_readable</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/serde/de/mod.rs.html#1110-1112' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Determine whether <code>Deserialize</code> implementations should expect to deserialize their human-readable form. <a href="../../../serde/trait.Deserializer.html#method.is_human_readable">Read more</a></p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'de, E&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../../serde/de/value/struct.BorrowedBytesDeserializer.html" title="struct serde::de::value::BorrowedBytesDeserializer">BorrowedBytesDeserializer</a>&lt;'de, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'de, E&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../../serde/de/value/struct.BorrowedBytesDeserializer.html" title="struct serde::de::value::BorrowedBytesDeserializer">BorrowedBytesDeserializer</a>&lt;'de, E&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

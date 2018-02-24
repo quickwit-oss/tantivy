@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Struct FacetCollector</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.for_field">for_field</a><a href="#method.add_facet">add_facet</a><a href="#method.harvest">harvest</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Collector">Collector</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>collector</a></p><script>window.sidebarCurrent = {name: 'FacetCollector', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct FacetCollector</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.for_field">for_field</a><a href="#method.add_facet">add_facet</a><a href="#method.harvest">harvest</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Collector">Collector</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>collector</a></p><script>window.sidebarCurrent = {name: 'FacetCollector', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -208,6 +208,7 @@ it also translates the facet ordinals of the last segment.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Collector' class='impl'><span class='in-band'><code>impl <a class="trait" href="../../tantivy/collector/trait.Collector.html" title="trait tantivy::collector::Collector">Collector</a> for <a class="struct" href="../../tantivy/collector/struct.FacetCollector.html" title="struct tantivy::collector::FacetCollector">FacetCollector</a></code><a href='#impl-Collector' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/collector/facet_collector.rs.html#392-427' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.set_segment' class="method"><span id='set_segment.v' class='invisible'><code>fn <a href='../../tantivy/collector/trait.Collector.html#tymethod.set_segment' class='fnname'>set_segment</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;_: <a class="type" href="../../tantivy/type.SegmentLocalId.html" title="type tantivy::SegmentLocalId">SegmentLocalId</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a><br>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/collector/facet_collector.rs.html#393-401' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p><code>set_segment</code> is called before beginning to enumerate on this segment. <a href="../../tantivy/collector/trait.Collector.html#tymethod.set_segment">Read more</a></p>
@@ -215,7 +216,14 @@ it also translates the facet ordinals of the last segment.</p>
 <div class='docblock'><p>The query pushes the scored document to the collector via this method.</p>
 </div><h4 id='method.requires_scoring' class="method"><span id='requires_scoring.v' class='invisible'><code>fn <a href='../../tantivy/collector/trait.Collector.html#tymethod.requires_scoring' class='fnname'>requires_scoring</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/collector/facet_collector.rs.html#424-426' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Returns true iff the collector requires to compute scores for documents.</p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/collector/struct.FacetCollector.html" title="struct tantivy::collector::FacetCollector">FacetCollector</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/collector/struct.FacetCollector.html" title="struct tantivy::collector::FacetCollector">FacetCollector</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct StreamBuilder</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.ge">ge</a><a href="#method.gt">gt</a><a href="#method.le">le</a><a href="#method.lt">lt</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-IntoStreamer%3C%27a%3E">IntoStreamer&lt;&#39;a&gt;</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'StreamBuilder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct StreamBuilder</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.ge">ge</a><a href="#method.gt">gt</a><a href="#method.le">le</a><a href="#method.lt">lt</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-IntoStreamer%3C%27a%3E">IntoStreamer&lt;&#39;a&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'StreamBuilder', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -85,6 +85,7 @@ the stream. By default, no filtering is done.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-IntoStreamer%3C%27a%3E' class='impl'><span class='in-band'><code>impl&lt;'m, 'a, A:&nbsp;<a class="trait" href="../../fst/automaton/trait.Automaton.html" title="trait fst::automaton::Automaton">Automaton</a>&gt; <a class="trait" href="../../fst/trait.IntoStreamer.html" title="trait fst::IntoStreamer">IntoStreamer</a>&lt;'a&gt; for <a class="struct" href="../../fst/map/struct.StreamBuilder.html" title="struct fst::map::StreamBuilder">StreamBuilder</a>&lt;'m, A&gt;</code><a href='#impl-IntoStreamer%3C%27a%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#693-700' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../fst/trait.IntoStreamer.html#associatedtype.Item' class="type">Item</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a></code></span></h4>
 <div class='docblock'><p>The type of the item emitted by the stream.</p>
@@ -92,7 +93,14 @@ the stream. By default, no filtering is done.</p>
 <div class='docblock'><p>The type of the stream to be constructed.</p>
 </div><h4 id='method.into_stream' class="method"><span id='into_stream.v' class='invisible'><code>fn <a href='../../fst/trait.IntoStreamer.html#tymethod.into_stream' class='fnname'>into_stream</a>(self) -&gt; Self::<a class="type" href="../../fst/trait.IntoStreamer.html#associatedtype.Into" title="type fst::IntoStreamer::Into">Into</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#697-699' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Construct a stream from <code>Self</code>.</p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'m, A&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../fst/map/struct.StreamBuilder.html" title="struct fst::map::StreamBuilder">StreamBuilder</a>&lt;'m, A&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'m, A&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../fst/map/struct.StreamBuilder.html" title="struct fst::map::StreamBuilder">StreamBuilder</a>&lt;'m, A&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

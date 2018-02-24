@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct Map</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_path">from_path</a><a href="#method.from_bytes">from_bytes</a><a href="#method.from_iter">from_iter</a><a href="#method.contains_key">contains_key</a><a href="#method.get">get</a><a href="#method.stream">stream</a><a href="#method.keys">keys</a><a href="#method.values">values</a><a href="#method.range">range</a><a href="#method.search">search</a><a href="#method.len">len</a><a href="#method.is_empty">is_empty</a><a href="#method.op">op</a><a href="#method.as_fst">as_fst</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-From%3CFst%3E">From&lt;Fst&gt;</a><a href="#impl-AsRef%3CFst%3E">AsRef&lt;Fst&gt;</a><a href="#impl-IntoStreamer%3C%27a%3E">IntoStreamer&lt;&#39;a&gt;</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'Map', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct Map</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_path">from_path</a><a href="#method.from_bytes">from_bytes</a><a href="#method.from_iter">from_iter</a><a href="#method.contains_key">contains_key</a><a href="#method.get">get</a><a href="#method.stream">stream</a><a href="#method.keys">keys</a><a href="#method.values">values</a><a href="#method.range">range</a><a href="#method.search">search</a><a href="#method.len">len</a><a href="#method.is_empty">is_empty</a><a href="#method.op">op</a><a href="#method.as_fst">as_fst</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-From%3CFst%3E">From&lt;Fst&gt;</a><a href="#impl-AsRef%3CFst%3E">AsRef&lt;Fst&gt;</a><a href="#impl-IntoStreamer%3C%27a%3E">IntoStreamer&lt;&#39;a&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'Map', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -317,6 +317,7 @@ that same key in the all of the streams.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../../fst/struct.Map.html" title="struct fst::Map">Map</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#359-373' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#360-372' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
@@ -334,7 +335,14 @@ that same key in the all of the streams.</p>
 <div class='docblock'><p>The type of the stream to be constructed.</p>
 </div><h4 id='method.into_stream' class="method"><span id='into_stream.v' class='invisible'><code>fn <a href='../../fst/trait.IntoStreamer.html#tymethod.into_stream' class='fnname'>into_stream</a>(self) -&gt; Self::<a class="type" href="../../fst/trait.IntoStreamer.html#associatedtype.Into" title="type fst::IntoStreamer::Into">Into</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#393-395' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Construct a stream from <code>Self</code>.</p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../fst/struct.Map.html" title="struct fst::Map">Map</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../fst/struct.Map.html" title="struct fst::Map">Map</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

@@ -97,6 +97,7 @@ use the <code>NotifyHandle::from</code> function instead which works with the sa
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-From%3CArc%3CT%3E%3E' class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;T&gt;&gt; for <a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../futures/executor/trait.Notify.html" title="trait futures::executor::Notify">Notify</a> + 'static,&nbsp;</span></code><a href='#impl-From%3CArc%3CT%3E%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#721-730' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.from' class="method"><span id='from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(rc: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/arc/struct.Arc.html" title="struct alloc::arc::Arc">Arc</a>&lt;T&gt;) -&gt; <a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#724-729' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Performs the conversion.</p>
@@ -116,7 +117,12 @@ use the <code>NotifyHandle::from</code> function instead which works with the sa
 </div></div><h3 id='impl-From%3C%26%27static%20T%3E' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;<a class="trait" href="../../futures/executor/trait.Notify.html" title="trait futures::executor::Notify">Notify</a>&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'static </a>T&gt; for <a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a></code><a href='#impl-From%3C%26%27static%20T%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#685-689' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.from-1' class="method"><span id='from.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(src: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;'static </a>T) -&gt; <a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#686-688' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Performs the conversion.</p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        </div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

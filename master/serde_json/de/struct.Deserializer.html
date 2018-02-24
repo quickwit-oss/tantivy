@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct Deserializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.from_reader">from_reader</a><a href="#method.from_slice">from_slice</a><a href="#method.from_str">from_str</a><a href="#method.end">end</a><a href="#method.into_iter">into_iter</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Deserializer%3C%27de%3E">Deserializer&lt;&#39;de&gt;</a></div></div><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'Deserializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct Deserializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.from_reader">from_reader</a><a href="#method.from_slice">from_slice</a><a href="#method.from_str">from_str</a><a href="#method.end">end</a><a href="#method.into_iter">into_iter</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Deserializer%3C%27de%3E">Deserializer&lt;&#39;de&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'Deserializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -95,6 +95,7 @@ only has trailing whitespace.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Deserializer%3C%27de%3E' class='impl'><span class='in-band'><code>impl&lt;'de, 'a, R:&nbsp;<a class="trait" href="../../serde_json/de/trait.Read.html" title="trait serde_json::de::Read">Read</a>&lt;'de&gt;&gt; <a class="trait" href="../../serde/de/trait.Deserializer.html" title="trait serde::de::Deserializer">Deserializer</a>&lt;'de&gt; for &amp;'a mut <a class="struct" href="../../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt;</code><a href='#impl-Deserializer%3C%27de%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/de.rs.html#799-1425' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../../serde/de/trait.Deserializer.html#associatedtype.Error' class="type">Error</a> = <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a></code></span></h4>
 <div class='docblock'><p>The error type that can be returned if some error occurs during deserialization. <a href="../../serde/de/trait.Deserializer.html#associatedtype.Error">Read more</a></p>
@@ -221,7 +222,14 @@ value, a <code>[..]</code>, or a <code>{..}</code>.</p>
 <div class='docblock'><p>Hint that the <code>Deserialize</code> type needs to deserialize a value whose type doesn't matter because it is ignored. <a href="../../serde/de/trait.Deserializer.html#tymethod.deserialize_ignored_any">Read more</a></p>
 </div><h4 id='method.is_human_readable' class="method"><span id='is_human_readable.v' class='invisible'><code>fn <a href='../../serde/de/trait.Deserializer.html#method.is_human_readable' class='fnname'>is_human_readable</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde/de/mod.rs.html#1110-1112' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Determine whether <code>Deserialize</code> implementations should expect to deserialize their human-readable form. <a href="../../serde/de/trait.Deserializer.html#method.is_human_readable">Read more</a></p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;R&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;R&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../serde_json/de/struct.Deserializer.html" title="struct serde_json::de::Deserializer">Deserializer</a>&lt;R&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

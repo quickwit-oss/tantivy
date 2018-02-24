@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct Captures</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.get">get</a><a href="#method.name">name</a><a href="#method.iter">iter</a><a href="#method.expand">expand</a><a href="#method.len">len</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Index%3Cusize%3E">Index&lt;usize&gt;</a><a href="#impl-Index%3C%26%27i%20str%3E">Index&lt;&amp;&#39;i str&gt;</a></div></div><p class='location'><a href='index.html'>regex</a></p><script>window.sidebarCurrent = {name: 'Captures', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct Captures</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.get">get</a><a href="#method.name">name</a><a href="#method.iter">iter</a><a href="#method.expand">expand</a><a href="#method.len">len</a></div><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-Debug">Debug</a><a href="#impl-Index%3Cusize%3E">Index&lt;usize&gt;</a><a href="#impl-Index%3C%26%27i%20str%3E">Index&lt;&amp;&#39;i str&gt;</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='index.html'>regex</a></p><script>window.sidebarCurrent = {name: 'Captures', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -118,6 +118,7 @@ group that corresponds to the full match.</p>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#882-886' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#883-885' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
@@ -146,7 +147,14 @@ of <code>a</code> and can't outlive it); to do that, use <code>name</code> inste
 <div class='docblock'><p>The returned type after indexing.</p>
 </div><h4 id='method.index-1' class="method"><span id='index.v-1' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/index/trait.Index.html#tymethod.index' class='fnname'>index</a>&lt;'a&gt;(&amp;'a self, name: &amp;'i <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex/re_unicode.rs.html#944-947' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Performs the indexing (<code>container[index]</code>) operation.</p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'t&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../regex/struct.Captures.html" title="struct regex::Captures">Captures</a>&lt;'t&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

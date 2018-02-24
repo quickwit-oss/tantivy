@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Struct FacetReader</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.num_facets">num_facets</a><a href="#method.facet_dict">facet_dict</a><a href="#method.facet_from_ord">facet_from_ord</a><a href="#method.facet_ords">facet_ords</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a></p><script>window.sidebarCurrent = {name: 'FacetReader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct FacetReader</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.num_facets">num_facets</a><a href="#method.facet_dict">facet_dict</a><a href="#method.facet_from_ord">facet_from_ord</a><a href="#method.facet_ords">facet_ords</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a></p><script>window.sidebarCurrent = {name: 'FacetReader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -95,7 +95,19 @@ as deleted.</p>
 <div class='docblock'><p>Given a term ordinal returns the term associated to it.</p>
 </div><h4 id='method.facet_ords' class="method"><span id='facet_ords.v' class='invisible'><code>pub fn <a href='#method.facet_ords' class='fnname'>facet_ords</a>(&amp;mut self, doc: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/facet_reader.rs.html#65-67' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Return the list of facet ordinals associated to a document.</p>
-</div></div></section>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fastfield/struct.FacetReader.html" title="struct tantivy::fastfield::FacetReader">FacetReader</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/fastfield/struct.FacetReader.html" title="struct tantivy::fastfield::FacetReader">FacetReader</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

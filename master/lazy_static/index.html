@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/lazy_static/lib.rs.html#8-212' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/lazy_static/lib.rs.html#8-222' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>A macro for declaring lazily evaluated statics.</p>
 <p>Using this macro, it is possible to have <code>static</code>s that require code to be
 executed at runtime in order to be initialized.
@@ -122,16 +122,17 @@ have generally the same properties as regular &quot;static&quot; variables:</p>
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;A expensive calculation on a static results in: {}.&quot;</span>, <span class="kw-2">*</span><span class="ident">NUMBER</span>);
 }</pre>
 <h1 id="implementation-details" class="section-header"><a href="#implementation-details">Implementation details</a></h1>
-<p>The <code>Deref</code> implementation uses a hidden static variable that is guarded by a atomic check on each access. On stable Rust, the macro may need to allocate each static on the heap.</p>
+<p>The <code>Deref</code> implementation uses a hidden static variable that is guarded by a atomic check on each access.</p>
+<h1 id="cargo-features" class="section-header"><a href="#cargo-features">Cargo features</a></h1>
+<p>This crate provides two cargo features:</p>
+<ul>
+<li><code>nightly</code>: This uses unstable language features only available on the nightly release channel for a more optimal implementation. In practice this currently means avoiding a heap allocation per static. This feature might get deprecated at a later point once all relevant optimizations are usable from stable.</li>
+<li><code>spin_no_std</code> (implies <code>nightly</code>): This allows using this crate in a no-std environment, by depending on the standalone <code>spin</code> crate.</li>
+</ul>
+<p>Both features depend on unstable language features, which means
+no guarantees can be made about them in regard to SemVer stability.</p>
 </div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
 <table>
-                       <tr class=' module-item'>
-                           <td><a class="macro" href="macro.__lazy_static_create.html"
-                                  title='macro lazy_static::__lazy_static_create'>__lazy_static_create</a></td>
-                           <td class='docblock-short'>
-                                
-                           </td>
-                       </tr>
                        <tr class=' module-item'>
                            <td><a class="macro" href="macro.lazy_static.html"
                                   title='macro lazy_static::lazy_static'>lazy_static</a></td>

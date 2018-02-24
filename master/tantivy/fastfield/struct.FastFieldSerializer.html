@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Struct FastFieldSerializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_write">from_write</a><a href="#method.new_u64_fast_field">new_u64_fast_field</a><a href="#method.new_u64_fast_field_with_idx">new_u64_fast_field_with_idx</a><a href="#method.close">close</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a></p><script>window.sidebarCurrent = {name: 'FastFieldSerializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct FastFieldSerializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.from_write">from_write</a><a href="#method.new_u64_fast_field">new_u64_fast_field</a><a href="#method.new_u64_fast_field_with_idx">new_u64_fast_field_with_idx</a><a href="#method.close">close</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">!Send</a><a href="#impl-Sync">!Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fastfield</a></p><script>window.sidebarCurrent = {name: 'FastFieldSerializer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -93,7 +93,19 @@ The serializer expects to receive the following calls.</p>
 </div><h4 id='method.close' class="method"><span id='close.v' class='invisible'><code>pub fn <a href='#method.close' class='fnname'>close</a>(self) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/serializer.rs.html#69-71' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Closes the serializer</p>
 <p>After this call the data must be persistently save on disk.</p>
-</div></div></section>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fastfield/struct.FastFieldSerializer.html" title="struct tantivy::fastfield::FastFieldSerializer">FastFieldSerializer</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/fastfield/struct.FastFieldSerializer.html" title="struct tantivy::fastfield::FastFieldSerializer">FastFieldSerializer</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

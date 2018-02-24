@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Struct AtomicFile</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.new_with_tmpdir">new_with_tmpdir</a><a href="#method.path">path</a><a href="#method.write">write</a></div></div><p class='location'><a href='index.html'>atomicwrites</a></p><script>window.sidebarCurrent = {name: 'AtomicFile', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct AtomicFile</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.new">new</a><a href="#method.new_with_tmpdir">new_with_tmpdir</a><a href="#method.path">path</a><a href="#method.write">write</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='index.html'>atomicwrites</a></p><script>window.sidebarCurrent = {name: 'AtomicFile', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -75,7 +75,19 @@ exists.</p>
 </div><h4 id='method.write' class="method"><span id='write.v' class='invisible'><code>pub fn <a href='#method.write' class='fnname'>write</a>&lt;T, E, F&gt;(&amp;self, f: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, <a class="enum" href="../atomicwrites/enum.Error.html" title="enum atomicwrites::Error">Error</a>&lt;E&gt;&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/std/fs/struct.File.html" title="struct std::fs::File">File</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, E&gt;,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/atomicwrites/lib.rs.html#119-134' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Open a temporary file, call <code>f</code> on it (which is supposed to write to it), then move the
 file atomically to <code>self.path</code>.</p>
-</div></div></section>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../atomicwrites/struct.AtomicFile.html" title="struct atomicwrites::AtomicFile">AtomicFile</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../atomicwrites/struct.AtomicFile.html" title="struct atomicwrites::AtomicFile">AtomicFile</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

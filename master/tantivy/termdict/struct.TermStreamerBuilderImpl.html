@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Struct TermStreamerBuilderImpl</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-TermStreamerBuilder">TermStreamerBuilder</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>termdict</a></p><script>window.sidebarCurrent = {name: 'TermStreamerBuilderImpl', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Struct TermStreamerBuilderImpl</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#implementations">Trait Implementations</a><div class="sidebar-links"><a href="#impl-TermStreamerBuilder">TermStreamerBuilder</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>termdict</a></p><script>window.sidebarCurrent = {name: 'TermStreamerBuilderImpl', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -65,6 +65,7 @@
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
+            <div id='implementations-list'>
         <h3 id='impl-TermStreamerBuilder' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="../../tantivy/termdict/trait.TermStreamerBuilder.html" title="trait tantivy::termdict::TermStreamerBuilder">TermStreamerBuilder</a> for <a class="struct" href="../../tantivy/termdict/struct.TermStreamerBuilderImpl.html" title="struct tantivy::termdict::TermStreamerBuilderImpl">TermStreamerBuilderImpl</a>&lt;'a&gt;</code><a href='#impl-TermStreamerBuilder' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/termdict/fstdict/streamer.rs.html#22-54' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='associatedtype.Streamer' class="type"><span id='Streamer.t' class='invisible'><code>type <a href='../../tantivy/termdict/trait.TermStreamerBuilder.html#associatedtype.Streamer' class="type">Streamer</a> = <a class="struct" href="../../tantivy/termdict/struct.TermStreamerImpl.html" title="struct tantivy::termdict::TermStreamerImpl">TermStreamerImpl</a>&lt;'a&gt;</code></span></h4>
 <div class='docblock'><p>Associated <code>TermStreamer</code> type that this builder is building.</p>
@@ -78,7 +79,14 @@
 <div class='docblock'><p>Limit the range to terms lesser or equal to the bound</p>
 </div><h4 id='method.into_stream' class="method"><span id='into_stream.v' class='invisible'><code>fn <a href='../../tantivy/termdict/trait.TermStreamerBuilder.html#tymethod.into_stream' class='fnname'>into_stream</a>(self) -&gt; Self::<a class="type" href="../../tantivy/termdict/trait.TermStreamerBuilder.html#associatedtype.Streamer" title="type tantivy::termdict::TermStreamerBuilder::Streamer">Streamer</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/termdict/fstdict/streamer.rs.html#45-53' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Creates the stream corresponding to the range of terms defined using the <code>TermStreamerBuilder</code>. <a href="../../tantivy/termdict/trait.TermStreamerBuilder.html#tymethod.into_stream">Read more</a></p>
-</div></div></section>
+</div></div></div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/termdict/struct.TermStreamerBuilderImpl.html" title="struct tantivy::termdict::TermStreamerBuilderImpl">TermStreamerBuilderImpl</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/termdict/struct.TermStreamerBuilderImpl.html" title="struct tantivy::termdict::TermStreamerBuilderImpl">TermStreamerBuilderImpl</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

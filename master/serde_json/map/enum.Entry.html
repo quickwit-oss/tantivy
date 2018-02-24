@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Enum Entry</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Vacant">Vacant</a><a href="#variant.Occupied">Occupied</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.key">key</a><a href="#method.or_insert">or_insert</a><a href="#method.or_insert_with">or_insert_with</a></div></div><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'Entry', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Enum Entry</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#variants">Variants</a><div class="sidebar-links"><a href="#variant.Vacant">Vacant</a><a href="#variant.Occupied">Occupied</a></div><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.key">key</a><a href="#method.or_insert">or_insert</a><a href="#method.or_insert_with">or_insert_with</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>map</a></p><script>window.sidebarCurrent = {name: 'Entry', ty: 'enum', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -99,7 +99,19 @@ entry.</p>
 <span class="ident">map</span>.<span class="ident">entry</span>(<span class="string">&quot;serde&quot;</span>).<span class="ident">or_insert_with</span>(<span class="op">||</span> <span class="macro">json</span><span class="macro">!</span>(<span class="string">&quot;hoho&quot;</span>));
 
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">map</span>[<span class="string">&quot;serde&quot;</span>], <span class="string">&quot;hoho&quot;</span>.<span class="ident">to_owned</span>());</pre>
-</div></div></section>
+</div></div>
+            <h2 id='implementations' class='small-section-header'>
+              Trait Implementations<a href='#implementations' class='anchor'></a>
+            </h2>
+            <div id='implementations-list'>
+        </div>
+            <h2 id='synthetic-implementations' class='small-section-header'>
+              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+            </h2>
+            <div id='synthetic-implementations-list'>
+        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="enum" href="../../serde_json/map/enum.Entry.html" title="enum serde_json::map::Entry">Entry</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="enum" href="../../serde_json/map/enum.Entry.html" title="enum serde_json::map::Entry">Entry</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
+<div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>
