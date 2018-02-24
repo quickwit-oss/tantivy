@@ -18,8 +18,8 @@ impl<TPostings: Postings> PostingsWithOffset<TPostings> {
         }
     }
 
-    pub fn positions(&self) -> &[u32] {
-        self.postings.positions_with_offset(self.offset)
+    pub fn positions(&self, output: &mut Vec<u32>) {
+        self.postings.positions_with_offset(self.offset, output)
     }
 }
 
@@ -44,11 +44,11 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
 pub struct PhraseScorer<TPostings: Postings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
     num_docsets: usize,
-    source: Vec<u32>,
-    result: Vec<u32>
+    left: Vec<u32>,
+    right: Vec<u32>
 }
 
-fn intersection_arr(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
+fn intersection_arr(left: &mut [u32], right: &[u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
@@ -58,7 +58,7 @@ fn intersection_arr(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
         } else if right[right_i] < left[left_i] {
             right_i += 1;
         } else {
-            output[count] = left[left_i];
+            left[count] = left[left_i];
             count+=1;
             left_i += 1;
             right_i += 1;
@@ -66,6 +66,7 @@ fn intersection_arr(left: &[u32], right: &[u32], output: &mut [u32]) -> usize {
     }
     count
 }
+
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
 
@@ -79,34 +80,18 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
             num_docsets,
-            source: Vec::with_capacity(100),
-            result: Vec::with_capacity(100)
+            left: Vec::with_capacity(100),
+            right: Vec::with_capacity(100)
         }
     }
 
     fn phrase_match(&mut self) -> bool {
         // TODO early exit when we don't care about th phrase frequency
-        let mut intersection_len;
-        {
-            let left = self.intersection_docset.docset(0).positions();
-            let right = self.intersection_docset.docset(1).positions();
-            let max_intersection_len = left.len().min(right.len());
-            if max_intersection_len > self.result.len() {
-                self.result.resize(max_intersection_len, 0u32);
-                self.source.resize(max_intersection_len, 0u32)
-            }
-            intersection_len = intersection_arr(left, right, &mut self.result[..]);
-        }
-        if intersection_len == 0 {
-            return false;
-        }
-        for i in 2..self.num_docsets {
-            mem::swap(&mut self.source, &mut self.result);
-            let term_positions = self.intersection_docset.docset(i).positions();
-            intersection_len = intersection_arr(
-                &self.source[..intersection_len],
-                term_positions,
-                &mut self.result[..]);
+        self.intersection_docset.docset(0).positions(&mut self.left);
+        let mut intersection_len = self.left.len();
+        for i in 1..self.num_docsets {
+            self.intersection_docset.docset(i).positions(&mut self.right);
+            intersection_len = intersection_arr(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
                 return false;
             }
@@ -155,5 +140,33 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> f32 {
         1f32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use tests;
+    use test::Bencher;
+    use super::{intersection_arr, intersection_avx};
+
+    #[bench]
+    fn bench_intersection(b: &mut Bencher) {
+        let left = tests::sample_with_seed(100_000, 0.1, 1);
+        let right = tests::sample_with_seed(200_000, 0.05, 2);
+        let mut output = vec![0u32; 200_000];
+        b.iter(|| {
+            intersection_arr(&left, &right, &mut output);
+        });
+    }
+
+    #[bench]
+    fn bench_intersection_avx(b: &mut Bencher) {
+        let left = tests::sample_with_seed(100_000, 0.1, 1);
+        let right = tests::sample_with_seed(200_000, 0.05, 2);
+        let mut output = vec![0u32; 200_000];
+        b.iter(|| {
+            intersection_avx(&left, &right, &mut output);
+        });
     }
 }

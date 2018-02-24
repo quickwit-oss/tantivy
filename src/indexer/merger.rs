@@ -314,14 +314,15 @@ impl IndexMerger {
                             {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
-                                let positions: &[u32] = segment_postings.positions();
-                                let term_freq = segment_postings.term_freq();
-                                let delta_positions = delta_computer.compute_delta(positions);
-                                field_serializer.write_doc(
-                                    remapped_doc_id,
-                                    term_freq,
-                                    delta_positions,
-                                )?;
+                                unreachable!();
+//                                let positions: &[u32] = segment_postings.positions();
+//                                let term_freq = segment_postings.term_freq();
+//                                let delta_positions = delta_computer.compute_delta(positions);
+//                                field_serializer.write_doc(
+//                                    remapped_doc_id,
+//                                    term_freq,
+//                                    delta_positions,
+//                                )?;
                             }
                             if !segment_postings.advance() {
                                 break;

@@ -23,7 +23,6 @@ struct PositionComputer {
     // if none, position are already loaded in
     // the positions vec.
     position_to_skip: Option<usize>,
-    positions: Vec<u32>,
     positions_stream: CompressedIntStream,
 }
 
@@ -31,7 +30,6 @@ impl PositionComputer {
     pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
         PositionComputer {
             position_to_skip: None,
-            positions: vec![],
             positions_stream,
         }
     }
@@ -44,26 +42,19 @@ impl PositionComputer {
         );
     }
 
-    pub fn positions(&mut self, term_freq: usize, offset: u32) -> &[u32] {
+    pub fn positions(&mut self, offset: u32, output: &mut [u32]) {
+        let term_freq = output.len();
         if let Some(num_skip) = self.position_to_skip {
-            let capacity = self.positions.capacity();
-            if capacity < term_freq {
-                let extra_capacity = term_freq - self.positions.len();
-                self.positions.reserve(extra_capacity);
-            }
-            unsafe {self.positions.set_len(term_freq)};
             self.positions_stream.skip(num_skip);
-            let positions_buf = &mut self.positions[..term_freq];
-            self.positions_stream.read(positions_buf);
+            self.positions_stream.read(output);
             self.position_to_skip = None;
             let mut cum = offset;
-            for position_mut in positions_buf.iter_mut() {
-                cum += *position_mut;
-                *position_mut = cum;
+            for output_mut in output.iter_mut() {
+                cum += *output_mut;
+                *output_mut = cum;
             }
-            positions_buf
         } else {
-            &self.positions[..term_freq]
+            panic!("Failed positions");
         }
     }
 }
@@ -321,14 +312,21 @@ impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions_with_offset(&self, offset: u32) -> &[u32] {
-        let term_freq = self.term_freq();
-        self.position_computer
-            .as_ref()
-            .map(|position_computer| unsafe {
-                (&mut *position_computer.get()).positions(term_freq as usize, offset)
-            })
-            .unwrap_or(&EMPTY_POSITIONS[..])
+    fn positions_with_offset(&self, offset: u32, output: &mut Vec<u32>) {
+        if let Some(ref position_computer) = self.position_computer.as_ref() {
+            let prev_capacity = output.capacity();
+            let term_freq = self.term_freq() as usize;
+            if term_freq > prev_capacity {
+                let additional_len = term_freq - output.len();
+                output.reserve(additional_len);
+            }
+            unsafe {
+                output.set_len(term_freq);
+                (&mut *position_computer.get()).positions(offset, &mut output[..])
+            }
+        } else {
+            unimplemented!("You may not read positions twice!");
+        }
     }
 }
 
