@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rustc-demangle-0.1.6/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rustc-demangle-0.1.7/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -466,6 +466,7 @@
 <span id="410">410</span>
 <span id="411">411</span>
 <span id="412">412</span>
+<span id="413">413</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Demangle Rust compiler symbol names.</span>
 <span class="doccomment">//!</span>
@@ -558,7 +559,7 @@
         <span class="kw">let</span> <span class="ident">candidate</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">s</span>[<span class="ident">i</span> <span class="op">+</span> <span class="ident">llvm</span>.<span class="ident">len</span>()..];
         <span class="kw">let</span> <span class="ident">all_hex</span> <span class="op">=</span> <span class="ident">candidate</span>.<span class="ident">chars</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> {
             <span class="kw">match</span> <span class="ident">c</span> {
-                <span class="string">&#39;A&#39;</span> ... <span class="string">&#39;F&#39;</span> <span class="op">|</span> <span class="string">&#39;0&#39;</span> ... <span class="string">&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                <span class="string">&#39;A&#39;</span> ... <span class="string">&#39;F&#39;</span> <span class="op">|</span> <span class="string">&#39;0&#39;</span> ... <span class="string">&#39;9&#39;</span> <span class="op">|</span> <span class="string">&#39;@&#39;</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
                 _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
             }
         });
@@ -864,6 +865,7 @@
     <span class="kw">fn</span> <span class="ident">demangle_thinlto</span>() {
         <span class="comment">// One element, no hash.</span>
         <span class="macro">t</span><span class="macro">!</span>(<span class="string">&quot;_ZN3fooE.llvm.9D1C9369&quot;</span>, <span class="string">&quot;foo&quot;</span>);
+        <span class="macro">t</span><span class="macro">!</span>(<span class="string">&quot;_ZN3fooE.llvm.9D1C9369@@16&quot;</span>, <span class="string">&quot;foo&quot;</span>);
         <span class="macro">t_nohash</span><span class="macro">!</span>(<span class="string">&quot;_ZN9backtrace3foo17hbb467fcdaea5d79bE.llvm.A5310EB9&quot;</span>, <span class="string">&quot;backtrace::foo&quot;</span>);
     }
 
