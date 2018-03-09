@@ -1,4 +1,4 @@
-use common::bitpacker::compute_num_bits;
+use common::compute_num_bits;
 use common::bitpacker::{BitPacker, BitUnpacker};
 use common::CountingWriter;
 use std::cmp;
@@ -30,7 +30,7 @@ pub fn compress_sorted(vals: &mut [u32], output: &mut [u8], offset: u32) -> usiz
             .unwrap();
     }
     let compressed_size = counting_writer.written_bytes();
-    assert_eq!(compressed_size, compute_block_size(num_bits));
+    assert_eq!(compressed_size, compressed_block_size(num_bits));
     compressed_size
 }
 
@@ -112,14 +112,14 @@ impl BlockDecoder {
     ) -> usize {
         let consumed_size = {
             let num_bits = compressed_data[0];
-            let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
+            let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits);
             for i in 0..COMPRESSION_BLOCK_SIZE {
                 let delta = bit_unpacker.get(i);
                 let val = offset + delta as u32;
                 self.output[i] = val;
                 offset = val;
             }
-            compute_block_size(num_bits)
+            compressed_block_size(num_bits)
         };
         self.output_len = COMPRESSION_BLOCK_SIZE;
         consumed_size
@@ -127,7 +127,7 @@ impl BlockDecoder {
 
     pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
         let num_bits = compressed_data[0];
-        let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits as usize);
+        let bit_unpacker = BitUnpacker::new(&compressed_data[1..], num_bits);
         for i in 0..COMPRESSION_BLOCK_SIZE {
             self.output[i] = bit_unpacker.get(i) as u32;
         }
