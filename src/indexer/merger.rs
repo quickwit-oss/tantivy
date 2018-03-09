@@ -236,6 +236,13 @@ impl IndexMerger {
                 merged_doc_id_map.push(segment_local_map);
             }
 
+
+            let total_num_tokens = self.readers
+                .iter()
+                .map(|reader| reader.inverted_index(indexed_field))
+                .map(|inverted_index| inverted_index.total_num_tokens())
+                .sum();
+
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.
             //
@@ -246,8 +253,7 @@ impl IndexMerger {
             // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
             //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
             // ...
-
-            let mut field_serializer = serializer.new_field(indexed_field)?;
+            let mut field_serializer = serializer.new_field(indexed_field, total_num_tokens)?;
 
             let field_entry = self.schema.get_field_entry(indexed_field);
 
@@ -270,8 +276,7 @@ impl IndexMerger {
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
                         let inverted_index = segment_reader.inverted_index(indexed_field);
-                        let mut segment_postings = inverted_index
-                            .read_postings_from_terminfo(term_info, segment_postings_option);
+                        let mut segment_postings = inverted_index.read_postings_from_terminfo(term_info, segment_postings_option);
                         if segment_postings.advance() {
                             Some((segment_ord, segment_postings))
                         } else {

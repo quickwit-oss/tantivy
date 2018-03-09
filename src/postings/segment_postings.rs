@@ -13,6 +13,7 @@ use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;
 use postings::serializer::PostingsSerializer;
+use common::CountingWriter;
 
 const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
@@ -83,14 +84,15 @@ impl SegmentPostings {
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
-        let mut buffer = Vec::new();
+        let mut counting_writer = CountingWriter::wrap(Vec::new());
         {
-            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
+            let mut postings_serializer = PostingsSerializer::new(&mut counting_writer, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
             postings_serializer.close_term().unwrap();
         }
+        let (buffer , _) = counting_writer.finish().expect("Serializing in a buffer should never fail.");
         let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),

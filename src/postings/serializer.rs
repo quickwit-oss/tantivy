@@ -11,6 +11,7 @@ use DocId;
 use core::Segment;
 use std::io::{self, Write};
 use compression::VIntEncoder;
+use common::BinarySerializable;
 use common::CountingWriter;
 use common::CompositeWrite;
 use termdict::TermDictionaryBuilder;
@@ -84,10 +85,11 @@ impl InvertedIndexSerializer {
     /// a given field.
     ///
     /// Loads the indexing options for the given field.
-    pub fn new_field(&mut self, field: Field) -> io::Result<FieldSerializer> {
+    pub fn new_field(&mut self, field: Field, total_num_tokens: u64) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
+        total_num_tokens.serialize(postings_write)?;
         let positions_write = self.positions_write.for_field(field);
         FieldSerializer::new(
             field_entry.field_type().clone(),
@@ -110,7 +112,7 @@ impl InvertedIndexSerializer {
 /// the serialization of a specific field.
 pub struct FieldSerializer<'a> {
     term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
-    postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
+    postings_serializer: PostingsSerializer<'a, WritePtr>,
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
@@ -123,6 +125,7 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
     ) -> io::Result<FieldSerializer<'a>> {
+
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {
@@ -232,8 +235,8 @@ impl<'a> FieldSerializer<'a> {
     }
 }
 
-pub struct PostingsSerializer<W: Write> {
-    postings_write: CountingWriter<W>,
+pub struct PostingsSerializer<'a, W: 'a + Write> {
+    postings_write: &'a mut CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
@@ -243,10 +246,10 @@ pub struct PostingsSerializer<W: Write> {
     termfreq_enabled: bool,
 }
 
-impl<W: Write> PostingsSerializer<W> {
-    pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
+impl<'a, W: 'a + Write> PostingsSerializer<'a, W> {
+    pub fn new(write: &'a mut CountingWriter<W>, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
-            postings_write: CountingWriter::wrap(write),
+            postings_write: write,
 
             block_encoder: BlockEncoder::new(),
             doc_ids: vec![],
@@ -307,7 +310,7 @@ impl<W: Write> PostingsSerializer<W> {
         Ok(())
     }
 
-    fn close(mut self) -> io::Result<()> {
+    fn close(self) -> io::Result<()> {
         self.postings_write.flush()
     }
 

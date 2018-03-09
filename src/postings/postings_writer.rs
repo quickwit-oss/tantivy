@@ -123,7 +123,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             unordered_term_mappings.insert(field, mapping);
 
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
-            let mut field_serializer = serializer.new_field(field)?;
+            let mut field_serializer = serializer.new_field(field, postings_writer.total_num_tokens())?;
             postings_writer.serialize(
                 &term_offsets[start..stop],
                 &mut field_serializer,
@@ -181,18 +181,27 @@ pub trait PostingsWriter {
     ) -> u32 {
         let mut term = unsafe { Term::with_capacity(100) };
         term.set_field(field);
-        let mut sink = |token: &Token| {
-            term.set_text(token.text.as_str());
-            self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+        let num_tokens = {
+            let mut sink = |token: &Token| {
+                term.set_text(token.text.as_str());
+                self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+            };
+            token_stream.process(&mut sink)
         };
-        token_stream.process(&mut sink)
+        self.add_num_tokens(num_tokens);
+        num_tokens
     }
+
+    fn add_num_tokens(&mut self, num_tokens: u32);
+
+    fn total_num_tokens(&self) -> u64;
 }
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
 pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
     heap: &'a Heap,
+    total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
 
@@ -201,6 +210,7 @@ impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
     pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
         SpecializedPostingsWriter {
             heap,
+            total_num_tokens: 0u64,
             _recorder_type: PhantomData,
         }
     }
@@ -246,5 +256,12 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
             serializer.close_term()?;
         }
         Ok(())
+    }
+
+    fn add_num_tokens(&mut self, num_tokens: u32) {
+        self.total_num_tokens += num_tokens as u64;
+    }
+    fn total_num_tokens(&self) -> u64 {
+        self.total_num_tokens
     }
 }
