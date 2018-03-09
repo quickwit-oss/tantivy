@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/number.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/number.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>number.rs.html -- source</title>
@@ -502,7 +502,7 @@
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_i64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">n</span> {
-            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span> <span class="op">&lt;=</span> <span class="ident">i64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>,
+            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span> <span class="op">&lt;=</span> <span class="ident">i64</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">u64</span>,
             <span class="ident">N</span>::<span class="ident">NegInt</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">N</span>::<span class="ident">Float</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.27/src/de/from_primitive.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.28/src/de/from_primitive.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>from_primitive.rs.html -- source</title>
@@ -183,7 +183,7 @@
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">int_to_int</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> (
-        <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">MIN</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">i64</span> {
+        <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">min_value</span>() <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">i64</span> {
             <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>)
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
@@ -193,7 +193,7 @@
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">int_to_uint</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> (
-        <span class="kw">if</span> <span class="number">0</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span> {
+        <span class="kw">if</span> <span class="number">0</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">u64</span> {
             <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>)
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
@@ -203,7 +203,7 @@
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">uint_to</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> (
-        <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span> {
+        <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">u64</span> {
             <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>)
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>

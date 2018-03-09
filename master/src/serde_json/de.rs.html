@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/de.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/de.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>de.rs.html -- source</title>
@@ -2406,7 +2406,7 @@
                             <span class="comment">// We need to be careful with overflow. If we can, try to keep the</span>
                             <span class="comment">// number as a `u64` until we grow too large. At that point, switch to</span>
                             <span class="comment">// parsing the value as a `f64`.</span>
-                            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">res</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">MAX</span>) {
+                            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">res</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">max_value</span>()) {
                                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_long_integer</span>(
                                     <span class="ident">pos</span>,
                                     <span class="ident">res</span>,
@@ -2488,7 +2488,7 @@
             <span class="kw">let</span> <span class="ident">digit</span> <span class="op">=</span> (<span class="ident">c</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">u64</span>;
             <span class="ident">at_least_one_digit</span> <span class="op">=</span> <span class="bool-val">true</span>;
 
-            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">significand</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">MAX</span>) {
+            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">significand</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">max_value</span>()) {
                 <span class="comment">// The next multiply/add would overflow, so just ignore all</span>
                 <span class="comment">// further digits.</span>
                 <span class="kw">while</span> <span class="kw">let</span> <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
@@ -2543,7 +2543,7 @@
             <span class="self">self</span>.<span class="ident">eat_char</span>();
             <span class="kw">let</span> <span class="ident">digit</span> <span class="op">=</span> (<span class="ident">c</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">i32</span>;
 
-            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">exp</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">i32</span>::<span class="ident">MAX</span>) {
+            <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">exp</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">i32</span>::<span class="ident">max_value</span>()) {
                 <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_exponent_overflow</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">pos_exp</span>);
             }
 

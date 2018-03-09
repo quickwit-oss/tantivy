@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.6/src/re_bytes.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/re_bytes.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>re_bytes.rs.html -- source</title>
@@ -1086,6 +1086,46 @@
 <span id="1030">1030</span>
 <span id="1031">1031</span>
 <span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -2078,6 +2118,46 @@
     <span class="doccomment">/// In general, this is called once for every call to `replacen`.</span>
     <span class="kw">fn</span> <span class="ident">no_expansion</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, [<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
         <span class="prelude-val">None</span>
+    }
+
+    <span class="doccomment">/// Return a `Replacer` that borrows and wraps this `Replacer`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is useful when you want to take a generic `Replacer` (which might</span>
+    <span class="doccomment">/// not be cloneable) and use it without consuming it, so it can be used</span>
+    <span class="doccomment">/// more than once.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Example</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// use regex::bytes::{Regex, Replacer};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// fn replace_all_twice&lt;R: Replacer&gt;(</span>
+    <span class="doccomment">///     re: Regex,</span>
+    <span class="doccomment">///     src: &amp;[u8],</span>
+    <span class="doccomment">///     mut rep: R,</span>
+    <span class="doccomment">/// ) -&gt; Vec&lt;u8&gt; {</span>
+    <span class="doccomment">///     let dst = re.replace_all(src, rep.by_ref());</span>
+    <span class="doccomment">///     let dst = re.replace_all(&amp;dst, rep.by_ref());</span>
+    <span class="doccomment">///     dst.into_owned()</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">fn</span> <span class="ident">by_ref</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ReplacerRef</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, <span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">ReplacerRef</span>(<span class="self">self</span>)
+    }
+}
+
+<span class="doccomment">/// By-reference adaptor for a `Replacer`</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Returned by [`Replacer::by_ref`](trait.Replacer.html#method.by_ref).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReplacerRef</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">R</span>);
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="ident">Replacer</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">ReplacerRef</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">replace_append</span>(<span class="ident">caps</span>, <span class="ident">dst</span>)
+    }
+    <span class="kw">fn</span> <span class="ident">no_expansion</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;r</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;r</span>, [<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">no_expansion</span>()
     }
 }
 

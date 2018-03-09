@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.0/src/identities.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.1/src/identities.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>identities.rs.html -- source</title>
@@ -202,6 +202,16 @@
 <span id="146">146</span>
 <span id="147">147</span>
 <span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ops</span>::{<span class="ident">Add</span>, <span class="ident">Mul</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">num</span>::<span class="ident">Wrapping</span>;
@@ -284,6 +294,16 @@
     <span class="doccomment">/// `static mut`s.</span>
     <span class="comment">// FIXME (#5527): This should be an associated constant</span>
     <span class="kw">fn</span> <span class="ident">one</span>() <span class="op">-&gt;</span> <span class="self">Self</span>;
+
+    <span class="doccomment">/// Returns `true` if `self` is equal to the multiplicative identity.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For performance reasons, it&#39;s best to implement this manually.</span>
+    <span class="doccomment">/// After a semver bump, this method will be required, and the</span>
+    <span class="doccomment">/// `where Self: PartialEq` bound will be removed.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">is_one</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">PartialEq</span> {
+        <span class="kw-2">*</span><span class="self">self</span> <span class="op">==</span> <span class="self">Self</span>::<span class="ident">one</span>()
+    }
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">one_impl</span> {

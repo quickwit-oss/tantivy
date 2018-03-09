@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.6/src/input.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/input.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>input.rs.html -- source</title>
@@ -848,7 +848,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the character is absent, then false is returned.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_word_char</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="ident">char</span>::<span class="ident">from_u32</span>(<span class="self">self</span>.<span class="number">0</span>).<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="ident">syntax</span>::<span class="ident">is_word_char</span>)
+        <span class="ident">char</span>::<span class="ident">from_u32</span>(<span class="self">self</span>.<span class="number">0</span>).<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="ident">syntax</span>::<span class="ident">is_word_character</span>)
     }
 
     <span class="doccomment">/// Returns true iff the byte is a word byte.</span>

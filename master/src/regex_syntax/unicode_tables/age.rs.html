@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/unicode_tables/age.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>age.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc source">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+</pre><pre class="rust ">
+<span class="comment">// DO NOT EDIT THIS FILE. IT WAS AUTOMATICALLY GENERATED BY:</span>
+<span class="comment">//</span>
+<span class="comment">//  ucd-generate age tmp/ucd-10.0.0/ --chars</span>
+<span class="comment">//</span>
+<span class="comment">// ucd-generate is available on crates.io.</span>
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BY_NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)])] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&quot;V10_0&quot;</span>, <span class="ident">V10_0</span>), (<span class="string">&quot;V1_1&quot;</span>, <span class="ident">V1_1</span>), (<span class="string">&quot;V2_0&quot;</span>, <span class="ident">V2_0</span>), (<span class="string">&quot;V2_1&quot;</span>, <span class="ident">V2_1</span>),
+  (<span class="string">&quot;V3_0&quot;</span>, <span class="ident">V3_0</span>), (<span class="string">&quot;V3_1&quot;</span>, <span class="ident">V3_1</span>), (<span class="string">&quot;V3_2&quot;</span>, <span class="ident">V3_2</span>), (<span class="string">&quot;V4_0&quot;</span>, <span class="ident">V4_0</span>),
+  (<span class="string">&quot;V4_1&quot;</span>, <span class="ident">V4_1</span>), (<span class="string">&quot;V5_0&quot;</span>, <span class="ident">V5_0</span>), (<span class="string">&quot;V5_1&quot;</span>, <span class="ident">V5_1</span>), (<span class="string">&quot;V5_2&quot;</span>, <span class="ident">V5_2</span>),
+  (<span class="string">&quot;V6_0&quot;</span>, <span class="ident">V6_0</span>), (<span class="string">&quot;V6_1&quot;</span>, <span class="ident">V6_1</span>), (<span class="string">&quot;V6_2&quot;</span>, <span class="ident">V6_2</span>), (<span class="string">&quot;V6_3&quot;</span>, <span class="ident">V6_3</span>),
+  (<span class="string">&quot;V7_0&quot;</span>, <span class="ident">V7_0</span>), (<span class="string">&quot;V8_0&quot;</span>, <span class="ident">V8_0</span>), (<span class="string">&quot;V9_0&quot;</span>, <span class="ident">V9_0</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V10_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ࡠ&#39;</span>, <span class="string">&#39;ࡪ&#39;</span>), (<span class="string">&#39;ৼ&#39;</span>, <span class="string">&#39;৽&#39;</span>), (<span class="string">&#39;ૺ&#39;</span>, <span class="string">&#39;૿&#39;</span>), (<span class="string">&#39;ഀ&#39;</span>, <span class="string">&#39;ഀ&#39;</span>),
+  (<span class="string">&#39;഻&#39;</span>, <span class="string">&#39;഼&#39;</span>), (<span class="string">&#39;᳷&#39;</span>, <span class="string">&#39;᳷&#39;</span>), (<span class="string">&#39;᷶&#39;</span>, <span class="string">&#39;᷹&#39;</span>), (<span class="string">&#39;₿&#39;</span>, <span class="string">&#39;₿&#39;</span>),
+  (<span class="string">&#39;⏿&#39;</span>, <span class="string">&#39;⏿&#39;</span>), (<span class="string">&#39;⯒&#39;</span>, <span class="string">&#39;⯒&#39;</span>), (<span class="string">&#39;⹅&#39;</span>, <span class="string">&#39;⹉&#39;</span>), (<span class="string">&#39;ㄮ&#39;</span>, <span class="string">&#39;ㄮ&#39;</span>),
+  (<span class="string">&#39;鿖&#39;</span>, <span class="string">&#39;鿪&#39;</span>), (<span class="string">&#39;𐌭&#39;</span>, <span class="string">&#39;𐌯&#39;</span>), (<span class="string">&#39;𑨀&#39;</span>, <span class="string">&#39;𑩇&#39;</span>), (<span class="string">&#39;𑩐&#39;</span>, <span class="string">&#39;𑪃&#39;</span>),
+  (<span class="string">&#39;𑪆&#39;</span>, <span class="string">&#39;𑪜&#39;</span>), (<span class="string">&#39;𑪞&#39;</span>, <span class="string">&#39;𑪢&#39;</span>), (<span class="string">&#39;𑴀&#39;</span>, <span class="string">&#39;𑴆&#39;</span>), (<span class="string">&#39;𑴈&#39;</span>, <span class="string">&#39;𑴉&#39;</span>),
+  (<span class="string">&#39;𑴋&#39;</span>, <span class="string">&#39;𑴶&#39;</span>), (<span class="string">&#39;𑴺&#39;</span>, <span class="string">&#39;𑴺&#39;</span>), (<span class="string">&#39;𑴼&#39;</span>, <span class="string">&#39;𑴽&#39;</span>), (<span class="string">&#39;𑴿&#39;</span>, <span class="string">&#39;𑵇&#39;</span>),
+  (<span class="string">&#39;𑵐&#39;</span>, <span class="string">&#39;𑵙&#39;</span>), (<span class="string">&#39;𖿡&#39;</span>, <span class="string">&#39;𖿡&#39;</span>), (<span class="string">&#39;𛀂&#39;</span>, <span class="string">&#39;𛄞&#39;</span>), (<span class="string">&#39;𛅰&#39;</span>, <span class="string">&#39;𛋻&#39;</span>),
+  (<span class="string">&#39;🉠&#39;</span>, <span class="string">&#39;🉥&#39;</span>), (<span class="string">&#39;🛓&#39;</span>, <span class="string">&#39;🛔&#39;</span>), (<span class="string">&#39;🛷&#39;</span>, <span class="string">&#39;🛸&#39;</span>), (<span class="string">&#39;🤀&#39;</span>, <span class="string">&#39;🤋&#39;</span>),
+  (<span class="string">&#39;🤟&#39;</span>, <span class="string">&#39;🤟&#39;</span>), (<span class="string">&#39;🤨&#39;</span>, <span class="string">&#39;🤯&#39;</span>), (<span class="string">&#39;🤱&#39;</span>, <span class="string">&#39;🤲&#39;</span>), (<span class="string">&#39;🥌&#39;</span>, <span class="string">&#39;🥌&#39;</span>),
+  (<span class="string">&#39;🥟&#39;</span>, <span class="string">&#39;🥫&#39;</span>), (<span class="string">&#39;🦒&#39;</span>, <span class="string">&#39;🦗&#39;</span>), (<span class="string">&#39;🧐&#39;</span>, <span class="string">&#39;🧦&#39;</span>), (<span class="string">&#39;𬺰&#39;</span>, <span class="string">&#39;𮯠&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V1_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;\u{0}&#39;</span>, <span class="string">&#39;ǵ&#39;</span>), (<span class="string">&#39;Ǻ&#39;</span>, <span class="string">&#39;ȗ&#39;</span>), (<span class="string">&#39;ɐ&#39;</span>, <span class="string">&#39;ʨ&#39;</span>), (<span class="string">&#39;ʰ&#39;</span>, <span class="string">&#39;˞&#39;</span>), (<span class="string">&#39;ˠ&#39;</span>, <span class="string">&#39;˩&#39;</span>),
+  (<span class="string">&#39;̀&#39;</span>, <span class="string">&#39;ͅ&#39;</span>), (<span class="string">&#39;͠&#39;</span>, <span class="string">&#39;͡&#39;</span>), (<span class="string">&#39;ʹ&#39;</span>, <span class="string">&#39;͵&#39;</span>), (<span class="string">&#39;ͺ&#39;</span>, <span class="string">&#39;ͺ&#39;</span>), (<span class="string">&#39;;&#39;</span>, <span class="string">&#39;;&#39;</span>),
+  (<span class="string">&#39;΄&#39;</span>, <span class="string">&#39;Ί&#39;</span>), (<span class="string">&#39;Ό&#39;</span>, <span class="string">&#39;Ό&#39;</span>), (<span class="string">&#39;Ύ&#39;</span>, <span class="string">&#39;Ρ&#39;</span>), (<span class="string">&#39;Σ&#39;</span>, <span class="string">&#39;ώ&#39;</span>), (<span class="string">&#39;ϐ&#39;</span>, <span class="string">&#39;ϖ&#39;</span>),
+  (<span class="string">&#39;Ϛ&#39;</span>, <span class="string">&#39;Ϛ&#39;</span>), (<span class="string">&#39;Ϝ&#39;</span>, <span class="string">&#39;Ϝ&#39;</span>), (<span class="string">&#39;Ϟ&#39;</span>, <span class="string">&#39;Ϟ&#39;</span>), (<span class="string">&#39;Ϡ&#39;</span>, <span class="string">&#39;Ϡ&#39;</span>), (<span class="string">&#39;Ϣ&#39;</span>, <span class="string">&#39;ϳ&#39;</span>),
+  (<span class="string">&#39;Ё&#39;</span>, <span class="string">&#39;Ќ&#39;</span>), (<span class="string">&#39;Ў&#39;</span>, <span class="string">&#39;я&#39;</span>), (<span class="string">&#39;ё&#39;</span>, <span class="string">&#39;ќ&#39;</span>), (<span class="string">&#39;ў&#39;</span>, <span class="string">&#39;҆&#39;</span>), (<span class="string">&#39;Ґ&#39;</span>, <span class="string">&#39;ӄ&#39;</span>),
+  (<span class="string">&#39;Ӈ&#39;</span>, <span class="string">&#39;ӈ&#39;</span>), (<span class="string">&#39;Ӌ&#39;</span>, <span class="string">&#39;ӌ&#39;</span>), (<span class="string">&#39;Ӑ&#39;</span>, <span class="string">&#39;ӫ&#39;</span>), (<span class="string">&#39;Ӯ&#39;</span>, <span class="string">&#39;ӵ&#39;</span>), (<span class="string">&#39;Ӹ&#39;</span>, <span class="string">&#39;ӹ&#39;</span>),
+  (<span class="string">&#39;Ա&#39;</span>, <span class="string">&#39;Ֆ&#39;</span>), (<span class="string">&#39;ՙ&#39;</span>, <span class="string">&#39;՟&#39;</span>), (<span class="string">&#39;ա&#39;</span>, <span class="string">&#39;և&#39;</span>), (<span class="string">&#39;։&#39;</span>, <span class="string">&#39;։&#39;</span>), (<span class="string">&#39;ְ&#39;</span>, <span class="string">&#39;ֹ&#39;</span>),
+  (<span class="string">&#39;ֻ&#39;</span>, <span class="string">&#39;׃&#39;</span>), (<span class="string">&#39;א&#39;</span>, <span class="string">&#39;ת&#39;</span>), (<span class="string">&#39;װ&#39;</span>, <span class="string">&#39;״&#39;</span>), (<span class="string">&#39;،&#39;</span>, <span class="string">&#39;،&#39;</span>), (<span class="string">&#39;؛&#39;</span>, <span class="string">&#39;؛&#39;</span>),
+  (<span class="string">&#39;؟&#39;</span>, <span class="string">&#39;؟&#39;</span>), (<span class="string">&#39;ء&#39;</span>, <span class="string">&#39;غ&#39;</span>), (<span class="string">&#39;ـ&#39;</span>, <span class="string">&#39;ْ&#39;</span>), (<span class="string">&#39;٠&#39;</span>, <span class="string">&#39;٭&#39;</span>), (<span class="string">&#39;ٰ&#39;</span>, <span class="string">&#39;ڷ&#39;</span>),
+  (<span class="string">&#39;ں&#39;</span>, <span class="string">&#39;ھ&#39;</span>), (<span class="string">&#39;ۀ&#39;</span>, <span class="string">&#39;ێ&#39;</span>), (<span class="string">&#39;ې&#39;</span>, <span class="string">&#39;ۭ&#39;</span>), (<span class="string">&#39;۰&#39;</span>, <span class="string">&#39;۹&#39;</span>), (<span class="string">&#39;ँ&#39;</span>, <span class="string">&#39;ः&#39;</span>),
+  (<span class="string">&#39;अ&#39;</span>, <span class="string">&#39;ह&#39;</span>), (<span class="string">&#39;़&#39;</span>, <span class="string">&#39;्&#39;</span>), (<span class="string">&#39;ॐ&#39;</span>, <span class="string">&#39;॔&#39;</span>), (<span class="string">&#39;क़&#39;</span>, <span class="string">&#39;॰&#39;</span>),
+  (<span class="string">&#39;ঁ&#39;</span>, <span class="string">&#39;ঃ&#39;</span>), (<span class="string">&#39;অ&#39;</span>, <span class="string">&#39;ঌ&#39;</span>), (<span class="string">&#39;এ&#39;</span>, <span class="string">&#39;ঐ&#39;</span>), (<span class="string">&#39;ও&#39;</span>, <span class="string">&#39;ন&#39;</span>),
+  (<span class="string">&#39;প&#39;</span>, <span class="string">&#39;র&#39;</span>), (<span class="string">&#39;ল&#39;</span>, <span class="string">&#39;ল&#39;</span>), (<span class="string">&#39;শ&#39;</span>, <span class="string">&#39;হ&#39;</span>), (<span class="string">&#39;়&#39;</span>, <span class="string">&#39;়&#39;</span>),
+  (<span class="string">&#39;া&#39;</span>, <span class="string">&#39;ৄ&#39;</span>), (<span class="string">&#39;ে&#39;</span>, <span class="string">&#39;ৈ&#39;</span>), (<span class="string">&#39;ো&#39;</span>, <span class="string">&#39;্&#39;</span>), (<span class="string">&#39;ৗ&#39;</span>, <span class="string">&#39;ৗ&#39;</span>),
+  (<span class="string">&#39;ড়&#39;</span>, <span class="string">&#39;ঢ়&#39;</span>), (<span class="string">&#39;য়&#39;</span>, <span class="string">&#39;ৣ&#39;</span>), (<span class="string">&#39;০&#39;</span>, <span class="string">&#39;৺&#39;</span>), (<span class="string">&#39;ਂ&#39;</span>, <span class="string">&#39;ਂ&#39;</span>),
+  (<span class="string">&#39;ਅ&#39;</span>, <span class="string">&#39;ਊ&#39;</span>), (<span class="string">&#39;ਏ&#39;</span>, <span class="string">&#39;ਐ&#39;</span>), (<span class="string">&#39;ਓ&#39;</span>, <span class="string">&#39;ਨ&#39;</span>), (<span class="string">&#39;ਪ&#39;</span>, <span class="string">&#39;ਰ&#39;</span>),
+  (<span class="string">&#39;ਲ&#39;</span>, <span class="string">&#39;ਲ਼&#39;</span>), (<span class="string">&#39;ਵ&#39;</span>, <span class="string">&#39;ਸ਼&#39;</span>), (<span class="string">&#39;ਸ&#39;</span>, <span class="string">&#39;ਹ&#39;</span>), (<span class="string">&#39;਼&#39;</span>, <span class="string">&#39;਼&#39;</span>),
+  (<span class="string">&#39;ਾ&#39;</span>, <span class="string">&#39;ੂ&#39;</span>), (<span class="string">&#39;ੇ&#39;</span>, <span class="string">&#39;ੈ&#39;</span>), (<span class="string">&#39;ੋ&#39;</span>, <span class="string">&#39;੍&#39;</span>), (<span class="string">&#39;ਖ਼&#39;</span>, <span class="string">&#39;ੜ&#39;</span>),
+  (<span class="string">&#39;ਫ਼&#39;</span>, <span class="string">&#39;ਫ਼&#39;</span>), (<span class="string">&#39;੦&#39;</span>, <span class="string">&#39;ੴ&#39;</span>), (<span class="string">&#39;ઁ&#39;</span>, <span class="string">&#39;ઃ&#39;</span>), (<span class="string">&#39;અ&#39;</span>, <span class="string">&#39;ઋ&#39;</span>),
+  (<span class="string">&#39;ઍ&#39;</span>, <span class="string">&#39;ઍ&#39;</span>), (<span class="string">&#39;એ&#39;</span>, <span class="string">&#39;ઑ&#39;</span>), (<span class="string">&#39;ઓ&#39;</span>, <span class="string">&#39;ન&#39;</span>), (<span class="string">&#39;પ&#39;</span>, <span class="string">&#39;ર&#39;</span>),
+  (<span class="string">&#39;લ&#39;</span>, <span class="string">&#39;ળ&#39;</span>), (<span class="string">&#39;વ&#39;</span>, <span class="string">&#39;હ&#39;</span>), (<span class="string">&#39;઼&#39;</span>, <span class="string">&#39;ૅ&#39;</span>), (<span class="string">&#39;ે&#39;</span>, <span class="string">&#39;ૉ&#39;</span>),
+  (<span class="string">&#39;ો&#39;</span>, <span class="string">&#39;્&#39;</span>), (<span class="string">&#39;ૐ&#39;</span>, <span class="string">&#39;ૐ&#39;</span>), (<span class="string">&#39;ૠ&#39;</span>, <span class="string">&#39;ૠ&#39;</span>), (<span class="string">&#39;૦&#39;</span>, <span class="string">&#39;૯&#39;</span>),
+  (<span class="string">&#39;ଁ&#39;</span>, <span class="string">&#39;ଃ&#39;</span>), (<span class="string">&#39;ଅ&#39;</span>, <span class="string">&#39;ଌ&#39;</span>), (<span class="string">&#39;ଏ&#39;</span>, <span class="string">&#39;ଐ&#39;</span>), (<span class="string">&#39;ଓ&#39;</span>, <span class="string">&#39;ନ&#39;</span>),
+  (<span class="string">&#39;ପ&#39;</span>, <span class="string">&#39;ର&#39;</span>), (<span class="string">&#39;ଲ&#39;</span>, <span class="string">&#39;ଳ&#39;</span>), (<span class="string">&#39;ଶ&#39;</span>, <span class="string">&#39;ହ&#39;</span>), (<span class="string">&#39;଼&#39;</span>, <span class="string">&#39;ୃ&#39;</span>),
+  (<span class="string">&#39;େ&#39;</span>, <span class="string">&#39;ୈ&#39;</span>), (<span class="string">&#39;ୋ&#39;</span>, <span class="string">&#39;୍&#39;</span>), (<span class="string">&#39;ୖ&#39;</span>, <span class="string">&#39;ୗ&#39;</span>), (<span class="string">&#39;ଡ଼&#39;</span>, <span class="string">&#39;ଢ଼&#39;</span>),
+  (<span class="string">&#39;ୟ&#39;</span>, <span class="string">&#39;ୡ&#39;</span>), (<span class="string">&#39;୦&#39;</span>, <span class="string">&#39;୰&#39;</span>), (<span class="string">&#39;ஂ&#39;</span>, <span class="string">&#39;ஃ&#39;</span>), (<span class="string">&#39;அ&#39;</span>, <span class="string">&#39;ஊ&#39;</span>),
+  (<span class="string">&#39;எ&#39;</span>, <span class="string">&#39;ஐ&#39;</span>), (<span class="string">&#39;ஒ&#39;</span>, <span class="string">&#39;க&#39;</span>), (<span class="string">&#39;ங&#39;</span>, <span class="string">&#39;ச&#39;</span>), (<span class="string">&#39;ஜ&#39;</span>, <span class="string">&#39;ஜ&#39;</span>),
+  (<span class="string">&#39;ஞ&#39;</span>, <span class="string">&#39;ட&#39;</span>), (<span class="string">&#39;ண&#39;</span>, <span class="string">&#39;த&#39;</span>), (<span class="string">&#39;ந&#39;</span>, <span class="string">&#39;ப&#39;</span>), (<span class="string">&#39;ம&#39;</span>, <span class="string">&#39;வ&#39;</span>),
+  (<span class="string">&#39;ஷ&#39;</span>, <span class="string">&#39;ஹ&#39;</span>), (<span class="string">&#39;ா&#39;</span>, <span class="string">&#39;ூ&#39;</span>), (<span class="string">&#39;ெ&#39;</span>, <span class="string">&#39;ை&#39;</span>), (<span class="string">&#39;ொ&#39;</span>, <span class="string">&#39;்&#39;</span>),
+  (<span class="string">&#39;ௗ&#39;</span>, <span class="string">&#39;ௗ&#39;</span>), (<span class="string">&#39;௧&#39;</span>, <span class="string">&#39;௲&#39;</span>), (<span class="string">&#39;ఁ&#39;</span>, <span class="string">&#39;ః&#39;</span>), (<span class="string">&#39;అ&#39;</span>, <span class="string">&#39;ఌ&#39;</span>),
+  (<span class="string">&#39;ఎ&#39;</span>, <span class="string">&#39;ఐ&#39;</span>), (<span class="string">&#39;ఒ&#39;</span>, <span class="string">&#39;న&#39;</span>), (<span class="string">&#39;ప&#39;</span>, <span class="string">&#39;ళ&#39;</span>), (<span class="string">&#39;వ&#39;</span>, <span class="string">&#39;హ&#39;</span>),
+  (<span class="string">&#39;ా&#39;</span>, <span class="string">&#39;ౄ&#39;</span>), (<span class="string">&#39;ె&#39;</span>, <span class="string">&#39;ై&#39;</span>), (<span class="string">&#39;ొ&#39;</span>, <span class="string">&#39;్&#39;</span>), (<span class="string">&#39;ౕ&#39;</span>, <span class="string">&#39;ౖ&#39;</span>),
+  (<span class="string">&#39;ౠ&#39;</span>, <span class="string">&#39;ౡ&#39;</span>), (<span class="string">&#39;౦&#39;</span>, <span class="string">&#39;౯&#39;</span>), (<span class="string">&#39;ಂ&#39;</span>, <span class="string">&#39;ಃ&#39;</span>), (<span class="string">&#39;ಅ&#39;</span>, <span class="string">&#39;ಌ&#39;</span>),
+  (<span class="string">&#39;ಎ&#39;</span>, <span class="string">&#39;ಐ&#39;</span>), (<span class="string">&#39;ಒ&#39;</span>, <span class="string">&#39;ನ&#39;</span>), (<span class="string">&#39;ಪ&#39;</span>, <span class="string">&#39;ಳ&#39;</span>), (<span class="string">&#39;ವ&#39;</span>, <span class="string">&#39;ಹ&#39;</span>),
+  (<span class="string">&#39;ಾ&#39;</span>, <span class="string">&#39;ೄ&#39;</span>), (<span class="string">&#39;ೆ&#39;</span>, <span class="string">&#39;ೈ&#39;</span>), (<span class="string">&#39;ೊ&#39;</span>, <span class="string">&#39;್&#39;</span>), (<span class="string">&#39;ೕ&#39;</span>, <span class="string">&#39;ೖ&#39;</span>),
+  (<span class="string">&#39;ೞ&#39;</span>, <span class="string">&#39;ೞ&#39;</span>), (<span class="string">&#39;ೠ&#39;</span>, <span class="string">&#39;ೡ&#39;</span>), (<span class="string">&#39;೦&#39;</span>, <span class="string">&#39;೯&#39;</span>), (<span class="string">&#39;ം&#39;</span>, <span class="string">&#39;ഃ&#39;</span>),
+  (<span class="string">&#39;അ&#39;</span>, <span class="string">&#39;ഌ&#39;</span>), (<span class="string">&#39;എ&#39;</span>, <span class="string">&#39;ഐ&#39;</span>), (<span class="string">&#39;ഒ&#39;</span>, <span class="string">&#39;ന&#39;</span>), (<span class="string">&#39;പ&#39;</span>, <span class="string">&#39;ഹ&#39;</span>),
+  (<span class="string">&#39;ാ&#39;</span>, <span class="string">&#39;ൃ&#39;</span>), (<span class="string">&#39;െ&#39;</span>, <span class="string">&#39;ൈ&#39;</span>), (<span class="string">&#39;ൊ&#39;</span>, <span class="string">&#39;്&#39;</span>), (<span class="string">&#39;ൗ&#39;</span>, <span class="string">&#39;ൗ&#39;</span>),
+  (<span class="string">&#39;ൠ&#39;</span>, <span class="string">&#39;ൡ&#39;</span>), (<span class="string">&#39;൦&#39;</span>, <span class="string">&#39;൯&#39;</span>), (<span class="string">&#39;ก&#39;</span>, <span class="string">&#39;ฺ&#39;</span>), (<span class="string">&#39;฿&#39;</span>, <span class="string">&#39;๛&#39;</span>),
+  (<span class="string">&#39;ກ&#39;</span>, <span class="string">&#39;ຂ&#39;</span>), (<span class="string">&#39;ຄ&#39;</span>, <span class="string">&#39;ຄ&#39;</span>), (<span class="string">&#39;ງ&#39;</span>, <span class="string">&#39;ຈ&#39;</span>), (<span class="string">&#39;ຊ&#39;</span>, <span class="string">&#39;ຊ&#39;</span>),
+  (<span class="string">&#39;ຍ&#39;</span>, <span class="string">&#39;ຍ&#39;</span>), (<span class="string">&#39;ດ&#39;</span>, <span class="string">&#39;ທ&#39;</span>), (<span class="string">&#39;ນ&#39;</span>, <span class="string">&#39;ຟ&#39;</span>), (<span class="string">&#39;ມ&#39;</span>, <span class="string">&#39;ຣ&#39;</span>),
+  (<span class="string">&#39;ລ&#39;</span>, <span class="string">&#39;ລ&#39;</span>), (<span class="string">&#39;ວ&#39;</span>, <span class="string">&#39;ວ&#39;</span>), (<span class="string">&#39;ສ&#39;</span>, <span class="string">&#39;ຫ&#39;</span>), (<span class="string">&#39;ອ&#39;</span>, <span class="string">&#39;ູ&#39;</span>),
+  (<span class="string">&#39;ົ&#39;</span>, <span class="string">&#39;ຽ&#39;</span>), (<span class="string">&#39;ເ&#39;</span>, <span class="string">&#39;ໄ&#39;</span>), (<span class="string">&#39;ໆ&#39;</span>, <span class="string">&#39;ໆ&#39;</span>), (<span class="string">&#39;່&#39;</span>, <span class="string">&#39;ໍ&#39;</span>),
+  (<span class="string">&#39;໐&#39;</span>, <span class="string">&#39;໙&#39;</span>), (<span class="string">&#39;ໜ&#39;</span>, <span class="string">&#39;ໝ&#39;</span>), (<span class="string">&#39;Ⴀ&#39;</span>, <span class="string">&#39;Ⴥ&#39;</span>), (<span class="string">&#39;ა&#39;</span>, <span class="string">&#39;ჶ&#39;</span>),
+  (<span class="string">&#39;჻&#39;</span>, <span class="string">&#39;჻&#39;</span>), (<span class="string">&#39;ᄀ&#39;</span>, <span class="string">&#39;ᅙ&#39;</span>), (<span class="string">&#39;ᅟ&#39;</span>, <span class="string">&#39;ᆢ&#39;</span>), (<span class="string">&#39;ᆨ&#39;</span>, <span class="string">&#39;ᇹ&#39;</span>),
+  (<span class="string">&#39;Ḁ&#39;</span>, <span class="string">&#39;ẚ&#39;</span>), (<span class="string">&#39;Ạ&#39;</span>, <span class="string">&#39;ỹ&#39;</span>), (<span class="string">&#39;ἀ&#39;</span>, <span class="string">&#39;ἕ&#39;</span>), (<span class="string">&#39;Ἐ&#39;</span>, <span class="string">&#39;Ἕ&#39;</span>),
+  (<span class="string">&#39;ἠ&#39;</span>, <span class="string">&#39;ὅ&#39;</span>), (<span class="string">&#39;Ὀ&#39;</span>, <span class="string">&#39;Ὅ&#39;</span>), (<span class="string">&#39;ὐ&#39;</span>, <span class="string">&#39;ὗ&#39;</span>), (<span class="string">&#39;Ὑ&#39;</span>, <span class="string">&#39;Ὑ&#39;</span>),
+  (<span class="string">&#39;Ὓ&#39;</span>, <span class="string">&#39;Ὓ&#39;</span>), (<span class="string">&#39;Ὕ&#39;</span>, <span class="string">&#39;Ὕ&#39;</span>), (<span class="string">&#39;Ὗ&#39;</span>, <span class="string">&#39;ώ&#39;</span>), (<span class="string">&#39;ᾀ&#39;</span>, <span class="string">&#39;ᾴ&#39;</span>),
+  (<span class="string">&#39;ᾶ&#39;</span>, <span class="string">&#39;ῄ&#39;</span>), (<span class="string">&#39;ῆ&#39;</span>, <span class="string">&#39;ΐ&#39;</span>), (<span class="string">&#39;ῖ&#39;</span>, <span class="string">&#39;Ί&#39;</span>), (<span class="string">&#39;῝&#39;</span>, <span class="string">&#39;`&#39;</span>),
+  (<span class="string">&#39;ῲ&#39;</span>, <span class="string">&#39;ῴ&#39;</span>), (<span class="string">&#39;ῶ&#39;</span>, <span class="string">&#39;῾&#39;</span>), (<span class="string">&#39;\u{2000}&#39;</span>, <span class="string">&#39;\u{202e}&#39;</span>), (<span class="string">&#39;‰&#39;</span>, <span class="string">&#39;⁆&#39;</span>),
+  (<span class="string">&#39;\u{206a}&#39;</span>, <span class="string">&#39;⁰&#39;</span>), (<span class="string">&#39;⁴&#39;</span>, <span class="string">&#39;₎&#39;</span>), (<span class="string">&#39;₠&#39;</span>, <span class="string">&#39;₪&#39;</span>), (<span class="string">&#39;⃐&#39;</span>, <span class="string">&#39;⃡&#39;</span>),
+  (<span class="string">&#39;℀&#39;</span>, <span class="string">&#39;ℸ&#39;</span>), (<span class="string">&#39;⅓&#39;</span>, <span class="string">&#39;ↂ&#39;</span>), (<span class="string">&#39;←&#39;</span>, <span class="string">&#39;⇪&#39;</span>), (<span class="string">&#39;∀&#39;</span>, <span class="string">&#39;⋱&#39;</span>),
+  (<span class="string">&#39;⌀&#39;</span>, <span class="string">&#39;⌀&#39;</span>), (<span class="string">&#39;⌂&#39;</span>, <span class="string">&#39;⍺&#39;</span>), (<span class="string">&#39;␀&#39;</span>, <span class="string">&#39;␤&#39;</span>), (<span class="string">&#39;⑀&#39;</span>, <span class="string">&#39;⑊&#39;</span>),
+  (<span class="string">&#39;①&#39;</span>, <span class="string">&#39;⓪&#39;</span>), (<span class="string">&#39;─&#39;</span>, <span class="string">&#39;▕&#39;</span>), (<span class="string">&#39;■&#39;</span>, <span class="string">&#39;◯&#39;</span>), (<span class="string">&#39;☀&#39;</span>, <span class="string">&#39;☓&#39;</span>),
+  (<span class="string">&#39;☚&#39;</span>, <span class="string">&#39;♯&#39;</span>), (<span class="string">&#39;✁&#39;</span>, <span class="string">&#39;✄&#39;</span>), (<span class="string">&#39;✆&#39;</span>, <span class="string">&#39;✉&#39;</span>), (<span class="string">&#39;✌&#39;</span>, <span class="string">&#39;✧&#39;</span>),
+  (<span class="string">&#39;✩&#39;</span>, <span class="string">&#39;❋&#39;</span>), (<span class="string">&#39;❍&#39;</span>, <span class="string">&#39;❍&#39;</span>), (<span class="string">&#39;❏&#39;</span>, <span class="string">&#39;❒&#39;</span>), (<span class="string">&#39;❖&#39;</span>, <span class="string">&#39;❖&#39;</span>),
+  (<span class="string">&#39;❘&#39;</span>, <span class="string">&#39;❞&#39;</span>), (<span class="string">&#39;❡&#39;</span>, <span class="string">&#39;❧&#39;</span>), (<span class="string">&#39;❶&#39;</span>, <span class="string">&#39;➔&#39;</span>), (<span class="string">&#39;➘&#39;</span>, <span class="string">&#39;➯&#39;</span>),
+  (<span class="string">&#39;➱&#39;</span>, <span class="string">&#39;➾&#39;</span>), (<span class="string">&#39;\u{3000}&#39;</span>, <span class="string">&#39;〷&#39;</span>), (<span class="string">&#39;〿&#39;</span>, <span class="string">&#39;〿&#39;</span>), (<span class="string">&#39;ぁ&#39;</span>, <span class="string">&#39;ゔ&#39;</span>),
+  (<span class="string">&#39;゙&#39;</span>, <span class="string">&#39;ゞ&#39;</span>), (<span class="string">&#39;ァ&#39;</span>, <span class="string">&#39;ヾ&#39;</span>), (<span class="string">&#39;ㄅ&#39;</span>, <span class="string">&#39;ㄬ&#39;</span>), (<span class="string">&#39;ㄱ&#39;</span>, <span class="string">&#39;ㆎ&#39;</span>),
+  (<span class="string">&#39;㆐&#39;</span>, <span class="string">&#39;㆟&#39;</span>), (<span class="string">&#39;㈀&#39;</span>, <span class="string">&#39;㈜&#39;</span>), (<span class="string">&#39;㈠&#39;</span>, <span class="string">&#39;㉃&#39;</span>), (<span class="string">&#39;㉠&#39;</span>, <span class="string">&#39;㉻&#39;</span>),
+  (<span class="string">&#39;㉿&#39;</span>, <span class="string">&#39;㊰&#39;</span>), (<span class="string">&#39;㋀&#39;</span>, <span class="string">&#39;㋋&#39;</span>), (<span class="string">&#39;㋐&#39;</span>, <span class="string">&#39;㋾&#39;</span>), (<span class="string">&#39;㌀&#39;</span>, <span class="string">&#39;㍶&#39;</span>),
+  (<span class="string">&#39;㍻&#39;</span>, <span class="string">&#39;㏝&#39;</span>), (<span class="string">&#39;㏠&#39;</span>, <span class="string">&#39;㏾&#39;</span>), (<span class="string">&#39;一&#39;</span>, <span class="string">&#39;龥&#39;</span>), (<span class="string">&#39;\u{e000}&#39;</span>, <span class="string">&#39;鶴&#39;</span>),
+  (<span class="string">&#39;ﬀ&#39;</span>, <span class="string">&#39;ﬆ&#39;</span>), (<span class="string">&#39;ﬓ&#39;</span>, <span class="string">&#39;ﬗ&#39;</span>), (<span class="string">&#39;ﬞ&#39;</span>, <span class="string">&#39;זּ&#39;</span>), (<span class="string">&#39;טּ&#39;</span>, <span class="string">&#39;לּ&#39;</span>),
+  (<span class="string">&#39;מּ&#39;</span>, <span class="string">&#39;מּ&#39;</span>), (<span class="string">&#39;נּ&#39;</span>, <span class="string">&#39;סּ&#39;</span>), (<span class="string">&#39;ףּ&#39;</span>, <span class="string">&#39;פּ&#39;</span>), (<span class="string">&#39;צּ&#39;</span>, <span class="string">&#39;ﮱ&#39;</span>),
+  (<span class="string">&#39;ﯓ&#39;</span>, <span class="string">&#39;﴿&#39;</span>), (<span class="string">&#39;ﵐ&#39;</span>, <span class="string">&#39;ﶏ&#39;</span>), (<span class="string">&#39;ﶒ&#39;</span>, <span class="string">&#39;ﷇ&#39;</span>), (<span class="string">&#39;ﷰ&#39;</span>, <span class="string">&#39;ﷻ&#39;</span>),
+  (<span class="string">&#39;︠&#39;</span>, <span class="string">&#39;︣&#39;</span>), (<span class="string">&#39;︰&#39;</span>, <span class="string">&#39;﹄&#39;</span>), (<span class="string">&#39;﹉&#39;</span>, <span class="string">&#39;﹒&#39;</span>), (<span class="string">&#39;﹔&#39;</span>, <span class="string">&#39;﹦&#39;</span>),
+  (<span class="string">&#39;﹨&#39;</span>, <span class="string">&#39;﹫&#39;</span>), (<span class="string">&#39;ﹰ&#39;</span>, <span class="string">&#39;ﹲ&#39;</span>), (<span class="string">&#39;ﹴ&#39;</span>, <span class="string">&#39;ﹴ&#39;</span>), (<span class="string">&#39;ﹶ&#39;</span>, <span class="string">&#39;ﻼ&#39;</span>),
+  (<span class="string">&#39;\u{feff}&#39;</span>, <span class="string">&#39;\u{feff}&#39;</span>), (<span class="string">&#39;！&#39;</span>, <span class="string">&#39;～&#39;</span>), (<span class="string">&#39;｡&#39;</span>, <span class="string">&#39;ﾾ&#39;</span>), (<span class="string">&#39;ￂ&#39;</span>, <span class="string">&#39;ￇ&#39;</span>),
+  (<span class="string">&#39;ￊ&#39;</span>, <span class="string">&#39;ￏ&#39;</span>), (<span class="string">&#39;ￒ&#39;</span>, <span class="string">&#39;ￗ&#39;</span>), (<span class="string">&#39;ￚ&#39;</span>, <span class="string">&#39;ￜ&#39;</span>), (<span class="string">&#39;￠&#39;</span>, <span class="string">&#39;￦&#39;</span>),
+  (<span class="string">&#39;￨&#39;</span>, <span class="string">&#39;￮&#39;</span>), (<span class="string">&#39;�&#39;</span>, <span class="string">&#39;\u{ffff}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V2_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;֑&#39;</span>, <span class="string">&#39;֡&#39;</span>), (<span class="string">&#39;֣&#39;</span>, <span class="string">&#39;֯&#39;</span>), (<span class="string">&#39;ׄ&#39;</span>, <span class="string">&#39;ׄ&#39;</span>), (<span class="string">&#39;ༀ&#39;</span>, <span class="string">&#39;ཇ&#39;</span>), (<span class="string">&#39;ཉ&#39;</span>, <span class="string">&#39;ཀྵ&#39;</span>),
+  (<span class="string">&#39;ཱ&#39;</span>, <span class="string">&#39;ྋ&#39;</span>), (<span class="string">&#39;ྐ&#39;</span>, <span class="string">&#39;ྕ&#39;</span>), (<span class="string">&#39;ྗ&#39;</span>, <span class="string">&#39;ྗ&#39;</span>), (<span class="string">&#39;ྙ&#39;</span>, <span class="string">&#39;ྭ&#39;</span>),
+  (<span class="string">&#39;ྱ&#39;</span>, <span class="string">&#39;ྷ&#39;</span>), (<span class="string">&#39;ྐྵ&#39;</span>, <span class="string">&#39;ྐྵ&#39;</span>), (<span class="string">&#39;ẛ&#39;</span>, <span class="string">&#39;ẛ&#39;</span>), (<span class="string">&#39;₫&#39;</span>, <span class="string">&#39;₫&#39;</span>),
+  (<span class="string">&#39;가&#39;</span>, <span class="string">&#39;힣&#39;</span>), (<span class="string">&#39;\u{1fffe}&#39;</span>, <span class="string">&#39;\u{1ffff}&#39;</span>), (<span class="string">&#39;\u{2fffe}&#39;</span>, <span class="string">&#39;\u{2ffff}&#39;</span>),
+  (<span class="string">&#39;\u{3fffe}&#39;</span>, <span class="string">&#39;\u{3ffff}&#39;</span>), (<span class="string">&#39;\u{4fffe}&#39;</span>, <span class="string">&#39;\u{4ffff}&#39;</span>),
+  (<span class="string">&#39;\u{5fffe}&#39;</span>, <span class="string">&#39;\u{5ffff}&#39;</span>), (<span class="string">&#39;\u{6fffe}&#39;</span>, <span class="string">&#39;\u{6ffff}&#39;</span>),
+  (<span class="string">&#39;\u{7fffe}&#39;</span>, <span class="string">&#39;\u{7ffff}&#39;</span>), (<span class="string">&#39;\u{8fffe}&#39;</span>, <span class="string">&#39;\u{8ffff}&#39;</span>),
+  (<span class="string">&#39;\u{9fffe}&#39;</span>, <span class="string">&#39;\u{9ffff}&#39;</span>), (<span class="string">&#39;\u{afffe}&#39;</span>, <span class="string">&#39;\u{affff}&#39;</span>),
+  (<span class="string">&#39;\u{bfffe}&#39;</span>, <span class="string">&#39;\u{bffff}&#39;</span>), (<span class="string">&#39;\u{cfffe}&#39;</span>, <span class="string">&#39;\u{cffff}&#39;</span>),
+  (<span class="string">&#39;\u{dfffe}&#39;</span>, <span class="string">&#39;\u{dffff}&#39;</span>), (<span class="string">&#39;\u{efffe}&#39;</span>, <span class="string">&#39;\u{10ffff}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V2_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;€&#39;</span>, <span class="string">&#39;€&#39;</span>), (<span class="string">&#39;￼&#39;</span>, <span class="string">&#39;￼&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V3_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ƕ&#39;</span>, <span class="string">&#39;ǹ&#39;</span>), (<span class="string">&#39;Ș&#39;</span>, <span class="string">&#39;ȟ&#39;</span>), (<span class="string">&#39;Ȣ&#39;</span>, <span class="string">&#39;ȳ&#39;</span>), (<span class="string">&#39;ʩ&#39;</span>, <span class="string">&#39;ʭ&#39;</span>), (<span class="string">&#39;˟&#39;</span>, <span class="string">&#39;˟&#39;</span>),
+  (<span class="string">&#39;˪&#39;</span>, <span class="string">&#39;ˮ&#39;</span>), (<span class="string">&#39;͆&#39;</span>, <span class="string">&#39;͎&#39;</span>), (<span class="string">&#39;͢&#39;</span>, <span class="string">&#39;͢&#39;</span>), (<span class="string">&#39;ϗ&#39;</span>, <span class="string">&#39;ϗ&#39;</span>), (<span class="string">&#39;ϛ&#39;</span>, <span class="string">&#39;ϛ&#39;</span>),
+  (<span class="string">&#39;ϝ&#39;</span>, <span class="string">&#39;ϝ&#39;</span>), (<span class="string">&#39;ϟ&#39;</span>, <span class="string">&#39;ϟ&#39;</span>), (<span class="string">&#39;ϡ&#39;</span>, <span class="string">&#39;ϡ&#39;</span>), (<span class="string">&#39;Ѐ&#39;</span>, <span class="string">&#39;Ѐ&#39;</span>), (<span class="string">&#39;Ѝ&#39;</span>, <span class="string">&#39;Ѝ&#39;</span>),
+  (<span class="string">&#39;ѐ&#39;</span>, <span class="string">&#39;ѐ&#39;</span>), (<span class="string">&#39;ѝ&#39;</span>, <span class="string">&#39;ѝ&#39;</span>), (<span class="string">&#39;҈&#39;</span>, <span class="string">&#39;҉&#39;</span>), (<span class="string">&#39;Ҍ&#39;</span>, <span class="string">&#39;ҏ&#39;</span>), (<span class="string">&#39;Ӭ&#39;</span>, <span class="string">&#39;ӭ&#39;</span>),
+  (<span class="string">&#39;֊&#39;</span>, <span class="string">&#39;֊&#39;</span>), (<span class="string">&#39;ٓ&#39;</span>, <span class="string">&#39;ٕ&#39;</span>), (<span class="string">&#39;ڸ&#39;</span>, <span class="string">&#39;ڹ&#39;</span>), (<span class="string">&#39;ڿ&#39;</span>, <span class="string">&#39;ڿ&#39;</span>), (<span class="string">&#39;ۏ&#39;</span>, <span class="string">&#39;ۏ&#39;</span>),
+  (<span class="string">&#39;ۺ&#39;</span>, <span class="string">&#39;۾&#39;</span>), (<span class="string">&#39;܀&#39;</span>, <span class="string">&#39;܍&#39;</span>), (<span class="string">&#39;\u{70f}&#39;</span>, <span class="string">&#39;ܬ&#39;</span>), (<span class="string">&#39;ܰ&#39;</span>, <span class="string">&#39;݊&#39;</span>), (<span class="string">&#39;ހ&#39;</span>, <span class="string">&#39;ް&#39;</span>),
+  (<span class="string">&#39;ං&#39;</span>, <span class="string">&#39;ඃ&#39;</span>), (<span class="string">&#39;අ&#39;</span>, <span class="string">&#39;ඖ&#39;</span>), (<span class="string">&#39;ක&#39;</span>, <span class="string">&#39;න&#39;</span>), (<span class="string">&#39;ඳ&#39;</span>, <span class="string">&#39;ර&#39;</span>),
+  (<span class="string">&#39;ල&#39;</span>, <span class="string">&#39;ල&#39;</span>), (<span class="string">&#39;ව&#39;</span>, <span class="string">&#39;ෆ&#39;</span>), (<span class="string">&#39;්&#39;</span>, <span class="string">&#39;්&#39;</span>), (<span class="string">&#39;ා&#39;</span>, <span class="string">&#39;ු&#39;</span>),
+  (<span class="string">&#39;ූ&#39;</span>, <span class="string">&#39;ූ&#39;</span>), (<span class="string">&#39;ෘ&#39;</span>, <span class="string">&#39;ෟ&#39;</span>), (<span class="string">&#39;ෲ&#39;</span>, <span class="string">&#39;෴&#39;</span>), (<span class="string">&#39;ཪ&#39;</span>, <span class="string">&#39;ཪ&#39;</span>),
+  (<span class="string">&#39;ྖ&#39;</span>, <span class="string">&#39;ྖ&#39;</span>), (<span class="string">&#39;ྮ&#39;</span>, <span class="string">&#39;ྰ&#39;</span>), (<span class="string">&#39;ྸ&#39;</span>, <span class="string">&#39;ྸ&#39;</span>), (<span class="string">&#39;ྺ&#39;</span>, <span class="string">&#39;ྼ&#39;</span>),
+  (<span class="string">&#39;྾&#39;</span>, <span class="string">&#39;࿌&#39;</span>), (<span class="string">&#39;࿏&#39;</span>, <span class="string">&#39;࿏&#39;</span>), (<span class="string">&#39;က&#39;</span>, <span class="string">&#39;အ&#39;</span>), (<span class="string">&#39;ဣ&#39;</span>, <span class="string">&#39;ဧ&#39;</span>),
+  (<span class="string">&#39;ဩ&#39;</span>, <span class="string">&#39;ဪ&#39;</span>), (<span class="string">&#39;ာ&#39;</span>, <span class="string">&#39;ဲ&#39;</span>), (<span class="string">&#39;ံ&#39;</span>, <span class="string">&#39;္&#39;</span>), (<span class="string">&#39;၀&#39;</span>, <span class="string">&#39;ၙ&#39;</span>),
+  (<span class="string">&#39;ሀ&#39;</span>, <span class="string">&#39;ሆ&#39;</span>), (<span class="string">&#39;ለ&#39;</span>, <span class="string">&#39;ቆ&#39;</span>), (<span class="string">&#39;ቈ&#39;</span>, <span class="string">&#39;ቈ&#39;</span>), (<span class="string">&#39;ቊ&#39;</span>, <span class="string">&#39;ቍ&#39;</span>),
+  (<span class="string">&#39;ቐ&#39;</span>, <span class="string">&#39;ቖ&#39;</span>), (<span class="string">&#39;ቘ&#39;</span>, <span class="string">&#39;ቘ&#39;</span>), (<span class="string">&#39;ቚ&#39;</span>, <span class="string">&#39;ቝ&#39;</span>), (<span class="string">&#39;በ&#39;</span>, <span class="string">&#39;ኆ&#39;</span>),
+  (<span class="string">&#39;ኈ&#39;</span>, <span class="string">&#39;ኈ&#39;</span>), (<span class="string">&#39;ኊ&#39;</span>, <span class="string">&#39;ኍ&#39;</span>), (<span class="string">&#39;ነ&#39;</span>, <span class="string">&#39;ኮ&#39;</span>), (<span class="string">&#39;ኰ&#39;</span>, <span class="string">&#39;ኰ&#39;</span>),
+  (<span class="string">&#39;ኲ&#39;</span>, <span class="string">&#39;ኵ&#39;</span>), (<span class="string">&#39;ኸ&#39;</span>, <span class="string">&#39;ኾ&#39;</span>), (<span class="string">&#39;ዀ&#39;</span>, <span class="string">&#39;ዀ&#39;</span>), (<span class="string">&#39;ዂ&#39;</span>, <span class="string">&#39;ዅ&#39;</span>),
+  (<span class="string">&#39;ወ&#39;</span>, <span class="string">&#39;ዎ&#39;</span>), (<span class="string">&#39;ዐ&#39;</span>, <span class="string">&#39;ዖ&#39;</span>), (<span class="string">&#39;ዘ&#39;</span>, <span class="string">&#39;ዮ&#39;</span>), (<span class="string">&#39;ደ&#39;</span>, <span class="string">&#39;ጎ&#39;</span>),
+  (<span class="string">&#39;ጐ&#39;</span>, <span class="string">&#39;ጐ&#39;</span>), (<span class="string">&#39;ጒ&#39;</span>, <span class="string">&#39;ጕ&#39;</span>), (<span class="string">&#39;ጘ&#39;</span>, <span class="string">&#39;ጞ&#39;</span>), (<span class="string">&#39;ጠ&#39;</span>, <span class="string">&#39;ፆ&#39;</span>),
+  (<span class="string">&#39;ፈ&#39;</span>, <span class="string">&#39;ፚ&#39;</span>), (<span class="string">&#39;፡&#39;</span>, <span class="string">&#39;፼&#39;</span>), (<span class="string">&#39;Ꭰ&#39;</span>, <span class="string">&#39;Ᏼ&#39;</span>), (<span class="string">&#39;ᐁ&#39;</span>, <span class="string">&#39;ᙶ&#39;</span>),
+  (<span class="string">&#39;\u{1680}&#39;</span>, <span class="string">&#39;᚜&#39;</span>), (<span class="string">&#39;ᚠ&#39;</span>, <span class="string">&#39;ᛰ&#39;</span>), (<span class="string">&#39;ក&#39;</span>, <span class="string">&#39;ៜ&#39;</span>), (<span class="string">&#39;០&#39;</span>, <span class="string">&#39;៩&#39;</span>),
+  (<span class="string">&#39;᠀&#39;</span>, <span class="string">&#39;\u{180e}&#39;</span>), (<span class="string">&#39;᠐&#39;</span>, <span class="string">&#39;᠙&#39;</span>), (<span class="string">&#39;ᠠ&#39;</span>, <span class="string">&#39;ᡷ&#39;</span>), (<span class="string">&#39;ᢀ&#39;</span>, <span class="string">&#39;ᢩ&#39;</span>),
+  (<span class="string">&#39;\u{202f}&#39;</span>, <span class="string">&#39;\u{202f}&#39;</span>), (<span class="string">&#39;⁈&#39;</span>, <span class="string">&#39;⁍&#39;</span>), (<span class="string">&#39;₭&#39;</span>, <span class="string">&#39;₯&#39;</span>), (<span class="string">&#39;⃢&#39;</span>, <span class="string">&#39;⃣&#39;</span>),
+  (<span class="string">&#39;ℹ&#39;</span>, <span class="string">&#39;℺&#39;</span>), (<span class="string">&#39;Ↄ&#39;</span>, <span class="string">&#39;Ↄ&#39;</span>), (<span class="string">&#39;⇫&#39;</span>, <span class="string">&#39;⇳&#39;</span>), (<span class="string">&#39;⌁&#39;</span>, <span class="string">&#39;⌁&#39;</span>),
+  (<span class="string">&#39;⍻&#39;</span>, <span class="string">&#39;⍻&#39;</span>), (<span class="string">&#39;⍽&#39;</span>, <span class="string">&#39;⎚&#39;</span>), (<span class="string">&#39;␥&#39;</span>, <span class="string">&#39;␦&#39;</span>), (<span class="string">&#39;◰&#39;</span>, <span class="string">&#39;◷&#39;</span>),
+  (<span class="string">&#39;☙&#39;</span>, <span class="string">&#39;☙&#39;</span>), (<span class="string">&#39;♰&#39;</span>, <span class="string">&#39;♱&#39;</span>), (<span class="string">&#39;⠀&#39;</span>, <span class="string">&#39;⣿&#39;</span>), (<span class="string">&#39;⺀&#39;</span>, <span class="string">&#39;⺙&#39;</span>),
+  (<span class="string">&#39;⺛&#39;</span>, <span class="string">&#39;⻳&#39;</span>), (<span class="string">&#39;⼀&#39;</span>, <span class="string">&#39;⿕&#39;</span>), (<span class="string">&#39;⿰&#39;</span>, <span class="string">&#39;⿻&#39;</span>), (<span class="string">&#39;〸&#39;</span>, <span class="string">&#39;〺&#39;</span>),
+  (<span class="string">&#39;〾&#39;</span>, <span class="string">&#39;〾&#39;</span>), (<span class="string">&#39;ㆠ&#39;</span>, <span class="string">&#39;ㆷ&#39;</span>), (<span class="string">&#39;㐀&#39;</span>, <span class="string">&#39;䶵&#39;</span>), (<span class="string">&#39;ꀀ&#39;</span>, <span class="string">&#39;ꒌ&#39;</span>),
+  (<span class="string">&#39;꒐&#39;</span>, <span class="string">&#39;꒡&#39;</span>), (<span class="string">&#39;꒤&#39;</span>, <span class="string">&#39;꒳&#39;</span>), (<span class="string">&#39;꒵&#39;</span>, <span class="string">&#39;꓀&#39;</span>), (<span class="string">&#39;꓂&#39;</span>, <span class="string">&#39;꓄&#39;</span>),
+  (<span class="string">&#39;꓆&#39;</span>, <span class="string">&#39;꓆&#39;</span>), (<span class="string">&#39;יִ&#39;</span>, <span class="string">&#39;יִ&#39;</span>), (<span class="string">&#39;\u{fff9}&#39;</span>, <span class="string">&#39;\u{fffb}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V3_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ϴ&#39;</span>, <span class="string">&#39;ϵ&#39;</span>), (<span class="string">&#39;\u{fdd0}&#39;</span>, <span class="string">&#39;\u{fdef}&#39;</span>), (<span class="string">&#39;𐌀&#39;</span>, <span class="string">&#39;𐌞&#39;</span>), (<span class="string">&#39;𐌠&#39;</span>, <span class="string">&#39;𐌣&#39;</span>),
+  (<span class="string">&#39;𐌰&#39;</span>, <span class="string">&#39;𐍊&#39;</span>), (<span class="string">&#39;𐐀&#39;</span>, <span class="string">&#39;𐐥&#39;</span>), (<span class="string">&#39;𐐨&#39;</span>, <span class="string">&#39;𐑍&#39;</span>), (<span class="string">&#39;𝀀&#39;</span>, <span class="string">&#39;𝃵&#39;</span>),
+  (<span class="string">&#39;𝄀&#39;</span>, <span class="string">&#39;𝄦&#39;</span>), (<span class="string">&#39;𝄪&#39;</span>, <span class="string">&#39;𝇝&#39;</span>), (<span class="string">&#39;𝐀&#39;</span>, <span class="string">&#39;𝑔&#39;</span>), (<span class="string">&#39;𝑖&#39;</span>, <span class="string">&#39;𝒜&#39;</span>),
+  (<span class="string">&#39;𝒞&#39;</span>, <span class="string">&#39;𝒟&#39;</span>), (<span class="string">&#39;𝒢&#39;</span>, <span class="string">&#39;𝒢&#39;</span>), (<span class="string">&#39;𝒥&#39;</span>, <span class="string">&#39;𝒦&#39;</span>), (<span class="string">&#39;𝒩&#39;</span>, <span class="string">&#39;𝒬&#39;</span>),
+  (<span class="string">&#39;𝒮&#39;</span>, <span class="string">&#39;𝒹&#39;</span>), (<span class="string">&#39;𝒻&#39;</span>, <span class="string">&#39;𝒻&#39;</span>), (<span class="string">&#39;𝒽&#39;</span>, <span class="string">&#39;𝓀&#39;</span>), (<span class="string">&#39;𝓂&#39;</span>, <span class="string">&#39;𝓃&#39;</span>),
+  (<span class="string">&#39;𝓅&#39;</span>, <span class="string">&#39;𝔅&#39;</span>), (<span class="string">&#39;𝔇&#39;</span>, <span class="string">&#39;𝔊&#39;</span>), (<span class="string">&#39;𝔍&#39;</span>, <span class="string">&#39;𝔔&#39;</span>), (<span class="string">&#39;𝔖&#39;</span>, <span class="string">&#39;𝔜&#39;</span>),
+  (<span class="string">&#39;𝔞&#39;</span>, <span class="string">&#39;𝔹&#39;</span>), (<span class="string">&#39;𝔻&#39;</span>, <span class="string">&#39;𝔾&#39;</span>), (<span class="string">&#39;𝕀&#39;</span>, <span class="string">&#39;𝕄&#39;</span>), (<span class="string">&#39;𝕆&#39;</span>, <span class="string">&#39;𝕆&#39;</span>),
+  (<span class="string">&#39;𝕊&#39;</span>, <span class="string">&#39;𝕐&#39;</span>), (<span class="string">&#39;𝕒&#39;</span>, <span class="string">&#39;𝚣&#39;</span>), (<span class="string">&#39;𝚨&#39;</span>, <span class="string">&#39;𝟉&#39;</span>), (<span class="string">&#39;𝟎&#39;</span>, <span class="string">&#39;𝟿&#39;</span>),
+  (<span class="string">&#39;𠀀&#39;</span>, <span class="string">&#39;𪛖&#39;</span>), (<span class="string">&#39;丽&#39;</span>, <span class="string">&#39;𪘀&#39;</span>), (<span class="string">&#39;\u{e0001}&#39;</span>, <span class="string">&#39;\u{e0001}&#39;</span>),
+  (<span class="string">&#39;\u{e0020}&#39;</span>, <span class="string">&#39;\u{e007f}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V3_2</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ƞ&#39;</span>, <span class="string">&#39;Ƞ&#39;</span>), (<span class="string">&#39;͏&#39;</span>, <span class="string">&#39;͏&#39;</span>), (<span class="string">&#39;ͣ&#39;</span>, <span class="string">&#39;ͯ&#39;</span>), (<span class="string">&#39;Ϙ&#39;</span>, <span class="string">&#39;ϙ&#39;</span>), (<span class="string">&#39;϶&#39;</span>, <span class="string">&#39;϶&#39;</span>),
+  (<span class="string">&#39;Ҋ&#39;</span>, <span class="string">&#39;ҋ&#39;</span>), (<span class="string">&#39;Ӆ&#39;</span>, <span class="string">&#39;ӆ&#39;</span>), (<span class="string">&#39;Ӊ&#39;</span>, <span class="string">&#39;ӊ&#39;</span>), (<span class="string">&#39;Ӎ&#39;</span>, <span class="string">&#39;ӎ&#39;</span>), (<span class="string">&#39;Ԁ&#39;</span>, <span class="string">&#39;ԏ&#39;</span>),
+  (<span class="string">&#39;ٮ&#39;</span>, <span class="string">&#39;ٯ&#39;</span>), (<span class="string">&#39;ޱ&#39;</span>, <span class="string">&#39;ޱ&#39;</span>), (<span class="string">&#39;ჷ&#39;</span>, <span class="string">&#39;ჸ&#39;</span>), (<span class="string">&#39;ᜀ&#39;</span>, <span class="string">&#39;ᜌ&#39;</span>), (<span class="string">&#39;ᜎ&#39;</span>, <span class="string">&#39;᜔&#39;</span>),
+  (<span class="string">&#39;ᜠ&#39;</span>, <span class="string">&#39;᜶&#39;</span>), (<span class="string">&#39;ᝀ&#39;</span>, <span class="string">&#39;ᝓ&#39;</span>), (<span class="string">&#39;ᝠ&#39;</span>, <span class="string">&#39;ᝬ&#39;</span>), (<span class="string">&#39;ᝮ&#39;</span>, <span class="string">&#39;ᝰ&#39;</span>),
+  (<span class="string">&#39;ᝲ&#39;</span>, <span class="string">&#39;ᝳ&#39;</span>), (<span class="string">&#39;⁇&#39;</span>, <span class="string">&#39;⁇&#39;</span>), (<span class="string">&#39;⁎&#39;</span>, <span class="string">&#39;⁒&#39;</span>), (<span class="string">&#39;⁗&#39;</span>, <span class="string">&#39;⁗&#39;</span>),
+  (<span class="string">&#39;\u{205f}&#39;</span>, <span class="string">&#39;\u{2063}&#39;</span>), (<span class="string">&#39;ⁱ&#39;</span>, <span class="string">&#39;ⁱ&#39;</span>), (<span class="string">&#39;₰&#39;</span>, <span class="string">&#39;₱&#39;</span>), (<span class="string">&#39;⃤&#39;</span>, <span class="string">&#39;⃪&#39;</span>),
+  (<span class="string">&#39;ℽ&#39;</span>, <span class="string">&#39;⅋&#39;</span>), (<span class="string">&#39;⇴&#39;</span>, <span class="string">&#39;⇿&#39;</span>), (<span class="string">&#39;⋲&#39;</span>, <span class="string">&#39;⋿&#39;</span>), (<span class="string">&#39;⍼&#39;</span>, <span class="string">&#39;⍼&#39;</span>),
+  (<span class="string">&#39;⎛&#39;</span>, <span class="string">&#39;⏎&#39;</span>), (<span class="string">&#39;⓫&#39;</span>, <span class="string">&#39;⓾&#39;</span>), (<span class="string">&#39;▖&#39;</span>, <span class="string">&#39;▟&#39;</span>), (<span class="string">&#39;◸&#39;</span>, <span class="string">&#39;◿&#39;</span>),
+  (<span class="string">&#39;☖&#39;</span>, <span class="string">&#39;☗&#39;</span>), (<span class="string">&#39;♲&#39;</span>, <span class="string">&#39;♽&#39;</span>), (<span class="string">&#39;⚀&#39;</span>, <span class="string">&#39;⚉&#39;</span>), (<span class="string">&#39;❨&#39;</span>, <span class="string">&#39;❵&#39;</span>),
+  (<span class="string">&#39;⟐&#39;</span>, <span class="string">&#39;⟫&#39;</span>), (<span class="string">&#39;⟰&#39;</span>, <span class="string">&#39;⟿&#39;</span>), (<span class="string">&#39;⤀&#39;</span>, <span class="string">&#39;⫿&#39;</span>), (<span class="string">&#39;〻&#39;</span>, <span class="string">&#39;〽&#39;</span>),
+  (<span class="string">&#39;ゕ&#39;</span>, <span class="string">&#39;ゖ&#39;</span>), (<span class="string">&#39;ゟ&#39;</span>, <span class="string">&#39;゠&#39;</span>), (<span class="string">&#39;ヿ&#39;</span>, <span class="string">&#39;ヿ&#39;</span>), (<span class="string">&#39;ㇰ&#39;</span>, <span class="string">&#39;ㇿ&#39;</span>),
+  (<span class="string">&#39;㉑&#39;</span>, <span class="string">&#39;㉟&#39;</span>), (<span class="string">&#39;㊱&#39;</span>, <span class="string">&#39;㊿&#39;</span>), (<span class="string">&#39;꒢&#39;</span>, <span class="string">&#39;꒣&#39;</span>), (<span class="string">&#39;꒴&#39;</span>, <span class="string">&#39;꒴&#39;</span>),
+  (<span class="string">&#39;꓁&#39;</span>, <span class="string">&#39;꓁&#39;</span>), (<span class="string">&#39;꓅&#39;</span>, <span class="string">&#39;꓅&#39;</span>), (<span class="string">&#39;侮&#39;</span>, <span class="string">&#39;頻&#39;</span>), (<span class="string">&#39;﷼&#39;</span>, <span class="string">&#39;﷼&#39;</span>),
+  (<span class="string">&#39;︀&#39;</span>, <span class="string">&#39;️&#39;</span>), (<span class="string">&#39;﹅&#39;</span>, <span class="string">&#39;﹆&#39;</span>), (<span class="string">&#39;ﹳ&#39;</span>, <span class="string">&#39;ﹳ&#39;</span>), (<span class="string">&#39;｟&#39;</span>, <span class="string">&#39;｠&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V4_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ȡ&#39;</span>, <span class="string">&#39;ȡ&#39;</span>), (<span class="string">&#39;ȴ&#39;</span>, <span class="string">&#39;ȶ&#39;</span>), (<span class="string">&#39;ʮ&#39;</span>, <span class="string">&#39;ʯ&#39;</span>), (<span class="string">&#39;˯&#39;</span>, <span class="string">&#39;˿&#39;</span>), (<span class="string">&#39;͐&#39;</span>, <span class="string">&#39;͗&#39;</span>),
+  (<span class="string">&#39;͝&#39;</span>, <span class="string">&#39;͟&#39;</span>), (<span class="string">&#39;Ϸ&#39;</span>, <span class="string">&#39;ϻ&#39;</span>), (<span class="string">&#39;\u{600}&#39;</span>, <span class="string">&#39;\u{603}&#39;</span>), (<span class="string">&#39;؍&#39;</span>, <span class="string">&#39;ؕ&#39;</span>),
+  (<span class="string">&#39;ٖ&#39;</span>, <span class="string">&#39;٘&#39;</span>), (<span class="string">&#39;ۮ&#39;</span>, <span class="string">&#39;ۯ&#39;</span>), (<span class="string">&#39;ۿ&#39;</span>, <span class="string">&#39;ۿ&#39;</span>), (<span class="string">&#39;ܭ&#39;</span>, <span class="string">&#39;ܯ&#39;</span>), (<span class="string">&#39;ݍ&#39;</span>, <span class="string">&#39;ݏ&#39;</span>),
+  (<span class="string">&#39;ऄ&#39;</span>, <span class="string">&#39;ऄ&#39;</span>), (<span class="string">&#39;ঽ&#39;</span>, <span class="string">&#39;ঽ&#39;</span>), (<span class="string">&#39;ਁ&#39;</span>, <span class="string">&#39;ਁ&#39;</span>), (<span class="string">&#39;ਃ&#39;</span>, <span class="string">&#39;ਃ&#39;</span>),
+  (<span class="string">&#39;ઌ&#39;</span>, <span class="string">&#39;ઌ&#39;</span>), (<span class="string">&#39;ૡ&#39;</span>, <span class="string">&#39;ૣ&#39;</span>), (<span class="string">&#39;૱&#39;</span>, <span class="string">&#39;૱&#39;</span>), (<span class="string">&#39;ଵ&#39;</span>, <span class="string">&#39;ଵ&#39;</span>),
+  (<span class="string">&#39;ୱ&#39;</span>, <span class="string">&#39;ୱ&#39;</span>), (<span class="string">&#39;௳&#39;</span>, <span class="string">&#39;௺&#39;</span>), (<span class="string">&#39;಼&#39;</span>, <span class="string">&#39;ಽ&#39;</span>), (<span class="string">&#39;៝&#39;</span>, <span class="string">&#39;៝&#39;</span>),
+  (<span class="string">&#39;៰&#39;</span>, <span class="string">&#39;៹&#39;</span>), (<span class="string">&#39;ᤀ&#39;</span>, <span class="string">&#39;ᤜ&#39;</span>), (<span class="string">&#39;ᤠ&#39;</span>, <span class="string">&#39;ᤫ&#39;</span>), (<span class="string">&#39;ᤰ&#39;</span>, <span class="string">&#39;᤻&#39;</span>),
+  (<span class="string">&#39;᥀&#39;</span>, <span class="string">&#39;᥀&#39;</span>), (<span class="string">&#39;᥄&#39;</span>, <span class="string">&#39;ᥭ&#39;</span>), (<span class="string">&#39;ᥰ&#39;</span>, <span class="string">&#39;ᥴ&#39;</span>), (<span class="string">&#39;᧠&#39;</span>, <span class="string">&#39;᧿&#39;</span>),
+  (<span class="string">&#39;ᴀ&#39;</span>, <span class="string">&#39;ᵫ&#39;</span>), (<span class="string">&#39;⁓&#39;</span>, <span class="string">&#39;⁔&#39;</span>), (<span class="string">&#39;℻&#39;</span>, <span class="string">&#39;℻&#39;</span>), (<span class="string">&#39;⏏&#39;</span>, <span class="string">&#39;⏐&#39;</span>),
+  (<span class="string">&#39;⓿&#39;</span>, <span class="string">&#39;⓿&#39;</span>), (<span class="string">&#39;☔&#39;</span>, <span class="string">&#39;☕&#39;</span>), (<span class="string">&#39;⚊&#39;</span>, <span class="string">&#39;⚑&#39;</span>), (<span class="string">&#39;⚠&#39;</span>, <span class="string">&#39;⚡&#39;</span>),
+  (<span class="string">&#39;⬀&#39;</span>, <span class="string">&#39;⬍&#39;</span>), (<span class="string">&#39;㈝&#39;</span>, <span class="string">&#39;㈞&#39;</span>), (<span class="string">&#39;㉐&#39;</span>, <span class="string">&#39;㉐&#39;</span>), (<span class="string">&#39;㉼&#39;</span>, <span class="string">&#39;㉽&#39;</span>),
+  (<span class="string">&#39;㋌&#39;</span>, <span class="string">&#39;㋏&#39;</span>), (<span class="string">&#39;㍷&#39;</span>, <span class="string">&#39;㍺&#39;</span>), (<span class="string">&#39;㏞&#39;</span>, <span class="string">&#39;㏟&#39;</span>), (<span class="string">&#39;㏿&#39;</span>, <span class="string">&#39;㏿&#39;</span>),
+  (<span class="string">&#39;䷀&#39;</span>, <span class="string">&#39;䷿&#39;</span>), (<span class="string">&#39;﷽&#39;</span>, <span class="string">&#39;﷽&#39;</span>), (<span class="string">&#39;﹇&#39;</span>, <span class="string">&#39;﹈&#39;</span>), (<span class="string">&#39;𐀀&#39;</span>, <span class="string">&#39;𐀋&#39;</span>),
+  (<span class="string">&#39;𐀍&#39;</span>, <span class="string">&#39;𐀦&#39;</span>), (<span class="string">&#39;𐀨&#39;</span>, <span class="string">&#39;𐀺&#39;</span>), (<span class="string">&#39;𐀼&#39;</span>, <span class="string">&#39;𐀽&#39;</span>), (<span class="string">&#39;𐀿&#39;</span>, <span class="string">&#39;𐁍&#39;</span>),
+  (<span class="string">&#39;𐁐&#39;</span>, <span class="string">&#39;𐁝&#39;</span>), (<span class="string">&#39;𐂀&#39;</span>, <span class="string">&#39;𐃺&#39;</span>), (<span class="string">&#39;𐄀&#39;</span>, <span class="string">&#39;𐄂&#39;</span>), (<span class="string">&#39;𐄇&#39;</span>, <span class="string">&#39;𐄳&#39;</span>),
+  (<span class="string">&#39;𐄷&#39;</span>, <span class="string">&#39;𐄿&#39;</span>), (<span class="string">&#39;𐎀&#39;</span>, <span class="string">&#39;𐎝&#39;</span>), (<span class="string">&#39;𐎟&#39;</span>, <span class="string">&#39;𐎟&#39;</span>), (<span class="string">&#39;𐐦&#39;</span>, <span class="string">&#39;𐐧&#39;</span>),
+  (<span class="string">&#39;𐑎&#39;</span>, <span class="string">&#39;𐒝&#39;</span>), (<span class="string">&#39;𐒠&#39;</span>, <span class="string">&#39;𐒩&#39;</span>), (<span class="string">&#39;𐠀&#39;</span>, <span class="string">&#39;𐠅&#39;</span>), (<span class="string">&#39;𐠈&#39;</span>, <span class="string">&#39;𐠈&#39;</span>),
+  (<span class="string">&#39;𐠊&#39;</span>, <span class="string">&#39;𐠵&#39;</span>), (<span class="string">&#39;𐠷&#39;</span>, <span class="string">&#39;𐠸&#39;</span>), (<span class="string">&#39;𐠼&#39;</span>, <span class="string">&#39;𐠼&#39;</span>), (<span class="string">&#39;𐠿&#39;</span>, <span class="string">&#39;𐠿&#39;</span>),
+  (<span class="string">&#39;𝌀&#39;</span>, <span class="string">&#39;𝍖&#39;</span>), (<span class="string">&#39;𝓁&#39;</span>, <span class="string">&#39;𝓁&#39;</span>), (<span class="string">&#39;󠄀&#39;</span>, <span class="string">&#39;󠇯&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V4_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ȷ&#39;</span>, <span class="string">&#39;Ɂ&#39;</span>), (<span class="string">&#39;͘&#39;</span>, <span class="string">&#39;͜&#39;</span>), (<span class="string">&#39;ϼ&#39;</span>, <span class="string">&#39;Ͽ&#39;</span>), (<span class="string">&#39;Ӷ&#39;</span>, <span class="string">&#39;ӷ&#39;</span>), (<span class="string">&#39;֢&#39;</span>, <span class="string">&#39;֢&#39;</span>),
+  (<span class="string">&#39;ׅ&#39;</span>, <span class="string">&#39;ׇ&#39;</span>), (<span class="string">&#39;؋&#39;</span>, <span class="string">&#39;؋&#39;</span>), (<span class="string">&#39;؞&#39;</span>, <span class="string">&#39;؞&#39;</span>), (<span class="string">&#39;ٙ&#39;</span>, <span class="string">&#39;ٞ&#39;</span>), (<span class="string">&#39;ݐ&#39;</span>, <span class="string">&#39;ݭ&#39;</span>),
+  (<span class="string">&#39;ॽ&#39;</span>, <span class="string">&#39;ॽ&#39;</span>), (<span class="string">&#39;ৎ&#39;</span>, <span class="string">&#39;ৎ&#39;</span>), (<span class="string">&#39;ஶ&#39;</span>, <span class="string">&#39;ஶ&#39;</span>), (<span class="string">&#39;௦&#39;</span>, <span class="string">&#39;௦&#39;</span>),
+  (<span class="string">&#39;࿐&#39;</span>, <span class="string">&#39;࿑&#39;</span>), (<span class="string">&#39;ჹ&#39;</span>, <span class="string">&#39;ჺ&#39;</span>), (<span class="string">&#39;ჼ&#39;</span>, <span class="string">&#39;ჼ&#39;</span>), (<span class="string">&#39;ሇ&#39;</span>, <span class="string">&#39;ሇ&#39;</span>),
+  (<span class="string">&#39;ቇ&#39;</span>, <span class="string">&#39;ቇ&#39;</span>), (<span class="string">&#39;ኇ&#39;</span>, <span class="string">&#39;ኇ&#39;</span>), (<span class="string">&#39;ኯ&#39;</span>, <span class="string">&#39;ኯ&#39;</span>), (<span class="string">&#39;ዏ&#39;</span>, <span class="string">&#39;ዏ&#39;</span>),
+  (<span class="string">&#39;ዯ&#39;</span>, <span class="string">&#39;ዯ&#39;</span>), (<span class="string">&#39;ጏ&#39;</span>, <span class="string">&#39;ጏ&#39;</span>), (<span class="string">&#39;ጟ&#39;</span>, <span class="string">&#39;ጟ&#39;</span>), (<span class="string">&#39;ፇ&#39;</span>, <span class="string">&#39;ፇ&#39;</span>),
+  (<span class="string">&#39;፟&#39;</span>, <span class="string">&#39;፠&#39;</span>), (<span class="string">&#39;ᎀ&#39;</span>, <span class="string">&#39;᎙&#39;</span>), (<span class="string">&#39;ᦀ&#39;</span>, <span class="string">&#39;ᦩ&#39;</span>), (<span class="string">&#39;ᦰ&#39;</span>, <span class="string">&#39;ᧉ&#39;</span>),
+  (<span class="string">&#39;᧐&#39;</span>, <span class="string">&#39;᧙&#39;</span>), (<span class="string">&#39;᧞&#39;</span>, <span class="string">&#39;᧟&#39;</span>), (<span class="string">&#39;ᨀ&#39;</span>, <span class="string">&#39;ᨛ&#39;</span>), (<span class="string">&#39;᨞&#39;</span>, <span class="string">&#39;᨟&#39;</span>),
+  (<span class="string">&#39;ᵬ&#39;</span>, <span class="string">&#39;᷃&#39;</span>), (<span class="string">&#39;⁕&#39;</span>, <span class="string">&#39;⁖&#39;</span>), (<span class="string">&#39;⁘&#39;</span>, <span class="string">&#39;⁞&#39;</span>), (<span class="string">&#39;ₐ&#39;</span>, <span class="string">&#39;ₔ&#39;</span>),
+  (<span class="string">&#39;₲&#39;</span>, <span class="string">&#39;₵&#39;</span>), (<span class="string">&#39;⃫&#39;</span>, <span class="string">&#39;⃫&#39;</span>), (<span class="string">&#39;ℼ&#39;</span>, <span class="string">&#39;ℼ&#39;</span>), (<span class="string">&#39;⅌&#39;</span>, <span class="string">&#39;⅌&#39;</span>),
+  (<span class="string">&#39;⏑&#39;</span>, <span class="string">&#39;⏛&#39;</span>), (<span class="string">&#39;☘&#39;</span>, <span class="string">&#39;☘&#39;</span>), (<span class="string">&#39;♾&#39;</span>, <span class="string">&#39;♿&#39;</span>), (<span class="string">&#39;⚒&#39;</span>, <span class="string">&#39;⚜&#39;</span>),
+  (<span class="string">&#39;⚢&#39;</span>, <span class="string">&#39;⚱&#39;</span>), (<span class="string">&#39;⟀&#39;</span>, <span class="string">&#39;⟆&#39;</span>), (<span class="string">&#39;⬎&#39;</span>, <span class="string">&#39;⬓&#39;</span>), (<span class="string">&#39;Ⰰ&#39;</span>, <span class="string">&#39;Ⱞ&#39;</span>),
+  (<span class="string">&#39;ⰰ&#39;</span>, <span class="string">&#39;ⱞ&#39;</span>), (<span class="string">&#39;Ⲁ&#39;</span>, <span class="string">&#39;⳪&#39;</span>), (<span class="string">&#39;⳹&#39;</span>, <span class="string">&#39;ⴥ&#39;</span>), (<span class="string">&#39;ⴰ&#39;</span>, <span class="string">&#39;ⵥ&#39;</span>),
+  (<span class="string">&#39;ⵯ&#39;</span>, <span class="string">&#39;ⵯ&#39;</span>), (<span class="string">&#39;ⶀ&#39;</span>, <span class="string">&#39;ⶖ&#39;</span>), (<span class="string">&#39;ⶠ&#39;</span>, <span class="string">&#39;ⶦ&#39;</span>), (<span class="string">&#39;ⶨ&#39;</span>, <span class="string">&#39;ⶮ&#39;</span>),
+  (<span class="string">&#39;ⶰ&#39;</span>, <span class="string">&#39;ⶶ&#39;</span>), (<span class="string">&#39;ⶸ&#39;</span>, <span class="string">&#39;ⶾ&#39;</span>), (<span class="string">&#39;ⷀ&#39;</span>, <span class="string">&#39;ⷆ&#39;</span>), (<span class="string">&#39;ⷈ&#39;</span>, <span class="string">&#39;ⷎ&#39;</span>),
+  (<span class="string">&#39;ⷐ&#39;</span>, <span class="string">&#39;ⷖ&#39;</span>), (<span class="string">&#39;ⷘ&#39;</span>, <span class="string">&#39;ⷞ&#39;</span>), (<span class="string">&#39;⸀&#39;</span>, <span class="string">&#39;⸗&#39;</span>), (<span class="string">&#39;⸜&#39;</span>, <span class="string">&#39;⸝&#39;</span>),
+  (<span class="string">&#39;㇀&#39;</span>, <span class="string">&#39;㇏&#39;</span>), (<span class="string">&#39;㉾&#39;</span>, <span class="string">&#39;㉾&#39;</span>), (<span class="string">&#39;龦&#39;</span>, <span class="string">&#39;龻&#39;</span>), (<span class="string">&#39;꜀&#39;</span>, <span class="string">&#39;꜖&#39;</span>),
+  (<span class="string">&#39;ꠀ&#39;</span>, <span class="string">&#39;꠫&#39;</span>), (<span class="string">&#39;並&#39;</span>, <span class="string">&#39;龎&#39;</span>), (<span class="string">&#39;︐&#39;</span>, <span class="string">&#39;︙&#39;</span>), (<span class="string">&#39;𐅀&#39;</span>, <span class="string">&#39;𐆊&#39;</span>),
+  (<span class="string">&#39;𐎠&#39;</span>, <span class="string">&#39;𐏃&#39;</span>), (<span class="string">&#39;𐏈&#39;</span>, <span class="string">&#39;𐏕&#39;</span>), (<span class="string">&#39;𐨀&#39;</span>, <span class="string">&#39;𐨃&#39;</span>), (<span class="string">&#39;𐨅&#39;</span>, <span class="string">&#39;𐨆&#39;</span>),
+  (<span class="string">&#39;𐨌&#39;</span>, <span class="string">&#39;𐨓&#39;</span>), (<span class="string">&#39;𐨕&#39;</span>, <span class="string">&#39;𐨗&#39;</span>), (<span class="string">&#39;𐨙&#39;</span>, <span class="string">&#39;𐨳&#39;</span>), (<span class="string">&#39;𐨸&#39;</span>, <span class="string">&#39;𐨺&#39;</span>),
+  (<span class="string">&#39;𐨿&#39;</span>, <span class="string">&#39;𐩇&#39;</span>), (<span class="string">&#39;𐩐&#39;</span>, <span class="string">&#39;𐩘&#39;</span>), (<span class="string">&#39;𝈀&#39;</span>, <span class="string">&#39;𝉅&#39;</span>), (<span class="string">&#39;𝚤&#39;</span>, <span class="string">&#39;𝚥&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V5_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ɂ&#39;</span>, <span class="string">&#39;ɏ&#39;</span>), (<span class="string">&#39;ͻ&#39;</span>, <span class="string">&#39;ͽ&#39;</span>), (<span class="string">&#39;ӏ&#39;</span>, <span class="string">&#39;ӏ&#39;</span>), (<span class="string">&#39;Ӻ&#39;</span>, <span class="string">&#39;ӿ&#39;</span>), (<span class="string">&#39;Ԑ&#39;</span>, <span class="string">&#39;ԓ&#39;</span>),
+  (<span class="string">&#39;ֺ&#39;</span>, <span class="string">&#39;ֺ&#39;</span>), (<span class="string">&#39;߀&#39;</span>, <span class="string">&#39;ߺ&#39;</span>), (<span class="string">&#39;ॻ&#39;</span>, <span class="string">&#39;ॼ&#39;</span>), (<span class="string">&#39;ॾ&#39;</span>, <span class="string">&#39;ॿ&#39;</span>), (<span class="string">&#39;ೢ&#39;</span>, <span class="string">&#39;ೣ&#39;</span>),
+  (<span class="string">&#39;ೱ&#39;</span>, <span class="string">&#39;ೲ&#39;</span>), (<span class="string">&#39;ᬀ&#39;</span>, <span class="string">&#39;ᭋ&#39;</span>), (<span class="string">&#39;᭐&#39;</span>, <span class="string">&#39;᭼&#39;</span>), (<span class="string">&#39;᷄&#39;</span>, <span class="string">&#39;᷊&#39;</span>),
+  (<span class="string">&#39;᷾&#39;</span>, <span class="string">&#39;᷿&#39;</span>), (<span class="string">&#39;⃬&#39;</span>, <span class="string">&#39;⃯&#39;</span>), (<span class="string">&#39;⅍&#39;</span>, <span class="string">&#39;ⅎ&#39;</span>), (<span class="string">&#39;ↄ&#39;</span>, <span class="string">&#39;ↄ&#39;</span>),
+  (<span class="string">&#39;⏜&#39;</span>, <span class="string">&#39;⏧&#39;</span>), (<span class="string">&#39;⚲&#39;</span>, <span class="string">&#39;⚲&#39;</span>), (<span class="string">&#39;⟇&#39;</span>, <span class="string">&#39;⟊&#39;</span>), (<span class="string">&#39;⬔&#39;</span>, <span class="string">&#39;⬚&#39;</span>),
+  (<span class="string">&#39;⬠&#39;</span>, <span class="string">&#39;⬣&#39;</span>), (<span class="string">&#39;Ⱡ&#39;</span>, <span class="string">&#39;ⱬ&#39;</span>), (<span class="string">&#39;ⱴ&#39;</span>, <span class="string">&#39;ⱷ&#39;</span>), (<span class="string">&#39;ꜗ&#39;</span>, <span class="string">&#39;ꜚ&#39;</span>),
+  (<span class="string">&#39;꜠&#39;</span>, <span class="string">&#39;꜡&#39;</span>), (<span class="string">&#39;ꡀ&#39;</span>, <span class="string">&#39;꡷&#39;</span>), (<span class="string">&#39;𐤀&#39;</span>, <span class="string">&#39;𐤙&#39;</span>), (<span class="string">&#39;𐤟&#39;</span>, <span class="string">&#39;𐤟&#39;</span>),
+  (<span class="string">&#39;𒀀&#39;</span>, <span class="string">&#39;𒍮&#39;</span>), (<span class="string">&#39;𒐀&#39;</span>, <span class="string">&#39;𒑢&#39;</span>), (<span class="string">&#39;𒑰&#39;</span>, <span class="string">&#39;𒑳&#39;</span>), (<span class="string">&#39;𝍠&#39;</span>, <span class="string">&#39;𝍱&#39;</span>),
+  (<span class="string">&#39;𝟊&#39;</span>, <span class="string">&#39;𝟋&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V5_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ͱ&#39;</span>, <span class="string">&#39;ͳ&#39;</span>), (<span class="string">&#39;Ͷ&#39;</span>, <span class="string">&#39;ͷ&#39;</span>), (<span class="string">&#39;Ϗ&#39;</span>, <span class="string">&#39;Ϗ&#39;</span>), (<span class="string">&#39;҇&#39;</span>, <span class="string">&#39;҇&#39;</span>), (<span class="string">&#39;Ԕ&#39;</span>, <span class="string">&#39;ԣ&#39;</span>),
+  (<span class="string">&#39;؆&#39;</span>, <span class="string">&#39;؊&#39;</span>), (<span class="string">&#39;ؖ&#39;</span>, <span class="string">&#39;ؚ&#39;</span>), (<span class="string">&#39;ػ&#39;</span>, <span class="string">&#39;ؿ&#39;</span>), (<span class="string">&#39;ݮ&#39;</span>, <span class="string">&#39;ݿ&#39;</span>), (<span class="string">&#39;ॱ&#39;</span>, <span class="string">&#39;ॲ&#39;</span>),
+  (<span class="string">&#39;ੑ&#39;</span>, <span class="string">&#39;ੑ&#39;</span>), (<span class="string">&#39;ੵ&#39;</span>, <span class="string">&#39;ੵ&#39;</span>), (<span class="string">&#39;ୄ&#39;</span>, <span class="string">&#39;ୄ&#39;</span>), (<span class="string">&#39;ୢ&#39;</span>, <span class="string">&#39;ୣ&#39;</span>),
+  (<span class="string">&#39;ௐ&#39;</span>, <span class="string">&#39;ௐ&#39;</span>), (<span class="string">&#39;ఽ&#39;</span>, <span class="string">&#39;ఽ&#39;</span>), (<span class="string">&#39;ౘ&#39;</span>, <span class="string">&#39;ౙ&#39;</span>), (<span class="string">&#39;ౢ&#39;</span>, <span class="string">&#39;ౣ&#39;</span>),
+  (<span class="string">&#39;౸&#39;</span>, <span class="string">&#39;౿&#39;</span>), (<span class="string">&#39;ഽ&#39;</span>, <span class="string">&#39;ഽ&#39;</span>), (<span class="string">&#39;ൄ&#39;</span>, <span class="string">&#39;ൄ&#39;</span>), (<span class="string">&#39;ൢ&#39;</span>, <span class="string">&#39;ൣ&#39;</span>),
+  (<span class="string">&#39;൰&#39;</span>, <span class="string">&#39;൵&#39;</span>), (<span class="string">&#39;൹&#39;</span>, <span class="string">&#39;ൿ&#39;</span>), (<span class="string">&#39;ཫ&#39;</span>, <span class="string">&#39;ཬ&#39;</span>), (<span class="string">&#39;࿎&#39;</span>, <span class="string">&#39;࿎&#39;</span>),
+  (<span class="string">&#39;࿒&#39;</span>, <span class="string">&#39;࿔&#39;</span>), (<span class="string">&#39;ဢ&#39;</span>, <span class="string">&#39;ဢ&#39;</span>), (<span class="string">&#39;ဨ&#39;</span>, <span class="string">&#39;ဨ&#39;</span>), (<span class="string">&#39;ါ&#39;</span>, <span class="string">&#39;ါ&#39;</span>),
+  (<span class="string">&#39;ဳ&#39;</span>, <span class="string">&#39;ဵ&#39;</span>), (<span class="string">&#39;်&#39;</span>, <span class="string">&#39;ဿ&#39;</span>), (<span class="string">&#39;ၚ&#39;</span>, <span class="string">&#39;႙&#39;</span>), (<span class="string">&#39;႞&#39;</span>, <span class="string">&#39;႟&#39;</span>),
+  (<span class="string">&#39;ᢪ&#39;</span>, <span class="string">&#39;ᢪ&#39;</span>), (<span class="string">&#39;ᮀ&#39;</span>, <span class="string">&#39;᮪&#39;</span>), (<span class="string">&#39;ᮮ&#39;</span>, <span class="string">&#39;᮹&#39;</span>), (<span class="string">&#39;ᰀ&#39;</span>, <span class="string">&#39;᰷&#39;</span>),
+  (<span class="string">&#39;᰻&#39;</span>, <span class="string">&#39;᱉&#39;</span>), (<span class="string">&#39;ᱍ&#39;</span>, <span class="string">&#39;᱿&#39;</span>), (<span class="string">&#39;᷋&#39;</span>, <span class="string">&#39;ᷦ&#39;</span>), (<span class="string">&#39;ẜ&#39;</span>, <span class="string">&#39;ẟ&#39;</span>),
+  (<span class="string">&#39;Ỻ&#39;</span>, <span class="string">&#39;ỿ&#39;</span>), (<span class="string">&#39;\u{2064}&#39;</span>, <span class="string">&#39;\u{2064}&#39;</span>), (<span class="string">&#39;⃰&#39;</span>, <span class="string">&#39;⃰&#39;</span>), (<span class="string">&#39;⅏&#39;</span>, <span class="string">&#39;⅏&#39;</span>),
+  (<span class="string">&#39;ↅ&#39;</span>, <span class="string">&#39;ↈ&#39;</span>), (<span class="string">&#39;⚝&#39;</span>, <span class="string">&#39;⚝&#39;</span>), (<span class="string">&#39;⚳&#39;</span>, <span class="string">&#39;⚼&#39;</span>), (<span class="string">&#39;⛀&#39;</span>, <span class="string">&#39;⛃&#39;</span>),
+  (<span class="string">&#39;⟌&#39;</span>, <span class="string">&#39;⟌&#39;</span>), (<span class="string">&#39;⟬&#39;</span>, <span class="string">&#39;⟯&#39;</span>), (<span class="string">&#39;⬛&#39;</span>, <span class="string">&#39;⬟&#39;</span>), (<span class="string">&#39;⬤&#39;</span>, <span class="string">&#39;⭌&#39;</span>),
+  (<span class="string">&#39;⭐&#39;</span>, <span class="string">&#39;⭔&#39;</span>), (<span class="string">&#39;Ɑ&#39;</span>, <span class="string">&#39;Ɐ&#39;</span>), (<span class="string">&#39;ⱱ&#39;</span>, <span class="string">&#39;ⱳ&#39;</span>), (<span class="string">&#39;ⱸ&#39;</span>, <span class="string">&#39;ⱽ&#39;</span>),
+  (<span class="string">&#39;ⷠ&#39;</span>, <span class="string">&#39;ⷿ&#39;</span>), (<span class="string">&#39;⸘&#39;</span>, <span class="string">&#39;⸛&#39;</span>), (<span class="string">&#39;⸞&#39;</span>, <span class="string">&#39;⸰&#39;</span>), (<span class="string">&#39;ㄭ&#39;</span>, <span class="string">&#39;ㄭ&#39;</span>),
+  (<span class="string">&#39;㇐&#39;</span>, <span class="string">&#39;㇣&#39;</span>), (<span class="string">&#39;龼&#39;</span>, <span class="string">&#39;鿃&#39;</span>), (<span class="string">&#39;ꔀ&#39;</span>, <span class="string">&#39;ꘫ&#39;</span>), (<span class="string">&#39;Ꙁ&#39;</span>, <span class="string">&#39;ꙟ&#39;</span>),
+  (<span class="string">&#39;Ꙣ&#39;</span>, <span class="string">&#39;꙳&#39;</span>), (<span class="string">&#39;꙼&#39;</span>, <span class="string">&#39;ꚗ&#39;</span>), (<span class="string">&#39;ꜛ&#39;</span>, <span class="string">&#39;ꜟ&#39;</span>), (<span class="string">&#39;Ꜣ&#39;</span>, <span class="string">&#39;ꞌ&#39;</span>),
+  (<span class="string">&#39;ꟻ&#39;</span>, <span class="string">&#39;ꟿ&#39;</span>), (<span class="string">&#39;ꢀ&#39;</span>, <span class="string">&#39;꣄&#39;</span>), (<span class="string">&#39;꣎&#39;</span>, <span class="string">&#39;꣙&#39;</span>), (<span class="string">&#39;꤀&#39;</span>, <span class="string">&#39;꥓&#39;</span>),
+  (<span class="string">&#39;꥟&#39;</span>, <span class="string">&#39;꥟&#39;</span>), (<span class="string">&#39;ꨀ&#39;</span>, <span class="string">&#39;ꨶ&#39;</span>), (<span class="string">&#39;ꩀ&#39;</span>, <span class="string">&#39;ꩍ&#39;</span>), (<span class="string">&#39;꩐&#39;</span>, <span class="string">&#39;꩙&#39;</span>),
+  (<span class="string">&#39;꩜&#39;</span>, <span class="string">&#39;꩟&#39;</span>), (<span class="string">&#39;︤&#39;</span>, <span class="string">&#39;︦&#39;</span>), (<span class="string">&#39;𐆐&#39;</span>, <span class="string">&#39;𐆛&#39;</span>), (<span class="string">&#39;𐇐&#39;</span>, <span class="string">&#39;𐇽&#39;</span>),
+  (<span class="string">&#39;𐊀&#39;</span>, <span class="string">&#39;𐊜&#39;</span>), (<span class="string">&#39;𐊠&#39;</span>, <span class="string">&#39;𐋐&#39;</span>), (<span class="string">&#39;𐤠&#39;</span>, <span class="string">&#39;𐤹&#39;</span>), (<span class="string">&#39;𐤿&#39;</span>, <span class="string">&#39;𐤿&#39;</span>),
+  (<span class="string">&#39;𝄩&#39;</span>, <span class="string">&#39;𝄩&#39;</span>), (<span class="string">&#39;🀀&#39;</span>, <span class="string">&#39;🀫&#39;</span>), (<span class="string">&#39;🀰&#39;</span>, <span class="string">&#39;🂓&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V5_2</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ԥ&#39;</span>, <span class="string">&#39;ԥ&#39;</span>), (<span class="string">&#39;ࠀ&#39;</span>, <span class="string">&#39;࠭&#39;</span>), (<span class="string">&#39;࠰&#39;</span>, <span class="string">&#39;࠾&#39;</span>), (<span class="string">&#39;ऀ&#39;</span>, <span class="string">&#39;ऀ&#39;</span>),
+  (<span class="string">&#39;ॎ&#39;</span>, <span class="string">&#39;ॎ&#39;</span>), (<span class="string">&#39;ॕ&#39;</span>, <span class="string">&#39;ॕ&#39;</span>), (<span class="string">&#39;ॹ&#39;</span>, <span class="string">&#39;ॺ&#39;</span>), (<span class="string">&#39;৻&#39;</span>, <span class="string">&#39;৻&#39;</span>),
+  (<span class="string">&#39;࿕&#39;</span>, <span class="string">&#39;࿘&#39;</span>), (<span class="string">&#39;ႚ&#39;</span>, <span class="string">&#39;ႝ&#39;</span>), (<span class="string">&#39;ᅚ&#39;</span>, <span class="string">&#39;ᅞ&#39;</span>), (<span class="string">&#39;ᆣ&#39;</span>, <span class="string">&#39;ᆧ&#39;</span>),
+  (<span class="string">&#39;ᇺ&#39;</span>, <span class="string">&#39;ᇿ&#39;</span>), (<span class="string">&#39;᐀&#39;</span>, <span class="string">&#39;᐀&#39;</span>), (<span class="string">&#39;ᙷ&#39;</span>, <span class="string">&#39;ᙿ&#39;</span>), (<span class="string">&#39;ᢰ&#39;</span>, <span class="string">&#39;ᣵ&#39;</span>),
+  (<span class="string">&#39;ᦪ&#39;</span>, <span class="string">&#39;ᦫ&#39;</span>), (<span class="string">&#39;᧚&#39;</span>, <span class="string">&#39;᧚&#39;</span>), (<span class="string">&#39;ᨠ&#39;</span>, <span class="string">&#39;ᩞ&#39;</span>), (<span class="string">&#39;᩠&#39;</span>, <span class="string">&#39;᩼&#39;</span>),
+  (<span class="string">&#39;᩿&#39;</span>, <span class="string">&#39;᪉&#39;</span>), (<span class="string">&#39;᪐&#39;</span>, <span class="string">&#39;᪙&#39;</span>), (<span class="string">&#39;᪠&#39;</span>, <span class="string">&#39;᪭&#39;</span>), (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;ᳲ&#39;</span>),
+  (<span class="string">&#39;᷽&#39;</span>, <span class="string">&#39;᷽&#39;</span>), (<span class="string">&#39;₶&#39;</span>, <span class="string">&#39;₸&#39;</span>), (<span class="string">&#39;⅐&#39;</span>, <span class="string">&#39;⅒&#39;</span>), (<span class="string">&#39;↉&#39;</span>, <span class="string">&#39;↉&#39;</span>),
+  (<span class="string">&#39;⏨&#39;</span>, <span class="string">&#39;⏨&#39;</span>), (<span class="string">&#39;⚞&#39;</span>, <span class="string">&#39;⚟&#39;</span>), (<span class="string">&#39;⚽&#39;</span>, <span class="string">&#39;⚿&#39;</span>), (<span class="string">&#39;⛄&#39;</span>, <span class="string">&#39;⛍&#39;</span>),
+  (<span class="string">&#39;⛏&#39;</span>, <span class="string">&#39;⛡&#39;</span>), (<span class="string">&#39;⛣&#39;</span>, <span class="string">&#39;⛣&#39;</span>), (<span class="string">&#39;⛨&#39;</span>, <span class="string">&#39;⛿&#39;</span>), (<span class="string">&#39;❗&#39;</span>, <span class="string">&#39;❗&#39;</span>),
+  (<span class="string">&#39;⭕&#39;</span>, <span class="string">&#39;⭙&#39;</span>), (<span class="string">&#39;Ɒ&#39;</span>, <span class="string">&#39;Ɒ&#39;</span>), (<span class="string">&#39;Ȿ&#39;</span>, <span class="string">&#39;Ɀ&#39;</span>), (<span class="string">&#39;Ⳬ&#39;</span>, <span class="string">&#39;⳱&#39;</span>),
+  (<span class="string">&#39;⸱&#39;</span>, <span class="string">&#39;⸱&#39;</span>), (<span class="string">&#39;㉄&#39;</span>, <span class="string">&#39;㉏&#39;</span>), (<span class="string">&#39;鿄&#39;</span>, <span class="string">&#39;鿋&#39;</span>), (<span class="string">&#39;ꓐ&#39;</span>, <span class="string">&#39;꓿&#39;</span>),
+  (<span class="string">&#39;ꚠ&#39;</span>, <span class="string">&#39;꛷&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;꣠&#39;</span>, <span class="string">&#39;ꣻ&#39;</span>), (<span class="string">&#39;ꥠ&#39;</span>, <span class="string">&#39;ꥼ&#39;</span>),
+  (<span class="string">&#39;ꦀ&#39;</span>, <span class="string">&#39;꧍&#39;</span>), (<span class="string">&#39;ꧏ&#39;</span>, <span class="string">&#39;꧙&#39;</span>), (<span class="string">&#39;꧞&#39;</span>, <span class="string">&#39;꧟&#39;</span>), (<span class="string">&#39;ꩠ&#39;</span>, <span class="string">&#39;ꩻ&#39;</span>),
+  (<span class="string">&#39;ꪀ&#39;</span>, <span class="string">&#39;ꫂ&#39;</span>), (<span class="string">&#39;ꫛ&#39;</span>, <span class="string">&#39;꫟&#39;</span>), (<span class="string">&#39;ꯀ&#39;</span>, <span class="string">&#39;꯭&#39;</span>), (<span class="string">&#39;꯰&#39;</span>, <span class="string">&#39;꯹&#39;</span>),
+  (<span class="string">&#39;ힰ&#39;</span>, <span class="string">&#39;ퟆ&#39;</span>), (<span class="string">&#39;ퟋ&#39;</span>, <span class="string">&#39;ퟻ&#39;</span>), (<span class="string">&#39;恵&#39;</span>, <span class="string">&#39;舘&#39;</span>), (<span class="string">&#39;𐡀&#39;</span>, <span class="string">&#39;𐡕&#39;</span>),
+  (<span class="string">&#39;𐡗&#39;</span>, <span class="string">&#39;𐡟&#39;</span>), (<span class="string">&#39;𐤚&#39;</span>, <span class="string">&#39;𐤛&#39;</span>), (<span class="string">&#39;𐩠&#39;</span>, <span class="string">&#39;𐩿&#39;</span>), (<span class="string">&#39;𐬀&#39;</span>, <span class="string">&#39;𐬵&#39;</span>),
+  (<span class="string">&#39;𐬹&#39;</span>, <span class="string">&#39;𐭕&#39;</span>), (<span class="string">&#39;𐭘&#39;</span>, <span class="string">&#39;𐭲&#39;</span>), (<span class="string">&#39;𐭸&#39;</span>, <span class="string">&#39;𐭿&#39;</span>), (<span class="string">&#39;𐰀&#39;</span>, <span class="string">&#39;𐱈&#39;</span>),
+  (<span class="string">&#39;𐹠&#39;</span>, <span class="string">&#39;𐹾&#39;</span>), (<span class="string">&#39;𑂀&#39;</span>, <span class="string">&#39;𑃁&#39;</span>), (<span class="string">&#39;𓀀&#39;</span>, <span class="string">&#39;𓐮&#39;</span>), (<span class="string">&#39;🄀&#39;</span>, <span class="string">&#39;🄊&#39;</span>),
+  (<span class="string">&#39;🄐&#39;</span>, <span class="string">&#39;🄮&#39;</span>), (<span class="string">&#39;🄱&#39;</span>, <span class="string">&#39;🄱&#39;</span>), (<span class="string">&#39;🄽&#39;</span>, <span class="string">&#39;🄽&#39;</span>), (<span class="string">&#39;🄿&#39;</span>, <span class="string">&#39;🄿&#39;</span>),
+  (<span class="string">&#39;🅂&#39;</span>, <span class="string">&#39;🅂&#39;</span>), (<span class="string">&#39;🅆&#39;</span>, <span class="string">&#39;🅆&#39;</span>), (<span class="string">&#39;🅊&#39;</span>, <span class="string">&#39;🅎&#39;</span>), (<span class="string">&#39;🅗&#39;</span>, <span class="string">&#39;🅗&#39;</span>),
+  (<span class="string">&#39;🅟&#39;</span>, <span class="string">&#39;🅟&#39;</span>), (<span class="string">&#39;🅹&#39;</span>, <span class="string">&#39;🅹&#39;</span>), (<span class="string">&#39;🅻&#39;</span>, <span class="string">&#39;🅼&#39;</span>), (<span class="string">&#39;🅿&#39;</span>, <span class="string">&#39;🅿&#39;</span>),
+  (<span class="string">&#39;🆊&#39;</span>, <span class="string">&#39;🆍&#39;</span>), (<span class="string">&#39;🆐&#39;</span>, <span class="string">&#39;🆐&#39;</span>), (<span class="string">&#39;🈀&#39;</span>, <span class="string">&#39;🈀&#39;</span>), (<span class="string">&#39;🈐&#39;</span>, <span class="string">&#39;🈱&#39;</span>),
+  (<span class="string">&#39;🉀&#39;</span>, <span class="string">&#39;🉈&#39;</span>), (<span class="string">&#39;𪜀&#39;</span>, <span class="string">&#39;𫜴&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V6_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ԧ&#39;</span>, <span class="string">&#39;ԧ&#39;</span>), (<span class="string">&#39;ؠ&#39;</span>, <span class="string">&#39;ؠ&#39;</span>), (<span class="string">&#39;ٟ&#39;</span>, <span class="string">&#39;ٟ&#39;</span>), (<span class="string">&#39;ࡀ&#39;</span>, <span class="string">&#39;࡛&#39;</span>), (<span class="string">&#39;࡞&#39;</span>, <span class="string">&#39;࡞&#39;</span>),
+  (<span class="string">&#39;ऺ&#39;</span>, <span class="string">&#39;ऻ&#39;</span>), (<span class="string">&#39;ॏ&#39;</span>, <span class="string">&#39;ॏ&#39;</span>), (<span class="string">&#39;ॖ&#39;</span>, <span class="string">&#39;ॗ&#39;</span>), (<span class="string">&#39;ॳ&#39;</span>, <span class="string">&#39;ॷ&#39;</span>),
+  (<span class="string">&#39;୲&#39;</span>, <span class="string">&#39;୷&#39;</span>), (<span class="string">&#39;ഩ&#39;</span>, <span class="string">&#39;ഩ&#39;</span>), (<span class="string">&#39;ഺ&#39;</span>, <span class="string">&#39;ഺ&#39;</span>), (<span class="string">&#39;ൎ&#39;</span>, <span class="string">&#39;ൎ&#39;</span>),
+  (<span class="string">&#39;ྌ&#39;</span>, <span class="string">&#39;ྏ&#39;</span>), (<span class="string">&#39;࿙&#39;</span>, <span class="string">&#39;࿚&#39;</span>), (<span class="string">&#39;፝&#39;</span>, <span class="string">&#39;፞&#39;</span>), (<span class="string">&#39;ᯀ&#39;</span>, <span class="string">&#39;᯳&#39;</span>),
+  (<span class="string">&#39;᯼&#39;</span>, <span class="string">&#39;᯿&#39;</span>), (<span class="string">&#39;᷼&#39;</span>, <span class="string">&#39;᷼&#39;</span>), (<span class="string">&#39;ₕ&#39;</span>, <span class="string">&#39;ₜ&#39;</span>), (<span class="string">&#39;₹&#39;</span>, <span class="string">&#39;₹&#39;</span>),
+  (<span class="string">&#39;⏩&#39;</span>, <span class="string">&#39;⏳&#39;</span>), (<span class="string">&#39;⛎&#39;</span>, <span class="string">&#39;⛎&#39;</span>), (<span class="string">&#39;⛢&#39;</span>, <span class="string">&#39;⛢&#39;</span>), (<span class="string">&#39;⛤&#39;</span>, <span class="string">&#39;⛧&#39;</span>),
+  (<span class="string">&#39;✅&#39;</span>, <span class="string">&#39;✅&#39;</span>), (<span class="string">&#39;✊&#39;</span>, <span class="string">&#39;✋&#39;</span>), (<span class="string">&#39;✨&#39;</span>, <span class="string">&#39;✨&#39;</span>), (<span class="string">&#39;❌&#39;</span>, <span class="string">&#39;❌&#39;</span>),
+  (<span class="string">&#39;❎&#39;</span>, <span class="string">&#39;❎&#39;</span>), (<span class="string">&#39;❓&#39;</span>, <span class="string">&#39;❕&#39;</span>), (<span class="string">&#39;❟&#39;</span>, <span class="string">&#39;❠&#39;</span>), (<span class="string">&#39;➕&#39;</span>, <span class="string">&#39;➗&#39;</span>),
+  (<span class="string">&#39;➰&#39;</span>, <span class="string">&#39;➰&#39;</span>), (<span class="string">&#39;➿&#39;</span>, <span class="string">&#39;➿&#39;</span>), (<span class="string">&#39;⟎&#39;</span>, <span class="string">&#39;⟏&#39;</span>), (<span class="string">&#39;⵰&#39;</span>, <span class="string">&#39;⵰&#39;</span>),
+  (<span class="string">&#39;⵿&#39;</span>, <span class="string">&#39;⵿&#39;</span>), (<span class="string">&#39;ㆸ&#39;</span>, <span class="string">&#39;ㆺ&#39;</span>), (<span class="string">&#39;Ꙡ&#39;</span>, <span class="string">&#39;ꙡ&#39;</span>), (<span class="string">&#39;Ɥ&#39;</span>, <span class="string">&#39;ꞎ&#39;</span>),
+  (<span class="string">&#39;Ꞑ&#39;</span>, <span class="string">&#39;ꞑ&#39;</span>), (<span class="string">&#39;Ꞡ&#39;</span>, <span class="string">&#39;ꞩ&#39;</span>), (<span class="string">&#39;ꟺ&#39;</span>, <span class="string">&#39;ꟺ&#39;</span>), (<span class="string">&#39;ꬁ&#39;</span>, <span class="string">&#39;ꬆ&#39;</span>),
+  (<span class="string">&#39;ꬉ&#39;</span>, <span class="string">&#39;ꬎ&#39;</span>), (<span class="string">&#39;ꬑ&#39;</span>, <span class="string">&#39;ꬖ&#39;</span>), (<span class="string">&#39;ꬠ&#39;</span>, <span class="string">&#39;ꬦ&#39;</span>), (<span class="string">&#39;ꬨ&#39;</span>, <span class="string">&#39;ꬮ&#39;</span>),
+  (<span class="string">&#39;﮲&#39;</span>, <span class="string">&#39;﯁&#39;</span>), (<span class="string">&#39;𑀀&#39;</span>, <span class="string">&#39;𑁍&#39;</span>), (<span class="string">&#39;𑁒&#39;</span>, <span class="string">&#39;𑁯&#39;</span>), (<span class="string">&#39;𖠀&#39;</span>, <span class="string">&#39;𖨸&#39;</span>),
+  (<span class="string">&#39;𛀀&#39;</span>, <span class="string">&#39;𛀁&#39;</span>), (<span class="string">&#39;🂠&#39;</span>, <span class="string">&#39;🂮&#39;</span>), (<span class="string">&#39;🂱&#39;</span>, <span class="string">&#39;🂾&#39;</span>), (<span class="string">&#39;🃁&#39;</span>, <span class="string">&#39;🃏&#39;</span>),
+  (<span class="string">&#39;🃑&#39;</span>, <span class="string">&#39;🃟&#39;</span>), (<span class="string">&#39;🄰&#39;</span>, <span class="string">&#39;🄰&#39;</span>), (<span class="string">&#39;🄲&#39;</span>, <span class="string">&#39;🄼&#39;</span>), (<span class="string">&#39;🄾&#39;</span>, <span class="string">&#39;🄾&#39;</span>),
+  (<span class="string">&#39;🅀&#39;</span>, <span class="string">&#39;🅁&#39;</span>), (<span class="string">&#39;🅃&#39;</span>, <span class="string">&#39;🅅&#39;</span>), (<span class="string">&#39;🅇&#39;</span>, <span class="string">&#39;🅉&#39;</span>), (<span class="string">&#39;🅏&#39;</span>, <span class="string">&#39;🅖&#39;</span>),
+  (<span class="string">&#39;🅘&#39;</span>, <span class="string">&#39;🅞&#39;</span>), (<span class="string">&#39;🅠&#39;</span>, <span class="string">&#39;🅩&#39;</span>), (<span class="string">&#39;🅰&#39;</span>, <span class="string">&#39;🅸&#39;</span>), (<span class="string">&#39;🅺&#39;</span>, <span class="string">&#39;🅺&#39;</span>),
+  (<span class="string">&#39;🅽&#39;</span>, <span class="string">&#39;🅾&#39;</span>), (<span class="string">&#39;🆀&#39;</span>, <span class="string">&#39;🆉&#39;</span>), (<span class="string">&#39;🆎&#39;</span>, <span class="string">&#39;🆏&#39;</span>), (<span class="string">&#39;🆑&#39;</span>, <span class="string">&#39;🆚&#39;</span>),
+  (<span class="string">&#39;🇦&#39;</span>, <span class="string">&#39;🇿&#39;</span>), (<span class="string">&#39;🈁&#39;</span>, <span class="string">&#39;🈂&#39;</span>), (<span class="string">&#39;🈲&#39;</span>, <span class="string">&#39;🈺&#39;</span>), (<span class="string">&#39;🉐&#39;</span>, <span class="string">&#39;🉑&#39;</span>),
+  (<span class="string">&#39;🌀&#39;</span>, <span class="string">&#39;🌠&#39;</span>), (<span class="string">&#39;🌰&#39;</span>, <span class="string">&#39;🌵&#39;</span>), (<span class="string">&#39;🌷&#39;</span>, <span class="string">&#39;🍼&#39;</span>), (<span class="string">&#39;🎀&#39;</span>, <span class="string">&#39;🎓&#39;</span>),
+  (<span class="string">&#39;🎠&#39;</span>, <span class="string">&#39;🏄&#39;</span>), (<span class="string">&#39;🏆&#39;</span>, <span class="string">&#39;🏊&#39;</span>), (<span class="string">&#39;🏠&#39;</span>, <span class="string">&#39;🏰&#39;</span>), (<span class="string">&#39;🐀&#39;</span>, <span class="string">&#39;🐾&#39;</span>),
+  (<span class="string">&#39;👀&#39;</span>, <span class="string">&#39;👀&#39;</span>), (<span class="string">&#39;👂&#39;</span>, <span class="string">&#39;📷&#39;</span>), (<span class="string">&#39;📹&#39;</span>, <span class="string">&#39;📼&#39;</span>), (<span class="string">&#39;🔀&#39;</span>, <span class="string">&#39;🔽&#39;</span>),
+  (<span class="string">&#39;🕐&#39;</span>, <span class="string">&#39;🕧&#39;</span>), (<span class="string">&#39;🗻&#39;</span>, <span class="string">&#39;🗿&#39;</span>), (<span class="string">&#39;😁&#39;</span>, <span class="string">&#39;😐&#39;</span>), (<span class="string">&#39;😒&#39;</span>, <span class="string">&#39;😔&#39;</span>),
+  (<span class="string">&#39;😖&#39;</span>, <span class="string">&#39;😖&#39;</span>), (<span class="string">&#39;😘&#39;</span>, <span class="string">&#39;😘&#39;</span>), (<span class="string">&#39;😚&#39;</span>, <span class="string">&#39;😚&#39;</span>), (<span class="string">&#39;😜&#39;</span>, <span class="string">&#39;😞&#39;</span>),
+  (<span class="string">&#39;😠&#39;</span>, <span class="string">&#39;😥&#39;</span>), (<span class="string">&#39;😨&#39;</span>, <span class="string">&#39;😫&#39;</span>), (<span class="string">&#39;😭&#39;</span>, <span class="string">&#39;😭&#39;</span>), (<span class="string">&#39;😰&#39;</span>, <span class="string">&#39;😳&#39;</span>),
+  (<span class="string">&#39;😵&#39;</span>, <span class="string">&#39;🙀&#39;</span>), (<span class="string">&#39;🙅&#39;</span>, <span class="string">&#39;🙏&#39;</span>), (<span class="string">&#39;🚀&#39;</span>, <span class="string">&#39;🛅&#39;</span>), (<span class="string">&#39;🜀&#39;</span>, <span class="string">&#39;🝳&#39;</span>),
+  (<span class="string">&#39;𫝀&#39;</span>, <span class="string">&#39;𫠝&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V6_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;֏&#39;</span>, <span class="string">&#39;֏&#39;</span>), (<span class="string">&#39;\u{604}&#39;</span>, <span class="string">&#39;\u{604}&#39;</span>), (<span class="string">&#39;ࢠ&#39;</span>, <span class="string">&#39;ࢠ&#39;</span>), (<span class="string">&#39;ࢢ&#39;</span>, <span class="string">&#39;ࢬ&#39;</span>),
+  (<span class="string">&#39;ࣤ&#39;</span>, <span class="string">&#39;ࣾ&#39;</span>), (<span class="string">&#39;૰&#39;</span>, <span class="string">&#39;૰&#39;</span>), (<span class="string">&#39;ໞ&#39;</span>, <span class="string">&#39;ໟ&#39;</span>), (<span class="string">&#39;Ⴧ&#39;</span>, <span class="string">&#39;Ⴧ&#39;</span>),
+  (<span class="string">&#39;Ⴭ&#39;</span>, <span class="string">&#39;Ⴭ&#39;</span>), (<span class="string">&#39;ჽ&#39;</span>, <span class="string">&#39;ჿ&#39;</span>), (<span class="string">&#39;᮫&#39;</span>, <span class="string">&#39;ᮭ&#39;</span>), (<span class="string">&#39;ᮺ&#39;</span>, <span class="string">&#39;ᮿ&#39;</span>),
+  (<span class="string">&#39;᳀&#39;</span>, <span class="string">&#39;᳇&#39;</span>), (<span class="string">&#39;ᳳ&#39;</span>, <span class="string">&#39;ᳶ&#39;</span>), (<span class="string">&#39;⟋&#39;</span>, <span class="string">&#39;⟋&#39;</span>), (<span class="string">&#39;⟍&#39;</span>, <span class="string">&#39;⟍&#39;</span>),
+  (<span class="string">&#39;Ⳳ&#39;</span>, <span class="string">&#39;ⳳ&#39;</span>), (<span class="string">&#39;ⴧ&#39;</span>, <span class="string">&#39;ⴧ&#39;</span>), (<span class="string">&#39;ⴭ&#39;</span>, <span class="string">&#39;ⴭ&#39;</span>), (<span class="string">&#39;ⵦ&#39;</span>, <span class="string">&#39;ⵧ&#39;</span>),
+  (<span class="string">&#39;⸲&#39;</span>, <span class="string">&#39;⸻&#39;</span>), (<span class="string">&#39;鿌&#39;</span>, <span class="string">&#39;鿌&#39;</span>), (<span class="string">&#39;ꙴ&#39;</span>, <span class="string">&#39;ꙻ&#39;</span>), (<span class="string">&#39;ꚟ&#39;</span>, <span class="string">&#39;ꚟ&#39;</span>),
+  (<span class="string">&#39;Ꞓ&#39;</span>, <span class="string">&#39;ꞓ&#39;</span>), (<span class="string">&#39;Ɦ&#39;</span>, <span class="string">&#39;Ɦ&#39;</span>), (<span class="string">&#39;ꟸ&#39;</span>, <span class="string">&#39;ꟹ&#39;</span>), (<span class="string">&#39;ꫠ&#39;</span>, <span class="string">&#39;꫶&#39;</span>),
+  (<span class="string">&#39;郞&#39;</span>, <span class="string">&#39;隷&#39;</span>), (<span class="string">&#39;𐦀&#39;</span>, <span class="string">&#39;𐦷&#39;</span>), (<span class="string">&#39;𐦾&#39;</span>, <span class="string">&#39;𐦿&#39;</span>), (<span class="string">&#39;𑃐&#39;</span>, <span class="string">&#39;𑃨&#39;</span>),
+  (<span class="string">&#39;𑃰&#39;</span>, <span class="string">&#39;𑃹&#39;</span>), (<span class="string">&#39;𑄀&#39;</span>, <span class="string">&#39;𑄴&#39;</span>), (<span class="string">&#39;𑄶&#39;</span>, <span class="string">&#39;𑅃&#39;</span>), (<span class="string">&#39;𑆀&#39;</span>, <span class="string">&#39;𑇈&#39;</span>),
+  (<span class="string">&#39;𑇐&#39;</span>, <span class="string">&#39;𑇙&#39;</span>), (<span class="string">&#39;𑚀&#39;</span>, <span class="string">&#39;𑚷&#39;</span>), (<span class="string">&#39;𑛀&#39;</span>, <span class="string">&#39;𑛉&#39;</span>), (<span class="string">&#39;𖼀&#39;</span>, <span class="string">&#39;𖽄&#39;</span>),
+  (<span class="string">&#39;𖽐&#39;</span>, <span class="string">&#39;𖽾&#39;</span>), (<span class="string">&#39;𖾏&#39;</span>, <span class="string">&#39;𖾟&#39;</span>), (<span class="string">&#39;𞸀&#39;</span>, <span class="string">&#39;𞸃&#39;</span>), (<span class="string">&#39;𞸅&#39;</span>, <span class="string">&#39;𞸟&#39;</span>),
+  (<span class="string">&#39;𞸡&#39;</span>, <span class="string">&#39;𞸢&#39;</span>), (<span class="string">&#39;𞸤&#39;</span>, <span class="string">&#39;𞸤&#39;</span>), (<span class="string">&#39;𞸧&#39;</span>, <span class="string">&#39;𞸧&#39;</span>), (<span class="string">&#39;𞸩&#39;</span>, <span class="string">&#39;𞸲&#39;</span>),
+  (<span class="string">&#39;𞸴&#39;</span>, <span class="string">&#39;𞸷&#39;</span>), (<span class="string">&#39;𞸹&#39;</span>, <span class="string">&#39;𞸹&#39;</span>), (<span class="string">&#39;𞸻&#39;</span>, <span class="string">&#39;𞸻&#39;</span>), (<span class="string">&#39;𞹂&#39;</span>, <span class="string">&#39;𞹂&#39;</span>),
+  (<span class="string">&#39;𞹇&#39;</span>, <span class="string">&#39;𞹇&#39;</span>), (<span class="string">&#39;𞹉&#39;</span>, <span class="string">&#39;𞹉&#39;</span>), (<span class="string">&#39;𞹋&#39;</span>, <span class="string">&#39;𞹋&#39;</span>), (<span class="string">&#39;𞹍&#39;</span>, <span class="string">&#39;𞹏&#39;</span>),
+  (<span class="string">&#39;𞹑&#39;</span>, <span class="string">&#39;𞹒&#39;</span>), (<span class="string">&#39;𞹔&#39;</span>, <span class="string">&#39;𞹔&#39;</span>), (<span class="string">&#39;𞹗&#39;</span>, <span class="string">&#39;𞹗&#39;</span>), (<span class="string">&#39;𞹙&#39;</span>, <span class="string">&#39;𞹙&#39;</span>),
+  (<span class="string">&#39;𞹛&#39;</span>, <span class="string">&#39;𞹛&#39;</span>), (<span class="string">&#39;𞹝&#39;</span>, <span class="string">&#39;𞹝&#39;</span>), (<span class="string">&#39;𞹟&#39;</span>, <span class="string">&#39;𞹟&#39;</span>), (<span class="string">&#39;𞹡&#39;</span>, <span class="string">&#39;𞹢&#39;</span>),
+  (<span class="string">&#39;𞹤&#39;</span>, <span class="string">&#39;𞹤&#39;</span>), (<span class="string">&#39;𞹧&#39;</span>, <span class="string">&#39;𞹪&#39;</span>), (<span class="string">&#39;𞹬&#39;</span>, <span class="string">&#39;𞹲&#39;</span>), (<span class="string">&#39;𞹴&#39;</span>, <span class="string">&#39;𞹷&#39;</span>),
+  (<span class="string">&#39;𞹹&#39;</span>, <span class="string">&#39;𞹼&#39;</span>), (<span class="string">&#39;𞹾&#39;</span>, <span class="string">&#39;𞹾&#39;</span>), (<span class="string">&#39;𞺀&#39;</span>, <span class="string">&#39;𞺉&#39;</span>), (<span class="string">&#39;𞺋&#39;</span>, <span class="string">&#39;𞺛&#39;</span>),
+  (<span class="string">&#39;𞺡&#39;</span>, <span class="string">&#39;𞺣&#39;</span>), (<span class="string">&#39;𞺥&#39;</span>, <span class="string">&#39;𞺩&#39;</span>), (<span class="string">&#39;𞺫&#39;</span>, <span class="string">&#39;𞺻&#39;</span>), (<span class="string">&#39;𞻰&#39;</span>, <span class="string">&#39;𞻱&#39;</span>),
+  (<span class="string">&#39;🅪&#39;</span>, <span class="string">&#39;🅫&#39;</span>), (<span class="string">&#39;🕀&#39;</span>, <span class="string">&#39;🕃&#39;</span>), (<span class="string">&#39;😀&#39;</span>, <span class="string">&#39;😀&#39;</span>), (<span class="string">&#39;😑&#39;</span>, <span class="string">&#39;😑&#39;</span>),
+  (<span class="string">&#39;😕&#39;</span>, <span class="string">&#39;😕&#39;</span>), (<span class="string">&#39;😗&#39;</span>, <span class="string">&#39;😗&#39;</span>), (<span class="string">&#39;😙&#39;</span>, <span class="string">&#39;😙&#39;</span>), (<span class="string">&#39;😛&#39;</span>, <span class="string">&#39;😛&#39;</span>),
+  (<span class="string">&#39;😟&#39;</span>, <span class="string">&#39;😟&#39;</span>), (<span class="string">&#39;😦&#39;</span>, <span class="string">&#39;😧&#39;</span>), (<span class="string">&#39;😬&#39;</span>, <span class="string">&#39;😬&#39;</span>), (<span class="string">&#39;😮&#39;</span>, <span class="string">&#39;😯&#39;</span>),
+  (<span class="string">&#39;😴&#39;</span>, <span class="string">&#39;😴&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V6_2</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;₺&#39;</span>, <span class="string">&#39;₺&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V6_3</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;\u{61c}&#39;</span>, <span class="string">&#39;\u{61c}&#39;</span>), (<span class="string">&#39;\u{2066}&#39;</span>, <span class="string">&#39;\u{2069}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V7_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;Ϳ&#39;</span>, <span class="string">&#39;Ϳ&#39;</span>), (<span class="string">&#39;Ԩ&#39;</span>, <span class="string">&#39;ԯ&#39;</span>), (<span class="string">&#39;֍&#39;</span>, <span class="string">&#39;֎&#39;</span>), (<span class="string">&#39;\u{605}&#39;</span>, <span class="string">&#39;\u{605}&#39;</span>),
+  (<span class="string">&#39;ࢡ&#39;</span>, <span class="string">&#39;ࢡ&#39;</span>), (<span class="string">&#39;ࢭ&#39;</span>, <span class="string">&#39;ࢲ&#39;</span>), (<span class="string">&#39;ࣿ&#39;</span>, <span class="string">&#39;ࣿ&#39;</span>), (<span class="string">&#39;ॸ&#39;</span>, <span class="string">&#39;ॸ&#39;</span>),
+  (<span class="string">&#39;ঀ&#39;</span>, <span class="string">&#39;ঀ&#39;</span>), (<span class="string">&#39;ఀ&#39;</span>, <span class="string">&#39;ఀ&#39;</span>), (<span class="string">&#39;ఴ&#39;</span>, <span class="string">&#39;ఴ&#39;</span>), (<span class="string">&#39;ಁ&#39;</span>, <span class="string">&#39;ಁ&#39;</span>),
+  (<span class="string">&#39;ഁ&#39;</span>, <span class="string">&#39;ഁ&#39;</span>), (<span class="string">&#39;෦&#39;</span>, <span class="string">&#39;෯&#39;</span>), (<span class="string">&#39;ᛱ&#39;</span>, <span class="string">&#39;ᛸ&#39;</span>), (<span class="string">&#39;ᤝ&#39;</span>, <span class="string">&#39;ᤞ&#39;</span>),
+  (<span class="string">&#39;᪰&#39;</span>, <span class="string">&#39;᪾&#39;</span>), (<span class="string">&#39;᳸&#39;</span>, <span class="string">&#39;᳹&#39;</span>), (<span class="string">&#39;ᷧ&#39;</span>, <span class="string">&#39;᷵&#39;</span>), (<span class="string">&#39;₻&#39;</span>, <span class="string">&#39;₽&#39;</span>),
+  (<span class="string">&#39;⏴&#39;</span>, <span class="string">&#39;⏺&#39;</span>), (<span class="string">&#39;✀&#39;</span>, <span class="string">&#39;✀&#39;</span>), (<span class="string">&#39;⭍&#39;</span>, <span class="string">&#39;⭏&#39;</span>), (<span class="string">&#39;⭚&#39;</span>, <span class="string">&#39;⭳&#39;</span>),
+  (<span class="string">&#39;⭶&#39;</span>, <span class="string">&#39;⮕&#39;</span>), (<span class="string">&#39;⮘&#39;</span>, <span class="string">&#39;⮹&#39;</span>), (<span class="string">&#39;⮽&#39;</span>, <span class="string">&#39;⯈&#39;</span>), (<span class="string">&#39;⯊&#39;</span>, <span class="string">&#39;⯑&#39;</span>),
+  (<span class="string">&#39;⸼&#39;</span>, <span class="string">&#39;⹂&#39;</span>), (<span class="string">&#39;Ꚙ&#39;</span>, <span class="string">&#39;ꚝ&#39;</span>), (<span class="string">&#39;ꞔ&#39;</span>, <span class="string">&#39;ꞟ&#39;</span>), (<span class="string">&#39;Ɜ&#39;</span>, <span class="string">&#39;Ɬ&#39;</span>),
+  (<span class="string">&#39;Ʞ&#39;</span>, <span class="string">&#39;Ʇ&#39;</span>), (<span class="string">&#39;ꟷ&#39;</span>, <span class="string">&#39;ꟷ&#39;</span>), (<span class="string">&#39;ꧠ&#39;</span>, <span class="string">&#39;ꧾ&#39;</span>), (<span class="string">&#39;ꩼ&#39;</span>, <span class="string">&#39;ꩿ&#39;</span>),
+  (<span class="string">&#39;ꬰ&#39;</span>, <span class="string">&#39;ꭟ&#39;</span>), (<span class="string">&#39;ꭤ&#39;</span>, <span class="string">&#39;ꭥ&#39;</span>), (<span class="string">&#39;︧&#39;</span>, <span class="string">&#39;︭&#39;</span>), (<span class="string">&#39;𐆋&#39;</span>, <span class="string">&#39;𐆌&#39;</span>),
+  (<span class="string">&#39;𐆠&#39;</span>, <span class="string">&#39;𐆠&#39;</span>), (<span class="string">&#39;𐋠&#39;</span>, <span class="string">&#39;𐋻&#39;</span>), (<span class="string">&#39;𐌟&#39;</span>, <span class="string">&#39;𐌟&#39;</span>), (<span class="string">&#39;𐍐&#39;</span>, <span class="string">&#39;𐍺&#39;</span>),
+  (<span class="string">&#39;𐔀&#39;</span>, <span class="string">&#39;𐔧&#39;</span>), (<span class="string">&#39;𐔰&#39;</span>, <span class="string">&#39;𐕣&#39;</span>), (<span class="string">&#39;𐕯&#39;</span>, <span class="string">&#39;𐕯&#39;</span>), (<span class="string">&#39;𐘀&#39;</span>, <span class="string">&#39;𐜶&#39;</span>),
+  (<span class="string">&#39;𐝀&#39;</span>, <span class="string">&#39;𐝕&#39;</span>), (<span class="string">&#39;𐝠&#39;</span>, <span class="string">&#39;𐝧&#39;</span>), (<span class="string">&#39;𐡠&#39;</span>, <span class="string">&#39;𐢞&#39;</span>), (<span class="string">&#39;𐢧&#39;</span>, <span class="string">&#39;𐢯&#39;</span>),
+  (<span class="string">&#39;𐪀&#39;</span>, <span class="string">&#39;𐪟&#39;</span>), (<span class="string">&#39;𐫀&#39;</span>, <span class="string">&#39;𐫦&#39;</span>), (<span class="string">&#39;𐫫&#39;</span>, <span class="string">&#39;𐫶&#39;</span>), (<span class="string">&#39;𐮀&#39;</span>, <span class="string">&#39;𐮑&#39;</span>),
+  (<span class="string">&#39;𐮙&#39;</span>, <span class="string">&#39;𐮜&#39;</span>), (<span class="string">&#39;𐮩&#39;</span>, <span class="string">&#39;𐮯&#39;</span>), (<span class="string">&#39;𑁿&#39;</span>, <span class="string">&#39;𑁿&#39;</span>), (<span class="string">&#39;𑅐&#39;</span>, <span class="string">&#39;𑅶&#39;</span>),
+  (<span class="string">&#39;𑇍&#39;</span>, <span class="string">&#39;𑇍&#39;</span>), (<span class="string">&#39;𑇚&#39;</span>, <span class="string">&#39;𑇚&#39;</span>), (<span class="string">&#39;𑇡&#39;</span>, <span class="string">&#39;𑇴&#39;</span>), (<span class="string">&#39;𑈀&#39;</span>, <span class="string">&#39;𑈑&#39;</span>),
+  (<span class="string">&#39;𑈓&#39;</span>, <span class="string">&#39;𑈽&#39;</span>), (<span class="string">&#39;𑊰&#39;</span>, <span class="string">&#39;𑋪&#39;</span>), (<span class="string">&#39;𑋰&#39;</span>, <span class="string">&#39;𑋹&#39;</span>), (<span class="string">&#39;𑌁&#39;</span>, <span class="string">&#39;𑌃&#39;</span>),
+  (<span class="string">&#39;𑌅&#39;</span>, <span class="string">&#39;𑌌&#39;</span>), (<span class="string">&#39;𑌏&#39;</span>, <span class="string">&#39;𑌐&#39;</span>), (<span class="string">&#39;𑌓&#39;</span>, <span class="string">&#39;𑌨&#39;</span>), (<span class="string">&#39;𑌪&#39;</span>, <span class="string">&#39;𑌰&#39;</span>),
+  (<span class="string">&#39;𑌲&#39;</span>, <span class="string">&#39;𑌳&#39;</span>), (<span class="string">&#39;𑌵&#39;</span>, <span class="string">&#39;𑌹&#39;</span>), (<span class="string">&#39;𑌼&#39;</span>, <span class="string">&#39;𑍄&#39;</span>), (<span class="string">&#39;𑍇&#39;</span>, <span class="string">&#39;𑍈&#39;</span>),
+  (<span class="string">&#39;𑍋&#39;</span>, <span class="string">&#39;𑍍&#39;</span>), (<span class="string">&#39;𑍗&#39;</span>, <span class="string">&#39;𑍗&#39;</span>), (<span class="string">&#39;𑍝&#39;</span>, <span class="string">&#39;𑍣&#39;</span>), (<span class="string">&#39;𑍦&#39;</span>, <span class="string">&#39;𑍬&#39;</span>),
+  (<span class="string">&#39;𑍰&#39;</span>, <span class="string">&#39;𑍴&#39;</span>), (<span class="string">&#39;𑒀&#39;</span>, <span class="string">&#39;𑓇&#39;</span>), (<span class="string">&#39;𑓐&#39;</span>, <span class="string">&#39;𑓙&#39;</span>), (<span class="string">&#39;𑖀&#39;</span>, <span class="string">&#39;𑖵&#39;</span>),
+  (<span class="string">&#39;𑖸&#39;</span>, <span class="string">&#39;𑗉&#39;</span>), (<span class="string">&#39;𑘀&#39;</span>, <span class="string">&#39;𑙄&#39;</span>), (<span class="string">&#39;𑙐&#39;</span>, <span class="string">&#39;𑙙&#39;</span>), (<span class="string">&#39;𑢠&#39;</span>, <span class="string">&#39;𑣲&#39;</span>),
+  (<span class="string">&#39;𑣿&#39;</span>, <span class="string">&#39;𑣿&#39;</span>), (<span class="string">&#39;𑫀&#39;</span>, <span class="string">&#39;𑫸&#39;</span>), (<span class="string">&#39;𒍯&#39;</span>, <span class="string">&#39;𒎘&#39;</span>), (<span class="string">&#39;𒑣&#39;</span>, <span class="string">&#39;𒑮&#39;</span>),
+  (<span class="string">&#39;𒑴&#39;</span>, <span class="string">&#39;𒑴&#39;</span>), (<span class="string">&#39;𖩀&#39;</span>, <span class="string">&#39;𖩞&#39;</span>), (<span class="string">&#39;𖩠&#39;</span>, <span class="string">&#39;𖩩&#39;</span>), (<span class="string">&#39;𖩮&#39;</span>, <span class="string">&#39;𖩯&#39;</span>),
+  (<span class="string">&#39;𖫐&#39;</span>, <span class="string">&#39;𖫭&#39;</span>), (<span class="string">&#39;𖫰&#39;</span>, <span class="string">&#39;𖫵&#39;</span>), (<span class="string">&#39;𖬀&#39;</span>, <span class="string">&#39;𖭅&#39;</span>), (<span class="string">&#39;𖭐&#39;</span>, <span class="string">&#39;𖭙&#39;</span>),
+  (<span class="string">&#39;𖭛&#39;</span>, <span class="string">&#39;𖭡&#39;</span>), (<span class="string">&#39;𖭣&#39;</span>, <span class="string">&#39;𖭷&#39;</span>), (<span class="string">&#39;𖭽&#39;</span>, <span class="string">&#39;𖮏&#39;</span>), (<span class="string">&#39;𛰀&#39;</span>, <span class="string">&#39;𛱪&#39;</span>),
+  (<span class="string">&#39;𛱰&#39;</span>, <span class="string">&#39;𛱼&#39;</span>), (<span class="string">&#39;𛲀&#39;</span>, <span class="string">&#39;𛲈&#39;</span>), (<span class="string">&#39;𛲐&#39;</span>, <span class="string">&#39;𛲙&#39;</span>), (<span class="string">&#39;𛲜&#39;</span>, <span class="string">&#39;\u{1bca3}&#39;</span>),
+  (<span class="string">&#39;𞠀&#39;</span>, <span class="string">&#39;𞣄&#39;</span>), (<span class="string">&#39;𞣇&#39;</span>, <span class="string">&#39;𞣖&#39;</span>), (<span class="string">&#39;🂿&#39;</span>, <span class="string">&#39;🂿&#39;</span>), (<span class="string">&#39;🃠&#39;</span>, <span class="string">&#39;🃵&#39;</span>),
+  (<span class="string">&#39;🄋&#39;</span>, <span class="string">&#39;🄌&#39;</span>), (<span class="string">&#39;🌡&#39;</span>, <span class="string">&#39;🌬&#39;</span>), (<span class="string">&#39;🌶&#39;</span>, <span class="string">&#39;🌶&#39;</span>), (<span class="string">&#39;🍽&#39;</span>, <span class="string">&#39;🍽&#39;</span>),
+  (<span class="string">&#39;🎔&#39;</span>, <span class="string">&#39;🎟&#39;</span>), (<span class="string">&#39;🏅&#39;</span>, <span class="string">&#39;🏅&#39;</span>), (<span class="string">&#39;🏋&#39;</span>, <span class="string">&#39;🏎&#39;</span>), (<span class="string">&#39;🏔&#39;</span>, <span class="string">&#39;🏟&#39;</span>),
+  (<span class="string">&#39;🏱&#39;</span>, <span class="string">&#39;🏷&#39;</span>), (<span class="string">&#39;🐿&#39;</span>, <span class="string">&#39;🐿&#39;</span>), (<span class="string">&#39;👁&#39;</span>, <span class="string">&#39;👁&#39;</span>), (<span class="string">&#39;📸&#39;</span>, <span class="string">&#39;📸&#39;</span>),
+  (<span class="string">&#39;📽&#39;</span>, <span class="string">&#39;📾&#39;</span>), (<span class="string">&#39;🔾&#39;</span>, <span class="string">&#39;🔿&#39;</span>), (<span class="string">&#39;🕄&#39;</span>, <span class="string">&#39;🕊&#39;</span>), (<span class="string">&#39;🕨&#39;</span>, <span class="string">&#39;🕹&#39;</span>),
+  (<span class="string">&#39;🕻&#39;</span>, <span class="string">&#39;🖣&#39;</span>), (<span class="string">&#39;🖥&#39;</span>, <span class="string">&#39;🗺&#39;</span>), (<span class="string">&#39;🙁&#39;</span>, <span class="string">&#39;🙂&#39;</span>), (<span class="string">&#39;🙐&#39;</span>, <span class="string">&#39;🙿&#39;</span>),
+  (<span class="string">&#39;🛆&#39;</span>, <span class="string">&#39;🛏&#39;</span>), (<span class="string">&#39;🛠&#39;</span>, <span class="string">&#39;🛬&#39;</span>), (<span class="string">&#39;🛰&#39;</span>, <span class="string">&#39;🛳&#39;</span>), (<span class="string">&#39;🞀&#39;</span>, <span class="string">&#39;🟔&#39;</span>),
+  (<span class="string">&#39;🠀&#39;</span>, <span class="string">&#39;🠋&#39;</span>), (<span class="string">&#39;🠐&#39;</span>, <span class="string">&#39;🡇&#39;</span>), (<span class="string">&#39;🡐&#39;</span>, <span class="string">&#39;🡙&#39;</span>), (<span class="string">&#39;🡠&#39;</span>, <span class="string">&#39;🢇&#39;</span>),
+  (<span class="string">&#39;🢐&#39;</span>, <span class="string">&#39;🢭&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V8_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ࢳ&#39;</span>, <span class="string">&#39;ࢴ&#39;</span>), (<span class="string">&#39;ࣣ&#39;</span>, <span class="string">&#39;ࣣ&#39;</span>), (<span class="string">&#39;ૹ&#39;</span>, <span class="string">&#39;ૹ&#39;</span>), (<span class="string">&#39;ౚ&#39;</span>, <span class="string">&#39;ౚ&#39;</span>),
+  (<span class="string">&#39;ൟ&#39;</span>, <span class="string">&#39;ൟ&#39;</span>), (<span class="string">&#39;Ᏽ&#39;</span>, <span class="string">&#39;Ᏽ&#39;</span>), (<span class="string">&#39;ᏸ&#39;</span>, <span class="string">&#39;ᏽ&#39;</span>), (<span class="string">&#39;₾&#39;</span>, <span class="string">&#39;₾&#39;</span>),
+  (<span class="string">&#39;↊&#39;</span>, <span class="string">&#39;↋&#39;</span>), (<span class="string">&#39;⯬&#39;</span>, <span class="string">&#39;⯯&#39;</span>), (<span class="string">&#39;鿍&#39;</span>, <span class="string">&#39;鿕&#39;</span>), (<span class="string">&#39;ꚞ&#39;</span>, <span class="string">&#39;ꚞ&#39;</span>),
+  (<span class="string">&#39;ꞏ&#39;</span>, <span class="string">&#39;ꞏ&#39;</span>), (<span class="string">&#39;Ʝ&#39;</span>, <span class="string">&#39;ꞷ&#39;</span>), (<span class="string">&#39;꣼&#39;</span>, <span class="string">&#39;ꣽ&#39;</span>), (<span class="string">&#39;ꭠ&#39;</span>, <span class="string">&#39;ꭣ&#39;</span>),
+  (<span class="string">&#39;ꭰ&#39;</span>, <span class="string">&#39;ꮿ&#39;</span>), (<span class="string">&#39;︮&#39;</span>, <span class="string">&#39;︯&#39;</span>), (<span class="string">&#39;𐣠&#39;</span>, <span class="string">&#39;𐣲&#39;</span>), (<span class="string">&#39;𐣴&#39;</span>, <span class="string">&#39;𐣵&#39;</span>),
+  (<span class="string">&#39;𐣻&#39;</span>, <span class="string">&#39;𐣿&#39;</span>), (<span class="string">&#39;𐦼&#39;</span>, <span class="string">&#39;𐦽&#39;</span>), (<span class="string">&#39;𐧀&#39;</span>, <span class="string">&#39;𐧏&#39;</span>), (<span class="string">&#39;𐧒&#39;</span>, <span class="string">&#39;𐧿&#39;</span>),
+  (<span class="string">&#39;𐲀&#39;</span>, <span class="string">&#39;𐲲&#39;</span>), (<span class="string">&#39;𐳀&#39;</span>, <span class="string">&#39;𐳲&#39;</span>), (<span class="string">&#39;𐳺&#39;</span>, <span class="string">&#39;𐳿&#39;</span>), (<span class="string">&#39;𑇉&#39;</span>, <span class="string">&#39;𑇌&#39;</span>),
+  (<span class="string">&#39;𑇛&#39;</span>, <span class="string">&#39;𑇟&#39;</span>), (<span class="string">&#39;𑊀&#39;</span>, <span class="string">&#39;𑊆&#39;</span>), (<span class="string">&#39;𑊈&#39;</span>, <span class="string">&#39;𑊈&#39;</span>), (<span class="string">&#39;𑊊&#39;</span>, <span class="string">&#39;𑊍&#39;</span>),
+  (<span class="string">&#39;𑊏&#39;</span>, <span class="string">&#39;𑊝&#39;</span>), (<span class="string">&#39;𑊟&#39;</span>, <span class="string">&#39;𑊩&#39;</span>), (<span class="string">&#39;𑌀&#39;</span>, <span class="string">&#39;𑌀&#39;</span>), (<span class="string">&#39;𑍐&#39;</span>, <span class="string">&#39;𑍐&#39;</span>),
+  (<span class="string">&#39;𑗊&#39;</span>, <span class="string">&#39;𑗝&#39;</span>), (<span class="string">&#39;𑜀&#39;</span>, <span class="string">&#39;𑜙&#39;</span>), (<span class="string">&#39;𑜝&#39;</span>, <span class="string">&#39;𑜫&#39;</span>), (<span class="string">&#39;𑜰&#39;</span>, <span class="string">&#39;𑜿&#39;</span>),
+  (<span class="string">&#39;𒎙&#39;</span>, <span class="string">&#39;𒎙&#39;</span>), (<span class="string">&#39;𒒀&#39;</span>, <span class="string">&#39;𒕃&#39;</span>), (<span class="string">&#39;𔐀&#39;</span>, <span class="string">&#39;𔙆&#39;</span>), (<span class="string">&#39;𝇞&#39;</span>, <span class="string">&#39;𝇨&#39;</span>),
+  (<span class="string">&#39;𝠀&#39;</span>, <span class="string">&#39;𝪋&#39;</span>), (<span class="string">&#39;𝪛&#39;</span>, <span class="string">&#39;𝪟&#39;</span>), (<span class="string">&#39;𝪡&#39;</span>, <span class="string">&#39;𝪯&#39;</span>), (<span class="string">&#39;🌭&#39;</span>, <span class="string">&#39;🌯&#39;</span>),
+  (<span class="string">&#39;🍾&#39;</span>, <span class="string">&#39;🍿&#39;</span>), (<span class="string">&#39;🏏&#39;</span>, <span class="string">&#39;🏓&#39;</span>), (<span class="string">&#39;🏸&#39;</span>, <span class="string">&#39;🏿&#39;</span>), (<span class="string">&#39;📿&#39;</span>, <span class="string">&#39;📿&#39;</span>),
+  (<span class="string">&#39;🕋&#39;</span>, <span class="string">&#39;🕏&#39;</span>), (<span class="string">&#39;🙃&#39;</span>, <span class="string">&#39;🙄&#39;</span>), (<span class="string">&#39;🛐&#39;</span>, <span class="string">&#39;🛐&#39;</span>), (<span class="string">&#39;🤐&#39;</span>, <span class="string">&#39;🤘&#39;</span>),
+  (<span class="string">&#39;🦀&#39;</span>, <span class="string">&#39;🦄&#39;</span>), (<span class="string">&#39;🧀&#39;</span>, <span class="string">&#39;🧀&#39;</span>), (<span class="string">&#39;𫠠&#39;</span>, <span class="string">&#39;𬺡&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">V9_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ࢶ&#39;</span>, <span class="string">&#39;ࢽ&#39;</span>), (<span class="string">&#39;ࣔ&#39;</span>, <span class="string">&#39;\u{8e2}&#39;</span>), (<span class="string">&#39;ಀ&#39;</span>, <span class="string">&#39;ಀ&#39;</span>), (<span class="string">&#39;൏&#39;</span>, <span class="string">&#39;൏&#39;</span>),
+  (<span class="string">&#39;ൔ&#39;</span>, <span class="string">&#39;ൖ&#39;</span>), (<span class="string">&#39;൘&#39;</span>, <span class="string">&#39;൞&#39;</span>), (<span class="string">&#39;൶&#39;</span>, <span class="string">&#39;൸&#39;</span>), (<span class="string">&#39;ᲀ&#39;</span>, <span class="string">&#39;ᲈ&#39;</span>),
+  (<span class="string">&#39;᷻&#39;</span>, <span class="string">&#39;᷻&#39;</span>), (<span class="string">&#39;⏻&#39;</span>, <span class="string">&#39;⏾&#39;</span>), (<span class="string">&#39;⹃&#39;</span>, <span class="string">&#39;⹄&#39;</span>), (<span class="string">&#39;Ɪ&#39;</span>, <span class="string">&#39;Ɪ&#39;</span>),
+  (<span class="string">&#39;ꣅ&#39;</span>, <span class="string">&#39;ꣅ&#39;</span>), (<span class="string">&#39;𐆍&#39;</span>, <span class="string">&#39;𐆎&#39;</span>), (<span class="string">&#39;𐒰&#39;</span>, <span class="string">&#39;𐓓&#39;</span>), (<span class="string">&#39;𐓘&#39;</span>, <span class="string">&#39;𐓻&#39;</span>),
+  (<span class="string">&#39;𑈾&#39;</span>, <span class="string">&#39;𑈾&#39;</span>), (<span class="string">&#39;𑐀&#39;</span>, <span class="string">&#39;𑑙&#39;</span>), (<span class="string">&#39;𑑛&#39;</span>, <span class="string">&#39;𑑛&#39;</span>), (<span class="string">&#39;𑑝&#39;</span>, <span class="string">&#39;𑑝&#39;</span>),
+  (<span class="string">&#39;𑙠&#39;</span>, <span class="string">&#39;𑙬&#39;</span>), (<span class="string">&#39;𑰀&#39;</span>, <span class="string">&#39;𑰈&#39;</span>), (<span class="string">&#39;𑰊&#39;</span>, <span class="string">&#39;𑰶&#39;</span>), (<span class="string">&#39;𑰸&#39;</span>, <span class="string">&#39;𑱅&#39;</span>),
+  (<span class="string">&#39;𑱐&#39;</span>, <span class="string">&#39;𑱬&#39;</span>), (<span class="string">&#39;𑱰&#39;</span>, <span class="string">&#39;𑲏&#39;</span>), (<span class="string">&#39;𑲒&#39;</span>, <span class="string">&#39;𑲧&#39;</span>), (<span class="string">&#39;𑲩&#39;</span>, <span class="string">&#39;𑲶&#39;</span>),
+  (<span class="string">&#39;𖿠&#39;</span>, <span class="string">&#39;𖿠&#39;</span>), (<span class="string">&#39;𗀀&#39;</span>, <span class="string">&#39;𘟬&#39;</span>), (<span class="string">&#39;𘠀&#39;</span>, <span class="string">&#39;𘫲&#39;</span>), (<span class="string">&#39;𞀀&#39;</span>, <span class="string">&#39;𞀆&#39;</span>),
+  (<span class="string">&#39;𞀈&#39;</span>, <span class="string">&#39;𞀘&#39;</span>), (<span class="string">&#39;𞀛&#39;</span>, <span class="string">&#39;𞀡&#39;</span>), (<span class="string">&#39;𞀣&#39;</span>, <span class="string">&#39;𞀤&#39;</span>), (<span class="string">&#39;𞀦&#39;</span>, <span class="string">&#39;𞀪&#39;</span>),
+  (<span class="string">&#39;𞤀&#39;</span>, <span class="string">&#39;𞥊&#39;</span>), (<span class="string">&#39;𞥐&#39;</span>, <span class="string">&#39;𞥙&#39;</span>), (<span class="string">&#39;𞥞&#39;</span>, <span class="string">&#39;𞥟&#39;</span>), (<span class="string">&#39;🆛&#39;</span>, <span class="string">&#39;🆬&#39;</span>),
+  (<span class="string">&#39;🈻&#39;</span>, <span class="string">&#39;🈻&#39;</span>), (<span class="string">&#39;🕺&#39;</span>, <span class="string">&#39;🕺&#39;</span>), (<span class="string">&#39;🖤&#39;</span>, <span class="string">&#39;🖤&#39;</span>), (<span class="string">&#39;🛑&#39;</span>, <span class="string">&#39;🛒&#39;</span>),
+  (<span class="string">&#39;🛴&#39;</span>, <span class="string">&#39;🛶&#39;</span>), (<span class="string">&#39;🤙&#39;</span>, <span class="string">&#39;🤞&#39;</span>), (<span class="string">&#39;🤠&#39;</span>, <span class="string">&#39;🤧&#39;</span>), (<span class="string">&#39;🤰&#39;</span>, <span class="string">&#39;🤰&#39;</span>),
+  (<span class="string">&#39;🤳&#39;</span>, <span class="string">&#39;🤾&#39;</span>), (<span class="string">&#39;🥀&#39;</span>, <span class="string">&#39;🥋&#39;</span>), (<span class="string">&#39;🥐&#39;</span>, <span class="string">&#39;🥞&#39;</span>), (<span class="string">&#39;🦅&#39;</span>, <span class="string">&#39;🦑&#39;</span>),
+];
+</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "regex_syntax";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

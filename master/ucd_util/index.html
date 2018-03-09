@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ucd_util` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ucd_util">
+
+    <title>ucd_util - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate ucd_util</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'ucd_util', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>ucd_util</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/ucd_util/lib.rs.html#1-28' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The <code>ucd-util</code> crate contains a smattering of utility functions that implement
+various algorithms specified by Unicode. There is no specific goal for
+exhaustiveness. Instead, implementations should be added on an as-needed basis.</p>
+<p>A <em>current</em> design constraint of this crate is that it should not bring in any
+large Unicode tables. For example, to use the various property name and value
+canonicalization functions, you'll need to supply your own table, which can
+be generated using <code>ucd-generate</code>.</p>
+</div><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.RANGE_HANGUL_SYLLABLE.html"
+                                  title='constant ucd_util::RANGE_HANGUL_SYLLABLE'>RANGE_HANGUL_SYLLABLE</a></td>
+                           <td class='docblock-short'>
+                                <p>A set of ranges that corresponds to the set of all Hangul syllable
+codepoints.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.RANGE_IDEOGRAPH.html"
+                                  title='constant ucd_util::RANGE_IDEOGRAPH'>RANGE_IDEOGRAPH</a></td>
+                           <td class='docblock-short'>
+                                <p>A set of ranges that corresponds to the set of all ideograph codepoints.</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.canonical_property_name.html"
+                                  title='fn ucd_util::canonical_property_name'>canonical_property_name</a></td>
+                           <td class='docblock-short'>
+                                <p>Find the canonical property name for the given normalized property name.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.canonical_property_value.html"
+                                  title='fn ucd_util::canonical_property_value'>canonical_property_value</a></td>
+                           <td class='docblock-short'>
+                                <p>Find the canonical property value for the given normalized property
+value.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.character_name_normalize.html"
+                                  title='fn ucd_util::character_name_normalize'>character_name_normalize</a></td>
+                           <td class='docblock-short'>
+                                <p>Normalize the given character name in place according to UAX44-LM2.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.hangul_full_canonical_decomposition.html"
+                                  title='fn ucd_util::hangul_full_canonical_decomposition'>hangul_full_canonical_decomposition</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the full canonical decomposition of the given precomposed Hangul
+codepoint.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.hangul_name.html"
+                                  title='fn ucd_util::hangul_name'>hangul_name</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the character name of the given precomposed Hangul codepoint.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.ideograph_name.html"
+                                  title='fn ucd_util::ideograph_name'>ideograph_name</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the character name of the given ideograph codepoint.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.property_values.html"
+                                  title='fn ucd_util::property_values'>property_values</a></td>
+                           <td class='docblock-short'>
+                                <p>Find the set of possible property values for a given property.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.symbolic_name_normalize.html"
+                                  title='fn ucd_util::symbolic_name_normalize'>symbolic_name_normalize</a></td>
+                           <td class='docblock-short'>
+                                <p>Normalize the given symbolic name in place according to UAX44-LM3.</p>
+
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PropertyTable.html"
+                                  title='type ucd_util::PropertyTable'>PropertyTable</a></td>
+                           <td class='docblock-short'>
+                                <p>The type of a property name table.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PropertyValueTable.html"
+                                  title='type ucd_util::PropertyValueTable'>PropertyValueTable</a></td>
+                           <td class='docblock-short'>
+                                <p>Type of a property value table.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="type" href="type.PropertyValues.html"
+                                  title='type ucd_util::PropertyValues'>PropertyValues</a></td>
+                           <td class='docblock-short'>
+                                <p>A mapping of property values for a specific property.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "ucd_util";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.0/src/cast.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.1/src/cast.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>cast.rs.html -- source</title>
@@ -647,14 +647,13 @@
 <span id="591">591</span>
 <span id="592">592</span>
 <span id="593">593</span>
-<span id="594">594</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">f64</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">num</span>::<span class="ident">Wrapping</span>;
 
 <span class="kw">use</span> <span class="ident">identities</span>::<span class="ident">Zero</span>;
 <span class="kw">use</span> <span class="ident">bounds</span>::<span class="ident">Bounded</span>;
+<span class="kw">use</span> <span class="ident">float</span>::<span class="ident">FloatCore</span>;
 
 <span class="doccomment">/// A generic trait for converting a value to a number.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ToPrimitive</span> {
@@ -879,8 +878,7 @@
             <span class="comment">// NaN and +-inf are cast as they are.</span>
             <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">slf</span> <span class="kw">as</span> <span class="ident">f64</span>;
             <span class="kw">let</span> <span class="ident">max_value</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">DstT</span> <span class="op">=</span> ::<span class="ident">core</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">DstT</span>::<span class="ident">MAX</span>;
-            <span class="kw">if</span> <span class="ident">n</span> <span class="op">!=</span> <span class="ident">n</span> <span class="op">||</span> <span class="ident">n</span> <span class="op">==</span> <span class="ident">f64</span>::<span class="ident">INFINITY</span> <span class="op">||</span> <span class="ident">n</span> <span class="op">==</span> <span class="ident">f64</span>::<span class="ident">NEG_INFINITY</span>
-                <span class="op">||</span> (<span class="op">-</span><span class="ident">max_value</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">&lt;=</span> <span class="ident">n</span> <span class="op">&amp;&amp;</span> <span class="ident">n</span> <span class="op">&lt;=</span> <span class="ident">max_value</span> <span class="kw">as</span> <span class="ident">f64</span>)
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">FloatCore</span>::<span class="ident">is_finite</span>(<span class="ident">n</span>) <span class="op">||</span> (<span class="op">-</span><span class="ident">max_value</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">&lt;=</span> <span class="ident">n</span> <span class="op">&amp;&amp;</span> <span class="ident">n</span> <span class="op">&lt;=</span> <span class="ident">max_value</span> <span class="kw">as</span> <span class="ident">f64</span>)
             {
                 <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">slf</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">DstT</span>)
             } <span class="kw">else</span> {

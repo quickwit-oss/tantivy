@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.19.0/src/ast.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.20.0/src/ast.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ast.rs.html -- source</title>
@@ -212,6 +212,12 @@
 <span id="156">156</span>
 <span id="157">157</span>
 <span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -225,15 +231,16 @@
 <span class="kw">use</span> <span class="ident">attr</span>;
 <span class="kw">use</span> <span class="ident">check</span>;
 <span class="kw">use</span> <span class="ident">Ctxt</span>;
+<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">punctuated</span>::<span class="ident">Punctuated</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Container</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="ident">ident</span>: <span class="ident">syn</span>::<span class="ident">Ident</span>,
     <span class="kw">pub</span> <span class="ident">attrs</span>: <span class="ident">attr</span>::<span class="ident">Container</span>,
-    <span class="kw">pub</span> <span class="ident">body</span>: <span class="ident">Body</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">data</span>: <span class="ident">Data</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">generics</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Generics</span>,
 }
 
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Body</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Data</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">Enum</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Variant</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>),
     <span class="ident">Struct</span>(<span class="ident">Style</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>),
 }
@@ -248,7 +255,8 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="ident">ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">attrs</span>: <span class="ident">attr</span>::<span class="ident">Field</span>,
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Ty</span>,
+    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Type</span>,
+    <span class="kw">pub</span> <span class="ident">original</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Field</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
@@ -263,32 +271,35 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_ast</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">DeriveInput</span>) <span class="op">-&gt;</span> <span class="ident">Container</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">attr</span>::<span class="ident">Container</span>::<span class="ident">from_ast</span>(<span class="ident">cx</span>, <span class="ident">item</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">body</span> {
-            <span class="ident">syn</span>::<span class="ident">Body</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> {
-                <span class="ident">Body</span>::<span class="ident">Enum</span>(<span class="ident">enum_from_ast</span>(<span class="ident">cx</span>, <span class="ident">variants</span>, <span class="kw-2">&amp;</span><span class="ident">attrs</span>.<span class="ident">default</span>()))
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
+            <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">data</span>) <span class="op">=&gt;</span> {
+                <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="ident">enum_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">variants</span>, <span class="ident">attrs</span>.<span class="ident">default</span>()))
             }
-            <span class="ident">syn</span>::<span class="ident">Body</span>::<span class="ident">Struct</span>(<span class="kw-2">ref</span> <span class="ident">variant_data</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> (<span class="ident">style</span>, <span class="ident">fields</span>) <span class="op">=</span> <span class="ident">struct_from_ast</span>(<span class="ident">cx</span>, <span class="ident">variant_data</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">attrs</span>.<span class="ident">default</span>());
-                <span class="ident">Body</span>::<span class="ident">Struct</span>(<span class="ident">style</span>, <span class="ident">fields</span>)
+            <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw-2">ref</span> <span class="ident">data</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> (<span class="ident">style</span>, <span class="ident">fields</span>) <span class="op">=</span> <span class="ident">struct_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">fields</span>, <span class="prelude-val">None</span>, <span class="ident">attrs</span>.<span class="ident">default</span>());
+                <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">style</span>, <span class="ident">fields</span>)
+            }
+            <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Union</span>(_) <span class="op">=&gt;</span> {
+                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Serde does not support derive for unions&quot;</span>);
             }
         };
 
-        <span class="kw">match</span> <span class="ident">body</span> {
-            <span class="ident">Body</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">variants</span> {
+        <span class="kw">match</span> <span class="ident">data</span> {
+            <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">variants</span> {
                 <span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">rename_by_rule</span>(<span class="ident">attrs</span>.<span class="ident">rename_all</span>());
-                <span class="kw">for</span> <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">field</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">variant</span>.<span class="ident">fields</span> {
+                <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">variant</span>.<span class="ident">fields</span> {
                     <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">rename_by_rule</span>(<span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">rename_all</span>());
                 }
             },
-            <span class="ident">Body</span>::<span class="ident">Struct</span>(_, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
+            <span class="ident">Data</span>::<span class="ident">Struct</span>(_, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
                 <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">rename_by_rule</span>(<span class="ident">attrs</span>.<span class="ident">rename_all</span>());
             },
         }
 
         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">Container</span> {
-            <span class="ident">ident</span>: <span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">clone</span>(),
+            <span class="ident">ident</span>: <span class="ident">item</span>.<span class="ident">ident</span>,
             <span class="ident">attrs</span>: <span class="ident">attrs</span>,
-            <span class="ident">body</span>: <span class="ident">body</span>,
+            <span class="ident">data</span>: <span class="ident">data</span>,
             <span class="ident">generics</span>: <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">generics</span>,
         };
         <span class="ident">check</span>::<span class="ident">check</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">item</span>);
@@ -296,13 +307,13 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Body</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Data</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">all_fields</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Body</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> {
+            <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> {
                 <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">variants</span>.<span class="ident">iter</span>().<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> <span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">iter</span>()))
             }
-            <span class="ident">Body</span>::<span class="ident">Struct</span>(_, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fields</span>.<span class="ident">iter</span>()),
+            <span class="ident">Data</span>::<span class="ident">Struct</span>(_, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fields</span>.<span class="ident">iter</span>()),
         }
     }
 
@@ -313,7 +324,7 @@
 
 <span class="kw">fn</span> <span class="ident">enum_from_ast</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">variants</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">syn</span>::<span class="ident">Variant</span>],
+    <span class="ident">variants</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Variant</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>,
     <span class="ident">container_default</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Default</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Variant</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
     <span class="ident">variants</span>
@@ -321,9 +332,9 @@
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">attr</span>::<span class="ident">Variant</span>::<span class="ident">from_ast</span>(<span class="ident">cx</span>, <span class="ident">variant</span>);
             <span class="kw">let</span> (<span class="ident">style</span>, <span class="ident">fields</span>) <span class="op">=</span>
-                <span class="ident">struct_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">data</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">attrs</span>), <span class="ident">container_default</span>);
+                <span class="ident">struct_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">fields</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">attrs</span>), <span class="ident">container_default</span>);
             <span class="ident">Variant</span> {
-                <span class="ident">ident</span>: <span class="ident">variant</span>.<span class="ident">ident</span>.<span class="ident">clone</span>(),
+                <span class="ident">ident</span>: <span class="ident">variant</span>.<span class="ident">ident</span>,
                 <span class="ident">attrs</span>: <span class="ident">attrs</span>,
                 <span class="ident">style</span>: <span class="ident">style</span>,
                 <span class="ident">fields</span>: <span class="ident">fields</span>,
@@ -334,30 +345,30 @@
 
 <span class="kw">fn</span> <span class="ident">struct_from_ast</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">VariantData</span>,
+    <span class="ident">fields</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Fields</span>,
     <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>,
     <span class="ident">container_default</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Default</span>,
 ) <span class="op">-&gt;</span> (<span class="ident">Style</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>) {
-    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">data</span> {
-        <span class="ident">syn</span>::<span class="ident">VariantData</span>::<span class="ident">Struct</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> (
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">fields</span> {
+        <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Named</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> (
             <span class="ident">Style</span>::<span class="ident">Struct</span>,
-            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="ident">fields</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
+            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">named</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
         ),
-        <span class="ident">syn</span>::<span class="ident">VariantData</span>::<span class="ident">Tuple</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="kw">if</span> <span class="ident">fields</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> <span class="op">=&gt;</span> (
+        <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Unnamed</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="kw">if</span> <span class="ident">fields</span>.<span class="ident">unnamed</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> <span class="op">=&gt;</span> (
             <span class="ident">Style</span>::<span class="ident">Newtype</span>,
-            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="ident">fields</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
+            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">unnamed</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
         ),
-        <span class="ident">syn</span>::<span class="ident">VariantData</span>::<span class="ident">Tuple</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> (
+        <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Unnamed</span>(<span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> (
             <span class="ident">Style</span>::<span class="ident">Tuple</span>,
-            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="ident">fields</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
+            <span class="ident">fields_from_ast</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">unnamed</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
         ),
-        <span class="ident">syn</span>::<span class="ident">VariantData</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> (<span class="ident">Style</span>::<span class="ident">Unit</span>, <span class="ident">Vec</span>::<span class="ident">new</span>()),
+        <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> (<span class="ident">Style</span>::<span class="ident">Unit</span>, <span class="ident">Vec</span>::<span class="ident">new</span>()),
     }
 }
 
 <span class="kw">fn</span> <span class="ident">fields_from_ast</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">fields</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">syn</span>::<span class="ident">Field</span>],
+    <span class="ident">fields</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Field</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>,
     <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>,
     <span class="ident">container_default</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Default</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
@@ -365,9 +376,10 @@
         .<span class="ident">iter</span>()
         .<span class="ident">enumerate</span>()
         .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">field</span>)<span class="op">|</span> <span class="ident">Field</span> {
-            <span class="ident">ident</span>: <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">clone</span>(),
+            <span class="ident">ident</span>: <span class="ident">field</span>.<span class="ident">ident</span>,
             <span class="ident">attrs</span>: <span class="ident">attr</span>::<span class="ident">Field</span>::<span class="ident">from_ast</span>(<span class="ident">cx</span>, <span class="ident">i</span>, <span class="ident">field</span>, <span class="ident">attrs</span>, <span class="ident">container_default</span>),
             <span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>,
+            <span class="ident">original</span>: <span class="ident">field</span>,
         })
         .<span class="ident">collect</span>()
 }

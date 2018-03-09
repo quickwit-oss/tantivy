@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.0/src/sign.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.1/src/sign.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>sign.rs.html -- source</title>
@@ -257,45 +257,12 @@
 <span id="201">201</span>
 <span id="202">202</span>
 <span id="203">203</span>
-<span id="204">204</span>
-<span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-<span id="211">211</span>
-<span id="212">212</span>
-<span id="213">213</span>
-<span id="214">214</span>
-<span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-<span id="228">228</span>
-<span id="229">229</span>
-<span id="230">230</span>
-<span id="231">231</span>
-<span id="232">232</span>
-<span id="233">233</span>
-<span id="234">234</span>
-<span id="235">235</span>
-<span id="236">236</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ops</span>::<span class="ident">Neg</span>;
-<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">f32</span>, <span class="ident">f64</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">num</span>::<span class="ident">Wrapping</span>;
 
 <span class="kw">use</span> <span class="ident">Num</span>;
+<span class="kw">use</span> <span class="ident">float</span>::<span class="ident">FloatCore</span>;
 
 <span class="doccomment">/// Useful functions for signed numbers (i.e. numbers that can be negative).</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Signed</span>: <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Num</span> <span class="op">+</span> <span class="ident">Neg</span><span class="op">&lt;</span><span class="ident">Output</span> <span class="op">=</span> <span class="self">Self</span><span class="op">&gt;</span> {
@@ -392,26 +359,12 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">signed_float_impl</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nan</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inf</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">neg_inf</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span> <span class="ident">Signed</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
             <span class="doccomment">/// Computes the absolute value. Returns `NAN` if the number is `NAN`.</span>
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
             <span class="kw">fn</span> <span class="ident">abs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
-                (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">abs</span>()
-            }
-
-            <span class="doccomment">/// Computes the absolute value. Returns `NAN` if the number is `NAN`.</span>
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-            <span class="kw">fn</span> <span class="ident">abs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_positive</span>() {
-                    <span class="kw-2">*</span><span class="self">self</span>
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_negative</span>() {
-                    <span class="op">-</span><span class="kw-2">*</span><span class="self">self</span>
-                } <span class="kw">else</span> {
-                    <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nan</span>
-                }
+                <span class="ident">FloatCore</span>::<span class="ident">abs</span>(<span class="kw-2">*</span><span class="self">self</span>)
             }
 
             <span class="doccomment">/// The positive difference of two numbers. Returns `0.0` if the number is</span>
@@ -428,42 +381,23 @@
             <span class="doccomment">/// - `-1.0` if the number is negative, `-0.0` or `NEG_INFINITY`</span>
             <span class="doccomment">/// - `NAN` if the number is NaN</span>
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
             <span class="kw">fn</span> <span class="ident">signum</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
-                <span class="kw">use</span> <span class="ident">Float</span>;
-                <span class="ident">Float</span>::<span class="ident">signum</span>(<span class="kw-2">*</span><span class="self">self</span>)
-            }
-
-            <span class="doccomment">/// # Returns</span>
-            <span class="doccomment">///</span>
-            <span class="doccomment">/// - `1.0` if the number is positive, `+0.0` or `INFINITY`</span>
-            <span class="doccomment">/// - `-1.0` if the number is negative, `-0.0` or `NEG_INFINITY`</span>
-            <span class="doccomment">/// - `NAN` if the number is NaN</span>
-            <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-            <span class="kw">fn</span> <span class="ident">signum</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_positive</span>() {
-                    <span class="number">1.0</span>
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_negative</span>() {
-                    <span class="op">-</span><span class="number">1.0</span>
-                } <span class="kw">else</span> {
-                    <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nan</span>
-                }
+                <span class="ident">FloatCore</span>::<span class="ident">signum</span>(<span class="kw-2">*</span><span class="self">self</span>)
             }
 
             <span class="doccomment">/// Returns `true` if the number is positive, including `+0.0` and `INFINITY`</span>
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_positive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="kw-2">*</span><span class="self">self</span> <span class="op">&gt;</span> <span class="number">0.0</span> <span class="op">||</span> (<span class="number">1.0</span> <span class="op">/</span> <span class="kw-2">*</span><span class="self">self</span>) <span class="op">==</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inf</span> }
+            <span class="kw">fn</span> <span class="ident">is_positive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="ident">FloatCore</span>::<span class="ident">is_sign_positive</span>(<span class="kw-2">*</span><span class="self">self</span>) }
 
             <span class="doccomment">/// Returns `true` if the number is negative, including `-0.0` and `NEG_INFINITY`</span>
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_negative</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="kw-2">*</span><span class="self">self</span> <span class="op">&lt;</span> <span class="number">0.0</span> <span class="op">||</span> (<span class="number">1.0</span> <span class="op">/</span> <span class="kw-2">*</span><span class="self">self</span>) <span class="op">==</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">neg_inf</span> }
+            <span class="kw">fn</span> <span class="ident">is_negative</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="ident">FloatCore</span>::<span class="ident">is_sign_negative</span>(<span class="kw-2">*</span><span class="self">self</span>) }
         }
     }
 }
 
-<span class="macro">signed_float_impl</span><span class="macro">!</span>(<span class="ident">f32</span>, <span class="ident">f32</span>::<span class="ident">NAN</span>, <span class="ident">f32</span>::<span class="ident">INFINITY</span>, <span class="ident">f32</span>::<span class="ident">NEG_INFINITY</span>);
-<span class="macro">signed_float_impl</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">f64</span>::<span class="ident">NAN</span>, <span class="ident">f64</span>::<span class="ident">INFINITY</span>, <span class="ident">f64</span>::<span class="ident">NEG_INFINITY</span>);
+<span class="macro">signed_float_impl</span><span class="macro">!</span>(<span class="ident">f32</span>);
+<span class="macro">signed_float_impl</span><span class="macro">!</span>(<span class="ident">f64</span>);
 
 <span class="doccomment">/// Computes the absolute value.</span>
 <span class="doccomment">///</span>

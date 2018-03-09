@@ -59,13 +59,63 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/quote/lib.rs.html#72-84' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/quote/lib.rs.html#208-210' title='goto source code'>[src]</a></span></h1>
 <pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">quote</span> {
-    () <span class="op">=&gt;</span> { ... };
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="op">+</span>) <span class="op">=&gt;</span> { ... };
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
 <div class='docblock'><p>The whole point.</p>
+<p>Performs variable interpolation against the input and produces it as
+<a href="struct.Tokens.html"><code>Tokens</code></a>. For returning tokens to the compiler in a procedural macro, use
+<code>into()</code> to build a <code>TokenStream</code>.</p>
+<h1 id="interpolation" class="section-header"><a href="#interpolation">Interpolation</a></h1>
+<p>Variable interpolation is done with <code>#var</code> (similar to <code>$var</code> in
+<code>macro_rules!</code> macros). This grabs the <code>var</code> variable that is currently in
+scope and inserts it in that location in the output tokens. The variable
+must implement the <a href="trait.ToTokens.html"><code>ToTokens</code></a> trait.</p>
+<p>Repetition is done using <code>#(...)*</code> or <code>#(...),*</code> again similar to
+<code>macro_rules!</code>. This iterates through the elements of any variable
+interpolated within the repetition and inserts a copy of the repetition body
+for each one. The variables in an interpolation may be anything that
+implements <code>IntoIterator</code>, including <code>Vec</code> or a pre-existing iterator.</p>
+<ul>
+<li><code>#(#var)*</code> — no separators</li>
+<li><code>#(#var),*</code> — the character before the asterisk is used as a separator</li>
+<li><code>#( struct #var; )*</code> — the repetition can contain other tokens</li>
+<li><code>#( #k =&gt; println!(&quot;{}&quot;, #v), )*</code> — even multiple interpolations</li>
+</ul>
+<h1 id="hygiene" class="section-header"><a href="#hygiene">Hygiene</a></h1>
+<p>Any interpolated tokens preserve the <code>Span</code> information provided by their
+<code>ToTokens</code> implementation. Tokens that originate within the <code>quote!</code>
+invocation are spanned with <a href="https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html#method.def_site"><code>Span::def_site()</code></a>.</p>
+<p>A different span can be provided through the <a href="macro.quote_spanned.html"><code>quote_spanned!</code></a> macro.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro</span>;
+
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quote</span>;
+
+<span class="kw">use</span> <span class="ident">proc_macro</span>::<span class="ident">TokenStream</span>;
+
+<span class="attribute">#[<span class="ident">proc_macro_derive</span>(<span class="ident">HeapSize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_heap_size</span>(<span class="ident">input</span>: <span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
+    <span class="comment">// Parse the input and figure out what implementation to generate...</span>
+    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="comment">/* ... */</span>;
+    <span class="kw">let</span> <span class="ident">expr</span> <span class="op">=</span> <span class="comment">/* ... */</span>;
+
+    <span class="kw">let</span> <span class="ident">expanded</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
+        <span class="comment">// The generated impl.</span>
+        <span class="kw">impl</span> ::<span class="ident">heapsize</span>::<span class="ident">HeapSize</span> <span class="kw">for</span> #<span class="ident">name</span> {
+            <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+                #<span class="ident">expr</span>
+            }
+        }
+    };
+
+    <span class="comment">// Hand the output tokens back to the compiler.</span>
+    <span class="ident">expanded</span>.<span class="ident">into</span>()
+}</pre>
 </div></section>
     <section id='search' class="content hidden"></section>
 

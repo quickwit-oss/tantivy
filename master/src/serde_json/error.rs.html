@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/error.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/error.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>error.rs.html -- source</title>
@@ -474,6 +474,15 @@
 <span id="418">418</span>
 <span id="419">419</span>
 <span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -550,6 +559,7 @@
             <span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span> <span class="op">|</span>
             <span class="ident">ErrorCode</span>::<span class="ident">NumberOutOfRange</span> <span class="op">|</span>
             <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span> <span class="op">|</span>
+            <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span> <span class="op">|</span>
             <span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span> <span class="op">|</span>
             <span class="ident">ErrorCode</span>::<span class="ident">LoneLeadingSurrogateInHexEscape</span> <span class="op">|</span>
             <span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span> <span class="op">|</span>
@@ -717,6 +727,9 @@
     <span class="doccomment">/// Invalid unicode code point.</span>
     <span class="ident">InvalidUnicodeCodePoint</span>,
 
+    <span class="doccomment">/// Control character found while parsing a string.</span>
+    <span class="ident">ControlCharacterWhileParsingString</span>,
+
     <span class="doccomment">/// Object key is not a string.</span>
     <span class="ident">KeyMustBeAString</span>,
 
@@ -752,6 +765,8 @@
     }
 
     <span class="comment">// Not public API. Should be pub(crate).</span>
+    <span class="comment">//</span>
+    <span class="comment">// Update `eager_json` crate when this function changes.</span>
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">io</span>(<span class="ident">error</span>: <span class="ident">io</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Error</span> {
@@ -799,6 +814,9 @@
             <span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span> <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;invalid number&quot;</span>),
             <span class="ident">ErrorCode</span>::<span class="ident">NumberOutOfRange</span> <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;number out of range&quot;</span>),
             <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span> <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;invalid unicode code point&quot;</span>),
+            <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span> <span class="op">=&gt;</span> {
+                <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;control character (\\u0000-\\u001F) found while parsing a string&quot;</span>)
+            }
             <span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span> <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;key must be a string&quot;</span>),
             <span class="ident">ErrorCode</span>::<span class="ident">LoneLeadingSurrogateInHexEscape</span> <span class="op">=&gt;</span> {
                 <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;lone leading surrogate in hex escape&quot;</span>)

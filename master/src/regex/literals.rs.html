@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.6/src/literals.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/literals.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>literals.rs.html -- source</title>
@@ -1134,6 +1134,39 @@
 <span id="1078">1078</span>
 <span id="1079">1079</span>
 <span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -1145,11 +1178,12 @@
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
 
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 
 <span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">Automaton</span>, <span class="ident">AcAutomaton</span>, <span class="ident">FullAcAutomaton</span>};
 <span class="kw">use</span> <span class="ident">memchr</span>::{<span class="ident">memchr</span>, <span class="ident">memchr2</span>, <span class="ident">memchr3</span>};
-<span class="kw">use</span> <span class="ident">syntax</span>;
+<span class="kw">use</span> <span class="ident">syntax</span>::<span class="ident">hir</span>::<span class="ident">literal</span>::{<span class="ident">Literal</span>, <span class="ident">Literals</span>};
 
 <span class="kw">use</span> <span class="ident">freqs</span>::<span class="ident">BYTE_FREQUENCIES</span>;
 
@@ -1179,7 +1213,7 @@
     <span class="doccomment">/// A single substring, find using Boyer-Moore.</span>
     <span class="ident">BoyerMoore</span>(<span class="ident">BoyerMooreSearch</span>),
     <span class="doccomment">/// An Aho-Corasick automaton.</span>
-    <span class="ident">AC</span>(<span class="ident">FullAcAutomaton</span><span class="op">&lt;</span><span class="ident">syntax</span>::<span class="ident">Lit</span><span class="op">&gt;</span>),
+    <span class="ident">AC</span>(<span class="ident">FullAcAutomaton</span><span class="op">&lt;</span><span class="ident">Literal</span><span class="op">&gt;</span>),
     <span class="doccomment">/// A simd accelerated multiple string matcher. Used only for a small</span>
     <span class="doccomment">/// number of small literals.</span>
     <span class="ident">Teddy128</span>(<span class="ident">Teddy</span>),
@@ -1188,22 +1222,22 @@
 <span class="kw">impl</span> <span class="ident">LiteralSearcher</span> {
     <span class="doccomment">/// Returns a matcher that never matches and never advances the input.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">syntax</span>::<span class="ident">Literals</span>::<span class="ident">empty</span>(), <span class="ident">Matcher</span>::<span class="ident">Empty</span>)
+        <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">Literals</span>::<span class="ident">empty</span>(), <span class="ident">Matcher</span>::<span class="ident">Empty</span>)
     }
 
     <span class="doccomment">/// Returns a matcher for literal prefixes from the given set.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">matcher</span> <span class="op">=</span> <span class="ident">Matcher</span>::<span class="ident">prefixes</span>(<span class="kw-2">&amp;</span><span class="ident">lits</span>);
         <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">lits</span>, <span class="ident">matcher</span>)
     }
 
     <span class="doccomment">/// Returns a matcher for literal suffixes from the given set.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">matcher</span> <span class="op">=</span> <span class="ident">Matcher</span>::<span class="ident">suffixes</span>(<span class="kw-2">&amp;</span><span class="ident">lits</span>);
         <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">lits</span>, <span class="ident">matcher</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">lits</span>: <span class="ident">syntax</span>::<span class="ident">Literals</span>, <span class="ident">matcher</span>: <span class="ident">Matcher</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">lits</span>: <span class="ident">Literals</span>, <span class="ident">matcher</span>: <span class="ident">Matcher</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">complete</span> <span class="op">=</span> <span class="ident">lits</span>.<span class="ident">all_complete</span>();
         <span class="ident">LiteralSearcher</span> {
             <span class="ident">complete</span>: <span class="ident">complete</span>,
@@ -1320,17 +1354,17 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Matcher</span> {
-    <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">sset</span> <span class="op">=</span> <span class="ident">SingleByteSet</span>::<span class="ident">prefixes</span>(<span class="ident">lits</span>);
         <span class="ident">Matcher</span>::<span class="ident">new</span>(<span class="ident">lits</span>, <span class="ident">sset</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">sset</span> <span class="op">=</span> <span class="ident">SingleByteSet</span>::<span class="ident">suffixes</span>(<span class="ident">lits</span>);
         <span class="ident">Matcher</span>::<span class="ident">new</span>(<span class="ident">lits</span>, <span class="ident">sset</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">syntax</span>::<span class="ident">Literals</span>, <span class="ident">sset</span>: <span class="ident">SingleByteSet</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>, <span class="ident">sset</span>: <span class="ident">SingleByteSet</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">if</span> <span class="ident">lits</span>.<span class="ident">literals</span>().<span class="ident">is_empty</span>() {
             <span class="kw">return</span> <span class="ident">Matcher</span>::<span class="ident">Empty</span>;
         }
@@ -1382,7 +1416,7 @@
     <span class="ident">Empty</span>,
     <span class="ident">Bytes</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]),
     <span class="ident">Single</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]),
-    <span class="ident">AC</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">syntax</span>::<span class="ident">Lit</span>]),
+    <span class="ident">AC</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">Literal</span>]),
     <span class="ident">Teddy128</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>]),
 }
 
@@ -1450,7 +1484,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="ident">SingleByteSet</span> {
+    <span class="kw">fn</span> <span class="ident">prefixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="ident">SingleByteSet</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sset</span> <span class="op">=</span> <span class="ident">SingleByteSet</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">lit</span> <span class="kw">in</span> <span class="ident">lits</span>.<span class="ident">literals</span>() {
             <span class="ident">sset</span>.<span class="ident">complete</span> <span class="op">=</span> <span class="ident">sset</span>.<span class="ident">complete</span> <span class="op">&amp;&amp;</span> <span class="ident">lit</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>;
@@ -1467,7 +1501,7 @@
         <span class="ident">sset</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">syntax</span>::<span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="ident">SingleByteSet</span> {
+    <span class="kw">fn</span> <span class="ident">suffixes</span>(<span class="ident">lits</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="ident">SingleByteSet</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sset</span> <span class="op">=</span> <span class="ident">SingleByteSet</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">lit</span> <span class="kw">in</span> <span class="ident">lits</span>.<span class="ident">literals</span>() {
             <span class="ident">sset</span>.<span class="ident">complete</span> <span class="op">=</span> <span class="ident">sset</span>.<span class="ident">complete</span> <span class="op">&amp;&amp;</span> <span class="ident">lit</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>;
@@ -1764,7 +1798,9 @@
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">check_match</span>(<span class="ident">haystack</span>, <span class="ident">window_end</span>) {
                     <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">window_end</span> <span class="op">-</span> (<span class="self">self</span>.<span class="ident">pattern</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>));
                 } <span class="kw">else</span> {
-                    <span class="ident">window_end</span> <span class="op">+=</span> <span class="self">self</span>.<span class="ident">md2_shift</span>;
+                    <span class="kw">let</span> <span class="ident">skip</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">skip_table</span>[<span class="ident">haystack</span>[<span class="ident">window_end</span>] <span class="kw">as</span> <span class="ident">usize</span>];
+                    <span class="ident">window_end</span> <span class="op">+=</span>
+                        <span class="kw">if</span> <span class="ident">skip</span> <span class="op">==</span> <span class="number">0</span> { <span class="self">self</span>.<span class="ident">md2_shift</span> } <span class="kw">else</span> { <span class="ident">skip</span> };
                     <span class="kw">continue</span>;
                 }
             }
@@ -1817,41 +1853,34 @@
     <span class="doccomment">/// to beat the asm deep magic that is memchr. Unfortunately,</span>
     <span class="doccomment">/// I had trouble proving a useful turnover point. Hopefully,</span>
     <span class="doccomment">/// we can find one in the future.</span>
-    <span class="kw">fn</span> <span class="ident">should_use</span>(<span class="ident">_pattern</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="comment">// TBM is disabled until the bm_backstop_boundary unit test can pass</span>
-        <span class="comment">// and we&#39;re more confident that the implementation is correct.</span>
-        <span class="comment">//</span>
-        <span class="comment">// See: https://github.com/rust-lang/regex/issues/446</span>
-        <span class="bool-val">false</span>
-        <span class="comment">/*
-        // The minimum pattern length required to use TBM.
-        const MIN_LEN: usize = 9;
-        // The minimum frequency rank (lower is rarer) that every byte in the
-        // pattern must have in order to use TBM. That is, if the pattern
-        // contains _any_ byte with a lower rank, then TBM won&#39;t be used.
-        const MIN_CUTOFF: usize = 150;
-        // The maximum frequency rank for any byte.
-        const MAX_CUTOFF: usize = 255;
-        // The scaling factor used to determine the actual cutoff frequency
-        // to use (keeping in mind that the minimum frequency rank is bounded
-        // by MIN_CUTOFF). This scaling factor is an attempt to make TBM more
-        // likely to be used as the pattern grows longer. That is, longer
-        // patterns permit somewhat less frequent bytes than shorter patterns,
-        // under the assumption that TBM gets better as the pattern gets
-        // longer.
-        const LEN_CUTOFF_PROPORTION: usize = 4;
+    <span class="kw">fn</span> <span class="ident">should_use</span>(<span class="ident">pattern</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="comment">// The minimum pattern length required to use TBM.</span>
+        <span class="kw">const</span> <span class="ident">MIN_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">9</span>;
+        <span class="comment">// The minimum frequency rank (lower is rarer) that every byte in the</span>
+        <span class="comment">// pattern must have in order to use TBM. That is, if the pattern</span>
+        <span class="comment">// contains _any_ byte with a lower rank, then TBM won&#39;t be used.</span>
+        <span class="kw">const</span> <span class="ident">MIN_CUTOFF</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">150</span>;
+        <span class="comment">// The maximum frequency rank for any byte.</span>
+        <span class="kw">const</span> <span class="ident">MAX_CUTOFF</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">255</span>;
+        <span class="comment">// The scaling factor used to determine the actual cutoff frequency</span>
+        <span class="comment">// to use (keeping in mind that the minimum frequency rank is bounded</span>
+        <span class="comment">// by MIN_CUTOFF). This scaling factor is an attempt to make TBM more</span>
+        <span class="comment">// likely to be used as the pattern grows longer. That is, longer</span>
+        <span class="comment">// patterns permit somewhat less frequent bytes than shorter patterns,</span>
+        <span class="comment">// under the assumption that TBM gets better as the pattern gets</span>
+        <span class="comment">// longer.</span>
+        <span class="kw">const</span> <span class="ident">LEN_CUTOFF_PROPORTION</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span>;
 
-        let scaled_rank = pattern.len().wrapping_mul(LEN_CUTOFF_PROPORTION);
-        let cutoff = cmp::max(
-            MIN_CUTOFF,
-            MAX_CUTOFF - cmp::min(MAX_CUTOFF, scaled_rank),
+        <span class="kw">let</span> <span class="ident">scaled_rank</span> <span class="op">=</span> <span class="ident">pattern</span>.<span class="ident">len</span>().<span class="ident">wrapping_mul</span>(<span class="ident">LEN_CUTOFF_PROPORTION</span>);
+        <span class="kw">let</span> <span class="ident">cutoff</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">max</span>(
+            <span class="ident">MIN_CUTOFF</span>,
+            <span class="ident">MAX_CUTOFF</span> <span class="op">-</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">MAX_CUTOFF</span>, <span class="ident">scaled_rank</span>),
         );
-        // The pattern must be long enough to be worthwhile. e.g., memchr will
-        // be faster on `e` because it is short even though e is quite common.
-        pattern.len() &gt; MIN_LEN
-            // all the bytes must be more common than the cutoff.
-            &amp;&amp; pattern.iter().all(|c| freq_rank(*c) &gt;= cutoff)
-        */</span>
+        <span class="comment">// The pattern must be long enough to be worthwhile. e.g., memchr will</span>
+        <span class="comment">// be faster on `e` because it is short even though e is quite common.</span>
+        <span class="ident">pattern</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">MIN_LEN</span>
+            <span class="comment">// all the bytes must be more common than the cutoff.</span>
+            <span class="op">&amp;&amp;</span> <span class="ident">pattern</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">freq_rank</span>(<span class="kw-2">*</span><span class="ident">c</span>) <span class="op">&gt;=</span> <span class="ident">cutoff</span>)
     }
 
     <span class="doccomment">/// Check to see if there is a match at the given position</span>
@@ -2062,7 +2091,7 @@
         <span class="kw">let</span> <span class="ident">haystack</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">91</span>];
         <span class="kw">let</span> <span class="ident">needle</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">91</span>];
 
-        <span class="kw">let</span> <span class="ident">naive_offset</span> <span class="op">=</span> <span class="ident">naive_find</span>(<span class="ident">needle</span>, <span class="ident">haystack</span>.<span class="ident">as_slice</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">naive_offset</span> <span class="op">=</span> <span class="ident">naive_find</span>(<span class="kw-2">&amp;</span><span class="ident">needle</span>, <span class="kw-2">&amp;</span><span class="ident">haystack</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="number">0</span>, <span class="ident">naive_offset</span>);
     }
 
@@ -2083,7 +2112,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">should_panic</span>]</span>
     <span class="kw">fn</span> <span class="ident">bm_backstop_boundary</span>() {
         <span class="kw">let</span> <span class="ident">haystack</span> <span class="op">=</span> <span class="string">b&quot;\
 // aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -2117,12 +2145,12 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
     <span class="kw">use</span> <span class="ident">quickcheck</span>::<span class="ident">TestResult</span>;
 
-    <span class="kw">fn</span> <span class="ident">naive_find</span>(<span class="ident">needle</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">naive_find</span>(<span class="ident">needle</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">needle</span>.<span class="ident">len</span>() <span class="op">&lt;=</span> <span class="ident">haystack</span>.<span class="ident">len</span>());
 
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..(<span class="ident">haystack</span>.<span class="ident">len</span>() <span class="op">-</span> (<span class="ident">needle</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>)) {
             <span class="kw">if</span> <span class="ident">haystack</span>[<span class="ident">i</span>] <span class="op">==</span> <span class="ident">needle</span>[<span class="number">0</span>]
-                <span class="op">&amp;&amp;</span> <span class="kw-2">&amp;</span><span class="ident">haystack</span>[<span class="ident">i</span>..(<span class="ident">i</span><span class="op">+</span><span class="ident">needle</span>.<span class="ident">len</span>())] <span class="op">==</span> <span class="ident">needle</span>.<span class="ident">as_slice</span>() {
+                <span class="op">&amp;&amp;</span> <span class="kw-2">&amp;</span><span class="ident">haystack</span>[<span class="ident">i</span>..(<span class="ident">i</span><span class="op">+</span><span class="ident">needle</span>.<span class="ident">len</span>())] <span class="op">==</span> <span class="ident">needle</span> {
                 <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>)
             }
         }
@@ -2144,7 +2172,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
             <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">BoyerMooreSearch</span>::<span class="ident">new</span>(<span class="ident">needle</span>.<span class="ident">clone</span>());
             <span class="ident">TestResult</span>::<span class="ident">from_bool</span>(
-                <span class="ident">searcher</span>.<span class="ident">find</span>(<span class="ident">haystack</span>) <span class="op">==</span> <span class="ident">naive_find</span>(<span class="ident">needle</span>, <span class="ident">haystack</span>))
+                <span class="ident">searcher</span>.<span class="ident">find</span>(<span class="ident">haystack</span>) <span class="op">==</span> <span class="ident">naive_find</span>(<span class="kw-2">&amp;</span><span class="ident">needle</span>, <span class="ident">haystack</span>))
         }
 
         <span class="kw">fn</span> <span class="ident">qc_bm_equals_single</span>(<span class="ident">pile1</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">pile2</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">TestResult</span> {
@@ -2197,6 +2225,44 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                 <span class="ident">searcher</span>.<span class="ident">find</span>(<span class="ident">haystack</span>.<span class="ident">as_slice</span>())
                         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">==</span> <span class="ident">haystack_pre</span>.<span class="ident">len</span>())
                         .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>))
+        }
+
+        <span class="comment">// qc_equals_* is only testing the negative case as @burntsushi</span>
+        <span class="comment">// pointed out in https://github.com/rust-lang/regex/issues/446.</span>
+        <span class="comment">// This quickcheck prop represents an effort to force testing of</span>
+        <span class="comment">// the positive case. qc_bm_finds_first and qc_bm_finds_trailing_needle</span>
+        <span class="comment">// already check some of the positive cases, but they don&#39;t cover</span>
+        <span class="comment">// cases where the needle is in the middle of haystack. This prop</span>
+        <span class="comment">// fills that hole.</span>
+        <span class="kw">fn</span> <span class="ident">qc_bm_finds_subslice</span>(
+            <span class="ident">haystack</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+            <span class="ident">needle_start</span>: <span class="ident">usize</span>,
+            <span class="ident">needle_length</span>: <span class="ident">usize</span>
+        ) <span class="op">-&gt;</span> <span class="ident">TestResult</span> {
+            <span class="kw">if</span> <span class="ident">haystack</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">return</span> <span class="ident">TestResult</span>::<span class="ident">discard</span>();
+            }
+
+            <span class="kw">let</span> <span class="ident">needle_start</span> <span class="op">=</span> <span class="ident">needle_start</span> <span class="op">%</span> <span class="ident">haystack</span>.<span class="ident">len</span>();
+            <span class="kw">let</span> <span class="ident">needle_length</span> <span class="op">=</span> <span class="ident">needle_length</span> <span class="op">%</span> (<span class="ident">haystack</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">needle_start</span>);
+
+            <span class="kw">if</span> <span class="ident">needle_length</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">return</span> <span class="ident">TestResult</span>::<span class="ident">discard</span>();
+            }
+
+            <span class="kw">let</span> <span class="ident">needle</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">haystack</span>[<span class="ident">needle_start</span>..(<span class="ident">needle_start</span> <span class="op">+</span> <span class="ident">needle_length</span>)];
+
+            <span class="kw">let</span> <span class="ident">bm_searcher</span> <span class="op">=</span> <span class="ident">BoyerMooreSearch</span>::<span class="ident">new</span>(<span class="ident">needle</span>.<span class="ident">to_vec</span>());
+
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">naive_find</span>(<span class="kw-2">&amp;</span><span class="ident">needle</span>, <span class="kw-2">&amp;</span><span class="ident">haystack</span>);
+            <span class="kw">match</span> <span class="ident">start</span> {
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">TestResult</span>::<span class="ident">from_bool</span>(<span class="bool-val">false</span>),
+                <span class="prelude-val">Some</span>(<span class="ident">nf_start</span>) <span class="op">=&gt;</span>
+                    <span class="ident">TestResult</span>::<span class="ident">from_bool</span>(
+                        <span class="ident">nf_start</span> <span class="op">&lt;=</span> <span class="ident">needle_start</span>
+                            <span class="op">&amp;&amp;</span> <span class="ident">bm_searcher</span>.<span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="ident">haystack</span>) <span class="op">==</span> <span class="ident">start</span>
+                    )
+            }
         }
 
         <span class="kw">fn</span> <span class="ident">qc_bm_finds_first</span>(<span class="ident">needle</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">TestResult</span> {

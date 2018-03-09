@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.6/src/dfa.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/dfa.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>dfa.rs.html -- source</title>
@@ -2012,7 +2012,7 @@ implementation.)
     <span class="comment">// If i32::MAX is the largest positive delta,</span>
     <span class="comment">// then -i32::MAX == i32::MIN + 1 is the largest negative delta,</span>
     <span class="comment">// and we are OK to use 32 bits.</span>
-    <span class="kw">if</span> <span class="ident">insts</span>.<span class="ident">len</span>() <span class="op">&gt;</span> ::<span class="ident">std</span>::<span class="ident">i32</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">usize</span> {
+    <span class="kw">if</span> <span class="ident">insts</span>.<span class="ident">dfa_size_limit</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">insts</span>.<span class="ident">len</span>() <span class="op">&gt;</span> ::<span class="ident">std</span>::<span class="ident">i32</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">usize</span> {
         <span class="kw">return</span> <span class="bool-val">false</span>;
     }
     <span class="kw">for</span> <span class="ident">inst</span> <span class="kw">in</span> <span class="ident">insts</span> {

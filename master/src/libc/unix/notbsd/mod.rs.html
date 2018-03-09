@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.36/src/unix/notbsd/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.39/src/unix/notbsd/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -1068,6 +1068,8 @@
 <span id="1012">1012</span>
 <span id="1013">1013</span>
 <span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">dox</span>::<span class="ident">mem</span>;
 
@@ -1647,8 +1649,13 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IP_ADD_MEMBERSHIP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">35</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IP_DROP_MEMBERSHIP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">36</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IP_TRANSPARENT</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">19</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_UNICAST_HOPS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">16</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_MULTICAST_IF</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">17</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_MULTICAST_HOPS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">18</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_MULTICAST_LOOP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">19</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_ADD_MEMBERSHIP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">20</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_DROP_MEMBERSHIP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">21</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_V6ONLY</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">26</span>;
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TCP_NODELAY</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TCP_MAXSEG</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">2</span>;
@@ -1663,9 +1670,6 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TCP_INFO</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">11</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TCP_QUICKACK</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">12</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TCP_CONGESTION</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">13</span>;
-
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_MULTICAST_LOOP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">19</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">IPV6_V6ONLY</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">26</span>;
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_DEBUG</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">1</span>;
 

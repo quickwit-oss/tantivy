@@ -33,7 +33,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Crate regex_syntax</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'regex_syntax', ty: 'mod', relpath: '../'};</script></div>
+        <p class='location'>Crate regex_syntax</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'regex_syntax', ty: 'mod', relpath: '../'};</script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,135 +59,123 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/regex_syntax/lib.rs.html#11-2223' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>This crate provides a regular expression parser and an abstract syntax for
-regular expressions. The abstract syntax is defined by the <code>Expr</code> type. The
-concrete syntax is enumerated in the
-<a href="../regex/index.html#syntax"><code>regex</code></a>
-crate documentation.</p>
-<p>Note that since this crate is first and foremost an implementation detail for
-the <code>regex</code> crate, it may experience more frequent breaking changes. It is
-exposed as a separate crate so that others may use it to do analysis on regular
-expressions or even build their own matching engine.</p>
-<h1 id="example-parsing-an-expression" class="section-header"><a href="#example-parsing-an-expression">Example: parsing an expression</a></h1>
-<p>Parsing a regular expression can be done with the <code>Expr::parse</code> function.</p>
+               </span><a class='srclink' href='../src/regex_syntax/lib.rs.html#11-222' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>This crate provides a robust regular expression parser.</p>
+<p>This crate defines two primary types:</p>
+<ul>
+<li><a href="ast/enum.Ast.html"><code>Ast</code></a> is the abstract syntax of a regular expression.
+An abstract syntax corresponds to a <em>structured representation</em> of the
+concrete syntax of a regular expression, where the concrete syntax is the
+pattern string itself (e.g., <code>foo(bar)+</code>). Given some abstract syntax, it
+can be converted back to the original concrete syntax (modulo some details,
+like whitespace). To a first approximation, the abstract syntax is complex
+and difficult to analyze.</li>
+<li><a href="hir/struct.Hir.html"><code>Hir</code></a> is the high-level intermediate representation
+(&quot;HIR&quot; or &quot;high-level IR&quot; for short) of regular expression. It corresponds to
+an intermediate state of a regular expression that sits between the abstract
+syntax and the low level compiled opcodes that are eventually responsible for
+executing a regular expression search. Given some high-level IR, it is not
+possible to produce the original concrete syntax (although it is possible to
+produce an equivalent conrete syntax, but it will likely scarcely resemble
+the original pattern). To a first approximation, the high-level IR is simple
+and easy to analyze.</li>
+</ul>
+<p>These two types come with conversion routines:</p>
+<ul>
+<li>An <a href="ast/parse/struct.Parser.html"><code>ast::parse::Parser</code></a> converts concrete
+syntax (a <code>&amp;str</code>) to an <a href="ast/enum.Ast.html"><code>Ast</code></a>.</li>
+<li>A <a href="hir/translate/struct.Translator.html"><code>hir::translate::Translator</code></a>
+converts an <a href="ast/enum.Ast.html"><code>Ast</code></a> to a <a href="hir/struct.Hir.html"><code>Hir</code></a>.</li>
+</ul>
+<p>As a convenience, the above two conversion routines are combined into one via
+the top-level <a href="struct.Parser.html"><code>Parser</code></a> type. This <code>Parser</code> will first
+convert your pattern to an <code>Ast</code> and then convert the <code>Ast</code> to an <code>Hir</code>.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<p>This example shows how to parse a pattern string into its HIR:</p>
 
 <pre class="rust rust-example-rendered">
-<span class="kw">use</span> <span class="ident">regex_syntax</span>::<span class="ident">Expr</span>;
+<span class="kw">use</span> <span class="ident">regex_syntax</span>::<span class="ident">Parser</span>;
+<span class="kw">use</span> <span class="ident">regex_syntax</span>::<span class="ident">hir</span>::{<span class="self">self</span>, <span class="ident">Hir</span>};
 
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">Expr</span>::<span class="ident">parse</span>(<span class="string">r&quot;ab|yz&quot;</span>).<span class="ident">unwrap</span>(), <span class="ident">Expr</span>::<span class="ident">Alternate</span>(<span class="macro">vec</span><span class="macro">!</span>[
-    <span class="ident">Expr</span>::<span class="ident">Literal</span> { <span class="ident">chars</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>], <span class="ident">casei</span>: <span class="bool-val">false</span> },
-    <span class="ident">Expr</span>::<span class="ident">Literal</span> { <span class="ident">chars</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&#39;y&#39;</span>, <span class="string">&#39;z&#39;</span>], <span class="ident">casei</span>: <span class="bool-val">false</span> },
+<span class="kw">let</span> <span class="ident">hir</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>().<span class="ident">parse</span>(<span class="string">&quot;a|b&quot;</span>).<span class="ident">unwrap</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">hir</span>, <span class="ident">Hir</span>::<span class="ident">alternation</span>(<span class="macro">vec</span><span class="macro">!</span>[
+    <span class="ident">Hir</span>::<span class="ident">literal</span>(<span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="string">&#39;a&#39;</span>)),
+    <span class="ident">Hir</span>::<span class="ident">literal</span>(<span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="string">&#39;b&#39;</span>)),
 ]));</pre>
-<h1 id="example-inspecting-an-error" class="section-header"><a href="#example-inspecting-an-error">Example: inspecting an error</a></h1>
-<p>The parser in this crate provides very detailed error values. For example,
-if an invalid character class range is given:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">use</span> <span class="ident">regex_syntax</span>::{<span class="ident">Expr</span>, <span class="ident">ErrorKind</span>};
-
-<span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">Expr</span>::<span class="ident">parse</span>(<span class="string">r&quot;[z-a]&quot;</span>).<span class="ident">unwrap_err</span>();
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>(), <span class="number">4</span>);
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">kind</span>(), <span class="kw-2">&amp;</span><span class="ident">ErrorKind</span>::<span class="ident">InvalidClassRange</span> {
-    <span class="ident">start</span>: <span class="string">&#39;z&#39;</span>,
-    <span class="ident">end</span>: <span class="string">&#39;a&#39;</span>,
-});</pre>
-<p>Or unbalanced parentheses:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">use</span> <span class="ident">regex_syntax</span>::{<span class="ident">Expr</span>, <span class="ident">ErrorKind</span>};
-
-<span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">Expr</span>::<span class="ident">parse</span>(<span class="string">r&quot;ab(cd&quot;</span>).<span class="ident">unwrap_err</span>();
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>(), <span class="number">2</span>);
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">kind</span>(), <span class="kw-2">&amp;</span><span class="ident">ErrorKind</span>::<span class="ident">UnclosedParen</span>);</pre>
-</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<h1 id="concrete-syntax-supported" class="section-header"><a href="#concrete-syntax-supported">Concrete syntax supported</a></h1>
+<p>The concrete syntax is documented as part of the public API of the
+<a href="https://docs.rs/regex/%2A/regex/#syntax"><code>regex</code> crate</a>.</p>
+<h1 id="input-safety" class="section-header"><a href="#input-safety">Input safety</a></h1>
+<p>A key feature of this library is that it is safe to use with end user facing
+input. This plays a significant role in the internal implementation. In
+particular:</p>
+<ol>
+<li>Parsers provide a <code>nest_limit</code> option that permits callers to control how
+deeply nested a regular expression is allowed to be. This makes it possible
+to do case analysis over an <code>Ast</code> or an <code>Hir</code> using recursion without
+worrying about stack overflow.</li>
+<li>Since relying on a particular stack size is brittle, this crate goes to
+great lengths to ensure that all interactions with both the <code>Ast</code> and the
+<code>Hir</code> do not use recursion. Namely, they use constant stack space and heap
+space proportional to the size of the original pattern string (in bytes).
+This includes the type's corresponding destructors. (One exception to this
+is literal extraction, but this will eventually get fixed.)</li>
+</ol>
+<h1 id="error-reporting" class="section-header"><a href="#error-reporting">Error reporting</a></h1>
+<p>The <code>Display</code> implementations on all <code>Error</code> types exposed in this library
+provide nice human readable errors that are suitable for showing to end users
+in a monospace font.</p>
+<h1 id="literal-extraction" class="section-header"><a href="#literal-extraction">Literal extraction</a></h1>
+<p>This crate provides limited support for
+<a href="hir/literal/struct.Literals.html">literal extraction from <code>Hir</code> values</a>.
+Be warned that literal extraction currently uses recursion, and therefore,
+stack size proportional to the size of the <code>Hir</code>.</p>
+<p>The purpose of literal extraction is to speed up searches. That is, if you
+know a regular expression must match a prefix or suffix literal, then it is
+often quicker to search for instances of that literal, and then confirm or deny
+the match using the full regular expression engine. These optimizations are
+done automatically in the <code>regex</code> crate.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ByteClass.html"
-                                  title='struct regex_syntax::ByteClass'>ByteClass</a></td>
+                           <td><a class="mod" href="ast/index.html"
+                                  title='mod regex_syntax::ast'>ast</a></td>
                            <td class='docblock-short'>
-                                <p>A byte class for byte ranges only.</p>
+                                <p>Defines an abstract syntax for regular expressions.</p>
 
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ByteRange.html"
-                                  title='struct regex_syntax::ByteRange'>ByteRange</a></td>
+                           <td><a class="mod" href="hir/index.html"
+                                  title='mod regex_syntax::hir'>hir</a></td>
                            <td class='docblock-short'>
-                                <p>A single inclusive range in a byte class.</p>
+                                <p>Defines a high-level intermediate representation for regular expressions.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Parser.html"
+                                  title='struct regex_syntax::Parser'>Parser</a></td>
+                           <td class='docblock-short'>
+                                <p>A convenience parser for regular expressions.</p>
 
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.CharClass.html"
-                                  title='struct regex_syntax::CharClass'>CharClass</a></td>
+                           <td><a class="struct" href="struct.ParserBuilder.html"
+                                  title='struct regex_syntax::ParserBuilder'>ParserBuilder</a></td>
                            <td class='docblock-short'>
-                                <p>A character class.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ClassRange.html"
-                                  title='struct regex_syntax::ClassRange'>ClassRange</a></td>
-                           <td class='docblock-short'>
-                                <p>A single inclusive range in a character class.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Error.html"
-                                  title='struct regex_syntax::Error'>Error</a></td>
-                           <td class='docblock-short'>
-                                <p>A parse error.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ExprBuilder.html"
-                                  title='struct regex_syntax::ExprBuilder'>ExprBuilder</a></td>
-                           <td class='docblock-short'>
-                                <p>A builder for configuring regular expression parsing.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Lit.html"
-                                  title='struct regex_syntax::Lit'>Lit</a></td>
-                           <td class='docblock-short'>
-                                <p>A single member of a set of literals extracted from a regular expression.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Literals.html"
-                                  title='struct regex_syntax::Literals'>Literals</a></td>
-                           <td class='docblock-short'>
-                                <p>A set of literal byte strings extracted from a regular expression.</p>
+                                <p>A builder for a regular expression parser.</p>
 
                            </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="enum" href="enum.ErrorKind.html"
-                                  title='enum regex_syntax::ErrorKind'>ErrorKind</a></td>
+                           <td><a class="enum" href="enum.Error.html"
+                                  title='enum regex_syntax::Error'>Error</a></td>
                            <td class='docblock-short'>
-                                <p>The specific type of parse error that can occur.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="enum" href="enum.Expr.html"
-                                  title='enum regex_syntax::Expr'>Expr</a></td>
-                           <td class='docblock-short'>
-                                <p>A regular expression abstract syntax tree.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="enum" href="enum.Repeater.html"
-                                  title='enum regex_syntax::Repeater'>Repeater</a></td>
-                           <td class='docblock-short'>
-                                <p>The type of a repeat operator expression.</p>
+                                <p>This error type encompasses any error that can be returned by this crate.</p>
 
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
@@ -199,13 +187,46 @@ if an invalid character class range is given:</p>
                                 <p>Escapes all regular expression meta characters in <code>text</code>.</p>
 
                            </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.escape_into.html"
+                                  title='fn regex_syntax::escape_into'>escape_into</a></td>
+                           <td class='docblock-short'>
+                                <p>Escapes all meta characters in <code>text</code> and writes the result into <code>buf</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.is_meta_character.html"
+                                  title='fn regex_syntax::is_meta_character'>is_meta_character</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns true if the give character has significance in a regex.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.is_word_byte.html"
+                                  title='fn regex_syntax::is_word_byte'>is_word_byte</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns true if and only if the given character is an ASCII word character.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.is_word_character.html"
+                                  title='fn regex_syntax::is_word_character'>is_word_character</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns true if and only if the given character is a Unicode word
+character.</p>
+
+                           </td>
                        </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class="type" href="type.Result.html"
                                   title='type regex_syntax::Result'>Result</a></td>
                            <td class='docblock-short'>
-                                <p>An alias for computations that can return a <code>Error</code>.</p>
+                                <p>A type alias for dealing with errors returned by this crate.</p>
 
                            </td>
                        </tr></table></section>

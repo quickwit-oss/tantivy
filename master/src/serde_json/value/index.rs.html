@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/value/index.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/value/index.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>index.rs.html -- source</title>
@@ -338,8 +338,6 @@
 <span id="282">282</span>
 <span id="283">283</span>
 <span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -452,9 +450,7 @@
     }
     <span class="kw">fn</span> <span class="ident">index_or_insert</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Value</span>::<span class="ident">Null</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">v</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(<span class="self">self</span>.<span class="ident">to_owned</span>(), <span class="ident">Value</span>::<span class="ident">Null</span>);
-            <span class="kw-2">*</span><span class="ident">v</span> <span class="op">=</span> <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">map</span>);
+            <span class="kw-2">*</span><span class="ident">v</span> <span class="op">=</span> <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">Map</span>::<span class="ident">new</span>());
         }
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> {

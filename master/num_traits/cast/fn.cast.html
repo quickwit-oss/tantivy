@@ -59,8 +59,8 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/num_traits/cast.rs.html#414-416' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn cast&lt;T, U&gt;(n: T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;U: <a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a>,&nbsp;</span></pre><div class='docblock'><p>Cast from one machine scalar to another.</p>
+               </span><a class='srclink' href='../../src/num_traits/cast.rs.html#413-415' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn cast&lt;T:&nbsp;<a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a>, U:&nbsp;<a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a>&gt;(n: T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;U&gt;</pre><div class='docblock'><p>Cast from one machine scalar to another.</p>
 <h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
 <pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="ident">twenty</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="ident">num</span>::<span class="ident">cast</span>(<span class="number">0x14</span>).<span class="ident">unwrap</span>();

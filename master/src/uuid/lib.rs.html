@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.0/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.1/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -1777,6 +1777,81 @@
 <span id="1721">1721</span>
 <span id="1722">1722</span>
 <span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
+<span id="1737">1737</span>
+<span id="1738">1738</span>
+<span id="1739">1739</span>
+<span id="1740">1740</span>
+<span id="1741">1741</span>
+<span id="1742">1742</span>
+<span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
+<span id="1773">1773</span>
+<span id="1774">1774</span>
+<span id="1775">1775</span>
+<span id="1776">1776</span>
+<span id="1777">1777</span>
+<span id="1778">1778</span>
+<span id="1779">1779</span>
+<span id="1780">1780</span>
+<span id="1781">1781</span>
+<span id="1782">1782</span>
+<span id="1783">1783</span>
+<span id="1784">1784</span>
+<span id="1785">1785</span>
+<span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2013-2014 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -1901,6 +1976,11 @@
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;v5&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">sha1</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;slog&quot;</span>, <span class="ident">not</span>(<span class="ident">test</span>)))]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">slog</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;slog&quot;</span>, <span class="ident">test</span>))]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">slog</span>;
 
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">hash</span>;
@@ -2134,15 +2214,15 @@
 
     <span class="doccomment">/// Creates a new `Uuid` (version 1 style) using a time value + seq + NodeID.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// This expects two values representing a monotonically increasing value </span>
+    <span class="doccomment">/// This expects two values representing a monotonically increasing value</span>
     <span class="doccomment">/// as well as a unique 6 byte NodeId, and an implementation of `UuidV1ClockSequence`.</span>
-    <span class="doccomment">/// This function is only guaranteed to produce unique values if the following conditions hold: </span>
-    <span class="doccomment">/// </span>
+    <span class="doccomment">/// This function is only guaranteed to produce unique values if the following conditions hold:</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// 1. The NodeID is unique for this process,</span>
     <span class="doccomment">/// 2. The Context is shared across all threads which are generating V1 UUIDs,</span>
     <span class="doccomment">/// 3. The `UuidV1ClockSequence` implementation reliably returns unique clock sequences</span>
     <span class="doccomment">///    (this crate provides `UuidV1Context` for this purpose).</span>
-    <span class="doccomment">/// </span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// The NodeID must be exactly 6 bytes long. If the NodeID is not a valid length</span>
     <span class="doccomment">/// this will return a `ParseError::InvalidLength`.</span>
     <span class="doccomment">///</span>
@@ -2381,6 +2461,40 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid</span> { <span class="ident">bytes</span>: [<span class="number">0</span>; <span class="number">16</span>] };
         <span class="ident">copy_memory</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">uuid</span>.<span class="ident">bytes</span>, <span class="ident">b</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>)
+    }
+
+    <span class="doccomment">/// Creates a `Uuid` using the supplied bytes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Basic usage:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// use uuid::Uuid;</span>
+    <span class="doccomment">/// use uuid::UuidBytes;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let bytes:UuidBytes = [70, 235, 208, 238, 14, 109, 67, 201, 185, 13, 204, 195, 90, 145, 63, 62];</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let uuid = Uuid::from_uuid_bytes(bytes);</span>
+    <span class="doccomment">/// let uuid = uuid.hyphenated().to_string();</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let expected_uuid = String::from(&quot;46ebd0ee-0e6d-43c9-b90d-ccc35a913f3e&quot;);</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// assert_eq!(expected_uuid, uuid);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// An incorrect number of bytes:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```compile_fail</span>
+    <span class="doccomment">/// use uuid::Uuid;</span>
+    <span class="doccomment">/// use uuid::UuidBytes;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let bytes:UuidBytes = [4, 54, 67, 12, 43, 2, 98, 76]; // doesn&#39;t compile</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let uuid = Uuid::from_uuid_bytes(bytes);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_uuid_bytes</span>(<span class="ident">b</span>: <span class="ident">UuidBytes</span>) <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
+        <span class="ident">Uuid</span> { <span class="ident">bytes</span>: <span class="ident">b</span> }
     }
 
     <span class="doccomment">/// Specifies the variant of the UUID structure</span>
@@ -2742,6 +2856,18 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;slog&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">slog</span>::<span class="ident">Value</span> <span class="kw">for</span> <span class="ident">Uuid</span> {
+    <span class="kw">fn</span> <span class="ident">serialize</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">_record</span>: <span class="kw-2">&amp;</span><span class="ident">slog</span>::<span class="ident">Record</span>,
+        <span class="ident">key</span>: <span class="ident">slog</span>::<span class="ident">Key</span>,
+        <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slog</span>::<span class="ident">Serializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">slog</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="ident">serializer</span>.<span class="ident">emit_arguments</span>(<span class="ident">key</span>, <span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>))
+    }
+}
+
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Simple</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="ident">fmt</span>::<span class="ident">LowerHex</span>::<span class="ident">fmt</span>(<span class="self">self</span>, <span class="ident">f</span>)
@@ -2841,6 +2967,9 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">NAMESPACE_X500</span>, <span class="ident">NAMESPACE_DNS</span>, <span class="ident">NAMESPACE_OID</span>, <span class="ident">NAMESPACE_URL</span>};
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Uuid</span>, <span class="ident">UuidVariant</span>, <span class="ident">UuidVersion</span>};
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;slog&quot;</span>)]</span>
+    <span class="kw">use</span> <span class="ident">slog</span>::{<span class="self">self</span>, <span class="ident">Drain</span>};
 
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
         <span class="ident">Uuid</span>::<span class="ident">parse_str</span>(<span class="string">&quot;F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4&quot;</span>).<span class="ident">unwrap</span>()
@@ -3452,6 +3581,19 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_uuid_bytes</span>() {
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> [
+            <span class="number">0xa1</span>, <span class="number">0xa2</span>, <span class="number">0xa3</span>, <span class="number">0xa4</span>, <span class="number">0xb1</span>, <span class="number">0xb2</span>, <span class="number">0xc1</span>, <span class="number">0xc2</span>, <span class="number">0xd1</span>, <span class="number">0xd2</span>, <span class="number">0xd3</span>, <span class="number">0xd4</span>, <span class="number">0xd5</span>, <span class="number">0xd6</span>,
+            <span class="number">0xd7</span>, <span class="number">0xd8</span>,
+        ];
+
+        <span class="kw">let</span> <span class="ident">u</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_uuid_bytes</span>(<span class="ident">b</span>);
+        <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8&quot;</span>;
+
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">u</span>.<span class="ident">simple</span>().<span class="ident">to_string</span>(), <span class="ident">expected</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_as_bytes</span>() {
         <span class="kw">let</span> <span class="ident">u</span> <span class="op">=</span> <span class="ident">new</span>();
         <span class="kw">let</span> <span class="ident">ub</span> <span class="op">=</span> <span class="ident">u</span>.<span class="ident">as_bytes</span>();
@@ -3499,6 +3641,14 @@
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">set</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">id1</span>));
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">set</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">id2</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;slog&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_slog_kv</span>() {
+        <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">slog</span>::<span class="ident">Logger</span>::<span class="ident">root</span>(<span class="ident">slog</span>::<span class="ident">Discard</span>.<span class="ident">fuse</span>(), <span class="macro">o</span><span class="macro">!</span>());
+        <span class="kw">let</span> <span class="ident">u1</span> <span class="op">=</span> <span class="ident">new</span>();
+        <span class="macro">crit</span><span class="macro">!</span>(<span class="ident">root</span>, <span class="string">&quot;test&quot;</span>; <span class="string">&quot;u1&quot;</span> <span class="op">=&gt;</span> <span class="ident">u1</span>);
     }
 }
 </pre>

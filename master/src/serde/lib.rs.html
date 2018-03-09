@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.27/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.28/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -334,6 +334,9 @@
 <span id="278">278</span>
 <span id="279">279</span>
 <span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -416,7 +419,7 @@
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
 <span class="comment">// Serde types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde/1.0.27&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde/1.0.28&quot;</span>)]</span>
 <span class="comment">// Support using Serde without the standard library!</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>), <span class="ident">no_std</span>)]</span>
 <span class="comment">// Unstable functionality only if the user asks for it. For tracking and</span>
@@ -429,8 +432,8 @@
 <span class="comment">// Whitelisted clippy lints</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
             <span class="ident">allow</span>(<span class="ident">cast_lossless</span>, <span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">linkedlist</span>,
-                  <span class="ident">needless_pass_by_value</span>, <span class="ident">type_complexity</span>, <span class="ident">unreadable_literal</span>,
-                  <span class="ident">zero_prefixed_literal</span>))]</span>
+                  <span class="ident">needless_pass_by_value</span>, <span class="ident">redundant_field_names</span>, <span class="ident">type_complexity</span>,
+                  <span class="ident">unreadable_literal</span>, <span class="ident">zero_prefixed_literal</span>))]</span>
 <span class="comment">// Whitelisted clippy_pedantic lints</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(
 <span class="comment">// integer and float ser/de requires these sorts of casts</span>
@@ -441,6 +444,7 @@
 <span class="comment">// simplifies some macros</span>
     <span class="ident">invalid_upcast_comparisons</span>,
 <span class="comment">// things are often more readable this way</span>
+    <span class="ident">decimal_literal_representation</span>,
     <span class="ident">option_unwrap_used</span>,
     <span class="ident">result_unwrap_used</span>,
     <span class="ident">shadow_reuse</span>,
@@ -448,7 +452,9 @@
     <span class="ident">stutter</span>,
     <span class="ident">use_self</span>,
 <span class="comment">// not practical</span>
+    <span class="ident">many_single_char_names</span>,
     <span class="ident">missing_docs_in_private_items</span>,
+    <span class="ident">similar_names</span>,
 <span class="comment">// alternative is not stable</span>
     <span class="ident">empty_enum</span>,
     <span class="ident">use_debug</span>,

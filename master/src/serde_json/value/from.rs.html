@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/value/from.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/value/from.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>from.rs.html -- source</title>
@@ -320,8 +320,6 @@
 <span id="264">264</span>
 <span id="265">265</span>
 <span id="266">266</span>
-<span id="267">267</span>
-<span id="268">268</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -483,7 +481,7 @@
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">f</span>: <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">f</span>.<span class="ident">to_string</span>())
+        <span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">f</span>.<span class="ident">into_owned</span>())
     }
 }
 
@@ -586,9 +584,7 @@
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">from_iter</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span><span class="op">&gt;&gt;</span>(<span class="ident">iter</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">vec</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">into</span>()).<span class="ident">collect</span>();
-
-        <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="ident">vec</span>)
+        <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="ident">iter</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">Into</span>::<span class="ident">into</span>).<span class="ident">collect</span>())
     }
 }
 </pre>

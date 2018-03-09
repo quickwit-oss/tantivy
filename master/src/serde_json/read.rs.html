@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.9/src/read.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/read.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>read.rs.html -- source</title>
@@ -936,7 +936,7 @@
                 }
                 _ <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">validate</span> {
-                        <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span>);
+                        <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span>);
                     }
                     <span class="ident">scratch</span>.<span class="ident">push</span>(<span class="ident">ch</span>);
                 }
@@ -1032,7 +1032,7 @@
                     <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ignore_escape</span>(<span class="self">self</span>));
                 }
                 _ <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span>);
+                    <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span>);
                 }
             }
         }
@@ -1113,7 +1113,7 @@
                 }
                 _ <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">validate</span> {
-                        <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span>);
+                        <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span>);
                     }
                     <span class="self">self</span>.<span class="ident">index</span> <span class="op">+=</span> <span class="number">1</span>;
                 }
@@ -1201,7 +1201,7 @@
                     <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ignore_escape</span>(<span class="self">self</span>));
                 }
                 _ <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span>);
+                    <span class="kw">return</span> <span class="ident">error</span>(<span class="self">self</span>, <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span>);
                 }
             }
         }

@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/unicode_tables/property_values.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>property_values.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc source">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+</pre><pre class="rust ">
+<span class="comment">// DO NOT EDIT THIS FILE. IT WAS AUTOMATICALLY GENERATED BY:</span>
+<span class="comment">//</span>
+<span class="comment">//  ucd-generate property-values tmp/ucd-10.0.0 --include gc,script,scx,age</span>
+<span class="comment">//</span>
+<span class="comment">// ucd-generate is available on crates.io.</span>
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">PROPERTY_VALUES</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)])] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&quot;Age&quot;</span>, <span class="kw-2">&amp;</span>[(<span class="string">&quot;1.1&quot;</span>, <span class="string">&quot;V1_1&quot;</span>), (<span class="string">&quot;10.0&quot;</span>, <span class="string">&quot;V10_0&quot;</span>), (<span class="string">&quot;2.0&quot;</span>, <span class="string">&quot;V2_0&quot;</span>),
+  (<span class="string">&quot;2.1&quot;</span>, <span class="string">&quot;V2_1&quot;</span>), (<span class="string">&quot;3.0&quot;</span>, <span class="string">&quot;V3_0&quot;</span>), (<span class="string">&quot;3.1&quot;</span>, <span class="string">&quot;V3_1&quot;</span>), (<span class="string">&quot;3.2&quot;</span>, <span class="string">&quot;V3_2&quot;</span>),
+  (<span class="string">&quot;4.0&quot;</span>, <span class="string">&quot;V4_0&quot;</span>), (<span class="string">&quot;4.1&quot;</span>, <span class="string">&quot;V4_1&quot;</span>), (<span class="string">&quot;5.0&quot;</span>, <span class="string">&quot;V5_0&quot;</span>), (<span class="string">&quot;5.1&quot;</span>, <span class="string">&quot;V5_1&quot;</span>),
+  (<span class="string">&quot;5.2&quot;</span>, <span class="string">&quot;V5_2&quot;</span>), (<span class="string">&quot;6.0&quot;</span>, <span class="string">&quot;V6_0&quot;</span>), (<span class="string">&quot;6.1&quot;</span>, <span class="string">&quot;V6_1&quot;</span>), (<span class="string">&quot;6.2&quot;</span>, <span class="string">&quot;V6_2&quot;</span>),
+  (<span class="string">&quot;6.3&quot;</span>, <span class="string">&quot;V6_3&quot;</span>), (<span class="string">&quot;7.0&quot;</span>, <span class="string">&quot;V7_0&quot;</span>), (<span class="string">&quot;8.0&quot;</span>, <span class="string">&quot;V8_0&quot;</span>), (<span class="string">&quot;9.0&quot;</span>, <span class="string">&quot;V9_0&quot;</span>),
+  (<span class="string">&quot;na&quot;</span>, <span class="string">&quot;Unassigned&quot;</span>), (<span class="string">&quot;unassigned&quot;</span>, <span class="string">&quot;Unassigned&quot;</span>), (<span class="string">&quot;v100&quot;</span>, <span class="string">&quot;V10_0&quot;</span>),
+  (<span class="string">&quot;v11&quot;</span>, <span class="string">&quot;V1_1&quot;</span>), (<span class="string">&quot;v20&quot;</span>, <span class="string">&quot;V2_0&quot;</span>), (<span class="string">&quot;v21&quot;</span>, <span class="string">&quot;V2_1&quot;</span>), (<span class="string">&quot;v30&quot;</span>, <span class="string">&quot;V3_0&quot;</span>),
+  (<span class="string">&quot;v31&quot;</span>, <span class="string">&quot;V3_1&quot;</span>), (<span class="string">&quot;v32&quot;</span>, <span class="string">&quot;V3_2&quot;</span>), (<span class="string">&quot;v40&quot;</span>, <span class="string">&quot;V4_0&quot;</span>), (<span class="string">&quot;v41&quot;</span>, <span class="string">&quot;V4_1&quot;</span>),
+  (<span class="string">&quot;v50&quot;</span>, <span class="string">&quot;V5_0&quot;</span>), (<span class="string">&quot;v51&quot;</span>, <span class="string">&quot;V5_1&quot;</span>), (<span class="string">&quot;v52&quot;</span>, <span class="string">&quot;V5_2&quot;</span>), (<span class="string">&quot;v60&quot;</span>, <span class="string">&quot;V6_0&quot;</span>),
+  (<span class="string">&quot;v61&quot;</span>, <span class="string">&quot;V6_1&quot;</span>), (<span class="string">&quot;v62&quot;</span>, <span class="string">&quot;V6_2&quot;</span>), (<span class="string">&quot;v63&quot;</span>, <span class="string">&quot;V6_3&quot;</span>), (<span class="string">&quot;v70&quot;</span>, <span class="string">&quot;V7_0&quot;</span>),
+  (<span class="string">&quot;v80&quot;</span>, <span class="string">&quot;V8_0&quot;</span>), (<span class="string">&quot;v90&quot;</span>, <span class="string">&quot;V9_0&quot;</span>), ]),
+
+  (<span class="string">&quot;General_Category&quot;</span>, <span class="kw-2">&amp;</span>[(<span class="string">&quot;c&quot;</span>, <span class="string">&quot;Other&quot;</span>), (<span class="string">&quot;casedletter&quot;</span>, <span class="string">&quot;Cased_Letter&quot;</span>),
+  (<span class="string">&quot;cc&quot;</span>, <span class="string">&quot;Control&quot;</span>), (<span class="string">&quot;cf&quot;</span>, <span class="string">&quot;Format&quot;</span>),
+  (<span class="string">&quot;closepunctuation&quot;</span>, <span class="string">&quot;Close_Punctuation&quot;</span>), (<span class="string">&quot;cn&quot;</span>, <span class="string">&quot;Unassigned&quot;</span>),
+  (<span class="string">&quot;cntrl&quot;</span>, <span class="string">&quot;Control&quot;</span>), (<span class="string">&quot;co&quot;</span>, <span class="string">&quot;Private_Use&quot;</span>), (<span class="string">&quot;combiningmark&quot;</span>, <span class="string">&quot;Mark&quot;</span>),
+  (<span class="string">&quot;connectorpunctuation&quot;</span>, <span class="string">&quot;Connector_Punctuation&quot;</span>), (<span class="string">&quot;control&quot;</span>, <span class="string">&quot;Control&quot;</span>),
+  (<span class="string">&quot;cs&quot;</span>, <span class="string">&quot;Surrogate&quot;</span>), (<span class="string">&quot;currencysymbol&quot;</span>, <span class="string">&quot;Currency_Symbol&quot;</span>),
+  (<span class="string">&quot;dashpunctuation&quot;</span>, <span class="string">&quot;Dash_Punctuation&quot;</span>),
+  (<span class="string">&quot;decimalnumber&quot;</span>, <span class="string">&quot;Decimal_Number&quot;</span>), (<span class="string">&quot;digit&quot;</span>, <span class="string">&quot;Decimal_Number&quot;</span>),
+  (<span class="string">&quot;enclosingmark&quot;</span>, <span class="string">&quot;Enclosing_Mark&quot;</span>),
+  (<span class="string">&quot;finalpunctuation&quot;</span>, <span class="string">&quot;Final_Punctuation&quot;</span>), (<span class="string">&quot;format&quot;</span>, <span class="string">&quot;Format&quot;</span>),
+  (<span class="string">&quot;initialpunctuation&quot;</span>, <span class="string">&quot;Initial_Punctuation&quot;</span>), (<span class="string">&quot;l&quot;</span>, <span class="string">&quot;Letter&quot;</span>),
+  (<span class="string">&quot;lc&quot;</span>, <span class="string">&quot;Cased_Letter&quot;</span>), (<span class="string">&quot;letter&quot;</span>, <span class="string">&quot;Letter&quot;</span>),
+  (<span class="string">&quot;letternumber&quot;</span>, <span class="string">&quot;Letter_Number&quot;</span>), (<span class="string">&quot;lineseparator&quot;</span>, <span class="string">&quot;Line_Separator&quot;</span>),
+  (<span class="string">&quot;ll&quot;</span>, <span class="string">&quot;Lowercase_Letter&quot;</span>), (<span class="string">&quot;lm&quot;</span>, <span class="string">&quot;Modifier_Letter&quot;</span>),
+  (<span class="string">&quot;lo&quot;</span>, <span class="string">&quot;Other_Letter&quot;</span>), (<span class="string">&quot;lowercaseletter&quot;</span>, <span class="string">&quot;Lowercase_Letter&quot;</span>),
+  (<span class="string">&quot;lt&quot;</span>, <span class="string">&quot;Titlecase_Letter&quot;</span>), (<span class="string">&quot;lu&quot;</span>, <span class="string">&quot;Uppercase_Letter&quot;</span>), (<span class="string">&quot;m&quot;</span>, <span class="string">&quot;Mark&quot;</span>),
+  (<span class="string">&quot;mark&quot;</span>, <span class="string">&quot;Mark&quot;</span>), (<span class="string">&quot;mathsymbol&quot;</span>, <span class="string">&quot;Math_Symbol&quot;</span>), (<span class="string">&quot;mc&quot;</span>, <span class="string">&quot;Spacing_Mark&quot;</span>),
+  (<span class="string">&quot;me&quot;</span>, <span class="string">&quot;Enclosing_Mark&quot;</span>), (<span class="string">&quot;mn&quot;</span>, <span class="string">&quot;Nonspacing_Mark&quot;</span>),
+  (<span class="string">&quot;modifierletter&quot;</span>, <span class="string">&quot;Modifier_Letter&quot;</span>),
+  (<span class="string">&quot;modifiersymbol&quot;</span>, <span class="string">&quot;Modifier_Symbol&quot;</span>), (<span class="string">&quot;n&quot;</span>, <span class="string">&quot;Number&quot;</span>),
+  (<span class="string">&quot;nd&quot;</span>, <span class="string">&quot;Decimal_Number&quot;</span>), (<span class="string">&quot;nl&quot;</span>, <span class="string">&quot;Letter_Number&quot;</span>), (<span class="string">&quot;no&quot;</span>, <span class="string">&quot;Other_Number&quot;</span>),
+  (<span class="string">&quot;nonspacingmark&quot;</span>, <span class="string">&quot;Nonspacing_Mark&quot;</span>), (<span class="string">&quot;number&quot;</span>, <span class="string">&quot;Number&quot;</span>),
+  (<span class="string">&quot;openpunctuation&quot;</span>, <span class="string">&quot;Open_Punctuation&quot;</span>), (<span class="string">&quot;other&quot;</span>, <span class="string">&quot;Other&quot;</span>),
+  (<span class="string">&quot;otherletter&quot;</span>, <span class="string">&quot;Other_Letter&quot;</span>), (<span class="string">&quot;othernumber&quot;</span>, <span class="string">&quot;Other_Number&quot;</span>),
+  (<span class="string">&quot;otherpunctuation&quot;</span>, <span class="string">&quot;Other_Punctuation&quot;</span>), (<span class="string">&quot;othersymbol&quot;</span>, <span class="string">&quot;Other_Symbol&quot;</span>),
+  (<span class="string">&quot;p&quot;</span>, <span class="string">&quot;Punctuation&quot;</span>), (<span class="string">&quot;paragraphseparator&quot;</span>, <span class="string">&quot;Paragraph_Separator&quot;</span>),
+  (<span class="string">&quot;pc&quot;</span>, <span class="string">&quot;Connector_Punctuation&quot;</span>), (<span class="string">&quot;pd&quot;</span>, <span class="string">&quot;Dash_Punctuation&quot;</span>),
+  (<span class="string">&quot;pe&quot;</span>, <span class="string">&quot;Close_Punctuation&quot;</span>), (<span class="string">&quot;pf&quot;</span>, <span class="string">&quot;Final_Punctuation&quot;</span>),
+  (<span class="string">&quot;pi&quot;</span>, <span class="string">&quot;Initial_Punctuation&quot;</span>), (<span class="string">&quot;po&quot;</span>, <span class="string">&quot;Other_Punctuation&quot;</span>),
+  (<span class="string">&quot;privateuse&quot;</span>, <span class="string">&quot;Private_Use&quot;</span>), (<span class="string">&quot;ps&quot;</span>, <span class="string">&quot;Open_Punctuation&quot;</span>),
+  (<span class="string">&quot;punct&quot;</span>, <span class="string">&quot;Punctuation&quot;</span>), (<span class="string">&quot;punctuation&quot;</span>, <span class="string">&quot;Punctuation&quot;</span>), (<span class="string">&quot;s&quot;</span>, <span class="string">&quot;Symbol&quot;</span>),
+  (<span class="string">&quot;sc&quot;</span>, <span class="string">&quot;Currency_Symbol&quot;</span>), (<span class="string">&quot;separator&quot;</span>, <span class="string">&quot;Separator&quot;</span>),
+  (<span class="string">&quot;sk&quot;</span>, <span class="string">&quot;Modifier_Symbol&quot;</span>), (<span class="string">&quot;sm&quot;</span>, <span class="string">&quot;Math_Symbol&quot;</span>), (<span class="string">&quot;so&quot;</span>, <span class="string">&quot;Other_Symbol&quot;</span>),
+  (<span class="string">&quot;spaceseparator&quot;</span>, <span class="string">&quot;Space_Separator&quot;</span>), (<span class="string">&quot;spacingmark&quot;</span>, <span class="string">&quot;Spacing_Mark&quot;</span>),
+  (<span class="string">&quot;surrogate&quot;</span>, <span class="string">&quot;Surrogate&quot;</span>), (<span class="string">&quot;symbol&quot;</span>, <span class="string">&quot;Symbol&quot;</span>),
+  (<span class="string">&quot;titlecaseletter&quot;</span>, <span class="string">&quot;Titlecase_Letter&quot;</span>), (<span class="string">&quot;unassigned&quot;</span>, <span class="string">&quot;Unassigned&quot;</span>),
+  (<span class="string">&quot;uppercaseletter&quot;</span>, <span class="string">&quot;Uppercase_Letter&quot;</span>), (<span class="string">&quot;z&quot;</span>, <span class="string">&quot;Separator&quot;</span>),
+  (<span class="string">&quot;zl&quot;</span>, <span class="string">&quot;Line_Separator&quot;</span>), (<span class="string">&quot;zp&quot;</span>, <span class="string">&quot;Paragraph_Separator&quot;</span>),
+  (<span class="string">&quot;zs&quot;</span>, <span class="string">&quot;Space_Separator&quot;</span>), ]),
+
+  (<span class="string">&quot;Script&quot;</span>, <span class="kw-2">&amp;</span>[(<span class="string">&quot;adlam&quot;</span>, <span class="string">&quot;Adlam&quot;</span>), (<span class="string">&quot;adlm&quot;</span>, <span class="string">&quot;Adlam&quot;</span>),
+  (<span class="string">&quot;aghb&quot;</span>, <span class="string">&quot;Caucasian_Albanian&quot;</span>), (<span class="string">&quot;ahom&quot;</span>, <span class="string">&quot;Ahom&quot;</span>),
+  (<span class="string">&quot;anatolianhieroglyphs&quot;</span>, <span class="string">&quot;Anatolian_Hieroglyphs&quot;</span>), (<span class="string">&quot;arab&quot;</span>, <span class="string">&quot;Arabic&quot;</span>),
+  (<span class="string">&quot;arabic&quot;</span>, <span class="string">&quot;Arabic&quot;</span>), (<span class="string">&quot;armenian&quot;</span>, <span class="string">&quot;Armenian&quot;</span>),
+  (<span class="string">&quot;armi&quot;</span>, <span class="string">&quot;Imperial_Aramaic&quot;</span>), (<span class="string">&quot;armn&quot;</span>, <span class="string">&quot;Armenian&quot;</span>), (<span class="string">&quot;avestan&quot;</span>, <span class="string">&quot;Avestan&quot;</span>),
+  (<span class="string">&quot;avst&quot;</span>, <span class="string">&quot;Avestan&quot;</span>), (<span class="string">&quot;bali&quot;</span>, <span class="string">&quot;Balinese&quot;</span>), (<span class="string">&quot;balinese&quot;</span>, <span class="string">&quot;Balinese&quot;</span>),
+  (<span class="string">&quot;bamu&quot;</span>, <span class="string">&quot;Bamum&quot;</span>), (<span class="string">&quot;bamum&quot;</span>, <span class="string">&quot;Bamum&quot;</span>), (<span class="string">&quot;bass&quot;</span>, <span class="string">&quot;Bassa_Vah&quot;</span>),
+  (<span class="string">&quot;bassavah&quot;</span>, <span class="string">&quot;Bassa_Vah&quot;</span>), (<span class="string">&quot;batak&quot;</span>, <span class="string">&quot;Batak&quot;</span>), (<span class="string">&quot;batk&quot;</span>, <span class="string">&quot;Batak&quot;</span>),
+  (<span class="string">&quot;beng&quot;</span>, <span class="string">&quot;Bengali&quot;</span>), (<span class="string">&quot;bengali&quot;</span>, <span class="string">&quot;Bengali&quot;</span>), (<span class="string">&quot;bhaiksuki&quot;</span>, <span class="string">&quot;Bhaiksuki&quot;</span>),
+  (<span class="string">&quot;bhks&quot;</span>, <span class="string">&quot;Bhaiksuki&quot;</span>), (<span class="string">&quot;bopo&quot;</span>, <span class="string">&quot;Bopomofo&quot;</span>), (<span class="string">&quot;bopomofo&quot;</span>, <span class="string">&quot;Bopomofo&quot;</span>),
+  (<span class="string">&quot;brah&quot;</span>, <span class="string">&quot;Brahmi&quot;</span>), (<span class="string">&quot;brahmi&quot;</span>, <span class="string">&quot;Brahmi&quot;</span>), (<span class="string">&quot;brai&quot;</span>, <span class="string">&quot;Braille&quot;</span>),
+  (<span class="string">&quot;braille&quot;</span>, <span class="string">&quot;Braille&quot;</span>), (<span class="string">&quot;bugi&quot;</span>, <span class="string">&quot;Buginese&quot;</span>), (<span class="string">&quot;buginese&quot;</span>, <span class="string">&quot;Buginese&quot;</span>),
+  (<span class="string">&quot;buhd&quot;</span>, <span class="string">&quot;Buhid&quot;</span>), (<span class="string">&quot;buhid&quot;</span>, <span class="string">&quot;Buhid&quot;</span>), (<span class="string">&quot;cakm&quot;</span>, <span class="string">&quot;Chakma&quot;</span>),
+  (<span class="string">&quot;canadianaboriginal&quot;</span>, <span class="string">&quot;Canadian_Aboriginal&quot;</span>),
+  (<span class="string">&quot;cans&quot;</span>, <span class="string">&quot;Canadian_Aboriginal&quot;</span>), (<span class="string">&quot;cari&quot;</span>, <span class="string">&quot;Carian&quot;</span>), (<span class="string">&quot;carian&quot;</span>, <span class="string">&quot;Carian&quot;</span>),
+  (<span class="string">&quot;caucasianalbanian&quot;</span>, <span class="string">&quot;Caucasian_Albanian&quot;</span>), (<span class="string">&quot;chakma&quot;</span>, <span class="string">&quot;Chakma&quot;</span>),
+  (<span class="string">&quot;cham&quot;</span>, <span class="string">&quot;Cham&quot;</span>), (<span class="string">&quot;cher&quot;</span>, <span class="string">&quot;Cherokee&quot;</span>), (<span class="string">&quot;cherokee&quot;</span>, <span class="string">&quot;Cherokee&quot;</span>),
+  (<span class="string">&quot;common&quot;</span>, <span class="string">&quot;Common&quot;</span>), (<span class="string">&quot;copt&quot;</span>, <span class="string">&quot;Coptic&quot;</span>), (<span class="string">&quot;coptic&quot;</span>, <span class="string">&quot;Coptic&quot;</span>),
+  (<span class="string">&quot;cprt&quot;</span>, <span class="string">&quot;Cypriot&quot;</span>), (<span class="string">&quot;cuneiform&quot;</span>, <span class="string">&quot;Cuneiform&quot;</span>), (<span class="string">&quot;cypriot&quot;</span>, <span class="string">&quot;Cypriot&quot;</span>),
+  (<span class="string">&quot;cyrillic&quot;</span>, <span class="string">&quot;Cyrillic&quot;</span>), (<span class="string">&quot;cyrl&quot;</span>, <span class="string">&quot;Cyrillic&quot;</span>), (<span class="string">&quot;deseret&quot;</span>, <span class="string">&quot;Deseret&quot;</span>),
+  (<span class="string">&quot;deva&quot;</span>, <span class="string">&quot;Devanagari&quot;</span>), (<span class="string">&quot;devanagari&quot;</span>, <span class="string">&quot;Devanagari&quot;</span>), (<span class="string">&quot;dsrt&quot;</span>, <span class="string">&quot;Deseret&quot;</span>),
+  (<span class="string">&quot;dupl&quot;</span>, <span class="string">&quot;Duployan&quot;</span>), (<span class="string">&quot;duployan&quot;</span>, <span class="string">&quot;Duployan&quot;</span>),
+  (<span class="string">&quot;egyp&quot;</span>, <span class="string">&quot;Egyptian_Hieroglyphs&quot;</span>),
+  (<span class="string">&quot;egyptianhieroglyphs&quot;</span>, <span class="string">&quot;Egyptian_Hieroglyphs&quot;</span>), (<span class="string">&quot;elba&quot;</span>, <span class="string">&quot;Elbasan&quot;</span>),
+  (<span class="string">&quot;elbasan&quot;</span>, <span class="string">&quot;Elbasan&quot;</span>), (<span class="string">&quot;ethi&quot;</span>, <span class="string">&quot;Ethiopic&quot;</span>), (<span class="string">&quot;ethiopic&quot;</span>, <span class="string">&quot;Ethiopic&quot;</span>),
+  (<span class="string">&quot;geor&quot;</span>, <span class="string">&quot;Georgian&quot;</span>), (<span class="string">&quot;georgian&quot;</span>, <span class="string">&quot;Georgian&quot;</span>), (<span class="string">&quot;glag&quot;</span>, <span class="string">&quot;Glagolitic&quot;</span>),
+  (<span class="string">&quot;glagolitic&quot;</span>, <span class="string">&quot;Glagolitic&quot;</span>), (<span class="string">&quot;gonm&quot;</span>, <span class="string">&quot;Masaram_Gondi&quot;</span>), (<span class="string">&quot;goth&quot;</span>, <span class="string">&quot;Gothic&quot;</span>),
+  (<span class="string">&quot;gothic&quot;</span>, <span class="string">&quot;Gothic&quot;</span>), (<span class="string">&quot;gran&quot;</span>, <span class="string">&quot;Grantha&quot;</span>), (<span class="string">&quot;grantha&quot;</span>, <span class="string">&quot;Grantha&quot;</span>),
+  (<span class="string">&quot;greek&quot;</span>, <span class="string">&quot;Greek&quot;</span>), (<span class="string">&quot;grek&quot;</span>, <span class="string">&quot;Greek&quot;</span>), (<span class="string">&quot;gujarati&quot;</span>, <span class="string">&quot;Gujarati&quot;</span>),
+  (<span class="string">&quot;gujr&quot;</span>, <span class="string">&quot;Gujarati&quot;</span>), (<span class="string">&quot;gurmukhi&quot;</span>, <span class="string">&quot;Gurmukhi&quot;</span>), (<span class="string">&quot;guru&quot;</span>, <span class="string">&quot;Gurmukhi&quot;</span>),
+  (<span class="string">&quot;han&quot;</span>, <span class="string">&quot;Han&quot;</span>), (<span class="string">&quot;hang&quot;</span>, <span class="string">&quot;Hangul&quot;</span>), (<span class="string">&quot;hangul&quot;</span>, <span class="string">&quot;Hangul&quot;</span>), (<span class="string">&quot;hani&quot;</span>, <span class="string">&quot;Han&quot;</span>),
+  (<span class="string">&quot;hano&quot;</span>, <span class="string">&quot;Hanunoo&quot;</span>), (<span class="string">&quot;hanunoo&quot;</span>, <span class="string">&quot;Hanunoo&quot;</span>), (<span class="string">&quot;hatr&quot;</span>, <span class="string">&quot;Hatran&quot;</span>),
+  (<span class="string">&quot;hatran&quot;</span>, <span class="string">&quot;Hatran&quot;</span>), (<span class="string">&quot;hebr&quot;</span>, <span class="string">&quot;Hebrew&quot;</span>), (<span class="string">&quot;hebrew&quot;</span>, <span class="string">&quot;Hebrew&quot;</span>),
+  (<span class="string">&quot;hira&quot;</span>, <span class="string">&quot;Hiragana&quot;</span>), (<span class="string">&quot;hiragana&quot;</span>, <span class="string">&quot;Hiragana&quot;</span>),
+  (<span class="string">&quot;hluw&quot;</span>, <span class="string">&quot;Anatolian_Hieroglyphs&quot;</span>), (<span class="string">&quot;hmng&quot;</span>, <span class="string">&quot;Pahawh_Hmong&quot;</span>),
+  (<span class="string">&quot;hrkt&quot;</span>, <span class="string">&quot;Katakana_Or_Hiragana&quot;</span>), (<span class="string">&quot;hung&quot;</span>, <span class="string">&quot;Old_Hungarian&quot;</span>),
+  (<span class="string">&quot;imperialaramaic&quot;</span>, <span class="string">&quot;Imperial_Aramaic&quot;</span>), (<span class="string">&quot;inherited&quot;</span>, <span class="string">&quot;Inherited&quot;</span>),
+  (<span class="string">&quot;inscriptionalpahlavi&quot;</span>, <span class="string">&quot;Inscriptional_Pahlavi&quot;</span>),
+  (<span class="string">&quot;inscriptionalparthian&quot;</span>, <span class="string">&quot;Inscriptional_Parthian&quot;</span>), (<span class="string">&quot;ital&quot;</span>, <span class="string">&quot;Old_Italic&quot;</span>),
+  (<span class="string">&quot;java&quot;</span>, <span class="string">&quot;Javanese&quot;</span>), (<span class="string">&quot;javanese&quot;</span>, <span class="string">&quot;Javanese&quot;</span>), (<span class="string">&quot;kaithi&quot;</span>, <span class="string">&quot;Kaithi&quot;</span>),
+  (<span class="string">&quot;kali&quot;</span>, <span class="string">&quot;Kayah_Li&quot;</span>), (<span class="string">&quot;kana&quot;</span>, <span class="string">&quot;Katakana&quot;</span>), (<span class="string">&quot;kannada&quot;</span>, <span class="string">&quot;Kannada&quot;</span>),
+  (<span class="string">&quot;katakana&quot;</span>, <span class="string">&quot;Katakana&quot;</span>), (<span class="string">&quot;katakanaorhiragana&quot;</span>, <span class="string">&quot;Katakana_Or_Hiragana&quot;</span>),
+  (<span class="string">&quot;kayahli&quot;</span>, <span class="string">&quot;Kayah_Li&quot;</span>), (<span class="string">&quot;khar&quot;</span>, <span class="string">&quot;Kharoshthi&quot;</span>),
+  (<span class="string">&quot;kharoshthi&quot;</span>, <span class="string">&quot;Kharoshthi&quot;</span>), (<span class="string">&quot;khmer&quot;</span>, <span class="string">&quot;Khmer&quot;</span>), (<span class="string">&quot;khmr&quot;</span>, <span class="string">&quot;Khmer&quot;</span>),
+  (<span class="string">&quot;khoj&quot;</span>, <span class="string">&quot;Khojki&quot;</span>), (<span class="string">&quot;khojki&quot;</span>, <span class="string">&quot;Khojki&quot;</span>), (<span class="string">&quot;khudawadi&quot;</span>, <span class="string">&quot;Khudawadi&quot;</span>),
+  (<span class="string">&quot;knda&quot;</span>, <span class="string">&quot;Kannada&quot;</span>), (<span class="string">&quot;kthi&quot;</span>, <span class="string">&quot;Kaithi&quot;</span>), (<span class="string">&quot;lana&quot;</span>, <span class="string">&quot;Tai_Tham&quot;</span>),
+  (<span class="string">&quot;lao&quot;</span>, <span class="string">&quot;Lao&quot;</span>), (<span class="string">&quot;laoo&quot;</span>, <span class="string">&quot;Lao&quot;</span>), (<span class="string">&quot;latin&quot;</span>, <span class="string">&quot;Latin&quot;</span>), (<span class="string">&quot;latn&quot;</span>, <span class="string">&quot;Latin&quot;</span>),
+  (<span class="string">&quot;lepc&quot;</span>, <span class="string">&quot;Lepcha&quot;</span>), (<span class="string">&quot;lepcha&quot;</span>, <span class="string">&quot;Lepcha&quot;</span>), (<span class="string">&quot;limb&quot;</span>, <span class="string">&quot;Limbu&quot;</span>),
+  (<span class="string">&quot;limbu&quot;</span>, <span class="string">&quot;Limbu&quot;</span>), (<span class="string">&quot;lina&quot;</span>, <span class="string">&quot;Linear_A&quot;</span>), (<span class="string">&quot;linb&quot;</span>, <span class="string">&quot;Linear_B&quot;</span>),
+  (<span class="string">&quot;lineara&quot;</span>, <span class="string">&quot;Linear_A&quot;</span>), (<span class="string">&quot;linearb&quot;</span>, <span class="string">&quot;Linear_B&quot;</span>), (<span class="string">&quot;lisu&quot;</span>, <span class="string">&quot;Lisu&quot;</span>),
+  (<span class="string">&quot;lyci&quot;</span>, <span class="string">&quot;Lycian&quot;</span>), (<span class="string">&quot;lycian&quot;</span>, <span class="string">&quot;Lycian&quot;</span>), (<span class="string">&quot;lydi&quot;</span>, <span class="string">&quot;Lydian&quot;</span>),
+  (<span class="string">&quot;lydian&quot;</span>, <span class="string">&quot;Lydian&quot;</span>), (<span class="string">&quot;mahajani&quot;</span>, <span class="string">&quot;Mahajani&quot;</span>), (<span class="string">&quot;mahj&quot;</span>, <span class="string">&quot;Mahajani&quot;</span>),
+  (<span class="string">&quot;malayalam&quot;</span>, <span class="string">&quot;Malayalam&quot;</span>), (<span class="string">&quot;mand&quot;</span>, <span class="string">&quot;Mandaic&quot;</span>), (<span class="string">&quot;mandaic&quot;</span>, <span class="string">&quot;Mandaic&quot;</span>),
+  (<span class="string">&quot;mani&quot;</span>, <span class="string">&quot;Manichaean&quot;</span>), (<span class="string">&quot;manichaean&quot;</span>, <span class="string">&quot;Manichaean&quot;</span>), (<span class="string">&quot;marc&quot;</span>, <span class="string">&quot;Marchen&quot;</span>),
+  (<span class="string">&quot;marchen&quot;</span>, <span class="string">&quot;Marchen&quot;</span>), (<span class="string">&quot;masaramgondi&quot;</span>, <span class="string">&quot;Masaram_Gondi&quot;</span>),
+  (<span class="string">&quot;meeteimayek&quot;</span>, <span class="string">&quot;Meetei_Mayek&quot;</span>), (<span class="string">&quot;mend&quot;</span>, <span class="string">&quot;Mende_Kikakui&quot;</span>),
+  (<span class="string">&quot;mendekikakui&quot;</span>, <span class="string">&quot;Mende_Kikakui&quot;</span>), (<span class="string">&quot;merc&quot;</span>, <span class="string">&quot;Meroitic_Cursive&quot;</span>),
+  (<span class="string">&quot;mero&quot;</span>, <span class="string">&quot;Meroitic_Hieroglyphs&quot;</span>), (<span class="string">&quot;meroiticcursive&quot;</span>, <span class="string">&quot;Meroitic_Cursive&quot;</span>),
+  (<span class="string">&quot;meroitichieroglyphs&quot;</span>, <span class="string">&quot;Meroitic_Hieroglyphs&quot;</span>), (<span class="string">&quot;miao&quot;</span>, <span class="string">&quot;Miao&quot;</span>),
+  (<span class="string">&quot;mlym&quot;</span>, <span class="string">&quot;Malayalam&quot;</span>), (<span class="string">&quot;modi&quot;</span>, <span class="string">&quot;Modi&quot;</span>), (<span class="string">&quot;mong&quot;</span>, <span class="string">&quot;Mongolian&quot;</span>),
+  (<span class="string">&quot;mongolian&quot;</span>, <span class="string">&quot;Mongolian&quot;</span>), (<span class="string">&quot;mro&quot;</span>, <span class="string">&quot;Mro&quot;</span>), (<span class="string">&quot;mroo&quot;</span>, <span class="string">&quot;Mro&quot;</span>),
+  (<span class="string">&quot;mtei&quot;</span>, <span class="string">&quot;Meetei_Mayek&quot;</span>), (<span class="string">&quot;mult&quot;</span>, <span class="string">&quot;Multani&quot;</span>), (<span class="string">&quot;multani&quot;</span>, <span class="string">&quot;Multani&quot;</span>),
+  (<span class="string">&quot;myanmar&quot;</span>, <span class="string">&quot;Myanmar&quot;</span>), (<span class="string">&quot;mymr&quot;</span>, <span class="string">&quot;Myanmar&quot;</span>), (<span class="string">&quot;nabataean&quot;</span>, <span class="string">&quot;Nabataean&quot;</span>),
+  (<span class="string">&quot;narb&quot;</span>, <span class="string">&quot;Old_North_Arabian&quot;</span>), (<span class="string">&quot;nbat&quot;</span>, <span class="string">&quot;Nabataean&quot;</span>), (<span class="string">&quot;newa&quot;</span>, <span class="string">&quot;Newa&quot;</span>),
+  (<span class="string">&quot;newtailue&quot;</span>, <span class="string">&quot;New_Tai_Lue&quot;</span>), (<span class="string">&quot;nko&quot;</span>, <span class="string">&quot;Nko&quot;</span>), (<span class="string">&quot;nkoo&quot;</span>, <span class="string">&quot;Nko&quot;</span>),
+  (<span class="string">&quot;nshu&quot;</span>, <span class="string">&quot;Nushu&quot;</span>), (<span class="string">&quot;nushu&quot;</span>, <span class="string">&quot;Nushu&quot;</span>), (<span class="string">&quot;ogam&quot;</span>, <span class="string">&quot;Ogham&quot;</span>),
+  (<span class="string">&quot;ogham&quot;</span>, <span class="string">&quot;Ogham&quot;</span>), (<span class="string">&quot;olchiki&quot;</span>, <span class="string">&quot;Ol_Chiki&quot;</span>), (<span class="string">&quot;olck&quot;</span>, <span class="string">&quot;Ol_Chiki&quot;</span>),
+  (<span class="string">&quot;oldhungarian&quot;</span>, <span class="string">&quot;Old_Hungarian&quot;</span>), (<span class="string">&quot;olditalic&quot;</span>, <span class="string">&quot;Old_Italic&quot;</span>),
+  (<span class="string">&quot;oldnortharabian&quot;</span>, <span class="string">&quot;Old_North_Arabian&quot;</span>), (<span class="string">&quot;oldpermic&quot;</span>, <span class="string">&quot;Old_Permic&quot;</span>),
+  (<span class="string">&quot;oldpersian&quot;</span>, <span class="string">&quot;Old_Persian&quot;</span>), (<span class="string">&quot;oldsoutharabian&quot;</span>, <span class="string">&quot;Old_South_Arabian&quot;</span>),
+  (<span class="string">&quot;oldturkic&quot;</span>, <span class="string">&quot;Old_Turkic&quot;</span>), (<span class="string">&quot;oriya&quot;</span>, <span class="string">&quot;Oriya&quot;</span>), (<span class="string">&quot;orkh&quot;</span>, <span class="string">&quot;Old_Turkic&quot;</span>),
+  (<span class="string">&quot;orya&quot;</span>, <span class="string">&quot;Oriya&quot;</span>), (<span class="string">&quot;osage&quot;</span>, <span class="string">&quot;Osage&quot;</span>), (<span class="string">&quot;osge&quot;</span>, <span class="string">&quot;Osage&quot;</span>),
+  (<span class="string">&quot;osma&quot;</span>, <span class="string">&quot;Osmanya&quot;</span>), (<span class="string">&quot;osmanya&quot;</span>, <span class="string">&quot;Osmanya&quot;</span>),
+  (<span class="string">&quot;pahawhhmong&quot;</span>, <span class="string">&quot;Pahawh_Hmong&quot;</span>), (<span class="string">&quot;palm&quot;</span>, <span class="string">&quot;Palmyrene&quot;</span>),
+  (<span class="string">&quot;palmyrene&quot;</span>, <span class="string">&quot;Palmyrene&quot;</span>), (<span class="string">&quot;pauc&quot;</span>, <span class="string">&quot;Pau_Cin_Hau&quot;</span>),
+  (<span class="string">&quot;paucinhau&quot;</span>, <span class="string">&quot;Pau_Cin_Hau&quot;</span>), (<span class="string">&quot;perm&quot;</span>, <span class="string">&quot;Old_Permic&quot;</span>), (<span class="string">&quot;phag&quot;</span>, <span class="string">&quot;Phags_Pa&quot;</span>),
+  (<span class="string">&quot;phagspa&quot;</span>, <span class="string">&quot;Phags_Pa&quot;</span>), (<span class="string">&quot;phli&quot;</span>, <span class="string">&quot;Inscriptional_Pahlavi&quot;</span>),
+  (<span class="string">&quot;phlp&quot;</span>, <span class="string">&quot;Psalter_Pahlavi&quot;</span>), (<span class="string">&quot;phnx&quot;</span>, <span class="string">&quot;Phoenician&quot;</span>),
+  (<span class="string">&quot;phoenician&quot;</span>, <span class="string">&quot;Phoenician&quot;</span>), (<span class="string">&quot;plrd&quot;</span>, <span class="string">&quot;Miao&quot;</span>),
+  (<span class="string">&quot;prti&quot;</span>, <span class="string">&quot;Inscriptional_Parthian&quot;</span>), (<span class="string">&quot;psalterpahlavi&quot;</span>, <span class="string">&quot;Psalter_Pahlavi&quot;</span>),
+  (<span class="string">&quot;qaac&quot;</span>, <span class="string">&quot;Coptic&quot;</span>), (<span class="string">&quot;qaai&quot;</span>, <span class="string">&quot;Inherited&quot;</span>), (<span class="string">&quot;rejang&quot;</span>, <span class="string">&quot;Rejang&quot;</span>),
+  (<span class="string">&quot;rjng&quot;</span>, <span class="string">&quot;Rejang&quot;</span>), (<span class="string">&quot;runic&quot;</span>, <span class="string">&quot;Runic&quot;</span>), (<span class="string">&quot;runr&quot;</span>, <span class="string">&quot;Runic&quot;</span>),
+  (<span class="string">&quot;samaritan&quot;</span>, <span class="string">&quot;Samaritan&quot;</span>), (<span class="string">&quot;samr&quot;</span>, <span class="string">&quot;Samaritan&quot;</span>),
+  (<span class="string">&quot;sarb&quot;</span>, <span class="string">&quot;Old_South_Arabian&quot;</span>), (<span class="string">&quot;saur&quot;</span>, <span class="string">&quot;Saurashtra&quot;</span>),
+  (<span class="string">&quot;saurashtra&quot;</span>, <span class="string">&quot;Saurashtra&quot;</span>), (<span class="string">&quot;sgnw&quot;</span>, <span class="string">&quot;SignWriting&quot;</span>),
+  (<span class="string">&quot;sharada&quot;</span>, <span class="string">&quot;Sharada&quot;</span>), (<span class="string">&quot;shavian&quot;</span>, <span class="string">&quot;Shavian&quot;</span>), (<span class="string">&quot;shaw&quot;</span>, <span class="string">&quot;Shavian&quot;</span>),
+  (<span class="string">&quot;shrd&quot;</span>, <span class="string">&quot;Sharada&quot;</span>), (<span class="string">&quot;sidd&quot;</span>, <span class="string">&quot;Siddham&quot;</span>), (<span class="string">&quot;siddham&quot;</span>, <span class="string">&quot;Siddham&quot;</span>),
+  (<span class="string">&quot;signwriting&quot;</span>, <span class="string">&quot;SignWriting&quot;</span>), (<span class="string">&quot;sind&quot;</span>, <span class="string">&quot;Khudawadi&quot;</span>), (<span class="string">&quot;sinh&quot;</span>, <span class="string">&quot;Sinhala&quot;</span>),
+  (<span class="string">&quot;sinhala&quot;</span>, <span class="string">&quot;Sinhala&quot;</span>), (<span class="string">&quot;sora&quot;</span>, <span class="string">&quot;Sora_Sompeng&quot;</span>),
+  (<span class="string">&quot;sorasompeng&quot;</span>, <span class="string">&quot;Sora_Sompeng&quot;</span>), (<span class="string">&quot;soyo&quot;</span>, <span class="string">&quot;Soyombo&quot;</span>),
+  (<span class="string">&quot;soyombo&quot;</span>, <span class="string">&quot;Soyombo&quot;</span>), (<span class="string">&quot;sund&quot;</span>, <span class="string">&quot;Sundanese&quot;</span>), (<span class="string">&quot;sundanese&quot;</span>, <span class="string">&quot;Sundanese&quot;</span>),
+  (<span class="string">&quot;sylo&quot;</span>, <span class="string">&quot;Syloti_Nagri&quot;</span>), (<span class="string">&quot;sylotinagri&quot;</span>, <span class="string">&quot;Syloti_Nagri&quot;</span>),
+  (<span class="string">&quot;syrc&quot;</span>, <span class="string">&quot;Syriac&quot;</span>), (<span class="string">&quot;syriac&quot;</span>, <span class="string">&quot;Syriac&quot;</span>), (<span class="string">&quot;tagalog&quot;</span>, <span class="string">&quot;Tagalog&quot;</span>),
+  (<span class="string">&quot;tagb&quot;</span>, <span class="string">&quot;Tagbanwa&quot;</span>), (<span class="string">&quot;tagbanwa&quot;</span>, <span class="string">&quot;Tagbanwa&quot;</span>), (<span class="string">&quot;taile&quot;</span>, <span class="string">&quot;Tai_Le&quot;</span>),
+  (<span class="string">&quot;taitham&quot;</span>, <span class="string">&quot;Tai_Tham&quot;</span>), (<span class="string">&quot;taiviet&quot;</span>, <span class="string">&quot;Tai_Viet&quot;</span>), (<span class="string">&quot;takr&quot;</span>, <span class="string">&quot;Takri&quot;</span>),
+  (<span class="string">&quot;takri&quot;</span>, <span class="string">&quot;Takri&quot;</span>), (<span class="string">&quot;tale&quot;</span>, <span class="string">&quot;Tai_Le&quot;</span>), (<span class="string">&quot;talu&quot;</span>, <span class="string">&quot;New_Tai_Lue&quot;</span>),
+  (<span class="string">&quot;tamil&quot;</span>, <span class="string">&quot;Tamil&quot;</span>), (<span class="string">&quot;taml&quot;</span>, <span class="string">&quot;Tamil&quot;</span>), (<span class="string">&quot;tang&quot;</span>, <span class="string">&quot;Tangut&quot;</span>),
+  (<span class="string">&quot;tangut&quot;</span>, <span class="string">&quot;Tangut&quot;</span>), (<span class="string">&quot;tavt&quot;</span>, <span class="string">&quot;Tai_Viet&quot;</span>), (<span class="string">&quot;telu&quot;</span>, <span class="string">&quot;Telugu&quot;</span>),
+  (<span class="string">&quot;telugu&quot;</span>, <span class="string">&quot;Telugu&quot;</span>), (<span class="string">&quot;tfng&quot;</span>, <span class="string">&quot;Tifinagh&quot;</span>), (<span class="string">&quot;tglg&quot;</span>, <span class="string">&quot;Tagalog&quot;</span>),
+  (<span class="string">&quot;thaa&quot;</span>, <span class="string">&quot;Thaana&quot;</span>), (<span class="string">&quot;thaana&quot;</span>, <span class="string">&quot;Thaana&quot;</span>), (<span class="string">&quot;thai&quot;</span>, <span class="string">&quot;Thai&quot;</span>),
+  (<span class="string">&quot;tibetan&quot;</span>, <span class="string">&quot;Tibetan&quot;</span>), (<span class="string">&quot;tibt&quot;</span>, <span class="string">&quot;Tibetan&quot;</span>), (<span class="string">&quot;tifinagh&quot;</span>, <span class="string">&quot;Tifinagh&quot;</span>),
+  (<span class="string">&quot;tirh&quot;</span>, <span class="string">&quot;Tirhuta&quot;</span>), (<span class="string">&quot;tirhuta&quot;</span>, <span class="string">&quot;Tirhuta&quot;</span>), (<span class="string">&quot;ugar&quot;</span>, <span class="string">&quot;Ugaritic&quot;</span>),
+  (<span class="string">&quot;ugaritic&quot;</span>, <span class="string">&quot;Ugaritic&quot;</span>), (<span class="string">&quot;unknown&quot;</span>, <span class="string">&quot;Unknown&quot;</span>), (<span class="string">&quot;vai&quot;</span>, <span class="string">&quot;Vai&quot;</span>),
+  (<span class="string">&quot;vaii&quot;</span>, <span class="string">&quot;Vai&quot;</span>), (<span class="string">&quot;wara&quot;</span>, <span class="string">&quot;Warang_Citi&quot;</span>), (<span class="string">&quot;warangciti&quot;</span>, <span class="string">&quot;Warang_Citi&quot;</span>),
+  (<span class="string">&quot;xpeo&quot;</span>, <span class="string">&quot;Old_Persian&quot;</span>), (<span class="string">&quot;xsux&quot;</span>, <span class="string">&quot;Cuneiform&quot;</span>), (<span class="string">&quot;yi&quot;</span>, <span class="string">&quot;Yi&quot;</span>),
+  (<span class="string">&quot;yiii&quot;</span>, <span class="string">&quot;Yi&quot;</span>), (<span class="string">&quot;zanabazarsquare&quot;</span>, <span class="string">&quot;Zanabazar_Square&quot;</span>),
+  (<span class="string">&quot;zanb&quot;</span>, <span class="string">&quot;Zanabazar_Square&quot;</span>), (<span class="string">&quot;zinh&quot;</span>, <span class="string">&quot;Inherited&quot;</span>), (<span class="string">&quot;zyyy&quot;</span>, <span class="string">&quot;Common&quot;</span>),
+  (<span class="string">&quot;zzzz&quot;</span>, <span class="string">&quot;Unknown&quot;</span>), ]),
+
+  (<span class="string">&quot;Script_Extensions&quot;</span>, <span class="kw-2">&amp;</span>[(<span class="string">&quot;adlam&quot;</span>, <span class="string">&quot;Adlam&quot;</span>), (<span class="string">&quot;adlm&quot;</span>, <span class="string">&quot;Adlam&quot;</span>),
+  (<span class="string">&quot;aghb&quot;</span>, <span class="string">&quot;Caucasian_Albanian&quot;</span>), (<span class="string">&quot;ahom&quot;</span>, <span class="string">&quot;Ahom&quot;</span>),
+  (<span class="string">&quot;anatolianhieroglyphs&quot;</span>, <span class="string">&quot;Anatolian_Hieroglyphs&quot;</span>), (<span class="string">&quot;arab&quot;</span>, <span class="string">&quot;Arabic&quot;</span>),
+  (<span class="string">&quot;arabic&quot;</span>, <span class="string">&quot;Arabic&quot;</span>), (<span class="string">&quot;armenian&quot;</span>, <span class="string">&quot;Armenian&quot;</span>),
+  (<span class="string">&quot;armi&quot;</span>, <span class="string">&quot;Imperial_Aramaic&quot;</span>), (<span class="string">&quot;armn&quot;</span>, <span class="string">&quot;Armenian&quot;</span>), (<span class="string">&quot;avestan&quot;</span>, <span class="string">&quot;Avestan&quot;</span>),
+  (<span class="string">&quot;avst&quot;</span>, <span class="string">&quot;Avestan&quot;</span>), (<span class="string">&quot;bali&quot;</span>, <span class="string">&quot;Balinese&quot;</span>), (<span class="string">&quot;balinese&quot;</span>, <span class="string">&quot;Balinese&quot;</span>),
+  (<span class="string">&quot;bamu&quot;</span>, <span class="string">&quot;Bamum&quot;</span>), (<span class="string">&quot;bamum&quot;</span>, <span class="string">&quot;Bamum&quot;</span>), (<span class="string">&quot;bass&quot;</span>, <span class="string">&quot;Bassa_Vah&quot;</span>),
+  (<span class="string">&quot;bassavah&quot;</span>, <span class="string">&quot;Bassa_Vah&quot;</span>), (<span class="string">&quot;batak&quot;</span>, <span class="string">&quot;Batak&quot;</span>), (<span class="string">&quot;batk&quot;</span>, <span class="string">&quot;Batak&quot;</span>),
+  (<span class="string">&quot;beng&quot;</span>, <span class="string">&quot;Bengali&quot;</span>), (<span class="string">&quot;bengali&quot;</span>, <span class="string">&quot;Bengali&quot;</span>), (<span class="string">&quot;bhaiksuki&quot;</span>, <span class="string">&quot;Bhaiksuki&quot;</span>),
+  (<span class="string">&quot;bhks&quot;</span>, <span class="string">&quot;Bhaiksuki&quot;</span>), (<span class="string">&quot;bopo&quot;</span>, <span class="string">&quot;Bopomofo&quot;</span>), (<span class="string">&quot;bopomofo&quot;</span>, <span class="string">&quot;Bopomofo&quot;</span>),
+  (<span class="string">&quot;brah&quot;</span>, <span class="string">&quot;Brahmi&quot;</span>), (<span class="string">&quot;brahmi&quot;</span>, <span class="string">&quot;Brahmi&quot;</span>), (<span class="string">&quot;brai&quot;</span>, <span class="string">&quot;Braille&quot;</span>),
+  (<span class="string">&quot;braille&quot;</span>, <span class="string">&quot;Braille&quot;</span>), (<span class="string">&quot;bugi&quot;</span>, <span class="string">&quot;Buginese&quot;</span>), (<span class="string">&quot;buginese&quot;</span>, <span class="string">&quot;Buginese&quot;</span>),
+  (<span class="string">&quot;buhd&quot;</span>, <span class="string">&quot;Buhid&quot;</span>), (<span class="string">&quot;buhid&quot;</span>, <span class="string">&quot;Buhid&quot;</span>), (<span class="string">&quot;cakm&quot;</span>, <span class="string">&quot;Chakma&quot;</span>),
+  (<span class="string">&quot;canadianaboriginal&quot;</span>, <span class="string">&quot;Canadian_Aboriginal&quot;</span>),
+  (<span class="string">&quot;cans&quot;</span>, <span class="string">&quot;Canadian_Aboriginal&quot;</span>), (<span class="string">&quot;cari&quot;</span>, <span class="string">&quot;Carian&quot;</span>), (<span class="string">&quot;carian&quot;</span>, <span class="string">&quot;Carian&quot;</span>),
+  (<span class="string">&quot;caucasianalbanian&quot;</span>, <span class="string">&quot;Caucasian_Albanian&quot;</span>), (<span class="string">&quot;chakma&quot;</span>, <span class="string">&quot;Chakma&quot;</span>),
+  (<span class="string">&quot;cham&quot;</span>, <span class="string">&quot;Cham&quot;</span>), (<span class="string">&quot;cher&quot;</span>, <span class="string">&quot;Cherokee&quot;</span>), (<span class="string">&quot;cherokee&quot;</span>, <span class="string">&quot;Cherokee&quot;</span>),
+  (<span class="string">&quot;common&quot;</span>, <span class="string">&quot;Common&quot;</span>), (<span class="string">&quot;copt&quot;</span>, <span class="string">&quot;Coptic&quot;</span>), (<span class="string">&quot;coptic&quot;</span>, <span class="string">&quot;Coptic&quot;</span>),
+  (<span class="string">&quot;cprt&quot;</span>, <span class="string">&quot;Cypriot&quot;</span>), (<span class="string">&quot;cuneiform&quot;</span>, <span class="string">&quot;Cuneiform&quot;</span>), (<span class="string">&quot;cypriot&quot;</span>, <span class="string">&quot;Cypriot&quot;</span>),
+  (<span class="string">&quot;cyrillic&quot;</span>, <span class="string">&quot;Cyrillic&quot;</span>), (<span class="string">&quot;cyrl&quot;</span>, <span class="string">&quot;Cyrillic&quot;</span>), (<span class="string">&quot;deseret&quot;</span>, <span class="string">&quot;Deseret&quot;</span>),
+  (<span class="string">&quot;deva&quot;</span>, <span class="string">&quot;Devanagari&quot;</span>), (<span class="string">&quot;devanagari&quot;</span>, <span class="string">&quot;Devanagari&quot;</span>), (<span class="string">&quot;dsrt&quot;</span>, <span class="string">&quot;Deseret&quot;</span>),
+  (<span class="string">&quot;dupl&quot;</span>, <span class="string">&quot;Duployan&quot;</span>), (<span class="string">&quot;duployan&quot;</span>, <span class="string">&quot;Duployan&quot;</span>),
+  (<span class="string">&quot;egyp&quot;</span>, <span class="string">&quot;Egyptian_Hieroglyphs&quot;</span>),
+  (<span class="string">&quot;egyptianhieroglyphs&quot;</span>, <span class="string">&quot;Egyptian_Hieroglyphs&quot;</span>), (<span class="string">&quot;elba&quot;</span>, <span class="string">&quot;Elbasan&quot;</span>),
+  (<span class="string">&quot;elbasan&quot;</span>, <span class="string">&quot;Elbasan&quot;</span>), (<span class="string">&quot;ethi&quot;</span>, <span class="string">&quot;Ethiopic&quot;</span>), (<span class="string">&quot;ethiopic&quot;</span>, <span class="string">&quot;Ethiopic&quot;</span>),
+  (<span class="string">&quot;geor&quot;</span>, <span class="string">&quot;Georgian&quot;</span>), (<span class="string">&quot;georgian&quot;</span>, <span class="string">&quot;Georgian&quot;</span>), (<span class="string">&quot;glag&quot;</span>, <span class="string">&quot;Glagolitic&quot;</span>),
+  (<span class="string">&quot;glagolitic&quot;</span>, <span class="string">&quot;Glagolitic&quot;</span>), (<span class="string">&quot;gonm&quot;</span>, <span class="string">&quot;Masaram_Gondi&quot;</span>), (<span class="string">&quot;goth&quot;</span>, <span class="string">&quot;Gothic&quot;</span>),
+  (<span class="string">&quot;gothic&quot;</span>, <span class="string">&quot;Gothic&quot;</span>), (<span class="string">&quot;gran&quot;</span>, <span class="string">&quot;Grantha&quot;</span>), (<span class="string">&quot;grantha&quot;</span>, <span class="string">&quot;Grantha&quot;</span>),
+  (<span class="string">&quot;greek&quot;</span>, <span class="string">&quot;Greek&quot;</span>), (<span class="string">&quot;grek&quot;</span>, <span class="string">&quot;Greek&quot;</span>), (<span class="string">&quot;gujarati&quot;</span>, <span class="string">&quot;Gujarati&quot;</span>),
+  (<span class="string">&quot;gujr&quot;</span>, <span class="string">&quot;Gujarati&quot;</span>), (<span class="string">&quot;gurmukhi&quot;</span>, <span class="string">&quot;Gurmukhi&quot;</span>), (<span class="string">&quot;guru&quot;</span>, <span class="string">&quot;Gurmukhi&quot;</span>),
+  (<span class="string">&quot;han&quot;</span>, <span class="string">&quot;Han&quot;</span>), (<span class="string">&quot;hang&quot;</span>, <span class="string">&quot;Hangul&quot;</span>), (<span class="string">&quot;hangul&quot;</span>, <span class="string">&quot;Hangul&quot;</span>), (<span class="string">&quot;hani&quot;</span>, <span class="string">&quot;Han&quot;</span>),
+  (<span class="string">&quot;hano&quot;</span>, <span class="string">&quot;Hanunoo&quot;</span>), (<span class="string">&quot;hanunoo&quot;</span>, <span class="string">&quot;Hanunoo&quot;</span>), (<span class="string">&quot;hatr&quot;</span>, <span class="string">&quot;Hatran&quot;</span>),
+  (<span class="string">&quot;hatran&quot;</span>, <span class="string">&quot;Hatran&quot;</span>), (<span class="string">&quot;hebr&quot;</span>, <span class="string">&quot;Hebrew&quot;</span>), (<span class="string">&quot;hebrew&quot;</span>, <span class="string">&quot;Hebrew&quot;</span>),
+  (<span class="string">&quot;hira&quot;</span>, <span class="string">&quot;Hiragana&quot;</span>), (<span class="string">&quot;hiragana&quot;</span>, <span class="string">&quot;Hiragana&quot;</span>),
+  (<span class="string">&quot;hluw&quot;</span>, <span class="string">&quot;Anatolian_Hieroglyphs&quot;</span>), (<span class="string">&quot;hmng&quot;</span>, <span class="string">&quot;Pahawh_Hmong&quot;</span>),
+  (<span class="string">&quot;hrkt&quot;</span>, <span class="string">&quot;Katakana_Or_Hiragana&quot;</span>), (<span class="string">&quot;hung&quot;</span>, <span class="string">&quot;Old_Hungarian&quot;</span>),
+  (<span class="string">&quot;imperialaramaic&quot;</span>, <span class="string">&quot;Imperial_Aramaic&quot;</span>), (<span class="string">&quot;inherited&quot;</span>, <span class="string">&quot;Inherited&quot;</span>),
+  (<span class="string">&quot;inscriptionalpahlavi&quot;</span>, <span class="string">&quot;Inscriptional_Pahlavi&quot;</span>),
+  (<span class="string">&quot;inscriptionalparthian&quot;</span>, <span class="string">&quot;Inscriptional_Parthian&quot;</span>), (<span class="string">&quot;ital&quot;</span>, <span class="string">&quot;Old_Italic&quot;</span>),
+  (<span class="string">&quot;java&quot;</span>, <span class="string">&quot;Javanese&quot;</span>), (<span class="string">&quot;javanese&quot;</span>, <span class="string">&quot;Javanese&quot;</span>), (<span class="string">&quot;kaithi&quot;</span>, <span class="string">&quot;Kaithi&quot;</span>),
+  (<span class="string">&quot;kali&quot;</span>, <span class="string">&quot;Kayah_Li&quot;</span>), (<span class="string">&quot;kana&quot;</span>, <span class="string">&quot;Katakana&quot;</span>), (<span class="string">&quot;kannada&quot;</span>, <span class="string">&quot;Kannada&quot;</span>),
+  (<span class="string">&quot;katakana&quot;</span>, <span class="string">&quot;Katakana&quot;</span>), (<span class="string">&quot;katakanaorhiragana&quot;</span>, <span class="string">&quot;Katakana_Or_Hiragana&quot;</span>),
+  (<span class="string">&quot;kayahli&quot;</span>, <span class="string">&quot;Kayah_Li&quot;</span>), (<span class="string">&quot;khar&quot;</span>, <span class="string">&quot;Kharoshthi&quot;</span>),
+  (<span class="string">&quot;kharoshthi&quot;</span>, <span class="string">&quot;Kharoshthi&quot;</span>), (<span class="string">&quot;khmer&quot;</span>, <span class="string">&quot;Khmer&quot;</span>), (<span class="string">&quot;khmr&quot;</span>, <span class="string">&quot;Khmer&quot;</span>),
+  (<span class="string">&quot;khoj&quot;</span>, <span class="string">&quot;Khojki&quot;</span>), (<span class="string">&quot;khojki&quot;</span>, <span class="string">&quot;Khojki&quot;</span>), (<span class="string">&quot;khudawadi&quot;</span>, <span class="string">&quot;Khudawadi&quot;</span>),
+  (<span class="string">&quot;knda&quot;</span>, <span class="string">&quot;Kannada&quot;</span>), (<span class="string">&quot;kthi&quot;</span>, <span class="string">&quot;Kaithi&quot;</span>), (<span class="string">&quot;lana&quot;</span>, <span class="string">&quot;Tai_Tham&quot;</span>),
+  (<span class="string">&quot;lao&quot;</span>, <span class="string">&quot;Lao&quot;</span>), (<span class="string">&quot;laoo&quot;</span>, <span class="string">&quot;Lao&quot;</span>), (<span class="string">&quot;latin&quot;</span>, <span class="string">&quot;Latin&quot;</span>), (<span class="string">&quot;latn&quot;</span>, <span class="string">&quot;Latin&quot;</span>),
+  (<span class="string">&quot;lepc&quot;</span>, <span class="string">&quot;Lepcha&quot;</span>), (<span class="string">&quot;lepcha&quot;</span>, <span class="string">&quot;Lepcha&quot;</span>), (<span class="string">&quot;limb&quot;</span>, <span class="string">&quot;Limbu&quot;</span>),
+  (<span class="string">&quot;limbu&quot;</span>, <span class="string">&quot;Limbu&quot;</span>), (<span class="string">&quot;lina&quot;</span>, <span class="string">&quot;Linear_A&quot;</span>), (<span class="string">&quot;linb&quot;</span>, <span class="string">&quot;Linear_B&quot;</span>),
+  (<span class="string">&quot;lineara&quot;</span>, <span class="string">&quot;Linear_A&quot;</span>), (<span class="string">&quot;linearb&quot;</span>, <span class="string">&quot;Linear_B&quot;</span>), (<span class="string">&quot;lisu&quot;</span>, <span class="string">&quot;Lisu&quot;</span>),
+  (<span class="string">&quot;lyci&quot;</span>, <span class="string">&quot;Lycian&quot;</span>), (<span class="string">&quot;lycian&quot;</span>, <span class="string">&quot;Lycian&quot;</span>), (<span class="string">&quot;lydi&quot;</span>, <span class="string">&quot;Lydian&quot;</span>),
+  (<span class="string">&quot;lydian&quot;</span>, <span class="string">&quot;Lydian&quot;</span>), (<span class="string">&quot;mahajani&quot;</span>, <span class="string">&quot;Mahajani&quot;</span>), (<span class="string">&quot;mahj&quot;</span>, <span class="string">&quot;Mahajani&quot;</span>),
+  (<span class="string">&quot;malayalam&quot;</span>, <span class="string">&quot;Malayalam&quot;</span>), (<span class="string">&quot;mand&quot;</span>, <span class="string">&quot;Mandaic&quot;</span>), (<span class="string">&quot;mandaic&quot;</span>, <span class="string">&quot;Mandaic&quot;</span>),
+  (<span class="string">&quot;mani&quot;</span>, <span class="string">&quot;Manichaean&quot;</span>), (<span class="string">&quot;manichaean&quot;</span>, <span class="string">&quot;Manichaean&quot;</span>), (<span class="string">&quot;marc&quot;</span>, <span class="string">&quot;Marchen&quot;</span>),
+  (<span class="string">&quot;marchen&quot;</span>, <span class="string">&quot;Marchen&quot;</span>), (<span class="string">&quot;masaramgondi&quot;</span>, <span class="string">&quot;Masaram_Gondi&quot;</span>),
+  (<span class="string">&quot;meeteimayek&quot;</span>, <span class="string">&quot;Meetei_Mayek&quot;</span>), (<span class="string">&quot;mend&quot;</span>, <span class="string">&quot;Mende_Kikakui&quot;</span>),
+  (<span class="string">&quot;mendekikakui&quot;</span>, <span class="string">&quot;Mende_Kikakui&quot;</span>), (<span class="string">&quot;merc&quot;</span>, <span class="string">&quot;Meroitic_Cursive&quot;</span>),
+  (<span class="string">&quot;mero&quot;</span>, <span class="string">&quot;Meroitic_Hieroglyphs&quot;</span>), (<span class="string">&quot;meroiticcursive&quot;</span>, <span class="string">&quot;Meroitic_Cursive&quot;</span>),
+  (<span class="string">&quot;meroitichieroglyphs&quot;</span>, <span class="string">&quot;Meroitic_Hieroglyphs&quot;</span>), (<span class="string">&quot;miao&quot;</span>, <span class="string">&quot;Miao&quot;</span>),
+  (<span class="string">&quot;mlym&quot;</span>, <span class="string">&quot;Malayalam&quot;</span>), (<span class="string">&quot;modi&quot;</span>, <span class="string">&quot;Modi&quot;</span>), (<span class="string">&quot;mong&quot;</span>, <span class="string">&quot;Mongolian&quot;</span>),
+  (<span class="string">&quot;mongolian&quot;</span>, <span class="string">&quot;Mongolian&quot;</span>), (<span class="string">&quot;mro&quot;</span>, <span class="string">&quot;Mro&quot;</span>), (<span class="string">&quot;mroo&quot;</span>, <span class="string">&quot;Mro&quot;</span>),
+  (<span class="string">&quot;mtei&quot;</span>, <span class="string">&quot;Meetei_Mayek&quot;</span>), (<span class="string">&quot;mult&quot;</span>, <span class="string">&quot;Multani&quot;</span>), (<span class="string">&quot;multani&quot;</span>, <span class="string">&quot;Multani&quot;</span>),
+  (<span class="string">&quot;myanmar&quot;</span>, <span class="string">&quot;Myanmar&quot;</span>), (<span class="string">&quot;mymr&quot;</span>, <span class="string">&quot;Myanmar&quot;</span>), (<span class="string">&quot;nabataean&quot;</span>, <span class="string">&quot;Nabataean&quot;</span>),
+  (<span class="string">&quot;narb&quot;</span>, <span class="string">&quot;Old_North_Arabian&quot;</span>), (<span class="string">&quot;nbat&quot;</span>, <span class="string">&quot;Nabataean&quot;</span>), (<span class="string">&quot;newa&quot;</span>, <span class="string">&quot;Newa&quot;</span>),
+  (<span class="string">&quot;newtailue&quot;</span>, <span class="string">&quot;New_Tai_Lue&quot;</span>), (<span class="string">&quot;nko&quot;</span>, <span class="string">&quot;Nko&quot;</span>), (<span class="string">&quot;nkoo&quot;</span>, <span class="string">&quot;Nko&quot;</span>),
+  (<span class="string">&quot;nshu&quot;</span>, <span class="string">&quot;Nushu&quot;</span>), (<span class="string">&quot;nushu&quot;</span>, <span class="string">&quot;Nushu&quot;</span>), (<span class="string">&quot;ogam&quot;</span>, <span class="string">&quot;Ogham&quot;</span>),
+  (<span class="string">&quot;ogham&quot;</span>, <span class="string">&quot;Ogham&quot;</span>), (<span class="string">&quot;olchiki&quot;</span>, <span class="string">&quot;Ol_Chiki&quot;</span>), (<span class="string">&quot;olck&quot;</span>, <span class="string">&quot;Ol_Chiki&quot;</span>),
+  (<span class="string">&quot;oldhungarian&quot;</span>, <span class="string">&quot;Old_Hungarian&quot;</span>), (<span class="string">&quot;olditalic&quot;</span>, <span class="string">&quot;Old_Italic&quot;</span>),
+  (<span class="string">&quot;oldnortharabian&quot;</span>, <span class="string">&quot;Old_North_Arabian&quot;</span>), (<span class="string">&quot;oldpermic&quot;</span>, <span class="string">&quot;Old_Permic&quot;</span>),
+  (<span class="string">&quot;oldpersian&quot;</span>, <span class="string">&quot;Old_Persian&quot;</span>), (<span class="string">&quot;oldsoutharabian&quot;</span>, <span class="string">&quot;Old_South_Arabian&quot;</span>),
+  (<span class="string">&quot;oldturkic&quot;</span>, <span class="string">&quot;Old_Turkic&quot;</span>), (<span class="string">&quot;oriya&quot;</span>, <span class="string">&quot;Oriya&quot;</span>), (<span class="string">&quot;orkh&quot;</span>, <span class="string">&quot;Old_Turkic&quot;</span>),
+  (<span class="string">&quot;orya&quot;</span>, <span class="string">&quot;Oriya&quot;</span>), (<span class="string">&quot;osage&quot;</span>, <span class="string">&quot;Osage&quot;</span>), (<span class="string">&quot;osge&quot;</span>, <span class="string">&quot;Osage&quot;</span>),
+  (<span class="string">&quot;osma&quot;</span>, <span class="string">&quot;Osmanya&quot;</span>), (<span class="string">&quot;osmanya&quot;</span>, <span class="string">&quot;Osmanya&quot;</span>),
+  (<span class="string">&quot;pahawhhmong&quot;</span>, <span class="string">&quot;Pahawh_Hmong&quot;</span>), (<span class="string">&quot;palm&quot;</span>, <span class="string">&quot;Palmyrene&quot;</span>),
+  (<span class="string">&quot;palmyrene&quot;</span>, <span class="string">&quot;Palmyrene&quot;</span>), (<span class="string">&quot;pauc&quot;</span>, <span class="string">&quot;Pau_Cin_Hau&quot;</span>),
+  (<span class="string">&quot;paucinhau&quot;</span>, <span class="string">&quot;Pau_Cin_Hau&quot;</span>), (<span class="string">&quot;perm&quot;</span>, <span class="string">&quot;Old_Permic&quot;</span>), (<span class="string">&quot;phag&quot;</span>, <span class="string">&quot;Phags_Pa&quot;</span>),
+  (<span class="string">&quot;phagspa&quot;</span>, <span class="string">&quot;Phags_Pa&quot;</span>), (<span class="string">&quot;phli&quot;</span>, <span class="string">&quot;Inscriptional_Pahlavi&quot;</span>),
+  (<span class="string">&quot;phlp&quot;</span>, <span class="string">&quot;Psalter_Pahlavi&quot;</span>), (<span class="string">&quot;phnx&quot;</span>, <span class="string">&quot;Phoenician&quot;</span>),
+  (<span class="string">&quot;phoenician&quot;</span>, <span class="string">&quot;Phoenician&quot;</span>), (<span class="string">&quot;plrd&quot;</span>, <span class="string">&quot;Miao&quot;</span>),
+  (<span class="string">&quot;prti&quot;</span>, <span class="string">&quot;Inscriptional_Parthian&quot;</span>), (<span class="string">&quot;psalterpahlavi&quot;</span>, <span class="string">&quot;Psalter_Pahlavi&quot;</span>),
+  (<span class="string">&quot;qaac&quot;</span>, <span class="string">&quot;Coptic&quot;</span>), (<span class="string">&quot;qaai&quot;</span>, <span class="string">&quot;Inherited&quot;</span>), (<span class="string">&quot;rejang&quot;</span>, <span class="string">&quot;Rejang&quot;</span>),
+  (<span class="string">&quot;rjng&quot;</span>, <span class="string">&quot;Rejang&quot;</span>), (<span class="string">&quot;runic&quot;</span>, <span class="string">&quot;Runic&quot;</span>), (<span class="string">&quot;runr&quot;</span>, <span class="string">&quot;Runic&quot;</span>),
+  (<span class="string">&quot;samaritan&quot;</span>, <span class="string">&quot;Samaritan&quot;</span>), (<span class="string">&quot;samr&quot;</span>, <span class="string">&quot;Samaritan&quot;</span>),
+  (<span class="string">&quot;sarb&quot;</span>, <span class="string">&quot;Old_South_Arabian&quot;</span>), (<span class="string">&quot;saur&quot;</span>, <span class="string">&quot;Saurashtra&quot;</span>),
+  (<span class="string">&quot;saurashtra&quot;</span>, <span class="string">&quot;Saurashtra&quot;</span>), (<span class="string">&quot;sgnw&quot;</span>, <span class="string">&quot;SignWriting&quot;</span>),
+  (<span class="string">&quot;sharada&quot;</span>, <span class="string">&quot;Sharada&quot;</span>), (<span class="string">&quot;shavian&quot;</span>, <span class="string">&quot;Shavian&quot;</span>), (<span class="string">&quot;shaw&quot;</span>, <span class="string">&quot;Shavian&quot;</span>),
+  (<span class="string">&quot;shrd&quot;</span>, <span class="string">&quot;Sharada&quot;</span>), (<span class="string">&quot;sidd&quot;</span>, <span class="string">&quot;Siddham&quot;</span>), (<span class="string">&quot;siddham&quot;</span>, <span class="string">&quot;Siddham&quot;</span>),
+  (<span class="string">&quot;signwriting&quot;</span>, <span class="string">&quot;SignWriting&quot;</span>), (<span class="string">&quot;sind&quot;</span>, <span class="string">&quot;Khudawadi&quot;</span>), (<span class="string">&quot;sinh&quot;</span>, <span class="string">&quot;Sinhala&quot;</span>),
+  (<span class="string">&quot;sinhala&quot;</span>, <span class="string">&quot;Sinhala&quot;</span>), (<span class="string">&quot;sora&quot;</span>, <span class="string">&quot;Sora_Sompeng&quot;</span>),
+  (<span class="string">&quot;sorasompeng&quot;</span>, <span class="string">&quot;Sora_Sompeng&quot;</span>), (<span class="string">&quot;soyo&quot;</span>, <span class="string">&quot;Soyombo&quot;</span>),
+  (<span class="string">&quot;soyombo&quot;</span>, <span class="string">&quot;Soyombo&quot;</span>), (<span class="string">&quot;sund&quot;</span>, <span class="string">&quot;Sundanese&quot;</span>), (<span class="string">&quot;sundanese&quot;</span>, <span class="string">&quot;Sundanese&quot;</span>),
+  (<span class="string">&quot;sylo&quot;</span>, <span class="string">&quot;Syloti_Nagri&quot;</span>), (<span class="string">&quot;sylotinagri&quot;</span>, <span class="string">&quot;Syloti_Nagri&quot;</span>),
+  (<span class="string">&quot;syrc&quot;</span>, <span class="string">&quot;Syriac&quot;</span>), (<span class="string">&quot;syriac&quot;</span>, <span class="string">&quot;Syriac&quot;</span>), (<span class="string">&quot;tagalog&quot;</span>, <span class="string">&quot;Tagalog&quot;</span>),
+  (<span class="string">&quot;tagb&quot;</span>, <span class="string">&quot;Tagbanwa&quot;</span>), (<span class="string">&quot;tagbanwa&quot;</span>, <span class="string">&quot;Tagbanwa&quot;</span>), (<span class="string">&quot;taile&quot;</span>, <span class="string">&quot;Tai_Le&quot;</span>),
+  (<span class="string">&quot;taitham&quot;</span>, <span class="string">&quot;Tai_Tham&quot;</span>), (<span class="string">&quot;taiviet&quot;</span>, <span class="string">&quot;Tai_Viet&quot;</span>), (<span class="string">&quot;takr&quot;</span>, <span class="string">&quot;Takri&quot;</span>),
+  (<span class="string">&quot;takri&quot;</span>, <span class="string">&quot;Takri&quot;</span>), (<span class="string">&quot;tale&quot;</span>, <span class="string">&quot;Tai_Le&quot;</span>), (<span class="string">&quot;talu&quot;</span>, <span class="string">&quot;New_Tai_Lue&quot;</span>),
+  (<span class="string">&quot;tamil&quot;</span>, <span class="string">&quot;Tamil&quot;</span>), (<span class="string">&quot;taml&quot;</span>, <span class="string">&quot;Tamil&quot;</span>), (<span class="string">&quot;tang&quot;</span>, <span class="string">&quot;Tangut&quot;</span>),
+  (<span class="string">&quot;tangut&quot;</span>, <span class="string">&quot;Tangut&quot;</span>), (<span class="string">&quot;tavt&quot;</span>, <span class="string">&quot;Tai_Viet&quot;</span>), (<span class="string">&quot;telu&quot;</span>, <span class="string">&quot;Telugu&quot;</span>),
+  (<span class="string">&quot;telugu&quot;</span>, <span class="string">&quot;Telugu&quot;</span>), (<span class="string">&quot;tfng&quot;</span>, <span class="string">&quot;Tifinagh&quot;</span>), (<span class="string">&quot;tglg&quot;</span>, <span class="string">&quot;Tagalog&quot;</span>),
+  (<span class="string">&quot;thaa&quot;</span>, <span class="string">&quot;Thaana&quot;</span>), (<span class="string">&quot;thaana&quot;</span>, <span class="string">&quot;Thaana&quot;</span>), (<span class="string">&quot;thai&quot;</span>, <span class="string">&quot;Thai&quot;</span>),
+  (<span class="string">&quot;tibetan&quot;</span>, <span class="string">&quot;Tibetan&quot;</span>), (<span class="string">&quot;tibt&quot;</span>, <span class="string">&quot;Tibetan&quot;</span>), (<span class="string">&quot;tifinagh&quot;</span>, <span class="string">&quot;Tifinagh&quot;</span>),
+  (<span class="string">&quot;tirh&quot;</span>, <span class="string">&quot;Tirhuta&quot;</span>), (<span class="string">&quot;tirhuta&quot;</span>, <span class="string">&quot;Tirhuta&quot;</span>), (<span class="string">&quot;ugar&quot;</span>, <span class="string">&quot;Ugaritic&quot;</span>),
+  (<span class="string">&quot;ugaritic&quot;</span>, <span class="string">&quot;Ugaritic&quot;</span>), (<span class="string">&quot;unknown&quot;</span>, <span class="string">&quot;Unknown&quot;</span>), (<span class="string">&quot;vai&quot;</span>, <span class="string">&quot;Vai&quot;</span>),
+  (<span class="string">&quot;vaii&quot;</span>, <span class="string">&quot;Vai&quot;</span>), (<span class="string">&quot;wara&quot;</span>, <span class="string">&quot;Warang_Citi&quot;</span>), (<span class="string">&quot;warangciti&quot;</span>, <span class="string">&quot;Warang_Citi&quot;</span>),
+  (<span class="string">&quot;xpeo&quot;</span>, <span class="string">&quot;Old_Persian&quot;</span>), (<span class="string">&quot;xsux&quot;</span>, <span class="string">&quot;Cuneiform&quot;</span>), (<span class="string">&quot;yi&quot;</span>, <span class="string">&quot;Yi&quot;</span>),
+  (<span class="string">&quot;yiii&quot;</span>, <span class="string">&quot;Yi&quot;</span>), (<span class="string">&quot;zanabazarsquare&quot;</span>, <span class="string">&quot;Zanabazar_Square&quot;</span>),
+  (<span class="string">&quot;zanb&quot;</span>, <span class="string">&quot;Zanabazar_Square&quot;</span>), (<span class="string">&quot;zinh&quot;</span>, <span class="string">&quot;Inherited&quot;</span>), (<span class="string">&quot;zyyy&quot;</span>, <span class="string">&quot;Common&quot;</span>),
+  (<span class="string">&quot;zzzz&quot;</span>, <span class="string">&quot;Unknown&quot;</span>), ]),
+];
+</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "regex_syntax";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

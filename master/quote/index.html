@@ -59,55 +59,66 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/quote/lib.rs.html#1-252' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>Quasi-quoting without a Syntex dependency, intended for use with <a href="https://github.com/rust-lang/rfcs/blob/master/text/1681-macros-1.1.md">Macros
-1.1</a>.</p>
+               </span><a class='srclink' href='../src/quote/lib.rs.html#1-501' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>This crate provides the <a href="macro.quote.html"><code>quote!</code></a> macro for turning Rust syntax tree data
+structures into tokens of source code.</p>
+<p>Procedural macros in Rust receive a stream of tokens as input, execute
+arbitrary Rust code to determine how to manipulate those tokens, and produce
+a stream of tokens to hand back to the compiler to compile into the caller's
+crate. Quasi-quoting is a solution to one piece of that -- producing tokens
+to return to the compiler.</p>
+<p>The idea of quasi-quoting is that we write <em>code</em> that we treat as <em>data</em>.
+Within the <code>quote!</code> macro, we can write what looks like code to our text
+editor or IDE. We get all the benefits of the editor's brace matching,
+syntax highlighting, indentation, and maybe autocompletion. But rather than
+compiling that as code into the current crate, we can treat it as data, pass
+it around, mutate it, and eventually hand it back to the compiler as tokens
+to compile into the macro caller's crate.</p>
+<p>This crate is motivated by the procedural macro use case, but is a
+general-purpose Rust quasi-quoting library and is not specific to procedural
+macros.</p>
+<p><em>Version requirement: Quote supports any compiler version back to Rust's
+very first support for procedural macros in Rust 1.15.0.</em></p>
 <pre><code class="language-toml">[dependencies]
-quote = &quot;0.3&quot;
+quote = &quot;0.4&quot;
 </code></pre>
 
-<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quote</span>;</pre>
-<p>Interpolation is done with <code>#var</code>:</p>
-<pre><code class="language-text">let tokens = quote! {
-    struct SerializeWith #generics #where_clause {
-        value: &amp;'a #field_ty,
-        phantom: ::std::marker::PhantomData&lt;#item_ty&gt;,
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<p>The following quasi-quoted block of code is something you might find in <a href="https://serde.rs/">a</a>
+procedural macro having to do with data structure serialization. The <code>#var</code>
+syntax performs interpolation of runtime variables into the quoted tokens.
+Check out the documentation of the <a href="macro.quote.html"><code>quote!</code></a> macro for more detail about
+the syntax. See also the <a href="macro.quote_spanned.html"><code>quote_spanned!</code></a> macro which is important for
+implementing hygienic procedural macros.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
+    <span class="kw">struct</span> <span class="ident">SerializeWith</span> #<span class="ident">generics</span> #<span class="ident">where_clause</span> {
+        <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> #<span class="ident">field_ty</span>,
+        <span class="ident">phantom</span>: ::<span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span><span class="op">&lt;</span>#<span class="ident">item_ty</span><span class="op">&gt;</span>,
     }
 
-    impl #generics serde::Serialize for SerializeWith #generics #where_clause {
-        fn serialize&lt;S&gt;(&amp;self, s: &amp;mut S) -&gt; Result&lt;(), S::Error&gt;
-            where S: serde::Serializer
+    <span class="kw">impl</span> #<span class="ident">generics</span> <span class="ident">serde</span>::<span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">SerializeWith</span> #<span class="ident">generics</span> #<span class="ident">where_clause</span> {
+        <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">Serializer</span>
         {
-            #path(self.value, s)
+            #<span class="ident">path</span>(<span class="self">self</span>.<span class="ident">value</span>, <span class="ident">s</span>)
         }
     }
 
-    SerializeWith {
-        value: #value,
-        phantom: ::std::marker::PhantomData::&lt;#item_ty&gt;,
+    <span class="ident">SerializeWith</span> {
+        <span class="ident">value</span>: #<span class="ident">value</span>,
+        <span class="ident">phantom</span>: ::<span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>::<span class="op">&lt;</span>#<span class="ident">item_ty</span><span class="op">&gt;</span>,
     }
-};
-</code></pre>
-<p>Repetition is done using <code>#(...)*</code> or <code>#(...),*</code> very similar to <code>macro_rules!</code>:</p>
-<ul>
-<li><code>#(#var)*</code> - no separators</li>
-<li><code>#(#var),*</code> - the character before the asterisk is used as a separator</li>
-<li><code>#( struct #var; )*</code> - the repetition can contain other things</li>
-<li><code>#( #k =&gt; println!(&quot;{}&quot;, #v), )*</code> - even multiple interpolations</li>
-</ul>
-<p>The return type of <code>quote!</code> is <code>quote::Tokens</code>. Tokens can be interpolated into
-other quotes:</p>
-<pre><code class="language-text">let t = quote! { /* ... */ };
-return quote! { /* ... */ #t /* ... */ };
-</code></pre>
-<p>Call <code>to_string()</code> or <code>as_str()</code> on a Tokens to get a <code>String</code> or <code>&amp;str</code> of Rust
-code.</p>
-<p>The <code>quote!</code> macro relies on deep recursion so some large invocations may fail
-with &quot;recursion limit reached&quot; when you compile. If it fails, bump up the
-recursion limit by adding <code>#![recursion_limit = &quot;128&quot;]</code> to your crate. An even
-higher limit may be necessary for especially large invocations.</p>
+};</pre>
+<h2 id="recursion-limit" class="section-header"><a href="#recursion-limit">Recursion limit</a></h2>
+<p>The <code>quote!</code> macro relies on deep recursion so some large invocations may
+fail with &quot;recursion limit reached&quot; when you compile. If it fails, bump up
+the recursion limit by adding <code>#![recursion_limit = &quot;128&quot;]</code> to your crate.
+An even higher limit may be necessary for especially large invocations.</p>
 </div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -117,37 +128,22 @@ higher limit may be necessary for especially large invocations.</p>
                                 <p>The whole point.</p>
 
                            </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.quote_spanned.html"
+                                  title='macro quote::quote_spanned'>quote_spanned</a></td>
+                           <td class='docblock-short'>
+                                <p>Same as <code>quote!</code>, but applies a given span to all tokens originating within
+the macro invocation.</p>
+
+                           </td>
                        </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ByteStr.html"
-                                  title='struct quote::ByteStr'>ByteStr</a></td>
-                           <td class='docblock-short'>
-                                <p>Wrap a <code>&amp;str</code> so it interpolates as a byte-string: <code>b&quot;abc&quot;</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Hex.html"
-                                  title='struct quote::Hex'>Hex</a></td>
-                           <td class='docblock-short'>
-                                <p>Wrap an integer so it interpolates as a hexadecimal.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Ident.html"
-                                  title='struct quote::Ident'>Ident</a></td>
-                           <td class='docblock-short'>
-                                <p>An identifier that should be interpolated without quotes.</p>
-
-                           </td>
-                       </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Tokens.html"
                                   title='struct quote::Tokens'>Tokens</a></td>
                            <td class='docblock-short'>
-                                <p>Tokens produced by a <code>quote!(...)</code> invocation.</p>
+                                <p>Tokens produced by a <a href="macro.quote.html"><code>quote!</code></a> invocation.</p>
 
                            </td>
                        </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
@@ -156,7 +152,7 @@ higher limit may be necessary for especially large invocations.</p>
                            <td><a class="trait" href="trait.ToTokens.html"
                                   title='trait quote::ToTokens'>ToTokens</a></td>
                            <td class='docblock-short'>
-                                <p>Types that can be interpolated inside a <code>quote!(...)</code> invocation.</p>
+                                <p>Types that can be interpolated inside a <a href="macro.quote.html"><code>quote!</code></a> invocation.</p>
 
                            </td>
                        </tr></table></section>

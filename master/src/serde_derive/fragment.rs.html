@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.27/src/fragment.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.28/src/fragment.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>fragment.rs.html -- source</title>
@@ -135,9 +135,6 @@
 <span id="79">79</span>
 <span id="80">80</span>
 <span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
-<span id="84">84</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -148,6 +145,7 @@
 <span class="comment">// except according to those terms.</span>
 
 <span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">ToTokens</span>, <span class="ident">Tokens</span>};
+<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">token</span>;
 
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Fragment</span> {
     <span class="doccomment">/// Tokens that can be used as an expression.</span>
@@ -177,9 +175,7 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
             <span class="ident">Fragment</span>::<span class="ident">Expr</span>(<span class="kw-2">ref</span> <span class="ident">expr</span>) <span class="op">=&gt;</span> <span class="ident">expr</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>),
             <span class="ident">Fragment</span>::<span class="ident">Block</span>(<span class="kw-2">ref</span> <span class="ident">block</span>) <span class="op">=&gt;</span> {
-                <span class="ident">out</span>.<span class="ident">append</span>(<span class="string">&quot;{&quot;</span>);
-                <span class="ident">block</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>);
-                <span class="ident">out</span>.<span class="ident">append</span>(<span class="string">&quot;}&quot;</span>);
+                <span class="ident">token</span>::<span class="ident">Brace</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">out</span>, <span class="op">|</span><span class="ident">out</span><span class="op">|</span> <span class="ident">block</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>));
             }
         }
     }
@@ -204,12 +200,10 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
             <span class="ident">Fragment</span>::<span class="ident">Expr</span>(<span class="kw-2">ref</span> <span class="ident">expr</span>) <span class="op">=&gt;</span> {
                 <span class="ident">expr</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>);
-                <span class="ident">out</span>.<span class="ident">append</span>(<span class="string">&quot;,&quot;</span>);
+                <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>::<span class="ident">default</span>().<span class="ident">to_tokens</span>(<span class="ident">out</span>);
             }
             <span class="ident">Fragment</span>::<span class="ident">Block</span>(<span class="kw-2">ref</span> <span class="ident">block</span>) <span class="op">=&gt;</span> {
-                <span class="ident">out</span>.<span class="ident">append</span>(<span class="string">&quot;{&quot;</span>);
-                <span class="ident">block</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>);
-                <span class="ident">out</span>.<span class="ident">append</span>(<span class="string">&quot;}&quot;</span>);
+                <span class="ident">token</span>::<span class="ident">Brace</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">out</span>, <span class="op">|</span><span class="ident">out</span><span class="op">|</span> <span class="ident">block</span>.<span class="ident">to_tokens</span>(<span class="ident">out</span>));
             }
         }
     }

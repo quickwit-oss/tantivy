@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.11.11/src/op.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.13/src/op.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>op.rs.html -- source</title>
@@ -246,196 +246,258 @@
 <span id="190">190</span>
 <span id="191">191</span>
 <span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
 </pre><pre class="rust ">
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">BinOp</span> {
-    <span class="doccomment">/// The `+` operator (addition)</span>
-    <span class="ident">Add</span>,
-    <span class="doccomment">/// The `-` operator (subtraction)</span>
-    <span class="ident">Sub</span>,
-    <span class="doccomment">/// The `*` operator (multiplication)</span>
-    <span class="ident">Mul</span>,
-    <span class="doccomment">/// The `/` operator (division)</span>
-    <span class="ident">Div</span>,
-    <span class="doccomment">/// The `%` operator (modulus)</span>
-    <span class="ident">Rem</span>,
-    <span class="doccomment">/// The `&amp;&amp;` operator (logical and)</span>
-    <span class="ident">And</span>,
-    <span class="doccomment">/// The `||` operator (logical or)</span>
-    <span class="ident">Or</span>,
-    <span class="doccomment">/// The `^` operator (bitwise xor)</span>
-    <span class="ident">BitXor</span>,
-    <span class="doccomment">/// The `&amp;` operator (bitwise and)</span>
-    <span class="ident">BitAnd</span>,
-    <span class="doccomment">/// The `|` operator (bitwise or)</span>
-    <span class="ident">BitOr</span>,
-    <span class="doccomment">/// The `&lt;&lt;` operator (shift left)</span>
-    <span class="ident">Shl</span>,
-    <span class="doccomment">/// The `&gt;&gt;` operator (shift right)</span>
-    <span class="ident">Shr</span>,
-    <span class="doccomment">/// The `==` operator (equality)</span>
-    <span class="ident">Eq</span>,
-    <span class="doccomment">/// The `&lt;` operator (less than)</span>
-    <span class="ident">Lt</span>,
-    <span class="doccomment">/// The `&lt;=` operator (less than or equal to)</span>
-    <span class="ident">Le</span>,
-    <span class="doccomment">/// The `!=` operator (not equal to)</span>
-    <span class="ident">Ne</span>,
-    <span class="doccomment">/// The `&gt;=` operator (greater than or equal to)</span>
-    <span class="ident">Ge</span>,
-    <span class="doccomment">/// The `&gt;` operator (greater than)</span>
-    <span class="ident">Gt</span>,
+<span class="comment">// Copyright 2018 Syn Developers</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
+<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// option. This file may not be copied, modified, or distributed</span>
+<span class="comment">// except according to those terms.</span>
+
+<span class="macro">ast_enum</span><span class="macro">!</span> {
+    <span class="doccomment">/// A binary operator: `+`, `+=`, `&amp;`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;clone-impls&quot;</span>, <span class="ident">derive</span>(<span class="ident">Copy</span>))]</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">BinOp</span> {
+        <span class="doccomment">/// The `+` operator (addition)</span>
+        <span class="ident">Add</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]),
+        <span class="doccomment">/// The `-` operator (subtraction)</span>
+        <span class="ident">Sub</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-</span>]),
+        <span class="doccomment">/// The `*` operator (multiplication)</span>
+        <span class="ident">Mul</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>]),
+        <span class="doccomment">/// The `/` operator (division)</span>
+        <span class="ident">Div</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">/</span>]),
+        <span class="doccomment">/// The `%` operator (modulus)</span>
+        <span class="ident">Rem</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">%</span>]),
+        <span class="doccomment">/// The `&amp;&amp;` operator (logical and)</span>
+        <span class="ident">And</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&amp;&amp;</span>]),
+        <span class="doccomment">/// The `||` operator (logical or)</span>
+        <span class="ident">Or</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">||</span>]),
+        <span class="doccomment">/// The `^` operator (bitwise xor)</span>
+        <span class="ident">BitXor</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">^</span>]),
+        <span class="doccomment">/// The `&amp;` operator (bitwise and)</span>
+        <span class="ident">BitAnd</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">&amp;</span>]),
+        <span class="doccomment">/// The `|` operator (bitwise or)</span>
+        <span class="ident">BitOr</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">|</span>]),
+        <span class="doccomment">/// The `&lt;&lt;` operator (shift left)</span>
+        <span class="ident">Shl</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;&lt;</span>]),
+        <span class="doccomment">/// The `&gt;&gt;` operator (shift right)</span>
+        <span class="ident">Shr</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;&gt;</span>]),
+        <span class="doccomment">/// The `==` operator (equality)</span>
+        <span class="ident">Eq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">==</span>]),
+        <span class="doccomment">/// The `&lt;` operator (less than)</span>
+        <span class="ident">Lt</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;</span>]),
+        <span class="doccomment">/// The `&lt;=` operator (less than or equal to)</span>
+        <span class="ident">Le</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;=</span>]),
+        <span class="doccomment">/// The `!=` operator (not equal to)</span>
+        <span class="ident">Ne</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!=</span>]),
+        <span class="doccomment">/// The `&gt;=` operator (greater than or equal to)</span>
+        <span class="ident">Ge</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;=</span>]),
+        <span class="doccomment">/// The `&gt;` operator (greater than)</span>
+        <span class="ident">Gt</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;</span>]),
+        <span class="doccomment">/// The `+=` operator</span>
+        <span class="ident">AddEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+=</span>]),
+        <span class="doccomment">/// The `-=` operator</span>
+        <span class="ident">SubEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-=</span>]),
+        <span class="doccomment">/// The `*=` operator</span>
+        <span class="ident">MulEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">*=</span>]),
+        <span class="doccomment">/// The `/=` operator</span>
+        <span class="ident">DivEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">/=</span>]),
+        <span class="doccomment">/// The `%=` operator</span>
+        <span class="ident">RemEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">%=</span>]),
+        <span class="doccomment">/// The `^=` operator</span>
+        <span class="ident">BitXorEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">^=</span>]),
+        <span class="doccomment">/// The `&amp;=` operator</span>
+        <span class="ident">BitAndEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&amp;=</span>]),
+        <span class="doccomment">/// The `|=` operator</span>
+        <span class="ident">BitOrEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">|=</span>]),
+        <span class="doccomment">/// The `&lt;&lt;=` operator</span>
+        <span class="ident">ShlEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;&lt;=</span>]),
+        <span class="doccomment">/// The `&gt;&gt;=` operator</span>
+        <span class="ident">ShrEq</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;&gt;=</span>]),
+    }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UnOp</span> {
-    <span class="doccomment">/// The `*` operator for dereferencing</span>
-    <span class="ident">Deref</span>,
-    <span class="doccomment">/// The `!` operator for logical inversion</span>
-    <span class="ident">Not</span>,
-    <span class="doccomment">/// The `-` operator for negation</span>
-    <span class="ident">Neg</span>,
+<span class="macro">ast_enum</span><span class="macro">!</span> {
+    <span class="doccomment">/// A unary operator: `*`, `!`, `-`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;clone-impls&quot;</span>, <span class="ident">derive</span>(<span class="ident">Copy</span>))]</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UnOp</span> {
+        <span class="doccomment">/// The `*` operator for dereferencing</span>
+        <span class="ident">Deref</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>]),
+        <span class="doccomment">/// The `!` operator for logical inversion</span>
+        <span class="ident">Not</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]),
+        <span class="doccomment">/// The `-` operator for negation</span>
+        <span class="ident">Neg</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-</span>]),
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">parsing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">synom</span>::<span class="ident">Synom</span>;
 
-    <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">binop</span> <span class="op">-&gt;</span> <span class="ident">BinOp</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&amp;&amp;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">And</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;||&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Or</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&lt;&lt;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Shl</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&gt;&gt;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Shr</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;==&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Eq</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&lt;=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Le</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;!=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Ne</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&gt;=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Ge</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;+&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Add</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;-&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Sub</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;*&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Mul</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;/&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Div</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;%&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Rem</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;^&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitXor</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&amp;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;|&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitOr</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&lt;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Lt</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&gt;&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Gt</span> }
-    ));
+    <span class="kw">impl</span> <span class="ident">BinOp</span> {
+        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_binop</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&amp;&amp;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">And</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">||</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Or</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;&lt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Shl</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;&gt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Shr</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">==</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Eq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Le</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Ne</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Ge</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">+</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Add</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Sub</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">*</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Mul</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">/</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Div</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">%</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Rem</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">^</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitXor</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">|</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitOr</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Lt</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Gt</span> }
+        ));
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-    <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">assign_op</span> <span class="op">-&gt;</span> <span class="ident">BinOp</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;+=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Add</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;-=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Sub</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;*=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Mul</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;/=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Div</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;%=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Rem</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;^=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitXor</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&amp;=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;|=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">BitOr</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&lt;&lt;=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Shl</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;&gt;&gt;=&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">BinOp</span>::<span class="ident">Shr</span> }
-    ));
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
+        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_assign_op</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">+=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">AddEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">SubEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">*=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">MulEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">/=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">DivEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">%=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">RemEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">^=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitXorEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&amp;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitAndEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">|=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitOrEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;&lt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">ShlEq</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;&gt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">ShrEq</span> }
+        ));
+    }
 
-    <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">unop</span> <span class="op">-&gt;</span> <span class="ident">UnOp</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;*&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">UnOp</span>::<span class="ident">Deref</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;!&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">UnOp</span>::<span class="ident">Not</span> }
-        <span class="op">|</span>
-        <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;-&quot;</span>) <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">UnOp</span>::<span class="ident">Neg</span> }
-    ));
+    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">UnOp</span> {
+        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">*</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Deref</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Not</span> }
+            <span class="op">|</span>
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Neg</span> }
+        ));
+
+        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="string">&quot;unary operator: `*`, `!`, or `-`&quot;</span>)
+        }
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">printing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">Tokens</span>, <span class="ident">ToTokens</span>};
-
-    <span class="kw">impl</span> <span class="ident">BinOp</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-            <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="ident">BinOp</span>::<span class="ident">Add</span> <span class="op">=&gt;</span> <span class="string">&quot;+&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Sub</span> <span class="op">=&gt;</span> <span class="string">&quot;-&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Mul</span> <span class="op">=&gt;</span> <span class="string">&quot;*&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Div</span> <span class="op">=&gt;</span> <span class="string">&quot;/&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Rem</span> <span class="op">=&gt;</span> <span class="string">&quot;%&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">And</span> <span class="op">=&gt;</span> <span class="string">&quot;&amp;&amp;&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Or</span> <span class="op">=&gt;</span> <span class="string">&quot;||&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">BitXor</span> <span class="op">=&gt;</span> <span class="string">&quot;^&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> <span class="op">=&gt;</span> <span class="string">&quot;&amp;&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">BitOr</span> <span class="op">=&gt;</span> <span class="string">&quot;|&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Shl</span> <span class="op">=&gt;</span> <span class="string">&quot;&lt;&lt;&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Shr</span> <span class="op">=&gt;</span> <span class="string">&quot;&gt;&gt;&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Eq</span> <span class="op">=&gt;</span> <span class="string">&quot;==&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Lt</span> <span class="op">=&gt;</span> <span class="string">&quot;&lt;&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Le</span> <span class="op">=&gt;</span> <span class="string">&quot;&lt;=&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Ne</span> <span class="op">=&gt;</span> <span class="string">&quot;!=&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Ge</span> <span class="op">=&gt;</span> <span class="string">&quot;&gt;=&quot;</span>,
-                <span class="ident">BinOp</span>::<span class="ident">Gt</span> <span class="op">=&gt;</span> <span class="string">&quot;&gt;&quot;</span>,
-            }
-        }
-
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assign_op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="ident">BinOp</span>::<span class="ident">Add</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;+=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Sub</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;-=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Mul</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;*=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Div</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;/=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Rem</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;%=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">BitXor</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;^=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;&amp;=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">BitOr</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;|=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Shl</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt;=&quot;</span>),
-                <span class="ident">BinOp</span>::<span class="ident">Shr</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;&gt;&gt;=&quot;</span>),
-                _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
-            }
-        }
-    }
+    <span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">ToTokens</span>, <span class="ident">Tokens</span>};
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">BinOp</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="self">self</span>.<span class="ident">op</span>());
-        }
-    }
-
-    <span class="kw">impl</span> <span class="ident">UnOp</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
             <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="ident">UnOp</span>::<span class="ident">Deref</span> <span class="op">=&gt;</span> <span class="string">&quot;*&quot;</span>,
-                <span class="ident">UnOp</span>::<span class="ident">Not</span> <span class="op">=&gt;</span> <span class="string">&quot;!&quot;</span>,
-                <span class="ident">UnOp</span>::<span class="ident">Neg</span> <span class="op">=&gt;</span> <span class="string">&quot;-&quot;</span>,
+                <span class="ident">BinOp</span>::<span class="ident">Add</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Sub</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Mul</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Div</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Rem</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">And</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Or</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitXor</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitAnd</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitOr</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Shl</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Shr</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Eq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Lt</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Le</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Ne</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Ge</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">Gt</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">AddEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">SubEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">MulEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">DivEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">RemEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitXorEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitAndEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">BitOrEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">ShlEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">BinOp</span>::<span class="ident">ShrEq</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
             }
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">UnOp</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="self">self</span>.<span class="ident">op</span>());
+            <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+                <span class="ident">UnOp</span>::<span class="ident">Deref</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">UnOp</span>::<span class="ident">Not</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                <span class="ident">UnOp</span>::<span class="ident">Neg</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+            }
         }
     }
 }

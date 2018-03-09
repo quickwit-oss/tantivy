@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.11.11/src/attr.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.13/src/attr.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>attr.rs.html -- source</title>
@@ -359,86 +359,629 @@
 <span id="303">303</span>
 <span id="304">304</span>
 <span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
 </pre><pre class="rust ">
+<span class="comment">// Copyright 2018 Syn Developers</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
+<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// option. This file may not be copied, modified, or distributed</span>
+<span class="comment">// except according to those terms.</span>
+
 <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">punctuated</span>::<span class="ident">Punctuated</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
 
-<span class="doccomment">/// Doc-comments are promoted to attributes that have `is_sugared_doc` = true</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Attribute</span> {
-    <span class="kw">pub</span> <span class="ident">style</span>: <span class="ident">AttrStyle</span>,
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">MetaItem</span>,
-    <span class="kw">pub</span> <span class="ident">is_sugared_doc</span>: <span class="ident">bool</span>,
-}
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Delimiter</span>, <span class="ident">Spacing</span>, <span class="ident">TokenNode</span>, <span class="ident">TokenStream</span>, <span class="ident">TokenTree</span>};
 
-<span class="kw">impl</span> <span class="ident">Attribute</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">value</span>.<span class="ident">name</span>()
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">tt</span>::<span class="ident">TokenStreamHelper</span>;
+
+<span class="macro">ast_struct</span><span class="macro">!</span> {
+    <span class="doccomment">/// An attribute like `#[repr(transparent)]`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Syntax</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Rust has six types of attributes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - Outer attributes like `#[repr(transparent)]`. These appear outside or</span>
+    <span class="doccomment">///   in front of the item they describe.</span>
+    <span class="doccomment">/// - Inner attributes like `#![feature(proc_macro)]`. These appear inside</span>
+    <span class="doccomment">///   of the item they describe, usually a module.</span>
+    <span class="doccomment">/// - Outer doc comments like `/// # Example`.</span>
+    <span class="doccomment">/// - Inner doc comments like `//! Please file an issue`.</span>
+    <span class="doccomment">/// - Outer block comments `/** # Example */`.</span>
+    <span class="doccomment">/// - Inner block comments `/*! Please file an issue */`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `style` field of type `AttrStyle` distinguishes whether an attribute</span>
+    <span class="doccomment">/// is outer or inner. Doc comments and block comments are promoted to</span>
+    <span class="doccomment">/// attributes that have `is_sugared_doc` set to true, as this is how they</span>
+    <span class="doccomment">/// are processed by the compiler and by `macro_rules!` macros.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `path` field gives the possibly colon-delimited path against which</span>
+    <span class="doccomment">/// the attribute is resolved. It is equal to `&quot;doc&quot;` for desugared doc</span>
+    <span class="doccomment">/// comments. The `tts` field contains the rest of the attribute body as</span>
+    <span class="doccomment">/// tokens.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```text</span>
+    <span class="doccomment">/// #[derive(Copy)]      #[crate::precondition x &lt; 5]</span>
+    <span class="doccomment">///   ^^^^^^~~~~~~         ^^^^^^^^^^^^^^^^^^^ ~~~~~</span>
+    <span class="doccomment">///    path  tts                   path         tts</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Use the [`interpret_meta`] method to try parsing the tokens of an</span>
+    <span class="doccomment">/// attribute into the structured representation that is used by convention</span>
+    <span class="doccomment">/// across most Rust libraries.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`interpret_meta`]: #method.interpret_meta</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Attribute</span> #<span class="ident">manual_extra_traits</span> {
+        <span class="kw">pub</span> <span class="ident">pound_token</span>: <span class="macro">Token</span><span class="macro">!</span>[#],
+        <span class="kw">pub</span> <span class="ident">style</span>: <span class="ident">AttrStyle</span>,
+        <span class="kw">pub</span> <span class="ident">bracket_token</span>: <span class="ident">token</span>::<span class="ident">Bracket</span>,
+        <span class="kw">pub</span> <span class="ident">path</span>: <span class="ident">Path</span>,
+        <span class="kw">pub</span> <span class="ident">tts</span>: <span class="ident">TokenStream</span>,
+        <span class="kw">pub</span> <span class="ident">is_sugared_doc</span>: <span class="ident">bool</span>,
     }
 }
 
-<span class="doccomment">/// Distinguishes between Attributes that decorate items and Attributes that</span>
-<span class="doccomment">/// are contained as statements within items. These two cases need to be</span>
-<span class="doccomment">/// distinguished for pretty-printing.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">AttrStyle</span> {
-    <span class="doccomment">/// Attribute of the form `#![...]`.</span>
-    <span class="ident">Outer</span>,
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">Attribute</span> {}
 
-    <span class="doccomment">/// Attribute of the form `#[...]`.</span>
-    <span class="ident">Inner</span>,
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Attribute</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">style</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">style</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">pound_token</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">pound_token</span>
+            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">bracket_token</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">bracket_token</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">path</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">path</span>
+            <span class="op">&amp;&amp;</span> <span class="ident">TokenStreamHelper</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">tts</span>) <span class="op">==</span> <span class="ident">TokenStreamHelper</span>(<span class="kw-2">&amp;</span><span class="ident">other</span>.<span class="ident">tts</span>)
+            <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">is_sugared_doc</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">is_sugared_doc</span>
+    }
 }
 
-<span class="doccomment">/// A compile-time attribute item.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// E.g. `#[test]`, `#[derive(..)]` or `#[feature = &quot;foo&quot;]`</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetaItem</span> {
-    <span class="doccomment">/// Word meta item.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `test` as in `#[test]`</span>
-    <span class="ident">Word</span>(<span class="ident">Ident</span>),
-
-    <span class="doccomment">/// List meta item.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `derive(..)` as in `#[derive(..)]`</span>
-    <span class="ident">List</span>(<span class="ident">Ident</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">NestedMetaItem</span><span class="op">&gt;</span>),
-
-    <span class="doccomment">/// Name-value meta item.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `feature = &quot;foo&quot;` as in `#[feature = &quot;foo&quot;]`</span>
-    <span class="ident">NameValue</span>(<span class="ident">Ident</span>, <span class="ident">Lit</span>),
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">Attribute</span> {
+    <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>)
+    <span class="kw">where</span>
+        <span class="ident">H</span>: <span class="ident">Hasher</span>,
+    {
+        <span class="self">self</span>.<span class="ident">style</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">pound_token</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">bracket_token</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+        <span class="ident">TokenStreamHelper</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">tts</span>).<span class="ident">hash</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">is_sugared_doc</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+    }
 }
 
-<span class="kw">impl</span> <span class="ident">MetaItem</span> {
-    <span class="doccomment">/// Name of the item.</span>
+<span class="kw">impl</span> <span class="ident">Attribute</span> {
+    <span class="doccomment">/// Parses the tokens after the path as a [`Meta`](enum.Meta.html) if</span>
+    <span class="doccomment">/// possible.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">interpret_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Meta</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">first</span>().<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">ident</span>
+        } <span class="kw">else</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        };
+
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">tts</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Meta</span>::<span class="ident">Word</span>(<span class="kw-2">*</span><span class="ident">name</span>));
+        }
+
+        <span class="kw">let</span> <span class="ident">tts</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tts</span>.<span class="ident">clone</span>().<span class="ident">into_iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+
+        <span class="kw">if</span> <span class="ident">tts</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">Delimiter</span>::<span class="ident">Parenthesis</span>, <span class="kw-2">ref</span> <span class="ident">ts</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">kind</span> {
+                <span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="ident">ts</span>.<span class="ident">clone</span>().<span class="ident">into_iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">nested_meta_items</span>) <span class="op">=</span> <span class="ident">list_of_nested_meta_items_from_tokens</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>) {
+                    <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Meta</span>::<span class="ident">List</span>(<span class="ident">MetaList</span> {
+                        <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>(<span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>),
+                        <span class="ident">ident</span>: <span class="kw-2">*</span><span class="ident">name</span>,
+                        <span class="ident">nested</span>: <span class="ident">nested_meta_items</span>,
+                    }));
+                }
+            }
+        }
+
+        <span class="kw">if</span> <span class="ident">tts</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">2</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Op</span>(<span class="string">&#39;=&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">kind</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">kind</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">lit</span>.<span class="ident">to_string</span>().<span class="ident">starts_with</span>(<span class="string">&#39;/&#39;</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="ident">MetaNameValue</span> {
+                            <span class="ident">ident</span>: <span class="kw-2">*</span><span class="ident">name</span>,
+                            <span class="ident">eq_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>]([<span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>]),
+                            <span class="ident">lit</span>: <span class="ident">Lit</span>::<span class="ident">new</span>(<span class="ident">lit</span>.<span class="ident">clone</span>(), <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">span</span>),
+                        }));
+                    }
+                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="kw-2">ref</span> <span class="ident">term</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">kind</span> {
+                    <span class="kw">match</span> <span class="ident">term</span>.<span class="ident">as_str</span>() {
+                        <span class="ident">v</span> @ <span class="string">&quot;true&quot;</span> <span class="op">|</span> <span class="ident">v</span> @ <span class="string">&quot;false&quot;</span> <span class="op">=&gt;</span> {
+                            <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="ident">MetaNameValue</span> {
+                                <span class="ident">ident</span>: <span class="kw-2">*</span><span class="ident">name</span>,
+                                <span class="ident">eq_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>]([<span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>]),
+                                <span class="ident">lit</span>: <span class="ident">Lit</span>::<span class="ident">Bool</span>(<span class="ident">LitBool</span> { <span class="ident">value</span>: <span class="ident">v</span> <span class="op">==</span> <span class="string">&quot;true&quot;</span>, <span class="ident">span</span>: <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">span</span> }),
+                            }));
+                        },
+                        _ <span class="op">=&gt;</span> {}
+                    }
+                }
+            }
+        }
+
+        <span class="prelude-val">None</span>
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">nested_meta_item_from_tokens</span>(<span class="ident">tts</span>: <span class="kw-2">&amp;</span>[<span class="ident">TokenTree</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">NestedMeta</span>, <span class="kw-2">&amp;</span>[<span class="ident">TokenTree</span>])<span class="op">&gt;</span> {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">tts</span>.<span class="ident">is_empty</span>());
+
+    <span class="kw">match</span> <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">kind</span> {
+        <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> {
+            <span class="kw">if</span> <span class="ident">lit</span>.<span class="ident">to_string</span>().<span class="ident">starts_with</span>(<span class="string">&#39;/&#39;</span>) {
+                <span class="prelude-val">None</span>
+            } <span class="kw">else</span> {
+                <span class="kw">let</span> <span class="ident">lit</span> <span class="op">=</span> <span class="ident">Lit</span>::<span class="ident">new</span>(<span class="ident">lit</span>.<span class="ident">clone</span>(), <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>);
+                <span class="prelude-val">Some</span>((<span class="ident">NestedMeta</span>::<span class="ident">Literal</span>(<span class="ident">lit</span>), <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">1</span>..]))
+            }
+        }
+
+        <span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="ident">sym</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="ident">sym</span>.<span class="ident">as_str</span>(), <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>);
+            <span class="kw">if</span> <span class="ident">tts</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">3</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Op</span>(<span class="string">&#39;=&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">kind</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">2</span>].<span class="ident">kind</span> {
+                        <span class="kw">if</span> <span class="op">!</span><span class="ident">lit</span>.<span class="ident">to_string</span>().<span class="ident">starts_with</span>(<span class="string">&#39;/&#39;</span>) {
+                            <span class="kw">let</span> <span class="ident">pair</span> <span class="op">=</span> <span class="ident">MetaNameValue</span> {
+                                <span class="ident">ident</span>: <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="ident">sym</span>.<span class="ident">as_str</span>(), <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>),
+                                <span class="ident">eq_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>]([<span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">span</span>]),
+                                <span class="ident">lit</span>: <span class="ident">Lit</span>::<span class="ident">new</span>(<span class="ident">lit</span>.<span class="ident">clone</span>(), <span class="ident">tts</span>[<span class="number">2</span>].<span class="ident">span</span>),
+                            };
+                            <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="ident">pair</span>).<span class="ident">into</span>(), <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">3</span>..]));
+                        }
+                    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="kw-2">ref</span> <span class="ident">term</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">2</span>].<span class="ident">kind</span> {
+                        <span class="kw">match</span> <span class="ident">term</span>.<span class="ident">as_str</span>() {
+                            <span class="ident">v</span> @ <span class="string">&quot;true&quot;</span> <span class="op">|</span> <span class="ident">v</span> @ <span class="string">&quot;false&quot;</span> <span class="op">=&gt;</span> {
+                                <span class="kw">let</span> <span class="ident">pair</span> <span class="op">=</span> <span class="ident">MetaNameValue</span> {
+                                    <span class="ident">ident</span>: <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="ident">sym</span>.<span class="ident">as_str</span>(), <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>),
+                                    <span class="ident">eq_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>]([<span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">span</span>]),
+                                    <span class="ident">lit</span>: <span class="ident">Lit</span>::<span class="ident">Bool</span>(<span class="ident">LitBool</span> { <span class="ident">value</span>: <span class="ident">v</span> <span class="op">==</span> <span class="string">&quot;true&quot;</span>, <span class="ident">span</span>: <span class="ident">tts</span>[<span class="number">2</span>].<span class="ident">span</span> }),
+                                };
+                                <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="ident">pair</span>).<span class="ident">into</span>(), <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">3</span>..]));
+                            },
+                            _ <span class="op">=&gt;</span> {}
+                        }
+                    }
+                }
+            }
+
+            <span class="kw">if</span> <span class="ident">tts</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">2</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">Delimiter</span>::<span class="ident">Parenthesis</span>, <span class="kw-2">ref</span> <span class="ident">inner_tts</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">kind</span> {
+                    <span class="kw">let</span> <span class="ident">inner_tts</span> <span class="op">=</span> <span class="ident">inner_tts</span>.<span class="ident">clone</span>().<span class="ident">into_iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                    <span class="kw">return</span> <span class="kw">match</span> <span class="ident">list_of_nested_meta_items_from_tokens</span>(<span class="kw-2">&amp;</span><span class="ident">inner_tts</span>) {
+                        <span class="prelude-val">Some</span>(<span class="ident">nested_meta_items</span>) <span class="op">=&gt;</span> {
+                            <span class="kw">let</span> <span class="ident">list</span> <span class="op">=</span> <span class="ident">MetaList</span> {
+                                <span class="ident">ident</span>: <span class="ident">ident</span>,
+                                <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>(<span class="ident">tts</span>[<span class="number">1</span>].<span class="ident">span</span>),
+                                <span class="ident">nested</span>: <span class="ident">nested_meta_items</span>,
+                            };
+                            <span class="prelude-val">Some</span>((<span class="ident">Meta</span>::<span class="ident">List</span>(<span class="ident">list</span>).<span class="ident">into</span>(), <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">2</span>..]))
+                        }
+
+                        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                    };
+                }
+            }
+
+            <span class="prelude-val">Some</span>((<span class="ident">Meta</span>::<span class="ident">Word</span>(<span class="ident">ident</span>).<span class="ident">into</span>(), <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">1</span>..]))
+        }
+
+        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">list_of_nested_meta_items_from_tokens</span>(
+    <span class="kw-2">mut</span> <span class="ident">tts</span>: <span class="kw-2">&amp;</span>[<span class="ident">TokenTree</span>],
+) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">NestedMeta</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nested_meta_items</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
+
+    <span class="kw">while</span> <span class="op">!</span><span class="ident">tts</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">let</span> <span class="ident">prev_comma</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">first</span> {
+            <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenNode</span>::<span class="ident">Op</span>(<span class="string">&#39;,&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>) <span class="op">=</span> <span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">kind</span> {
+            <span class="kw">let</span> <span class="ident">tok</span> <span class="op">=</span> <span class="macro">Token</span><span class="macro">!</span>[,]([<span class="ident">tts</span>[<span class="number">0</span>].<span class="ident">span</span>]);
+            <span class="ident">tts</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">tts</span>[<span class="number">1</span>..];
+            <span class="kw">if</span> <span class="ident">tts</span>.<span class="ident">is_empty</span>() {
+                <span class="kw">break</span>;
+            }
+            <span class="prelude-val">Some</span>(<span class="ident">tok</span>)
+        } <span class="kw">else</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        };
+        <span class="kw">let</span> (<span class="ident">nested</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">nested_meta_item_from_tokens</span>(<span class="ident">tts</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">pair</span>) <span class="op">=&gt;</span> <span class="ident">pair</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+        };
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">comma</span>) <span class="op">=</span> <span class="ident">prev_comma</span> {
+            <span class="ident">nested_meta_items</span>.<span class="ident">push_punct</span>(<span class="ident">comma</span>);
+        }
+        <span class="ident">nested_meta_items</span>.<span class="ident">push_value</span>(<span class="ident">nested</span>);
+        <span class="ident">tts</span> <span class="op">=</span> <span class="ident">rest</span>;
+    }
+
+    <span class="prelude-val">Some</span>(<span class="ident">nested_meta_items</span>)
+}
+
+<span class="macro">ast_enum</span><span class="macro">!</span> {
+    <span class="doccomment">/// Distinguishes between attributes that decorate an item and attributes</span>
+    <span class="doccomment">/// that are contained within an item.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `test` as in `#[test]`, `derive` as in `#[derive(..)]`, and</span>
-    <span class="doccomment">/// `feature` as in `#[feature = &quot;foo&quot;]`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Outer attributes</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - `#[repr(transparent)]`</span>
+    <span class="doccomment">/// - `/// # Example`</span>
+    <span class="doccomment">/// - `/** Please file an issue */`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Inner attributes</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - `#![feature(proc_macro)]`</span>
+    <span class="doccomment">/// - `//! # Example`</span>
+    <span class="doccomment">/// - `/*! Please file an issue */`</span>
+    <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;clone-impls&quot;</span>, <span class="ident">derive</span>(<span class="ident">Copy</span>))]</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">AttrStyle</span> {
+        <span class="ident">Outer</span>,
+        <span class="ident">Inner</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]),
+    }
+}
+
+<span class="macro">ast_enum_of_structs</span><span class="macro">!</span> {
+    <span class="doccomment">/// Content of a compile-time structured attribute.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ## Word</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A meta word is like the `test` in `#[test]`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ## List</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A meta list is like the `derive(Copy)` in `#[derive(Copy)]`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ## NameValue</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A name-value meta is like the `path = &quot;...&quot;` in `#[path =</span>
+    <span class="doccomment">/// &quot;sys/windows.rs&quot;]`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Syntax tree enum</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This type is a [syntax tree enum].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [syntax tree enum]: enum.Expr.html#syntax-tree-enums</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Meta</span> {
+        <span class="kw">pub</span> <span class="ident">Word</span>(<span class="ident">Ident</span>),
+        <span class="doccomment">/// A structured list within an attribute, like `derive(Copy, Clone)`.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
+        <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
+        <span class="kw">pub</span> <span class="ident">List</span>(<span class="ident">MetaList</span> {
+            <span class="kw">pub</span> <span class="ident">ident</span>: <span class="ident">Ident</span>,
+            <span class="kw">pub</span> <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>,
+            <span class="kw">pub</span> <span class="ident">nested</span>: <span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">NestedMeta</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>,
+        }),
+        <span class="doccomment">/// A name-value pair within an attribute, like `feature = &quot;nightly&quot;`.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
+        <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
+        <span class="kw">pub</span> <span class="ident">NameValue</span>(<span class="ident">MetaNameValue</span> {
+            <span class="kw">pub</span> <span class="ident">ident</span>: <span class="ident">Ident</span>,
+            <span class="kw">pub</span> <span class="ident">eq_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>],
+            <span class="kw">pub</span> <span class="ident">lit</span>: <span class="ident">Lit</span>,
+        }),
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Meta</span> {
+    <span class="doccomment">/// Returns the identifier that begins this structured meta item.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example this would return the `test` in `#[test]`, the `derive` in</span>
+    <span class="doccomment">/// `#[derive(Copy)]`, and the `path` in `#[path = &quot;sys/windows.rs&quot;]`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Ident</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">MetaItem</span>::<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">|</span>
-            <span class="ident">MetaItem</span>::<span class="ident">List</span>(<span class="kw-2">ref</span> <span class="ident">name</span>, _) <span class="op">|</span>
-            <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">name</span>, _) <span class="op">=&gt;</span> <span class="ident">name</span>.<span class="ident">as_ref</span>(),
+            <span class="ident">Meta</span>::<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">meta</span>) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">meta</span>,
+            <span class="ident">Meta</span>::<span class="ident">List</span>(<span class="kw-2">ref</span> <span class="ident">meta</span>) <span class="op">=&gt;</span> <span class="ident">meta</span>.<span class="ident">ident</span>,
+            <span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">meta</span>) <span class="op">=&gt;</span> <span class="ident">meta</span>.<span class="ident">ident</span>,
         }
     }
 }
 
-<span class="doccomment">/// Possible values inside of compile-time attribute lists.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// E.g. the &#39;..&#39; in `#[name(..)]`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">NestedMetaItem</span> {
-    <span class="doccomment">/// A full `MetaItem`.</span>
+<span class="macro">ast_enum_of_structs</span><span class="macro">!</span> {
+    <span class="doccomment">/// Element of a compile-time attribute list.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `Copy` in `#[derive(Copy)]` would be a `MetaItem::Word(Ident::from(&quot;Copy&quot;))`.</span>
-    <span class="ident">MetaItem</span>(<span class="ident">MetaItem</span>),
+    <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or `&quot;full&quot;`</span>
+    <span class="doccomment">/// feature.*</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">NestedMeta</span> {
+        <span class="doccomment">/// A structured meta item, like the `Copy` in `#[derive(Copy)]` which</span>
+        <span class="doccomment">/// would be a nested `Meta::Word`.</span>
+        <span class="kw">pub</span> <span class="ident">Meta</span>(<span class="ident">Meta</span>),
 
-    <span class="doccomment">/// A Rust literal.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// E.g. `&quot;name&quot;` in `#[rename(&quot;name&quot;)]`.</span>
-    <span class="ident">Literal</span>(<span class="ident">Lit</span>),
+        <span class="doccomment">/// A Rust literal, like the `&quot;new_name&quot;` in `#[rename(&quot;new_name&quot;)]`.</span>
+        <span class="kw">pub</span> <span class="ident">Literal</span>(<span class="ident">Lit</span>),
+    }
 }
 
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FilterAttrs</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
@@ -449,20 +992,27 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">FilterAttrs</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">T</span>
-    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Attribute</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Attribute</span><span class="op">&gt;</span>,
 {
     <span class="kw">type</span> <span class="ident">Ret</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">Filter</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">IntoIter</span>, <span class="kw">fn</span>(<span class="op">&amp;&amp;</span><span class="ident">Attribute</span>) <span class="op">-&gt;</span> <span class="ident">bool</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">outer</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">Ret</span> {
         <span class="kw">fn</span> <span class="ident">is_outer</span>(<span class="ident">attr</span>: <span class="op">&amp;&amp;</span><span class="ident">Attribute</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-            <span class="ident">attr</span>.<span class="ident">style</span> <span class="op">==</span> <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>
+            <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">style</span> {
+                <span class="ident">AttrStyle</span>::<span class="ident">Outer</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            }
         }
         <span class="self">self</span>.<span class="ident">into_iter</span>().<span class="ident">filter</span>(<span class="ident">is_outer</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">inner</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">Ret</span> {
         <span class="kw">fn</span> <span class="ident">is_inner</span>(<span class="ident">attr</span>: <span class="op">&amp;&amp;</span><span class="ident">Attribute</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-            <span class="ident">attr</span>.<span class="ident">style</span> <span class="op">==</span> <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>
+            <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">style</span> {
+                <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            }
         }
         <span class="self">self</span>.<span class="ident">into_iter</span>().<span class="ident">filter</span>(<span class="ident">is_inner</span>)
     }
@@ -471,197 +1021,179 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">parsing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">ident</span>::<span class="ident">parsing</span>::<span class="ident">ident</span>;
-    <span class="kw">use</span> <span class="ident">lit</span>::<span class="ident">parsing</span>::<span class="ident">lit</span>;
-    <span class="kw">use</span> <span class="ident">synom</span>::<span class="ident">space</span>::{<span class="ident">block_comment</span>, <span class="ident">whitespace</span>};
+    <span class="kw">use</span> <span class="ident">buffer</span>::<span class="ident">Cursor</span>;
+    <span class="kw">use</span> <span class="ident">parse_error</span>;
+    <span class="kw">use</span> <span class="ident">synom</span>::<span class="ident">PResult</span>;
+    <span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Literal</span>, <span class="ident">Spacing</span>, <span class="ident">Span</span>, <span class="ident">TokenNode</span>, <span class="ident">TokenTree</span>};
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-    <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">inner_attr</span> <span class="op">-&gt;</span> <span class="ident">Attribute</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;#&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;!&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;[&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">meta_item</span>: <span class="ident">meta_item</span> <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;]&quot;</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>,
-                <span class="ident">value</span>: <span class="ident">meta_item</span>,
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">false</span>,
-            })
-        )
-        <span class="op">|</span>
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;//!&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">content</span>: <span class="macro">take_until</span><span class="macro">!</span>(<span class="string">&quot;\n&quot;</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>,
-                <span class="ident">value</span>: <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(
-                    <span class="string">&quot;doc&quot;</span>.<span class="ident">into</span>(),
-                    <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;//!{}&quot;</span>, <span class="ident">content</span>).<span class="ident">into</span>(),
-                ),
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
-            })
-        )
-        <span class="op">|</span>
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">option</span><span class="macro">!</span>(<span class="ident">whitespace</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">peek</span><span class="macro">!</span>(<span class="macro">tag</span><span class="macro">!</span>(<span class="string">&quot;/*!&quot;</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">com</span>: <span class="ident">block_comment</span> <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>,
-                <span class="ident">value</span>: <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(
-                    <span class="string">&quot;doc&quot;</span>.<span class="ident">into</span>(),
-                    <span class="ident">com</span>.<span class="ident">into</span>(),
-                ),
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
-            })
-        )
-    ));
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
+        <span class="ident">TokenTree</span> {
+            <span class="ident">span</span>: <span class="ident">span</span>,
+            <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Op</span>(<span class="string">&#39;=&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>),
+        }
+    }
 
-    <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">outer_attr</span> <span class="op">-&gt;</span> <span class="ident">Attribute</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;#&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;[&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">meta_item</span>: <span class="ident">meta_item</span> <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;]&quot;</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>,
-                <span class="ident">value</span>: <span class="ident">meta_item</span>,
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">false</span>,
-            })
-        )
-        <span class="op">|</span>
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;///&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">not</span><span class="macro">!</span>(<span class="macro">tag</span><span class="macro">!</span>(<span class="string">&quot;/&quot;</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">content</span>: <span class="macro">take_until</span><span class="macro">!</span>(<span class="string">&quot;\n&quot;</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>,
-                <span class="ident">value</span>: <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(
-                    <span class="string">&quot;doc&quot;</span>.<span class="ident">into</span>(),
-                    <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;///{}&quot;</span>, <span class="ident">content</span>).<span class="ident">into</span>(),
-                ),
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
-            })
-        )
-        <span class="op">|</span>
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="macro">option</span><span class="macro">!</span>(<span class="ident">whitespace</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">peek</span><span class="macro">!</span>(<span class="macro">tuple</span><span class="macro">!</span>(<span class="macro">tag</span><span class="macro">!</span>(<span class="string">&quot;/**&quot;</span>), <span class="macro">not</span><span class="macro">!</span>(<span class="macro">tag</span><span class="macro">!</span>(<span class="string">&quot;*&quot;</span>)))) <span class="op">&gt;&gt;</span>
-            <span class="ident">com</span>: <span class="ident">block_comment</span> <span class="op">&gt;&gt;</span>
-            (<span class="ident">Attribute</span> {
-                <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>,
-                <span class="ident">value</span>: <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(
-                    <span class="string">&quot;doc&quot;</span>.<span class="ident">into</span>(),
-                    <span class="ident">com</span>.<span class="ident">into</span>(),
-                ),
-                <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
-            })
-        )
-    ));
+    <span class="kw">impl</span> <span class="ident">Attribute</span> {
+        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_inner</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
+            <span class="macro">do_parse</span><span class="macro">!</span>(
+                <span class="ident">pound</span>: <span class="macro">punct</span><span class="macro">!</span>(#) <span class="op">&gt;&gt;</span>
+                <span class="ident">bang</span>: <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!</span>) <span class="op">&gt;&gt;</span>
+                <span class="ident">path_and_tts</span>: <span class="macro">brackets</span><span class="macro">!</span>(<span class="macro">tuple</span><span class="macro">!</span>(
+                    <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Path</span>::<span class="ident">parse_mod_style</span>),
+                    <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TokenStream</span>)
+                )) <span class="op">&gt;&gt;</span>
+                ({
+                    <span class="kw">let</span> (<span class="ident">bracket</span>, (<span class="ident">path</span>, <span class="ident">tts</span>)) <span class="op">=</span> <span class="ident">path_and_tts</span>;
 
-    <span class="macro">named</span><span class="macro">!</span>(<span class="ident">meta_item</span> <span class="op">-&gt;</span> <span class="ident">MetaItem</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">id</span>: <span class="ident">ident</span> <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;(&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">inner</span>: <span class="macro">terminated_list</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;,&quot;</span>), <span class="ident">nested_meta_item</span>) <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;)&quot;</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">MetaItem</span>::<span class="ident">List</span>(<span class="ident">id</span>, <span class="ident">inner</span>))
-        )
-        <span class="op">|</span>
-        <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">name</span>: <span class="ident">ident</span> <span class="op">&gt;&gt;</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="string">&quot;=&quot;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">value</span>: <span class="ident">lit</span> <span class="op">&gt;&gt;</span>
-            (<span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(<span class="ident">name</span>, <span class="ident">value</span>))
-        )
-        <span class="op">|</span>
-        <span class="macro">map</span><span class="macro">!</span>(<span class="ident">ident</span>, <span class="ident">MetaItem</span>::<span class="ident">Word</span>)
-    ));
+                    <span class="ident">Attribute</span> {
+                        <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>(<span class="ident">bang</span>),
+                        <span class="ident">path</span>: <span class="ident">path</span>,
+                        <span class="ident">tts</span>: <span class="ident">tts</span>,
+                        <span class="ident">is_sugared_doc</span>: <span class="bool-val">false</span>,
+                        <span class="ident">pound_token</span>: <span class="ident">pound</span>,
+                        <span class="ident">bracket_token</span>: <span class="ident">bracket</span>,
+                    }
+                })
+            )
+            <span class="op">|</span>
+            <span class="macro">map</span><span class="macro">!</span>(
+                <span class="macro">call</span><span class="macro">!</span>(<span class="ident">lit_doc_comment</span>, <span class="ident">Comment</span>::<span class="ident">Inner</span>),
+                <span class="op">|</span><span class="ident">lit</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">lit</span>.<span class="ident">span</span>;
+                    <span class="ident">Attribute</span> {
+                        <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>(<span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">span</span>)),
+                        <span class="ident">path</span>: <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;doc&quot;</span>, <span class="ident">span</span>).<span class="ident">into</span>(),
+                        <span class="ident">tts</span>: <span class="macro">vec</span><span class="macro">!</span>[
+                            <span class="ident">eq</span>(<span class="ident">span</span>),
+                            <span class="ident">lit</span>,
+                        ].<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+                        <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
+                        <span class="ident">pound_token</span>: <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[#]<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">span</span>),
+                        <span class="ident">bracket_token</span>: <span class="ident">token</span>::<span class="ident">Bracket</span>(<span class="ident">span</span>),
+                    }
+                }
+            )
+        ));
 
-    <span class="macro">named</span><span class="macro">!</span>(<span class="ident">nested_meta_item</span> <span class="op">-&gt;</span> <span class="ident">NestedMetaItem</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="ident">meta_item</span> <span class="op">=&gt;</span> { <span class="ident">NestedMetaItem</span>::<span class="ident">MetaItem</span> }
-        <span class="op">|</span>
-        <span class="ident">lit</span> <span class="op">=&gt;</span> { <span class="ident">NestedMetaItem</span>::<span class="ident">Literal</span> }
-    ));
+        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_outer</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
+            <span class="macro">do_parse</span><span class="macro">!</span>(
+                <span class="ident">pound</span>: <span class="macro">punct</span><span class="macro">!</span>(#) <span class="op">&gt;&gt;</span>
+                <span class="ident">path_and_tts</span>: <span class="macro">brackets</span><span class="macro">!</span>(<span class="macro">tuple</span><span class="macro">!</span>(
+                    <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Path</span>::<span class="ident">parse_mod_style</span>),
+                    <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TokenStream</span>)
+                )) <span class="op">&gt;&gt;</span>
+                ({
+                    <span class="kw">let</span> (<span class="ident">bracket</span>, (<span class="ident">path</span>, <span class="ident">tts</span>)) <span class="op">=</span> <span class="ident">path_and_tts</span>;
+
+                    <span class="ident">Attribute</span> {
+                        <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>,
+                        <span class="ident">path</span>: <span class="ident">path</span>,
+                        <span class="ident">tts</span>: <span class="ident">tts</span>,
+                        <span class="ident">is_sugared_doc</span>: <span class="bool-val">false</span>,
+                        <span class="ident">pound_token</span>: <span class="ident">pound</span>,
+                        <span class="ident">bracket_token</span>: <span class="ident">bracket</span>,
+                    }
+                })
+            )
+            <span class="op">|</span>
+            <span class="macro">map</span><span class="macro">!</span>(
+                <span class="macro">call</span><span class="macro">!</span>(<span class="ident">lit_doc_comment</span>, <span class="ident">Comment</span>::<span class="ident">Outer</span>),
+                <span class="op">|</span><span class="ident">lit</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">lit</span>.<span class="ident">span</span>;
+                    <span class="ident">Attribute</span> {
+                        <span class="ident">style</span>: <span class="ident">AttrStyle</span>::<span class="ident">Outer</span>,
+                        <span class="ident">path</span>: <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;doc&quot;</span>, <span class="ident">span</span>).<span class="ident">into</span>(),
+                        <span class="ident">tts</span>: <span class="macro">vec</span><span class="macro">!</span>[
+                            <span class="ident">eq</span>(<span class="ident">span</span>),
+                            <span class="ident">lit</span>,
+                        ].<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+                        <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span>,
+                        <span class="ident">pound_token</span>: <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[#]<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">span</span>),
+                        <span class="ident">bracket_token</span>: <span class="ident">token</span>::<span class="ident">Bracket</span>(<span class="ident">span</span>),
+                    }
+                }
+            )
+        ));
+    }
+
+    <span class="kw">enum</span> <span class="ident">Comment</span> {
+        <span class="ident">Inner</span>,
+        <span class="ident">Outer</span>,
+    }
+
+    <span class="kw">fn</span> <span class="ident">lit_doc_comment</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>, <span class="ident">style</span>: <span class="ident">Comment</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">literal</span>() {
+            <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">lit</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">lit</span>.<span class="ident">to_string</span>();
+                <span class="kw">let</span> <span class="ident">ok</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">style</span> {
+                    <span class="ident">Comment</span>::<span class="ident">Inner</span> <span class="op">=&gt;</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&quot;//!&quot;</span>) <span class="op">||</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/*!&quot;</span>),
+                    <span class="ident">Comment</span>::<span class="ident">Outer</span> <span class="op">=&gt;</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&quot;///&quot;</span>) <span class="op">||</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/**&quot;</span>),
+                };
+                <span class="kw">if</span> <span class="ident">ok</span> {
+                    <span class="prelude-val">Ok</span>((
+                        <span class="ident">TokenTree</span> {
+                            <span class="ident">span</span>: <span class="ident">span</span>,
+                            <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">Literal</span>::<span class="ident">string</span>(<span class="kw-2">&amp;</span><span class="ident">string</span>)),
+                        },
+                        <span class="ident">rest</span>,
+                    ))
+                } <span class="kw">else</span> {
+                    <span class="ident">parse_error</span>()
+                }
+            }
+            _ <span class="op">=&gt;</span> <span class="ident">parse_error</span>(),
+        }
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">printing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">lit</span>::{<span class="ident">Lit</span>, <span class="ident">StrStyle</span>};
-    <span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">Tokens</span>, <span class="ident">ToTokens</span>};
+    <span class="kw">use</span> <span class="ident">quote</span>::{<span class="ident">ToTokens</span>, <span class="ident">Tokens</span>};
+    <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">Literal</span>;
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">Attribute</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Attribute</span> { <span class="ident">style</span>,
-                               <span class="ident">value</span>: <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">name</span>,
-                                                   <span class="ident">Lit</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">value</span>, <span class="ident">StrStyle</span>::<span class="ident">Cooked</span>)),
-                               <span class="ident">is_sugared_doc</span>: <span class="bool-val">true</span> } <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="kw">if</span> <span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;doc&quot;</span> {
-                    <span class="kw">match</span> <span class="ident">style</span> {
-                        <span class="ident">AttrStyle</span>::<span class="ident">Inner</span> <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;//!&quot;</span>) <span class="op">=&gt;</span> {
-                            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}\n&quot;</span>, <span class="ident">value</span>));
+            <span class="comment">// If this was a sugared doc, emit it in its original form instead of `#[doc = &quot;...&quot;]`</span>
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_sugared_doc</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">pair</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">interpret_meta</span>() {
+                    <span class="kw">if</span> <span class="ident">pair</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;doc&quot;</span> {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Lit</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">comment</span>) <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">lit</span> {
+                            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
+                                <span class="ident">span</span>: <span class="ident">comment</span>.<span class="ident">span</span>,
+                                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">Literal</span>::<span class="ident">doccomment</span>(<span class="kw-2">&amp;</span><span class="ident">comment</span>.<span class="ident">value</span>())),
+                            });
                             <span class="kw">return</span>;
                         }
-                        <span class="ident">AttrStyle</span>::<span class="ident">Inner</span> <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/*!&quot;</span>) <span class="op">=&gt;</span> {
-                            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">value</span>);
-                            <span class="kw">return</span>;
-                        }
-                        <span class="ident">AttrStyle</span>::<span class="ident">Outer</span> <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;///&quot;</span>) <span class="op">=&gt;</span> {
-                            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}\n&quot;</span>, <span class="ident">value</span>));
-                            <span class="kw">return</span>;
-                        }
-                        <span class="ident">AttrStyle</span>::<span class="ident">Outer</span> <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/**&quot;</span>) <span class="op">=&gt;</span> {
-                            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">value</span>);
-                            <span class="kw">return</span>;
-                        }
-                        _ <span class="op">=&gt;</span> {}
                     }
                 }
             }
 
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;#&quot;</span>);
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">AttrStyle</span>::<span class="ident">Inner</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">style</span> {
-                <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;!&quot;</span>);
+            <span class="self">self</span>.<span class="ident">pound_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">AttrStyle</span>::<span class="ident">Inner</span>(<span class="kw-2">ref</span> <span class="ident">b</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">style</span> {
+                <span class="ident">b</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
             }
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;[&quot;</span>);
-            <span class="self">self</span>.<span class="ident">value</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;]&quot;</span>);
+            <span class="self">self</span>.<span class="ident">bracket_token</span>.<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
+                <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+                <span class="self">self</span>.<span class="ident">tts</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            });
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">MetaItem</span> {
+    <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">MetaList</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="ident">MetaItem</span>::<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">ident</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">ident</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                }
-                <span class="ident">MetaItem</span>::<span class="ident">List</span>(<span class="kw-2">ref</span> <span class="ident">ident</span>, <span class="kw-2">ref</span> <span class="ident">inner</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">ident</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                    <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;(&quot;</span>);
-                    <span class="ident">tokens</span>.<span class="ident">append_separated</span>(<span class="ident">inner</span>, <span class="string">&quot;,&quot;</span>);
-                    <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;)&quot;</span>);
-                }
-                <span class="ident">MetaItem</span>::<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">name</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">name</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                    <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="string">&quot;=&quot;</span>);
-                    <span class="ident">value</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                }
-            }
+            <span class="self">self</span>.<span class="ident">ident</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            <span class="self">self</span>.<span class="ident">paren_token</span>.<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
+                <span class="self">self</span>.<span class="ident">nested</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            })
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">NestedMetaItem</span> {
+    <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">MetaNameValue</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-                <span class="ident">NestedMetaItem</span>::<span class="ident">MetaItem</span>(<span class="kw-2">ref</span> <span class="ident">nested</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">nested</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                }
-                <span class="ident">NestedMetaItem</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">lit</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-                }
-            }
+            <span class="self">self</span>.<span class="ident">ident</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            <span class="self">self</span>.<span class="ident">eq_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            <span class="self">self</span>.<span class="ident">lit</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 }

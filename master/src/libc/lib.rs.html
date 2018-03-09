@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.36/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.39/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -355,6 +355,9 @@
 <span id="299">299</span>
 <span id="300">300</span>
 <span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2012-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -505,6 +508,9 @@
 
         <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FILE</span> {}
         <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">fpos_t</span> {} <span class="comment">// TODO: fill this out with a struct</span>
+
+        <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">INT_MIN</span>: <span class="ident">c_int</span> <span class="op">=</span> <span class="op">-</span><span class="number">2147483648</span>;
+        <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">INT_MAX</span>: <span class="ident">c_int</span> <span class="op">=</span> <span class="number">2147483647</span>;
 
         <span class="kw">extern</span> {
             <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">isalnum</span>(<span class="ident">c</span>: <span class="ident">c_int</span>) <span class="op">-&gt;</span> <span class="ident">c_int</span>;
