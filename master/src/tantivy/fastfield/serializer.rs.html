@@ -163,8 +163,6 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
@@ -204,9 +202,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_write</span>(<span class="ident">write</span>: <span class="ident">WritePtr</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FastFieldSerializer</span><span class="op">&gt;</span> {
         <span class="comment">// just making room for the pointer to header.</span>
         <span class="kw">let</span> <span class="ident">composite_write</span> <span class="op">=</span> <span class="ident">CompositeWrite</span>::<span class="ident">wrap</span>(<span class="ident">write</span>);
-        <span class="prelude-val">Ok</span>(<span class="ident">FastFieldSerializer</span> {
-            <span class="ident">composite_write</span>
-        })
+        <span class="prelude-val">Ok</span>(<span class="ident">FastFieldSerializer</span> { <span class="ident">composite_write</span> })
     }
 
     <span class="doccomment">/// Start serializing a new u64 fast field</span>

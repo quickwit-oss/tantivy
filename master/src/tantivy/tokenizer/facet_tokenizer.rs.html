@@ -216,7 +216,7 @@
 
     <span class="kw">fn</span> <span class="ident">token_stream</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">TokenStreamImpl</span> {
         <span class="ident">FacetTokenStream</span> {
-            <span class="ident">text</span>: <span class="ident">text</span>,
+            <span class="ident">text</span>,
             <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">RootFacetNotEmitted</span>, <span class="comment">//&lt; pos is the first char that has not been processed yet.</span>
             <span class="ident">token</span>: <span class="ident">Token</span>::<span class="ident">default</span>(),
         }

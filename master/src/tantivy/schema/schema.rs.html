@@ -570,6 +570,15 @@
 <span id="514">514</span>
 <span id="515">515</span>
 <span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -696,7 +705,6 @@
     }
 }
 
-
 <span class="kw">struct</span> <span class="ident">InnerSchema</span> {
     <span class="ident">fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FieldEntry</span><span class="op">&gt;</span>,
     <span class="ident">fields_map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Field</span><span class="op">&gt;</span>, <span class="comment">// transient</span>
@@ -816,7 +824,6 @@
     }
 }
 
-
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Schema</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
@@ -864,7 +871,6 @@
         <span class="ident">deserializer</span>.<span class="ident">deserialize_seq</span>(<span class="ident">SchemaVisitor</span>)
     }
 }
-
 
 <span class="doccomment">/// Error that may happen when deserializing</span>
 <span class="doccomment">/// a document from JSON.</span>
@@ -1040,7 +1046,10 @@
                 &quot;jambon&quot;: &quot;bayonne&quot;
             }&quot;#</span>,
             );
-            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">TypeError</span>(_))));
+            <span class="macro">assert_matches</span><span class="macro">!</span>(
+                <span class="ident">json_err</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">TypeError</span>(_)))
+            );
         }
         {
             <span class="kw">let</span> <span class="ident">json_err</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">parse_document</span>(
@@ -1051,7 +1060,10 @@
                 &quot;popularity&quot;: 10
             }&quot;#</span>,
             );
-            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_))));
+            <span class="macro">assert_matches</span><span class="macro">!</span>(
+                <span class="ident">json_err</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+            );
         }
         {
             <span class="kw">let</span> <span class="ident">json_err</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">parse_document</span>(
@@ -1062,7 +1074,10 @@
                 &quot;popularity&quot;: 10
             }&quot;#</span>,
             );
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="macro">matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="macro">matches</span><span class="macro">!</span>(
+                <span class="ident">json_err</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+            ));
         }
         {
             <span class="kw">let</span> <span class="ident">json_err</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">parse_document</span>(
@@ -1073,7 +1088,10 @@
                 &quot;popularity&quot;: 9223372036854775808
             }&quot;#</span>,
             );
-            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_))));
+            <span class="macro">assert_matches</span><span class="macro">!</span>(
+                <span class="ident">json_err</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+            );
         }
         {
             <span class="kw">let</span> <span class="ident">json_err</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">parse_document</span>(

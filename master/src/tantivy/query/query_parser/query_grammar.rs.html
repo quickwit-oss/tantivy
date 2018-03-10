@@ -149,6 +149,7 @@
 <span id="93">93</span>
 <span id="94">94</span>
 <span id="95">95</span>
+<span id="96">96</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="ident">char</span>::<span class="kw-2">*</span>;
@@ -193,7 +194,8 @@
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">char</span><span class="op">&gt;</span>,
 {
-    (<span class="ident">char</span>(<span class="string">&#39;-&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
+    (<span class="ident">char</span>(<span class="string">&#39;-&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>))
+        .<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
         .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;+&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Must</span>(<span class="kw">box</span> <span class="ident">expr</span>)))
         .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;(&#39;</span>), <span class="ident">parser</span>(<span class="ident">parse_to_ast</span>), <span class="ident">char</span>(<span class="string">&#39;)&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>, _)<span class="op">|</span> <span class="ident">expr</span>))
         .<span class="ident">or</span>(<span class="ident">parser</span>(<span class="ident">literal</span>))

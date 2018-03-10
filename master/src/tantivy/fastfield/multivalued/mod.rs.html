@@ -142,7 +142,6 @@
 <span id="86">86</span>
 <span id="87">87</span>
 <span id="88">88</span>
-<span id="89">89</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">writer</span>;
 <span class="kw">mod</span> <span class="ident">reader</span>;
@@ -163,7 +162,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(
             <span class="string">&quot;multifield&quot;</span>,
-            <span class="ident">IntOptions</span>::<span class="ident">default</span>().<span class="ident">set_fast</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>)
+            <span class="ident">IntOptions</span>::<span class="ident">default</span>().<span class="ident">set_fast</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>),
         );
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
@@ -193,13 +192,12 @@
         }
     }
 
-
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_multivalued_i64</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_i64_field</span>(
             <span class="string">&quot;multifield&quot;</span>,
-            <span class="ident">IntOptions</span>::<span class="ident">default</span>().<span class="ident">set_fast</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>)
+            <span class="ident">IntOptions</span>::<span class="ident">default</span>().<span class="ident">set_fast</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>),
         );
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
@@ -232,7 +230,8 @@
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">vals</span>, <span class="kw-2">&amp;</span>[<span class="op">-</span><span class="number">5i64</span>, <span class="op">-</span><span class="number">20i64</span>, <span class="number">1i64</span>]);
         }
     }
-}</pre>
+}
+</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

@@ -117,6 +117,11 @@
 <span id="61">61</span>
 <span id="62">62</span>
 <span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
@@ -153,7 +158,12 @@
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">IndexMeta</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">serde_json</span>::<span class="ident">ser</span>::<span class="ident">to_string</span>(<span class="self">self</span>).<span class="ident">expect</span>(<span class="string">&quot;JSON serialization for IndexMeta should never fail.&quot;</span>))
+        <span class="macro">write</span><span class="macro">!</span>(
+            <span class="ident">f</span>,
+            <span class="string">&quot;{}&quot;</span>,
+            <span class="ident">serde_json</span>::<span class="ident">ser</span>::<span class="ident">to_string</span>(<span class="self">self</span>)
+                .<span class="ident">expect</span>(<span class="string">&quot;JSON serialization for IndexMeta should never fail.&quot;</span>)
+        )
     }
 }
 

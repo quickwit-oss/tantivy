@@ -197,6 +197,8 @@
 <span id="141">141</span>
 <span id="142">142</span>
 <span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
@@ -251,8 +253,10 @@
     }
 
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;You may not call .doc() on a scorer \
-        where the last call to advance() did not return true.&quot;</span>);
+        <span class="macro">panic</span><span class="macro">!</span>(
+            <span class="string">&quot;You may not call .doc() on a scorer \
+             where the last call to advance() did not return true.&quot;</span>
+        );
     }
 
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {

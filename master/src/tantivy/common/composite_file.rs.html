@@ -279,12 +279,6 @@
 <span id="223">223</span>
 <span id="224">224</span>
 <span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-<span id="228">228</span>
-<span id="229">229</span>
-<span id="230">230</span>
-<span id="231">231</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
@@ -304,10 +298,7 @@
 
 <span class="kw">impl</span> <span class="ident">FileAddr</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">FileAddr</span> {
-        <span class="ident">FileAddr</span> {
-            <span class="ident">field</span>: <span class="ident">field</span>,
-            <span class="ident">idx</span>: <span class="ident">idx</span>,
-        }
+        <span class="ident">FileAddr</span> { <span class="ident">field</span>, <span class="ident">idx</span> }
     }
 }
 
@@ -322,8 +313,8 @@
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">idx</span> <span class="op">=</span> <span class="ident">VInt</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">FileAddr</span> {
-            <span class="ident">field</span>: <span class="ident">field</span>,
-            <span class="ident">idx</span>: <span class="ident">idx</span>,
+            <span class="ident">field</span>,
+            <span class="ident">idx</span>,
         })
     }
 }
@@ -457,10 +448,7 @@
     <span class="doccomment">/// to a given `Field` and stored in a `CompositeFile`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open_read_with_idx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">offsets_index</span>
-            .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">FileAddr</span> {
-                <span class="ident">field</span>: <span class="ident">field</span>,
-                <span class="ident">idx</span>: <span class="ident">idx</span>,
-            })
+            .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">FileAddr</span> { <span class="ident">field</span>, <span class="ident">idx</span>, })
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">from</span>, <span class="ident">to</span>)<span class="op">|</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">slice</span>(<span class="ident">from</span>, <span class="ident">to</span>))
     }
 }

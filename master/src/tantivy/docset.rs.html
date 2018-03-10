@@ -193,10 +193,6 @@
 <span id="137">137</span>
 <span id="138">138</span>
 <span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
@@ -306,7 +302,6 @@
     }
 }
 
-
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">unboxed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">borrow_mut</span>();
@@ -333,14 +328,11 @@
         <span class="ident">unboxed</span>.<span class="ident">count</span>()
     }
 
-
     <span class="kw">fn</span> <span class="ident">append_to_bitset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">bitset</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BitSet</span>) {
         <span class="kw">let</span> <span class="ident">unboxed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">borrow_mut</span>();
         <span class="ident">unboxed</span>.<span class="ident">append_to_bitset</span>(<span class="ident">bitset</span>);
     }
 }
-
-
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

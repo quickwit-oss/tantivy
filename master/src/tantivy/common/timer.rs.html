@@ -170,7 +170,7 @@
     <span class="doccomment">/// when the `OpenTimer` is dropped.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">OpenTimer</span> {
         <span class="ident">OpenTimer</span> {
-            <span class="ident">name</span>: <span class="ident">name</span>,
+            <span class="ident">name</span>,
             <span class="ident">timer_tree</span>: <span class="self">self</span>.<span class="ident">timer_tree</span>,
             <span class="ident">start</span>: <span class="ident">PreciseTime</span>::<span class="ident">now</span>(),
             <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
@@ -214,7 +214,7 @@
     <span class="doccomment">/// Open a new named subtask</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">OpenTimer</span> {
         <span class="ident">OpenTimer</span> {
-            <span class="ident">name</span>: <span class="ident">name</span>,
+            <span class="ident">name</span>,
             <span class="ident">timer_tree</span>: <span class="self">self</span>,
             <span class="ident">start</span>: <span class="ident">PreciseTime</span>::<span class="ident">now</span>(),
             <span class="ident">depth</span>: <span class="number">0</span>,

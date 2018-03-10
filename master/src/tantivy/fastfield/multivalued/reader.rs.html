@@ -163,11 +163,9 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
-<span id="110">110</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastFieldReader</span>, <span class="ident">FastValue</span>};
-
 
 <span class="doccomment">/// Reader for a multivalued `u64` fast field.</span>
 <span class="doccomment">///</span>
@@ -180,7 +178,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span> {
     <span class="ident">idx_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="ident">vals_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>
+    <span class="ident">vals_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
@@ -190,7 +188,7 @@
     ) <span class="op">-&gt;</span> <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="ident">MultiValueIntFastFieldReader</span> {
             <span class="ident">idx_reader</span>,
-            <span class="ident">vals_reader</span>
+            <span class="ident">vals_reader</span>,
         }
     }
 

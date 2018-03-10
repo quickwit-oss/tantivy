@@ -226,7 +226,6 @@
 <span id="170">170</span>
 <span id="171">171</span>
 <span id="172">172</span>
-<span id="173">173</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">boolean_query</span>;
 <span class="kw">mod</span> <span class="ident">boolean_weight</span>;
@@ -250,8 +249,6 @@
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">QueryParser</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">RequiredOptionalScorer</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">SumWithCoordsCombiner</span>;
-
-
 
     <span class="kw">fn</span> <span class="ident">aux_test_helper</span>() <span class="op">-&gt;</span> (<span class="ident">Index</span>, <span class="ident">Field</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
@@ -334,7 +331,9 @@
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a b&quot;</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">RequiredOptionalScorer</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">SumWithCoordsCombiner</span><span class="op">&gt;&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span>
+                <span class="ident">RequiredOptionalScorer</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">SumWithCoordsCombiner</span><span class="op">&gt;</span>,
+            <span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
         }
         {
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a b&quot;</span>).<span class="ident">unwrap</span>();
@@ -346,7 +345,6 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_query</span>() {
-
         <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
 
         <span class="kw">let</span> <span class="ident">make_term_query</span> <span class="op">=</span> <span class="op">|</span><span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">|</span> {

@@ -204,6 +204,22 @@
 <span id="148">148</span>
 <span id="149">149</span>
 <span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">SourceRead</span>};
 <span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionary</span>, <span class="ident">TermDictionaryImpl</span>};
@@ -214,6 +230,7 @@
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">CompressedIntStream</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FreqReadingOption</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 
 <span class="doccomment">/// The inverted index reader is in charge of accessing</span>
 <span class="doccomment">/// the inverted index associated to a specific field.</span>
@@ -238,19 +255,34 @@
 
 <span class="kw">impl</span> <span class="ident">InvertedIndexReader</span> {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">termdict_source</span>: <span class="ident">ReadOnlySource</span>,
+        <span class="ident">termdict</span>: <span class="ident">TermDictionaryImpl</span>,
         <span class="ident">postings_source</span>: <span class="ident">ReadOnlySource</span>,
         <span class="ident">positions_source</span>: <span class="ident">ReadOnlySource</span>,
         <span class="ident">delete_bitset</span>: <span class="ident">DeleteBitSet</span>,
         <span class="ident">record_option</span>: <span class="ident">IndexRecordOption</span>,
     ) <span class="op">-&gt;</span> <span class="ident">InvertedIndexReader</span> {
         <span class="ident">InvertedIndexReader</span> {
-            <span class="ident">termdict</span>: <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
+            <span class="ident">termdict</span>,
             <span class="ident">postings_source</span>,
             <span class="ident">positions_source</span>,
             <span class="ident">delete_bitset</span>,
             <span class="ident">record_option</span>,
         }
+    }
+
+    <span class="doccomment">/// Creates an empty `InvertedIndexReader` object, which</span>
+    <span class="doccomment">/// contains no terms at all.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>(<span class="ident">field_type</span>: <span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="ident">InvertedIndexReader</span> {
+        <span class="kw">let</span> <span class="ident">record_option</span> <span class="op">=</span> <span class="ident">field_type</span>
+            .<span class="ident">get_index_record_option</span>()
+            .<span class="ident">unwrap_or</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
+        <span class="ident">InvertedIndexReader</span>::<span class="ident">new</span>(
+            <span class="ident">TermDictionaryImpl</span>::<span class="ident">empty</span>(<span class="ident">field_type</span>),
+            <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
+            <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
+            <span class="ident">DeleteBitSet</span>::<span class="ident">empty</span>(),
+            <span class="ident">record_option</span>,
+        )
     }
 
     <span class="doccomment">/// Returns the term info associated with the term.</span>

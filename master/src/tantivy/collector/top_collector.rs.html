@@ -306,7 +306,7 @@
             <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Limit must be strictly greater than 0.&quot;</span>);
         }
         <span class="ident">TopCollector</span> {
-            <span class="ident">limit</span>: <span class="ident">limit</span>,
+            <span class="ident">limit</span>,
             <span class="ident">heap</span>: <span class="ident">BinaryHeap</span>::<span class="ident">with_capacity</span>(<span class="ident">limit</span>),
             <span class="ident">segment_id</span>: <span class="number">0</span>,
         }
@@ -365,7 +365,7 @@
             }
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="ident">wrapped_doc</span> <span class="op">=</span> <span class="ident">GlobalScoredDoc</span> {
-                <span class="ident">score</span>: <span class="ident">score</span>,
+                <span class="ident">score</span>,
                 <span class="ident">doc_address</span>: <span class="ident">DocAddress</span>(<span class="self">self</span>.<span class="ident">segment_id</span>, <span class="ident">doc</span>),
             };
             <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">push</span>(<span class="ident">wrapped_doc</span>);

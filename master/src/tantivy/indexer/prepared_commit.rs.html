@@ -107,9 +107,9 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">PreparedCommit</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">index_writer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">IndexWriter</span>, <span class="ident">opstamp</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">PreparedCommit</span> {
         <span class="ident">PreparedCommit</span> {
-            <span class="ident">index_writer</span>: <span class="ident">index_writer</span>,
+            <span class="ident">index_writer</span>,
             <span class="ident">payload</span>: <span class="prelude-val">None</span>,
-            <span class="ident">opstamp</span>: <span class="ident">opstamp</span>,
+            <span class="ident">opstamp</span>
         }
     }
 

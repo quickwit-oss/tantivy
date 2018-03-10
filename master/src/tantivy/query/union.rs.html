@@ -480,6 +480,8 @@
 <span id="424">424</span>
 <span id="425">425</span>
 <span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
@@ -593,7 +595,9 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TScorer</span>, <span class="ident">TScoreCombiner</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">Union</span><span class="op">&lt;</span><span class="ident">TScorer</span>, <span class="ident">TScoreCombiner</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">TScorer</span>: <span class="ident">Scorer</span>, <span class="ident">TScoreCombiner</span>: <span class="ident">ScoreCombiner</span>
+<span class="kw">where</span>
+    <span class="ident">TScorer</span>: <span class="ident">Scorer</span>,
+    <span class="ident">TScoreCombiner</span>: <span class="ident">ScoreCombiner</span>,
 {
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">advance_buffered</span>() {

@@ -640,6 +640,9 @@
 <span id="584">584</span>
 <span id="585">585</span>
 <span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 The term dictionary is one of the key datastructure of
@@ -770,6 +773,9 @@ term `stream`.
             .<span class="ident">lt</span>(<span class="ident">stop_term</span>.<span class="ident">as_slice</span>())
             .<span class="ident">into_stream</span>()
     }
+
+    <span class="doccomment">/// Creates an empty term dictionary which contains no terms.</span>
+    <span class="kw">fn</span> <span class="ident">empty</span>(<span class="ident">field_type</span>: <span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
 }
 
 <span class="doccomment">/// Builder for the new term dictionary.</span>
