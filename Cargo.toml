@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 build = "build.rs"
 license = "MIT"
