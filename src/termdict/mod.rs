@@ -127,6 +127,9 @@ where
             .lt(stop_term.as_slice())
             .into_stream()
     }
+    
+    /// Creates an empty term dictionary which contains no terms.
+    fn empty(field_type: FieldType) -> Self;
 }
 
 /// Builder for the new term dictionary.

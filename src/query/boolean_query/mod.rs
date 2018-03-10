@@ -21,8 +21,6 @@ mod tests {
     use query::RequiredOptionalScorer;
     use query::score_combiner::SumWithCoordsCombiner;
 
-
-
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -104,7 +102,9 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&*searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>>::is_type(&*scorer));
+            assert!(Downcast::<
+                RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>,
+            >::is_type(&*scorer));
         }
         {
             let query = query_parser.parse_query("+a b").unwrap();
@@ -116,7 +116,6 @@ mod tests {
 
     #[test]
     pub fn test_boolean_query() {
-
         let (index, text_field) = aux_test_helper();
 
         let make_term_query = |text: &str| {

@@ -8,7 +8,6 @@ use core::SegmentMeta;
 use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::DeleteBitSet;
 use store::StoreReader;
-use directory::ReadOnlySource;
 use schema::Document;
 use DocId;
 use std::sync::Arc;
@@ -97,7 +96,8 @@ impl SegmentReader {
         field: Field,
     ) -> fastfield::Result<FastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
-        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue) {
+        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue)
+        {
             self.fast_fields_composite
                 .open_read(field)
                 .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
@@ -109,9 +109,13 @@ impl SegmentReader {
 
     /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
     /// May panick if the field is not a multivalued fastfield of the type `Item`.
-    pub fn multi_fast_field_reader<Item: FastValue>(&self, field: Field) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
+    pub fn multi_fast_field_reader<Item: FastValue>(
+        &self,
+        field: Field,
+    ) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
-        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues) {
+        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues)
+        {
             let idx_reader = self.fast_fields_composite
                 .open_read_with_idx(field, 0)
                 .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
@@ -218,6 +222,8 @@ impl SegmentReader {
     }
 
     /// Returns a field reader associated to the field given in argument.
+    /// If the field was not present in the index during indexing time,
+    /// the InvertedIndexReader is empty.
     ///
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
@@ -230,27 +236,38 @@ impl SegmentReader {
         {
             return Arc::clone(inv_idx_reader);
         }
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        let record_option_opt = field_type.get_index_record_option();
 
-        let record_option = self.schema
-            .get_field_entry(field)
-            .field_type()
-            .get_index_record_option()
-            .expect("Field does not seem indexed.");
+        if record_option_opt.is_none() {
+            panic!("Field {:?} does not seem indexed.", field_entry.name());
+        }
 
-        let termdict_source: ReadOnlySource = self.termdict_composite
+        let record_option = record_option_opt.unwrap();
+
+        let postings_source_opt = self.postings_composite.open_read(field);
+
+        if postings_source_opt.is_none() {
+            // no documents in the segment contained this field.
+            // As a result, no data is associated to the inverted index.
+            //
+            // Returns an empty inverted index.
+            return Arc::new(InvertedIndexReader::empty(field_type.clone()));
+        }
+
+        let postings_source = postings_source_opt.unwrap();
+
+        let termdict_source = self.termdict_composite
             .open_read(field)
             .expect("Failed to open field term dictionary in composite file. Is the field indexed");
-
-        let postings_source = self.postings_composite
-            .open_read(field)
-            .expect("Index corrupted. Failed to open field postings in composite file.");
 
         let positions_source = self.positions_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            termdict_source,
+            TermDictionaryImpl::from_source(termdict_source),
             postings_source,
             positions_source,
             self.delete_bitset.clone(),

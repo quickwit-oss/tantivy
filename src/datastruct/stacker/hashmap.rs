@@ -193,7 +193,10 @@ impl<'a> TermHashMap<'a> {
             } else if kv.hash == hash {
                 let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    return (bucket as UnorderedTermId, self.heap.get_mut_ref(expull_addr));
+                    return (
+                        bucket as UnorderedTermId,
+                        self.heap.get_mut_ref(expull_addr),
+                    );
                 }
             }
         }

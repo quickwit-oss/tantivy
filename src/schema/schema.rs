@@ -123,7 +123,6 @@ impl Default for SchemaBuilder {
     }
 }
 
-
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
@@ -243,7 +242,6 @@ impl Schema {
     }
 }
 
-
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -291,7 +289,6 @@ impl<'de> Deserialize<'de> for Schema {
         deserializer.deserialize_seq(SchemaVisitor)
     }
 }
-
 
 /// Error that may happen when deserializing
 /// a document from JSON.
@@ -467,7 +464,10 @@ mod tests {
                 "jambon": "bayonne"
             }"#,
             );
-            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_))));
+            assert_matches!(
+                json_err,
+                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_)))
+            );
         }
         {
             let json_err = schema.parse_document(
@@ -478,7 +478,10 @@ mod tests {
                 "popularity": 10
             }"#,
             );
-            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))));
+            assert_matches!(
+                json_err,
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+            );
         }
         {
             let json_err = schema.parse_document(
@@ -489,7 +492,10 @@ mod tests {
                 "popularity": 10
             }"#,
             );
-            assert!(!matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))));
+            assert!(!matches!(
+                json_err,
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+            ));
         }
         {
             let json_err = schema.parse_document(
@@ -500,7 +506,10 @@ mod tests {
                 "popularity": 9223372036854775808
             }"#,
             );
-            assert_matches!(json_err, Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_))));
+            assert_matches!(
+                json_err,
+                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+            );
         }
         {
             let json_err = schema.parse_document(

@@ -36,7 +36,7 @@ impl FacetReader {
     ) -> FacetReader {
         FacetReader {
             term_ords,
-            term_dict
+            term_dict,
         }
     }
 

@@ -67,7 +67,6 @@ pub trait FastValue: Default + Clone + Copy {
     fn as_u64(&self) -> u64;
 }
 
-
 impl FastValue for u64 {
     fn from_u64(val: u64) -> Self {
         val
@@ -83,10 +82,8 @@ impl FastValue for u64 {
 
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
         match *field_type {
-            FieldType::U64(ref integer_options) =>
-                integer_options.get_fastfield_cardinality(),
-            FieldType::HierarchicalFacet =>
-                Some(Cardinality::MultiValues),
+            FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            FieldType::HierarchicalFacet => Some(Cardinality::MultiValues),
             _ => None,
         }
     }
@@ -101,11 +98,9 @@ impl FastValue for i64 {
         common::i64_to_u64(*self)
     }
 
-
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
         match *field_type {
-            FieldType::I64(ref integer_options) =>
-                integer_options.get_fastfield_cardinality(),
+            FieldType::I64(ref integer_options) => integer_options.get_fastfield_cardinality(),
             _ => None,
         }
     }
@@ -122,7 +117,6 @@ fn value_to_u64(value: &Value) -> u64 {
         _ => panic!("Expected a u64/i64 field, got {:?} ", value),
     }
 }
-
 
 #[cfg(test)]
 mod tests {

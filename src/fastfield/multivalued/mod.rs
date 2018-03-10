@@ -17,7 +17,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_u64_field(
             "multifield",
-            IntOptions::default().set_fast(Cardinality::MultiValues)
+            IntOptions::default().set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -47,13 +47,12 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_multivalued_i64() {
         let mut schema_builder = SchemaBuilder::default();
         let field = schema_builder.add_i64_field(
             "multifield",
-            IntOptions::default().set_fast(Cardinality::MultiValues)
+            IntOptions::default().set_fast(Cardinality::MultiValues),
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
