@@ -11,9 +11,9 @@ pub struct PreparedCommit<'a> {
 impl<'a> PreparedCommit<'a> {
     pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: u64) -> PreparedCommit {
         PreparedCommit {
-            index_writer: index_writer,
+            index_writer,
             payload: None,
-            opstamp: opstamp,
+            opstamp
         }
     }
 

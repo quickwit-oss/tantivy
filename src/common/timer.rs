@@ -14,7 +14,7 @@ impl<'a> OpenTimer<'a> {
     /// when the `OpenTimer` is dropped.
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
-            name: name,
+            name,
             timer_tree: self.timer_tree,
             start: PreciseTime::now(),
             depth: self.depth + 1,
@@ -58,7 +58,7 @@ impl TimerTree {
     /// Open a new named subtask
     pub fn open(&mut self, name: &'static str) -> OpenTimer {
         OpenTimer {
-            name: name,
+            name,
             timer_tree: self,
             start: PreciseTime::now(),
             depth: 0,

@@ -118,9 +118,9 @@ struct QuadraticProbing {
 impl QuadraticProbing {
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
         QuadraticProbing {
-            hash: hash,
+            hash,
             i: 0,
-            mask: mask,
+            mask,
         }
     }
 
@@ -137,7 +137,7 @@ impl<'a> TermHashMap<'a> {
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
         TermHashMap {
             table: table.into_boxed_slice(),
-            heap: heap,
+            heap,
             mask: table_size - 1,
             occupied: Vec::with_capacity(table_size / 2),
         }
@@ -158,11 +158,10 @@ impl<'a> TermHashMap<'a> {
         (key_bytes, expull_addr)
     }
 
-    pub fn set_bucket(&mut self, hash: u32, key_bytes_ref: BytesRef, bucket: usize) {
+    pub fn set_bucket(&mut self, hash: u32, key_value_addr: BytesRef, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
-            key_value_addr: key_bytes_ref,
-            hash: hash,
+            key_value_addr, hash
         };
     }
 
