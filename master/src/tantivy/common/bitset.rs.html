@@ -443,9 +443,9 @@
 <span id="387">387</span>
 <span id="388">388</span>
 <span id="389">389</span>
-<span id="390">390</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">u64</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">TinySet</span>(<span class="ident">u64</span>);
@@ -531,23 +531,13 @@
     <span class="doccomment">/// and removes it.</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_lowest</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">lowest</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">lowest</span>() {
-            <span class="self">self</span>.<span class="number">0</span> <span class="op">^=</span> <span class="ident">TinySet</span>::<span class="ident">singleton</span>(<span class="ident">lowest</span>).<span class="number">0</span>;
-            <span class="prelude-val">Some</span>(<span class="ident">lowest</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
-        }
-    }
-
-    <span class="doccomment">/// Returns the lowest element in the `TinySet`</span>
-    <span class="doccomment">/// (or None if the set is empty).</span>
-    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lowest</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_empty</span>() {
             <span class="prelude-val">None</span>
         } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">least_significant_bit</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">trailing_zeros</span>() <span class="kw">as</span> <span class="ident">u32</span>;
-            <span class="prelude-val">Some</span>(<span class="ident">least_significant_bit</span>)
+            <span class="kw">let</span> <span class="ident">least_significant_bit_pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">trailing_zeros</span>() <span class="kw">as</span> <span class="ident">u32</span>;
+            <span class="kw">let</span> <span class="ident">least_significant_bit</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">wrapping_neg</span>();
+            <span class="self">self</span>.<span class="number">0</span> <span class="op">^=</span> <span class="ident">least_significant_bit</span>;
+            <span class="prelude-val">Some</span>(<span class="ident">least_significant_bit_pos</span>)
         }
     }
 
@@ -813,7 +803,15 @@
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_tinyset_pop</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
-        <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">TinySet</span>::<span class="ident">singleton</span>(<span class="number">31u32</span>)).<span class="ident">pop_lowest</span>());
+        <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tinyset</span> <span class="op">=</span> <span class="ident">TinySet</span>::<span class="ident">singleton</span>(<span class="ident">test</span>::<span class="ident">black_box</span>(<span class="number">31u32</span>));
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+            <span class="ident">tinyset</span>.<span class="ident">pop_lowest</span>();
+        });
     }
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
