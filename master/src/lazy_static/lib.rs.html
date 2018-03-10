@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/lazy_static-0.2.11/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/lazy_static-1.0.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -266,6 +266,16 @@
 <span id="210">210</span>
 <span id="211">211</span>
 <span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2016 lazy-static.rs Developers</span>
 <span class="comment">//</span>
@@ -355,14 +365,24 @@ fn main() {
 
 # Implementation details
 
-The `Deref` implementation uses a hidden static variable that is guarded by a atomic check on each access. On stable Rust, the macro may need to allocate each static on the heap.
+The `Deref` implementation uses a hidden static variable that is guarded by a atomic check on each access.
+
+# Cargo features
+
+This crate provides two cargo features:
+
+- `nightly`: This uses unstable language features only available on the nightly release channel for a more optimal implementation. In practice this currently means avoiding a heap allocation per static. This feature might get deprecated at a later point once all relevant optimizations are usable from stable.
+- `spin_no_std` (implies `nightly`): This allows using this crate in a no-std environment, by depending on the standalone `spin` crate.
+
+Both features depend on unstable language features, which means
+no guarantees can be made about them in regard to SemVer stability.
 
 */</span>
 
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;spin_no_std&quot;</span>, <span class="ident">feature</span>(<span class="ident">const_fn</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;nightly&quot;</span>, <span class="ident">feature</span>(<span class="ident">unreachable</span>))]</span>
 
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/lazy_static/0.2.11&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/lazy_static/1.0.0&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">no_std</span>]</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;nightly&quot;</span>))]</span>
