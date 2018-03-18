@@ -9,10 +9,6 @@ const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 pub use self::stream::CompressedIntStream;
 use std::cmp;
 
-/// Returns the size in bytes of a compressed block, given `num_bits`.
-pub fn compressed_block_size(num_bits: u8) -> usize {
-    1 + (num_bits as usize) * 16
-}
 
 use bitpacking::BitPacker;
 
@@ -26,7 +22,10 @@ pub use bitpacking::SSE3BitPacker as BitPackerImpl;
 #[cfg(feature = "simdcompression")]
 const MINI_BLOCK: usize = 1;
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+/// Returns the size in bytes of a compressed block, given `num_bits`.
+pub fn compressed_block_size(num_bits: u8) -> usize {
+    1 + (num_bits as usize) * BitPackerImpl::BLOCK_LEN / 8
+}
 
 pub struct BlockEncoder {
     pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
