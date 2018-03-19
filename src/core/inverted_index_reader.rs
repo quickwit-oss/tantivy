@@ -58,7 +58,7 @@ impl InvertedIndexReader {
             TermDictionaryImpl::empty(field_type),
             ReadOnlySource::empty(),
             ReadOnlySource::empty(),
-            DeleteBitSet::empty(),
+            None,
             record_option,
         )
     }

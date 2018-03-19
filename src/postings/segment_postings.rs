@@ -9,12 +9,9 @@ use std::cmp;
 use fst::Streamer;
 use compression::compressed_block_size;
 use postings::{NoDelete, DeleteSet};
-use std::cell::UnsafeCell;
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;
 use postings::serializer::PostingsSerializer;
-
-const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
 struct PositionComputer {
     // store the amount of position int
@@ -41,8 +38,7 @@ impl PositionComputer {
     }
 
     // Positions can only be read once.
-    pub fn positions(&mut self, offset: u32, output: &mut [u32]) {
-        let term_freq = output.len();
+    pub fn positions_with_offset(&mut self, offset: u32, output: &mut [u32]) {
         if let Some(num_skip) = self.position_to_skip {
             self.positions_stream.skip(num_skip);
             self.positions_stream.read(output);
@@ -183,7 +179,7 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
                 // add the term freq.
                 if self.position_computer.is_some() {
                     let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
-                    let sum_freq: u32 = freqs_skipped.iter().sum()
+                    let sum_freq: u32 = freqs_skipped.iter().sum();
                     self.position_computer.as_mut()
                         .unwrap()
                         .add_skip(sum_freq as usize);
@@ -319,10 +315,10 @@ impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
             }
             unsafe {
                 output.set_len(term_freq);
-                self.position_computer.as_mut().unwrap().positions(offset, &mut output[..])
+                self.position_computer.as_mut().unwrap().positions_with_offset(offset, &mut output[..])
             }
         } else {
-            unimplemented!("You may not read positions twice!");
+            output.clear();
         }
     }
 }

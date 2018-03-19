@@ -6,7 +6,6 @@ use core::SerializableSegment;
 use indexer::SegmentSerializer;
 use postings::InvertedIndexSerializer;
 use itertools::Itertools;
-use postings::Postings;
 use docset::DocSet;
 use fastfield::DeleteBitSet;
 use schema::{Field, Schema};
@@ -18,6 +17,7 @@ use std::cmp::{max, min};
 use termdict::TermDictionary;
 use termdict::TermStreamer;
 use postings::DeleteSet;
+use postings::Postings;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -206,6 +206,8 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
+
+        let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
         let mut indexed_fields = vec![];
@@ -314,15 +316,15 @@ impl IndexMerger {
                             {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
-                                unreachable!();
-//                                let positions: &[u32] = segment_postings.positions();
-//                                let term_freq = segment_postings.term_freq();
-//                                let delta_positions = delta_computer.compute_delta(positions);
-//                                field_serializer.write_doc(
-//                                    remapped_doc_id,
-//                                    term_freq,
-//                                    delta_positions,
-//                                )?;
+                                let term_freq = segment_postings.term_freq();
+                                segment_postings.positions(&mut positions_buffer);
+
+                                let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                                field_serializer.write_doc(
+                                    remapped_doc_id,
+                                    term_freq,
+                                    delta_positions,
+                                )?;
                             }
                             if !segment_postings.advance() {
                                 break;
