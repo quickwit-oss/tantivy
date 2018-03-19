@@ -50,9 +50,6 @@ winapi = "0.2"
 rand = "0.3"
 env_logger = "0.4"
 
-[build-dependencies]
-cc = { version="1.0.0", optional=true }
-
 [profile.release]
 opt-level = 3
 debug = false
