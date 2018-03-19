@@ -1,3 +1,8 @@
+Tantivy 0.5.2
+==========================
+
+- Removed C code. Tantivy is now pure Rust. 
+
 Tantivy 0.5.1
 ==========================
 - bugfix #254 : tantivy failed if no documents in a segment contained a specific field.
