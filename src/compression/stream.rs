@@ -58,6 +58,8 @@ impl CompressedIntStream {
     ///
     /// If a full block is skipped, calling
     /// `.skip(...)` will avoid decompressing it.
+    ///
+    /// May panic if the end of the stream is reached.
     pub fn skip(&mut self, mut skip_len: usize) {
         let available = COMPRESSION_BLOCK_SIZE - self.inner_offset;
         if available >= skip_len {
@@ -91,7 +93,7 @@ pub mod tests {
     fn create_stream_buffer() -> ReadOnlySource {
         let mut buffer: Vec<u8> = vec![];
         let mut encoder = BlockEncoder::new();
-        let vals: Vec<u32> = (0u32..1_025u32).collect();
+        let vals: Vec<u32> = (0u32..1152u32).collect();
         for chunk in vals.chunks(COMPRESSION_BLOCK_SIZE) {
             let compressed_block = encoder.compress_block_unsorted(chunk);
             let num_bits = compressed_block[0];

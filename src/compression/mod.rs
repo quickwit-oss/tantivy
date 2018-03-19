@@ -3,40 +3,137 @@
 
 mod stream;
 
-pub use self::stream::CompressedIntStream;
-
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
+
+pub use self::stream::CompressedIntStream;
+use std::cmp;
+
+
+use bitpacking::BitPacker;
+
+#[cfg(not(feature = "simdcompression"))]
+pub use bitpacking::ScalarBitPacker as BitPackerImpl;
+#[cfg(not(feature = "simdcompression"))]
+const MINI_BLOCK: usize = 4;
+
+#[cfg(feature = "simdcompression")]
+pub use bitpacking::SSE3BitPacker as BitPackerImpl;
+#[cfg(feature = "simdcompression")]
+const MINI_BLOCK: usize = 1;
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
 pub fn compressed_block_size(num_bits: u8) -> usize {
-    1 + (num_bits as usize) * 16
+    1 + (num_bits as usize) * BitPackerImpl::BLOCK_LEN / 8
 }
 
-#[cfg(not(feature = "simdcompression"))]
-mod pack {
-    mod compression_pack_nosimd;
-    pub use self::compression_pack_nosimd::{BlockDecoder, BlockEncoder};
+pub struct BlockEncoder {
+    pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
+    pub output_len: usize,
 }
 
-#[cfg(feature = "simdcompression")]
-mod pack {
-    mod compression_pack_simd;
-    pub use self::compression_pack_simd::{BlockDecoder, BlockEncoder};
+impl BlockEncoder {
+    pub fn new() -> BlockEncoder {
+        BlockEncoder {
+            output: [0u8; COMPRESSED_BLOCK_MAX_SIZE],
+            output_len: 0,
+        }
+    }
+
+    pub fn compress_block_sorted(&mut self, vals: &[u32], offset: u32) -> &[u8] {
+        assert_eq!(vals.len(), COMPRESSION_BLOCK_SIZE);
+        let mut num_bits = 0;
+        let mut offsets = [offset; MINI_BLOCK];
+        for i in 1..MINI_BLOCK {
+            offsets[i] = vals[(i * BitPackerImpl::BLOCK_LEN) - 1];
+        }
+        for i in 0..MINI_BLOCK {
+            let block = &vals[i * BitPackerImpl::BLOCK_LEN.. (i + 1)*BitPackerImpl::BLOCK_LEN];
+            num_bits = cmp::max(BitPackerImpl::num_bits_sorted(offsets[i], block), num_bits);
+        }
+        self.output[0] = num_bits;
+        let compressed_chunk_len = (num_bits as usize)  * BitPackerImpl::BLOCK_LEN / 8;
+        let mut written_size = 1;
+        for i in 0..MINI_BLOCK {
+            let block = &vals[i * BitPackerImpl::BLOCK_LEN.. (i + 1)*BitPackerImpl::BLOCK_LEN];
+            BitPackerImpl::compress_sorted(offsets[i], block, &mut self.output[written_size..], num_bits);
+            written_size += compressed_chunk_len;
+        }
+        &self.output[..written_size]
+    }
+
+    pub fn compress_block_unsorted(&mut self, vals: &[u32]) -> &[u8] {
+        assert_eq!(vals.len(), COMPRESSION_BLOCK_SIZE);
+        let num_bits = vals.chunks(BitPackerImpl::BLOCK_LEN)
+            .map(|chunk| BitPackerImpl::num_bits(chunk))
+            .max()
+            .unwrap_or(0u8);
+        self.output[0] = num_bits;
+        let mut written_size = 1;
+        let compressed_chunk_len = (num_bits as usize)  * BitPackerImpl::BLOCK_LEN / 8;
+        for chunk in vals.chunks(BitPackerImpl::BLOCK_LEN) {
+            BitPackerImpl::compress(chunk, &mut self.output[written_size..], num_bits);
+            written_size += compressed_chunk_len;
+        }
+        &self.output[..written_size]
+    }
 }
 
-pub use self::pack::{BlockDecoder, BlockEncoder};
 
-#[cfg(any(not(feature = "simdcompression"), target_env = "msvc"))]
-mod vint {
-    mod compression_vint_nosimd;
-    pub(crate) use self::compression_vint_nosimd::*;
+pub struct BlockDecoder {
+    pub output: [u32; COMPRESSED_BLOCK_MAX_SIZE],
+    pub output_len: usize,
 }
 
-#[cfg(all(feature = "simdcompression", not(target_env = "msvc")))]
-mod vint {
-    mod compression_vint_simd;
-    pub(crate) use self::compression_vint_simd::*;
+impl BlockDecoder {
+    pub fn new() -> BlockDecoder {
+        BlockDecoder::with_val(0u32)
+    }
+
+    pub fn with_val(val: u32) -> BlockDecoder {
+        BlockDecoder {
+            output: [val; COMPRESSED_BLOCK_MAX_SIZE],
+            output_len: 0,
+        }
+    }
+    
+    pub fn uncompress_block_sorted(&mut self, compressed_data: &[u8], mut offset: u32) -> usize {
+        let num_bits = compressed_data[0];
+        let mut read_size: usize = 1;
+        let chunk_size: usize = (num_bits as usize) * BitPackerImpl::BLOCK_LEN / 8;
+        for i in 0..MINI_BLOCK {
+            BitPackerImpl::decompress_sorted(offset, &compressed_data[read_size..], &mut self.output[i*BitPackerImpl::BLOCK_LEN..], num_bits);
+            offset = self.output[(i + 1)*BitPackerImpl::BLOCK_LEN - 1];
+            read_size += chunk_size;
+        }
+        self.output_len = COMPRESSION_BLOCK_SIZE;
+        read_size
+    }
+
+    pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
+        let num_bits = compressed_data[0];
+        let mut read_size: usize = 1;
+        let chunk_size: usize = (num_bits as usize) * BitPackerImpl::BLOCK_LEN / 8;
+        for i in 0..MINI_BLOCK {
+            BitPackerImpl::decompress(&compressed_data[read_size..], &mut self.output[i*BitPackerImpl::BLOCK_LEN..], num_bits);
+            read_size += chunk_size;
+        }
+        self.output_len = COMPRESSION_BLOCK_SIZE;
+        read_size
+    }
+
+    #[inline]
+    pub fn output_array(&self) -> &[u32] {
+        &self.output[..self.output_len]
+    }
+
+    #[inline]
+    pub fn output(&self, idx: usize) -> u32 {
+        self.output[idx]
+    }
 }
+
+mod vint;
 
 pub trait VIntEncoder {
     /// Compresses an array of `u32` integers,

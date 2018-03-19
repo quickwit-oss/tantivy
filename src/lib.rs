@@ -151,6 +151,7 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate time;
 extern crate uuid;
+extern crate bitpacking;
 
 #[cfg(test)]
 #[macro_use]
@@ -158,9 +159,6 @@ extern crate matches;
 
 #[cfg(test)]
 extern crate env_logger;
-
-#[cfg(feature = "simdcompression")]
-extern crate libc;
 
 #[cfg(windows)]
 extern crate winapi;
