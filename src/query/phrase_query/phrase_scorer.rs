@@ -3,7 +3,6 @@ use docset::{DocSet, SkipResult};
 use postings::Postings;
 use query::{Intersection, Scorer};
 
-
 struct PostingsWithOffset<TPostings> {
     offset: u32,
     postings: TPostings
@@ -47,17 +46,43 @@ pub struct PhraseScorer<TPostings: Postings> {
     right: Vec<u32>
 }
 
-fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+
+fn intersection_count(left: &mut [u32], right: &[u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
     while left_i < left.len() && right_i < right.len() {
-        if left[left_i] < right[right_i] {
+        let left_val = left[left_i];
+        let right_val = right[right_i];
+        if left_val < right_val {
             left_i += 1;
-        } else if right[right_i] < left[left_i] {
+        } else if right_val < left_val {
             right_i += 1;
         } else {
-            count+=1;
+            count += 1;
+            left_i += 1;
+            right_i += 1;
+        }
+    }
+    count
+}
+
+fn intersection_arr(left: &mut [u32], right: &[u32]) -> usize {
+    let mut left_i = 0;
+    let mut right_i = 0;
+    let mut count = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_i < left_len && right_i < right_len {
+        let left_val = left[left_i];
+        let right_val = right[right_i];
+        if left_val < right_val {
+            left_i += 1;
+        } else if right_val < left_val {
+            right_i += 1;
+        } else {
+            left[count] = left_val;
+            count += 1;
             left_i += 1;
             right_i += 1;
         }
@@ -89,16 +114,19 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             self.intersection_docset.docset_mut_specialized(0).positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_docsets {
+        for i in 1..self.num_docsets - 1 {
             {
                 self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
             }
-            intersection_len = intersection_count(&mut self.left[..intersection_len], &self.right[..]);
+            intersection_len = intersection_arr(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
                 return false;
             }
         }
-        return true;
+
+        self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
+        intersection_len = intersection_count(&mut self.left[..intersection_len], &self.right[..]);
+        intersection_len > 0
     }
 }
 
