@@ -51,8 +51,10 @@ impl DocSet for EmptyScorer {
     }
 
     fn doc(&self) -> DocId {
-        panic!("You may not call .doc() on a scorer \
-        where the last call to advance() did not return true.");
+        panic!(
+            "You may not call .doc() on a scorer \
+             where the last call to advance() did not return true."
+        );
     }
 
     fn size_hint(&self) -> u32 {

@@ -63,4 +63,41 @@ macro_rules! doc(
             document
         }
     };
+    // if there is a trailing comma retry with the trailing comma stripped.
+    ($($field:expr => $value:expr),+ ,) => {
+        doc!( $( $field => $value ), *);
+    };
 );
+
+#[cfg(test)]
+mod test {
+    use schema::{SchemaBuilder, FAST, TEXT};
+
+    #[test]
+    fn test_doc_basic() {
+        let mut schema_builder = SchemaBuilder::new();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let author = schema_builder.add_text_field("text", TEXT);
+        let likes = schema_builder.add_u64_field("num_u64", FAST);
+        let _schema = schema_builder.build();
+        let _doc = doc!(
+            title => "Life Aquatic",
+            author => "Wes Anderson",
+            likes => 4u64
+            );
+    }
+
+    #[test]
+    fn test_doc_trailing_comma() {
+        let mut schema_builder = SchemaBuilder::new();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let author = schema_builder.add_text_field("text", TEXT);
+        let likes = schema_builder.add_u64_field("num_u64", FAST);
+        let _schema = schema_builder.build();
+        let _doc = doc!(
+            title => "Life Aquatic",
+            author => "Wes Anderson",
+            likes => 4u64,
+            );
+    }
+}

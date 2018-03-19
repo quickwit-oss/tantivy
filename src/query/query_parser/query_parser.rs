@@ -155,7 +155,7 @@ impl QueryParser {
     fn compute_logical_ast_for_leaf(
         &self,
         field: Field,
-        phrase: &str
+        phrase: &str,
     ) -> Result<Option<LogicalLiteral>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -328,7 +328,7 @@ mod test {
     use tokenizer::TokenizerManager;
     use query::Query;
     use schema::Field;
-    use schema::{TextOptions, TextFieldIndexing, IndexRecordOption};
+    use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use super::QueryParser;
     use super::QueryParserError;
     use Index;
@@ -538,7 +538,9 @@ mod test {
         let title = schema_builder.add_text_field("title", text_options);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        index.tokenizers().register("customtokenizer", SimpleTokenizer);
+        index
+            .tokenizers()
+            .register("customtokenizer", SimpleTokenizer);
         let query_parser = QueryParser::for_index(&index, vec![title]);
         assert!(query_parser.parse_query("title:\"happy tax\"").is_ok());
     }

@@ -40,6 +40,7 @@ impl PositionComputer {
             .or(Some(0));
     }
 
+    // Positions can only be read once.
     pub fn positions(&mut self, offset: u32, output: &mut [u32]) {
         let term_freq = output.len();
         if let Some(num_skip) = self.position_to_skip {
@@ -52,7 +53,7 @@ impl PositionComputer {
                 *output_mut = cum;
             }
         } else {
-            panic!("Failed positions");
+            panic!("Positions have already been read.");
         }
     }
 }

@@ -24,11 +24,10 @@ pub struct FastFieldReader<Item: FastValue> {
     bit_unpacker: BitUnpacker<OwningRef<ReadOnlySource, [u8]>>,
     min_value_u64: u64,
     max_value_u64: u64,
-    _phantom: PhantomData<Item>
+    _phantom: PhantomData<Item>,
 }
 
 impl<Item: FastValue> FastFieldReader<Item> {
-
     /// Opens a fast field given a source.
     pub fn open(data: ReadOnlySource) -> Self {
         let min_value: u64;
@@ -48,10 +47,9 @@ impl<Item: FastValue> FastFieldReader<Item> {
             min_value_u64: min_value,
             max_value_u64: max_value,
             bit_unpacker,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
-
 
     /// Return the value associated to the given document.
     ///
@@ -73,7 +71,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    pub fn get_range(&self, start: u32, output: &mut [Item])  {
+    pub fn get_range(&self, start: u32, output: &mut [Item]) {
         let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
         self.bit_unpacker.get_range(start, output_u64);
         for out in output_u64.iter_mut() {
@@ -137,4 +135,3 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
         FastFieldReader::open(field_source)
     }
 }
-

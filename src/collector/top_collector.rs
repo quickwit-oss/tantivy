@@ -60,7 +60,7 @@ impl TopCollector {
             panic!("Limit must be strictly greater than 0.");
         }
         TopCollector {
-            limit: limit,
+            limit,
             heap: BinaryHeap::with_capacity(limit),
             segment_id: 0,
         }
@@ -119,7 +119,7 @@ impl Collector for TopCollector {
             }
         } else {
             let wrapped_doc = GlobalScoredDoc {
-                score: score,
+                score,
                 doc_address: DocAddress(self.segment_id, doc),
             };
             self.heap.push(wrapped_doc);

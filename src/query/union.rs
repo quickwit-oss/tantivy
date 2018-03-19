@@ -110,7 +110,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
 }
 
 impl<TScorer, TScoreCombiner> DocSet for Union<TScorer, TScoreCombiner>
-    where TScorer: Scorer, TScoreCombiner: ScoreCombiner
+where
+    TScorer: Scorer,
+    TScoreCombiner: ScoreCombiner,
 {
     fn advance(&mut self) -> bool {
         if self.advance_buffered() {

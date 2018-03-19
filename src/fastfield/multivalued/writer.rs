@@ -7,12 +7,11 @@ use schema::{Document, Field};
 use std::io;
 use itertools::Itertools;
 
-
 pub struct MultiValueIntFastFieldWriter {
     field: Field,
     vals: Vec<u64>,
     doc_index: Vec<u64>,
-    is_facet: bool
+    is_facet: bool,
 }
 
 impl MultiValueIntFastFieldWriter {
@@ -22,7 +21,7 @@ impl MultiValueIntFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
-            is_facet
+            is_facet,
         }
     }
 
@@ -51,7 +50,6 @@ impl MultiValueIntFastFieldWriter {
                 }
             }
         }
-
     }
 
     /// Serializes fast field values by pushing them to the `FastFieldSerializer`.
@@ -85,8 +83,12 @@ impl MultiValueIntFastFieldWriter {
             let mut value_serializer: FastSingleFieldSerializer<_>;
             match mapping_opt {
                 Some(mapping) => {
-                    value_serializer =
-                        serializer.new_u64_fast_field_with_idx(self.field, 0u64, mapping.len() as u64, 1)?;
+                    value_serializer = serializer.new_u64_fast_field_with_idx(
+                        self.field,
+                        0u64,
+                        mapping.len() as u64,
+                        1,
+                    )?;
                     for val in &self.vals {
                         let remapped_val = *mapping.get(val).expect("Missing term ordinal") as u64;
                         value_serializer.add_val(remapped_val)?;

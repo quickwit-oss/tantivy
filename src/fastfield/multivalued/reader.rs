@@ -1,7 +1,6 @@
 use DocId;
 use fastfield::{FastFieldReader, FastValue};
 
-
 /// Reader for a multivalued `u64` fast field.
 ///
 /// The reader is implemented as two `u64` fast field.
@@ -13,7 +12,7 @@ use fastfield::{FastFieldReader, FastValue};
 #[derive(Clone)]
 pub struct MultiValueIntFastFieldReader<Item: FastValue> {
     idx_reader: FastFieldReader<u64>,
-    vals_reader: FastFieldReader<Item>
+    vals_reader: FastFieldReader<Item>,
 }
 
 impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
@@ -23,7 +22,7 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
     ) -> MultiValueIntFastFieldReader<Item> {
         MultiValueIntFastFieldReader {
             idx_reader,
-            vals_reader
+            vals_reader,
         }
     }
 

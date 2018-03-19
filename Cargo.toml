@@ -1,8 +1,7 @@
 [package]
 name = "tantivy"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
-build = "build.rs"
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
 description = """Tantivy is a search engine library."""
@@ -26,13 +25,12 @@ tempdir = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-libc = { version = "0.2.20", optional=true }
 num_cpus = "1.2"
 itertools = "0.5.9"
 lz4 = "1.20"
 bit-set = "0.4.0"
 time = "0.1"
-uuid = { version = "0.5", features = ["v4", "serde"] }
+uuid = { version = "0.6", features = ["v4", "serde"] }
 chan = "0.1"
 crossbeam = "0.3"
 futures = "0.1"
@@ -43,6 +41,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9", features = ["nightly"]}
 matches = "0.1"
+bitpacking = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
@@ -50,9 +49,6 @@ winapi = "0.2"
 [dev-dependencies]
 rand = "0.3"
 env_logger = "0.4"
-
-[build-dependencies]
-cc = { version="1.0.0", optional=true }
 
 [profile.release]
 opt-level = 3
@@ -63,7 +59,7 @@ debug-assertions = false
 
 [features]
 default = ["simdcompression"]
-simdcompression = ["libc", "cc"]
+simdcompression = []
 streamdict = []
 
 

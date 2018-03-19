@@ -8,6 +8,7 @@ use fastfield::DeleteBitSet;
 use compression::CompressedIntStream;
 use postings::FreqReadingOption;
 use postings::{DeleteSet, NoDelete};
+use schema::FieldType;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -32,19 +33,34 @@ pub struct InvertedIndexReader {
 
 impl InvertedIndexReader {
     pub(crate) fn new(
-        termdict_source: ReadOnlySource,
+        termdict: TermDictionaryImpl,
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
         delete_bitset_opt: Option<DeleteBitSet>,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
         InvertedIndexReader {
-            termdict: TermDictionaryImpl::from_source(termdict_source),
+            termdict,
             postings_source,
             positions_source,
             delete_bitset_opt,
             record_option,
         }
+    }
+
+    /// Creates an empty `InvertedIndexReader` object, which
+    /// contains no terms at all.
+    pub fn empty(field_type: FieldType) -> InvertedIndexReader {
+        let record_option = field_type
+            .get_index_record_option()
+            .unwrap_or(IndexRecordOption::Basic);
+        InvertedIndexReader::new(
+            TermDictionaryImpl::empty(field_type),
+            ReadOnlySource::empty(),
+            ReadOnlySource::empty(),
+            DeleteBitSet::empty(),
+            record_option,
+        )
     }
 
     /// Returns the term info associated with the term.

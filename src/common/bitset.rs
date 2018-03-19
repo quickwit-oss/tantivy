@@ -1,4 +1,5 @@
 use std::fmt;
+use std::u64;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct TinySet(u64);
@@ -355,7 +356,15 @@ mod tests {
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {
-        b.iter(|| test::black_box(TinySet(321u64)).pop_lowest());
+        b.iter(|| {
+            let mut tinyset = TinySet::singleton(test::black_box(31u32));
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+        });
     }
 
     #[bench]

@@ -53,7 +53,7 @@ impl FastFieldsWriter {
         }
         FastFieldsWriter {
             single_value_writers,
-            multi_values_writers
+            multi_values_writers,
         }
     }
 
