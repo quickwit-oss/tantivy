@@ -186,6 +186,29 @@ mod tests {
     use test::Bencher;
     use super::{intersection_count, intersection};
 
+
+    fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
+        test_intersection_aux(left, right, expected);
+        test_intersection_aux(right, left, expected);
+    }
+
+    fn test_intersection_aux(left: &[u32], right: &[u32], expected: &[u32]) {
+        let mut left_vec = Vec::from(left);
+        let left_mut = &mut left_vec[..];
+        assert_eq!(intersection_count(left_mut, right), expected.len());
+        let count = intersection(left_mut, right);
+        assert_eq!(&left_mut[..count], expected);
+    }
+
+    #[test]
+    fn test_intersection() {
+        test_intersection_sym(&[1], &[1], &[1]);
+        test_intersection_sym(&[1], &[2], &[]);
+        test_intersection_sym(&[], &[2], &[]);
+        test_intersection_sym(&[5, 7], &[1, 5, 10, 12], &[5]);
+        test_intersection_sym(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12]);
+    }
+
     #[bench]
     fn bench_intersection_short(b: &mut Bencher) {
         b.iter(|| {
