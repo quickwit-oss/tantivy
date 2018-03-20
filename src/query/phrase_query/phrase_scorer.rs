@@ -47,7 +47,8 @@ pub struct PhraseScorer<TPostings: Postings> {
 }
 
 
-fn intersection_count(left: &mut [u32], right: &[u32]) -> usize {
+/// Computes the length of the intersection of two sorted arrays.
+fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
@@ -67,7 +68,11 @@ fn intersection_count(left: &mut [u32], right: &[u32]) -> usize {
     count
 }
 
-fn intersection_arr(left: &mut [u32], right: &[u32]) -> usize {
+/// Intersect twos sorted arrays `left` and `right` and outputs the
+/// resulting array in left.
+///
+/// Returns the length of the intersection
+fn intersection(left: &mut [u32], right: &[u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
@@ -118,7 +123,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             {
                 self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
             }
-            intersection_len = intersection_arr(&mut self.left[..intersection_len], &self.right[..]);
+            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
                 return false;
             }
@@ -178,13 +183,23 @@ mod tests {
 
     use tests;
     use test::Bencher;
-    use super::intersection_count;
+    use super::{intersection_count, intersection};
 
     #[bench]
-    fn bench_intersection(b: &mut Bencher) {
-        let left = tests::sample_with_seed(10, 0.1, 1);
-        let right = tests::sample_with_seed(2, 0.05, 2);
+    fn bench_intersection_short(b: &mut Bencher) {
         b.iter(|| {
+            let mut left = [1, 5, 10, 12];
+            let right = [5, 7];
+            intersection(&mut left, &right);
+        });
+    }
+
+
+    #[bench]
+    fn bench_intersection_count_short(b: &mut Bencher) {
+        b.iter(|| {
+            let mut left = [1, 5, 10, 12];
+            let right = [5, 7];
             intersection_count(&left, &right);
         });
     }

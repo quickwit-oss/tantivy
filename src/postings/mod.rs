@@ -112,6 +112,8 @@ pub mod tests {
             postings.advance();
             postings.positions(&mut positions);
             assert_eq!(&[0, 1, 2], &positions[..]);
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 1, 2], &positions[..]);
             postings.advance();
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
