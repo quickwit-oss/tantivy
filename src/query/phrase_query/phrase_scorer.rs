@@ -181,7 +181,6 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
 #[cfg(test)]
 mod tests {
 
-    use tests;
     use test::Bencher;
     use super::{intersection_count, intersection};
 
@@ -198,7 +197,7 @@ mod tests {
     #[bench]
     fn bench_intersection_count_short(b: &mut Bencher) {
         b.iter(|| {
-            let mut left = [1, 5, 10, 12];
+            let left = [1, 5, 10, 12];
             let right = [5, 7];
             intersection_count(&left, &right);
         });

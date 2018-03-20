@@ -81,7 +81,7 @@ impl BlockEncoder {
 
 
 pub struct BlockDecoder {
-    pub output: [u32; COMPRESSED_BLOCK_MAX_SIZE],
+    pub output: [u32; COMPRESSION_BLOCK_SIZE + 1],
     pub output_len: usize,
 }
 
@@ -91,8 +91,10 @@ impl BlockDecoder {
     }
 
     pub fn with_val(val: u32) -> BlockDecoder {
+        let mut output = [val; COMPRESSION_BLOCK_SIZE + 1];
+        output[COMPRESSION_BLOCK_SIZE] = 0u32;
         BlockDecoder {
-            output: [val; COMPRESSED_BLOCK_MAX_SIZE],
+            output,
             output_len: 0,
         }
     }
