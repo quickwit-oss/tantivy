@@ -19,37 +19,31 @@ struct PositionComputer {
     //
     // if none, position are already loaded in
     // the positions vec.
-    position_to_skip: Option<usize>,
+    position_to_skip: usize,
     positions_stream: CompressedIntStream,
 }
 
 impl PositionComputer {
     pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
         PositionComputer {
-            position_to_skip: None,
+            position_to_skip: 0,
             positions_stream,
         }
     }
 
     pub fn add_skip(&mut self, num_skip: usize) {
-        self.position_to_skip = self.position_to_skip
-            .map(|prev_skip| prev_skip + num_skip)
-            .or(Some(0));
+        self.position_to_skip += num_skip;
     }
 
     // Positions can only be read once.
     pub fn positions_with_offset(&mut self, offset: u32, output: &mut [u32]) {
-        if let Some(num_skip) = self.position_to_skip {
-            self.positions_stream.skip(num_skip);
-            self.positions_stream.read(output);
-            self.position_to_skip = None;
-            let mut cum = offset;
-            for output_mut in output.iter_mut() {
-                cum += *output_mut;
-                *output_mut = cum;
-            }
-        } else {
-            panic!("Positions have already been read.");
+        self.positions_stream.skip(self.position_to_skip);
+        self.position_to_skip = 0;
+        self.positions_stream.read(output);
+        let mut cum = offset;
+        for output_mut in output.iter_mut() {
+            cum += *output_mut;
+            *output_mut = cum;
         }
     }
 }

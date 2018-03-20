@@ -116,7 +116,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     fn phrase_match(&mut self) -> bool {
         // TODO early exit when we don't care about the phrase frequency
         {
-            self.intersection_docset.docset_mut_specialized(0).positions(&mut self.left);
+            self.intersection_docset
+                .docset_mut_specialized(0)
+                .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
         for i in 1..self.num_docsets - 1 {
