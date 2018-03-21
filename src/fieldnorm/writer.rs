@@ -12,8 +12,9 @@ pub struct FieldNormsWriter {
 }
 
 impl FieldNormsWriter {
-    pub fn for_schema(schema: &Schema) -> FieldNormsWriter {
-        let fields = schema
+
+    pub fn fields_with_fieldnorm(schema: &Schema) -> Vec<Field> {
+        schema
             .fields()
             .iter()
             .enumerate()
@@ -21,7 +22,11 @@ impl FieldNormsWriter {
                 field_entry.is_indexed()
             })
             .map(|(field, _)| Field(field as u32))
-            .collect::<Vec<_>>();
+            .collect::<Vec<Field>>()
+    }
+
+    pub fn for_schema(schema: &Schema) -> FieldNormsWriter {
+        let fields = FieldNormsWriter::fields_with_fieldnorm(schema);
         let max_field = fields
             .iter()
             .map(|field| field.0)

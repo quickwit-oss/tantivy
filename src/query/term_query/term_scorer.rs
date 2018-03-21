@@ -4,7 +4,6 @@ use docset::{DocSet, SkipResult};
 use postings::SegmentPostings;
 use query::Scorer;
 use postings::Postings;
-use fastfield::FastFieldReader;
 use fieldnorm::FieldNormReader;
 
 pub struct TermScorer {

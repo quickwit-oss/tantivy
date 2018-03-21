@@ -18,6 +18,36 @@ use std::cmp::{max, min};
 use termdict::TermDictionary;
 use termdict::TermStreamer;
 use fieldnorm::FieldNormsSerializer;
+use fieldnorm::FieldNormsWriter;
+use fieldnorm::FieldNormReader;
+
+
+fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
+    let mut total_tokens = 0u64;
+    let mut count: [usize; 256] = [0; 256];
+    for reader in readers {
+        if reader.delete_bitset().has_deletes() {
+            // if there are deletes, then we use an approximation
+            // using the fieldnorm
+            if let Some(fieldnorms_reader) = reader.get_fieldnorms_reader(field) {
+                for doc in 0..reader.max_doc() {
+                    if !reader.is_deleted(doc) {
+                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
+                        count[fieldnorm_id as usize] += 1;
+                    }
+                }
+            }
+        } else {
+            total_tokens += reader.inverted_index(field).total_num_tokens();
+        }
+    }
+    total_tokens + count
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(fieldnorm_ord, count)| count as u64 * FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8) as u64)
+        .sum::<u64>()
+}
 
 pub struct IndexMerger {
     schema: Schema,
@@ -45,14 +75,6 @@ fn compute_min_max_val(
             .minmax()
             .into_option()
     }
-}
-
-
-fn extract_fast_field_reader(
-    segment_reader: &SegmentReader,
-    field: Field,
-) -> Option<FastFieldReader<u64>> {
-    segment_reader.fast_field_reader(field).ok()
 }
 
 struct DeltaComputer {
@@ -97,20 +119,26 @@ impl IndexMerger {
         })
     }
 
-    fn write_fieldnorms(&self, fast_field_serializer: &mut FieldNormsSerializer) -> Result<()> {
-        unimplemented!("Not implemented yet");
-//        let fieldnorm_fastfields: Vec<Field> = self.schema
-//            .fields()
-//            .iter()
-//            .enumerate()
-//            .filter(|&(_, field_entry)| field_entry.is_indexed())
-//            .map(|(field_id, _)| Field(field_id as u32))
-//            .collect();
-//        self.generic_write_fast_field(
-//            fieldnorm_fastfields,
-//            &extract_fieldnorm_reader,
-//            fast_field_serializer,
-//        )
+    fn write_fieldnorms(&self, fieldnorms_serializer: &mut FieldNormsSerializer) -> Result<()> {
+        let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
+        let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
+        for field in fields {
+            fieldnorms_data.clear();
+            for reader in &self.readers {
+                let fieldnorms_reader_opt = reader.get_fieldnorms_reader(field);
+                for doc_id in 0..reader.max_doc() {
+                    if !reader.is_deleted(doc_id) {
+                        let fieldnorm_id = fieldnorms_reader_opt
+                            .as_ref()
+                            .map(|reader| reader.fieldnorm_id(doc_id))
+                            .unwrap_or(0u8);
+                        fieldnorms_data.push(fieldnorm_id);
+                    }
+                }
+            }
+            fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
+        }
+        Ok(())
     }
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
@@ -121,28 +149,15 @@ impl IndexMerger {
             .filter(|&(_, field_entry)| field_entry.is_int_fast())
             .map(|(field_id, _)| Field(field_id as u32))
             .collect();
-        self.generic_write_fast_field(
-            fast_fields,
-            &extract_fast_field_reader,
-            fast_field_serializer,
-        )
-    }
 
-    // used both to merge field norms and regular u64 fast fields.
-    fn generic_write_fast_field(
-        &self,
-        fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<FastFieldReader<u64>>,
-        fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
-        for field in fields {
+        for field in fast_fields {
             let mut u64_readers = vec![];
             let mut min_val = u64::max_value();
             let mut max_val = u64::min_value();
 
             for reader in &self.readers {
-                match field_reader_extractor(reader, field) {
-                    Some(u64_reader) => {
+                match reader.fast_field_reader::<u64>(field) {
+                    Ok(u64_reader) => {
                         if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
                             &u64_reader,
                             reader.max_doc(),
@@ -158,9 +173,10 @@ impl IndexMerger {
                             ));
                         }
                     }
-                    None => {
+                    Err(_) => {
+                        let fieldname = self.schema.get_field_name(field);
                         let error_msg =
-                            format!("Failed to find a u64_reader for field {:?}", field);
+                            format!("Failed to find a fast field reader for field {:?}", fieldname);
                         error!("{}", error_msg);
                         bail!(ErrorKind::SchemaError(error_msg));
                     }
@@ -232,12 +248,10 @@ impl IndexMerger {
                 merged_doc_id_map.push(segment_local_map);
             }
 
-
-            let total_num_tokens = self.readers
-                .iter()
-                .map(|reader| reader.inverted_index(indexed_field))
-                .map(|inverted_index| inverted_index.total_num_tokens())
-                .sum();
+            // The total number of tokens will only be exact when there has been no deletes.
+            //
+            // Otherwise, we approximate by removing deleted documents proportionally.
+            let total_num_tokens: u64 = compute_total_num_tokens(&self.readers, indexed_field);
 
             // Create the total list of doc ids
             // by stacking the doc ids from the different segment.

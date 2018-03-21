@@ -261,6 +261,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
     fn add_num_tokens(&mut self, num_tokens: u32) {
         self.total_num_tokens += num_tokens as u64;
     }
+
     fn total_num_tokens(&self) -> u64 {
         self.total_num_tokens
     }

@@ -18,7 +18,6 @@ mod tests {
     use schema::*;
     use fieldnorm::FieldNormReader;
     use schema::IndexRecordOption;
-    use fastfield::FastFieldReader;
 
     fn abs_diff(left: f32, right: f32) -> f32 {
         (right - left).abs()

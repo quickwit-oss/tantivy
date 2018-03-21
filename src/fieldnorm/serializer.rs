@@ -28,7 +28,7 @@ impl FieldNormsSerializer {
         Ok(())
     }
 
-    pub fn close(mut self) -> io::Result<()> {
+    pub fn close(self) -> io::Result<()> {
         self.composite_write.close()?;
         Ok(())
     }

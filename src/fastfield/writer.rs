@@ -1,7 +1,6 @@
 use schema::{Cardinality, Document, Field, Schema};
 use fastfield::FastFieldSerializer;
 use std::io;
-use DocId;
 use schema::FieldType;
 use common;
 use common::VInt;
@@ -54,15 +53,6 @@ impl FastFieldsWriter {
         FastFieldsWriter {
             single_value_writers,
             multi_values_writers
-        }
-    }
-
-    /// Returns a `FastFieldsWriter with a `u64` `IntFastFieldWriter` for each
-    /// of the field given in argument.
-    pub(crate) fn new(fields: Vec<Field>) -> FastFieldsWriter {
-        FastFieldsWriter {
-            single_value_writers: fields.into_iter().map(IntFastFieldWriter::new).collect(),
-            multi_values_writers: vec![],
         }
     }
 
