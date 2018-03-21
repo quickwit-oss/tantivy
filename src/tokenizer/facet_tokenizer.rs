@@ -31,7 +31,7 @@ impl<'a> Tokenizer<'a> for FacetTokenizer {
 
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         FacetTokenStream {
-            text: text,
+            text,
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
             token: Token::default(),
         }

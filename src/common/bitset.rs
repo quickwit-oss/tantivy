@@ -1,4 +1,5 @@
 use std::fmt;
+use std::u64;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct TinySet(u64);
@@ -84,23 +85,12 @@ impl TinySet {
     /// and removes it.
     #[inline(always)]
     pub fn pop_lowest(&mut self) -> Option<u32> {
-        if let Some(lowest) = self.lowest() {
-            self.0 ^= TinySet::singleton(lowest).0;
-            Some(lowest)
-        } else {
-            None
-        }
-    }
-
-    /// Returns the lowest element in the `TinySet`
-    /// (or None if the set is empty).
-    #[inline(always)]
-    pub fn lowest(&mut self) -> Option<u32> {
         if self.is_empty() {
             None
         } else {
-            let least_significant_bit = self.0.trailing_zeros() as u32;
-            Some(least_significant_bit)
+            let lowest = self.0.trailing_zeros() as u32;
+            self.0 ^= TinySet::singleton(lowest).0;
+            Some(lowest)
         }
     }
 
@@ -366,7 +356,15 @@ mod tests {
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {
-        b.iter(|| test::black_box(TinySet::singleton(31u32)).pop_lowest());
+        b.iter(|| {
+            let mut tinyset = TinySet::singleton(test::black_box(31u32));
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+            tinyset.pop_lowest();
+        });
     }
 
     #[bench]
@@ -387,4 +385,5 @@ mod tests {
     fn bench_bitset_initialize(b: &mut test::Bencher) {
         b.iter(|| BitSet::with_max_value(1_000_000));
     }
+
 }

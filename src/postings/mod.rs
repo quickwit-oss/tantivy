@@ -13,11 +13,13 @@ mod serializer;
 mod postings_writer;
 mod term_info;
 mod segment_postings;
+mod delete_set;
 
 use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 
+pub use self::delete_set::{DeleteSet, NoDelete};
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
@@ -51,7 +53,6 @@ pub mod tests {
     use schema::IndexRecordOption;
     use std::iter;
     use datastruct::stacker::Heap;
-    use query::TermQuery;
     use schema::Field;
     use test::{self, Bencher};
     use indexer::operation::AddOperation;
@@ -98,58 +99,69 @@ pub mod tests {
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
+
         let searcher = index.searcher();
-        let query = TermQuery::new(
-            Term::from_field_text(title, "abc"),
-            IndexRecordOption::WithFreqsAndPositions,
-        );
-        let weight = query.specialized_weight(&*searcher, true);
+        let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
+        let term = Term::from_field_text(title, "abc");
+
+        let mut positions = Vec::new();
+
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            scorer.advance();
-            assert_eq!(&[0, 1, 2], scorer.postings().positions());
-            scorer.advance();
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            postings.advance();
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 1, 2], &positions[..]);
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 1, 2], &positions[..]);
+            postings.advance();
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 5], &positions[..]);
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            scorer.advance();
-            scorer.advance();
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            postings.advance();
+            postings.advance();
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 5], &positions[..]);
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(1), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(1), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1);
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 5], &positions[..]);
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(1002), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1002);
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 5], &positions[..]);
         }
         {
-            let mut scorer = weight
-                .specialized_scorer(searcher.segment_reader(0u32))
+            let mut postings = inverted_index
+                .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(scorer.skip_next(100), SkipResult::Reached);
-            assert_eq!(scorer.skip_next(1002), SkipResult::Reached);
-            assert_eq!(scorer.doc(), 1002);
-            assert_eq!(&[0, 5], scorer.postings().positions());
+            assert_eq!(postings.skip_next(100), SkipResult::Reached);
+            assert_eq!(postings.skip_next(1002), SkipResult::Reached);
+            assert_eq!(postings.doc(), 1002);
+            postings.positions(&mut positions);
+            assert_eq!(&[0, 5], &positions[..]);
         }
     }
 
     #[test]
     pub fn test_position_and_fieldnorm1() {
+        let mut positions = Vec::new();
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -224,15 +236,16 @@ pub mod tests {
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 0);
                 assert_eq!(postings_a.term_freq(), 6);
-                assert_eq!(postings_a.positions(), [0, 2, 4, 6, 7, 13]);
-                assert_eq!(postings_a.positions(), [0, 2, 4, 6, 7, 13]);
+                postings_a.positions(&mut positions);
+                assert_eq!(&positions[..], [0, 2, 4, 6, 7, 13]);
                 assert!(postings_a.advance());
                 assert_eq!(postings_a.doc(), 1u32);
                 assert_eq!(postings_a.term_freq(), 1);
                 for i in 2u32..1000u32 {
                     assert!(postings_a.advance());
                     assert_eq!(postings_a.term_freq(), 1);
-                    assert_eq!(postings_a.positions(), [i]);
+                    postings_a.positions(&mut positions);
+                    assert_eq!(&positions[..], [i]);
                     assert_eq!(postings_a.doc(), i);
                 }
                 assert!(!postings_a.advance());
@@ -247,7 +260,7 @@ pub mod tests {
                 for i in 2u32..1000u32 {
                     assert!(postings_e.advance());
                     assert_eq!(postings_e.term_freq(), i);
-                    let positions = postings_e.positions();
+                    postings_e.positions(&mut positions);
                     assert_eq!(positions.len(), i as usize);
                     for j in 0..positions.len() {
                         assert_eq!(positions[j], (j as u32));
@@ -261,6 +274,7 @@ pub mod tests {
 
     #[test]
     pub fn test_position_and_fieldnorm2() {
+        let mut positions: Vec<u32> = Vec::new();
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -280,18 +294,17 @@ pub mod tests {
             assert!(index_writer.commit().is_ok());
         }
         index.load_searchers().unwrap();
-        let term_query = TermQuery::new(
-            Term::from_field_text(text_field, "a"),
-            IndexRecordOption::Basic,
-        );
+        let term_a = Term::from_field_text(text_field, "a");
         let searcher = index.searcher();
-        let mut term_weight = term_query.specialized_weight(&*searcher, true);
-        term_weight.index_record_option = IndexRecordOption::WithFreqsAndPositions;
-        let segment_reader = &searcher.segment_readers()[0];
-        let mut term_scorer = term_weight.specialized_scorer(segment_reader).unwrap();
-        assert!(term_scorer.advance());
-        assert_eq!(term_scorer.doc(), 1u32);
-        assert_eq!(term_scorer.postings().positions(), &[1u32, 4]);
+        let segment_reader = searcher.segment_reader(0);
+        let mut postings = segment_reader
+            .inverted_index(text_field)
+            .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+            .unwrap();
+        assert!(postings.advance());
+        assert_eq!(postings.doc(), 1u32);
+        postings.positions(&mut positions);
+        assert_eq!(&positions[..], &[1u32, 4]);
     }
 
     #[test]
@@ -554,7 +567,7 @@ pub mod tests {
                 .inverted_index(TERM_D.field())
                 .read_postings(&*TERM_D, IndexRecordOption::Basic)
                 .unwrap();
-            let mut intersection = Intersection::from(vec![
+            let mut intersection = Intersection::new(vec![
                 segment_postings_a,
                 segment_postings_b,
                 segment_postings_c,

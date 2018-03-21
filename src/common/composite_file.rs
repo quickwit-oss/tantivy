@@ -16,10 +16,7 @@ pub struct FileAddr {
 
 impl FileAddr {
     fn new(field: Field, idx: usize) -> FileAddr {
-        FileAddr {
-            field: field,
-            idx: idx,
-        }
+        FileAddr { field, idx }
     }
 }
 
@@ -34,8 +31,8 @@ impl BinarySerializable for FileAddr {
         let field = Field::deserialize(reader)?;
         let idx = VInt::deserialize(reader)?.0 as usize;
         Ok(FileAddr {
-            field: field,
-            idx: idx,
+            field,
+            idx,
         })
     }
 }
@@ -169,10 +166,7 @@ impl CompositeFile {
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<ReadOnlySource> {
         self.offsets_index
-            .get(&FileAddr {
-                field: field,
-                idx: idx,
-            })
+            .get(&FileAddr { field, idx, })
             .map(|&(from, to)| self.data.slice(from, to))
     }
 }

@@ -120,6 +120,16 @@ impl<'a> TermDictionary<'a> for TermDictionaryImpl {
         }
     }
 
+    fn empty(field_type: FieldType) -> Self {
+        let term_dictionary_data: Vec<u8> =
+            TermDictionaryBuilderImpl::new(Vec::<u8>::new(), field_type)
+                .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
+                .finish()
+                .expect("Writing in a Vec<u8> should never fail");
+        let source = ReadOnlySource::from(term_dictionary_data);
+        Self::from_source(source)
+    }
+
     fn num_terms(&self) -> usize {
         self.term_info_store.num_terms()
     }

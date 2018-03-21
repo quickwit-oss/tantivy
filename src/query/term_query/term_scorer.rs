@@ -1,24 +1,18 @@
 use Score;
 use DocId;
 use docset::{DocSet, SkipResult};
-use postings::SegmentPostings;
 use query::Scorer;
+
 use postings::Postings;
 use fieldnorm::FieldNormReader;
 
-pub struct TermScorer {
+pub struct TermScorer<TPostings: Postings> {
     pub idf: Score,
     pub fieldnorm_reader_opt: Option<FieldNormReader>,
-    pub postings: SegmentPostings,
+    pub postings: TPostings,
 }
 
-impl TermScorer {
-    pub fn postings(&self) -> &SegmentPostings {
-        &self.postings
-    }
-}
-
-impl DocSet for TermScorer {
+impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     fn advance(&mut self) -> bool {
         self.postings.advance()
     }
@@ -36,7 +30,7 @@ impl DocSet for TermScorer {
     }
 }
 
-impl Scorer for TermScorer {
+impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.postings.doc();
         let tf = match self.fieldnorm_reader_opt {

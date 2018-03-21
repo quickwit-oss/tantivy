@@ -106,7 +106,6 @@ pub trait DocSet {
     }
 }
 
-
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn advance(&mut self) -> bool {
         let unboxed: &mut TDocSet = self.borrow_mut();
@@ -133,11 +132,8 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.count()
     }
 
-
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.append_to_bitset(bitset);
     }
 }
-
-

@@ -41,7 +41,8 @@ fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
-    (char('-'), parser(leaf)).map(|(_, expr)| UserInputAST::Not(box expr))
+    (char('-'), parser(leaf))
+        .map(|(_, expr)| UserInputAST::Not(box expr))
         .or((char('+'), parser(leaf)).map(|(_, expr)| UserInputAST::Must(box expr)))
         .or((char('('), parser(parse_to_ast), char(')')).map(|(_, expr, _)| expr))
         .or(parser(literal))

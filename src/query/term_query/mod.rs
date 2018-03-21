@@ -6,6 +6,13 @@ pub use self::term_query::TermQuery;
 pub use self::term_weight::TermWeight;
 pub use self::term_scorer::TermScorer;
 
+use postings::SegmentPostings;
+use postings::NoDelete;
+use fastfield::DeleteBitSet;
+
+pub(crate) type TermScorerWithDeletes = TermScorer<SegmentPostings<DeleteBitSet>>;
+pub(crate) type TermScorerNoDeletes = TermScorer<SegmentPostings<NoDelete>>;
+
 #[cfg(test)]
 mod tests {
 

@@ -33,7 +33,12 @@ impl IndexMeta {
 
 impl fmt::Debug for IndexMeta {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", serde_json::ser::to_string(self).expect("JSON serialization for IndexMeta should never fail."))
+        write!(
+            f,
+            "{}",
+            serde_json::ser::to_string(self)
+                .expect("JSON serialization for IndexMeta should never fail.")
+        )
     }
 }
 

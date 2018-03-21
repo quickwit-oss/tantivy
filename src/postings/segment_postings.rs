@@ -8,14 +8,11 @@ use docset::{DocSet, SkipResult};
 use std::cmp;
 use fst::Streamer;
 use compression::compressed_block_size;
-use fastfield::DeleteBitSet;
-use std::cell::UnsafeCell;
+use postings::{NoDelete, DeleteSet};
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;
 use postings::serializer::PostingsSerializer;
 use common::CountingWriter;
-
-const EMPTY_POSITIONS: [u32; 0] = [0u32; 0];
 
 struct PositionComputer {
     // store the amount of position int
@@ -23,42 +20,32 @@ struct PositionComputer {
     //
     // if none, position are already loaded in
     // the positions vec.
-    position_to_skip: Option<usize>,
-    positions: Vec<u32>,
+    position_to_skip: usize,
     positions_stream: CompressedIntStream,
 }
 
 impl PositionComputer {
     pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
         PositionComputer {
-            position_to_skip: None,
-            positions: vec![],
+            position_to_skip: 0,
             positions_stream,
         }
     }
 
     pub fn add_skip(&mut self, num_skip: usize) {
-        self.position_to_skip = Some(
-            self.position_to_skip
-                .map(|prev_skip| prev_skip + num_skip)
-                .unwrap_or(0),
-        );
+        self.position_to_skip += num_skip;
     }
 
-    pub fn positions(&mut self, term_freq: usize) -> &[u32] {
-        if let Some(num_skip) = self.position_to_skip {
-            self.positions.resize(term_freq, 0u32);
-            self.positions_stream.skip(num_skip);
-            self.positions_stream.read(&mut self.positions[..term_freq]);
-
-            let mut cum = 0u32;
-            for i in 0..term_freq as usize {
-                cum += self.positions[i];
-                self.positions[i] = cum;
-            }
-            self.position_to_skip = None;
+    // Positions can only be read once.
+    pub fn positions_with_offset(&mut self, offset: u32, output: &mut [u32]) {
+        self.positions_stream.skip(self.position_to_skip);
+        self.position_to_skip = 0;
+        self.positions_stream.read(output);
+        let mut cum = offset;
+        for output_mut in output.iter_mut() {
+            cum += *output_mut;
+            *output_mut = cum;
         }
-        &self.positions[..term_freq]
     }
 }
 
@@ -67,14 +54,25 @@ impl PositionComputer {
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-pub struct SegmentPostings {
+pub struct  SegmentPostings<TDeleteSet: DeleteSet> {
     block_cursor: BlockSegmentPostings,
     cur: usize,
-    delete_bitset: DeleteBitSet,
-    position_computer: Option<UnsafeCell<PositionComputer>>,
+    delete_bitset: TDeleteSet,
+    position_computer: Option<PositionComputer>,
 }
 
-impl SegmentPostings {
+impl SegmentPostings<NoDelete> {
+    /// Returns an empty segment postings object
+    pub fn empty() -> Self {
+        let empty_block_cursor = BlockSegmentPostings::empty();
+        SegmentPostings {
+            block_cursor: empty_block_cursor,
+            delete_bitset: NoDelete,
+            cur: COMPRESSION_BLOCK_SIZE,
+            position_computer: None,
+        }
+    }
+
     /// Creates a segment postings object with the given documents
     /// and no frequency encoded.
     ///
@@ -83,14 +81,14 @@ impl SegmentPostings {
     /// It serializes the doc ids using tantivy's codec
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
-    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
+    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings<NoDelete> {
         let mut counting_writer = CountingWriter::wrap(Vec::new());
         {
             let mut postings_serializer = PostingsSerializer::new(&mut counting_writer, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
-            postings_serializer.close_term().unwrap();
+            postings_serializer.close_term().expect("In memory Serialization should never fail.");
         }
         let (buffer , _) = counting_writer.finish().expect("Serializing in a buffer should never fail.");
         let data = ReadOnlySource::from(buffer);
@@ -99,8 +97,13 @@ impl SegmentPostings {
             SourceRead::from(data),
             FreqReadingOption::NoFreq,
         );
-        SegmentPostings::from_block_postings(block_segment_postings, DeleteBitSet::empty(), None)
+        SegmentPostings::from_block_postings(block_segment_postings, NoDelete, None)
     }
+}
+
+impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
+
+
 
     /// Reads a Segment postings from an &[u8]
     ///
@@ -110,47 +113,30 @@ impl SegmentPostings {
     ///   frequencies and/or positions
     pub fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        delete_bitset: DeleteBitSet,
+        delete_bitset: TDeleteSet,
         positions_stream_opt: Option<CompressedIntStream>,
-    ) -> SegmentPostings {
-        let position_computer =
-            positions_stream_opt.map(|stream| UnsafeCell::new(PositionComputer::new(stream)));
+    ) -> SegmentPostings<TDeleteSet> {
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             delete_bitset,
-            position_computer,
-        }
-    }
-
-    /// Returns an empty segment postings object
-    pub fn empty() -> SegmentPostings {
-        let empty_block_cursor = BlockSegmentPostings::empty();
-        SegmentPostings {
-            block_cursor: empty_block_cursor,
-            delete_bitset: DeleteBitSet::empty(),
-            cur: COMPRESSION_BLOCK_SIZE,
-            position_computer: None,
-        }
-    }
-
-    fn position_add_skip<F: FnOnce() -> usize>(&self, num_skips_fn: F) {
-        if let Some(position_computer) = self.position_computer.as_ref() {
-            let num_skips = num_skips_fn();
-            unsafe {
-                (*position_computer.get()).add_skip(num_skips);
-            }
+            position_computer: positions_stream_opt.map(PositionComputer::new),
         }
     }
 }
 
-impl DocSet for SegmentPostings {
+impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
         loop {
-            self.position_add_skip(|| self.term_freq() as usize);
+            {
+                if self.position_computer.is_some() {
+                    let term_freq = self.term_freq() as usize;
+                    self.position_computer.as_mut().unwrap().add_skip(term_freq);
+                }
+            }
             self.cur += 1;
             if self.cur >= self.block_cursor.block_len() {
                 self.cur = 0;
@@ -164,6 +150,7 @@ impl DocSet for SegmentPostings {
             }
         }
     }
+
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
@@ -186,17 +173,16 @@ impl DocSet for SegmentPostings {
                 // so that position_add_skip will decide if it should
                 // just set itself to Some(0) or effectively
                 // add the term freq.
-                //let num_skips: u32 = ;
-                self.position_add_skip(|| {
+                if self.position_computer.is_some() {
                     let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
-                    let sum_freq: u32 = freqs_skipped.iter().cloned().sum();
-                    sum_freq as usize
-                });
-
+                    let sum_freq: u32 = freqs_skipped.iter().sum();
+                    self.position_computer.as_mut()
+                        .unwrap()
+                        .add_skip(sum_freq as usize);
+                }
                 if !self.block_cursor.advance() {
                     return SkipResult::End;
                 }
-
                 self.cur = 0;
             } else {
                 if target < current_doc {
@@ -247,11 +233,13 @@ impl DocSet for SegmentPostings {
             // `doc` is now >= `target`
             let doc = block_docs[start];
 
-            self.position_add_skip(|| {
+            if self.position_computer.is_some() {
                 let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
                 let sum_freqs: u32 = freqs_skipped.iter().sum();
-                sum_freqs as usize
-            });
+                self.position_computer.as_mut()
+                    .unwrap()
+                    .add_skip(sum_freqs as usize);
+            }
 
             self.cur = start;
 
@@ -301,25 +289,33 @@ impl DocSet for SegmentPostings {
     }
 }
 
-impl HasLen for SegmentPostings {
+
+impl<TDeleteSet: DeleteSet> HasLen for SegmentPostings<TDeleteSet> {
     fn len(&self) -> usize {
         self.block_cursor.doc_freq()
     }
 }
 
-impl Postings for SegmentPostings {
+impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
     fn term_freq(&self) -> u32 {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions(&self) -> &[u32] {
-        let term_freq = self.term_freq();
-        self.position_computer
-            .as_ref()
-            .map(|position_computer| unsafe {
-                (&mut *position_computer.get()).positions(term_freq as usize)
-            })
-            .unwrap_or(&EMPTY_POSITIONS[..])
+    fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
+        if self.position_computer.is_some() {
+            let prev_capacity = output.capacity();
+            let term_freq = self.term_freq() as usize;
+            if term_freq > prev_capacity {
+                let additional_len = term_freq - output.len();
+                output.reserve(additional_len);
+            }
+            unsafe {
+                output.set_len(term_freq);
+                self.position_computer.as_mut().unwrap().positions_with_offset(offset, &mut output[..])
+            }
+        } else {
+            output.clear();
+        }
     }
 }
 
@@ -601,3 +597,4 @@ mod tests {
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
     }
 }
+

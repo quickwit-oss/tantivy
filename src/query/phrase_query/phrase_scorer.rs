@@ -1,115 +1,143 @@
 use DocId;
 use docset::{DocSet, SkipResult};
-use postings::{Postings, SegmentPostings};
+use postings::Postings;
 use query::{Intersection, Scorer};
 
-struct PostingsWithOffset {
+struct PostingsWithOffset<TPostings> {
     offset: u32,
-    segment_postings: SegmentPostings,
+    postings: TPostings
 }
 
-impl PostingsWithOffset {
-    pub fn new(segment_postings: SegmentPostings, offset: u32) -> PostingsWithOffset {
+impl<TPostings: Postings> PostingsWithOffset<TPostings> {
+    pub fn new(segment_postings: TPostings, offset: u32) -> PostingsWithOffset<TPostings> {
         PostingsWithOffset {
             offset,
-            segment_postings,
+            postings: segment_postings
         }
     }
-}
 
-impl Postings for PostingsWithOffset {
-    fn term_freq(&self) -> u32 {
-        self.segment_postings.term_freq()
-    }
-
-    fn positions(&self) -> &[u32] {
-        self.segment_postings.positions()
+    pub fn positions(&mut self, output: &mut Vec<u32>) {
+        self.postings.positions_with_offset(self.offset, output)
     }
 }
 
-impl DocSet for PostingsWithOffset {
+impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
     fn advance(&mut self) -> bool {
-        self.segment_postings.advance()
+        self.postings.advance()
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.segment_postings.skip_next(target)
+        self.postings.skip_next(target)
     }
 
     fn doc(&self) -> DocId {
-        self.segment_postings.doc()
+        self.postings.doc()
     }
 
     fn size_hint(&self) -> u32 {
-        self.segment_postings.size_hint()
+        self.postings.size_hint()
     }
 }
 
-pub struct PhraseScorer {
-    intersection_docset: Intersection<PostingsWithOffset>,
+pub struct PhraseScorer<TPostings: Postings> {
+    intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
+    num_docsets: usize,
+    left: Vec<u32>,
+    right: Vec<u32>
 }
 
-impl PhraseScorer {
-    pub fn new(term_postings: Vec<SegmentPostings>) -> PhraseScorer {
-        let postings_with_offsets: Vec<_> = term_postings
+
+/// Computes the length of the intersection of two sorted arrays.
+fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+    let mut left_i = 0;
+    let mut right_i = 0;
+    let mut count = 0;
+    while left_i < left.len() && right_i < right.len() {
+        let left_val = left[left_i];
+        let right_val = right[right_i];
+        if left_val < right_val {
+            left_i += 1;
+        } else if right_val < left_val {
+            right_i += 1;
+        } else {
+            count += 1;
+            left_i += 1;
+            right_i += 1;
+        }
+    }
+    count
+}
+
+/// Intersect twos sorted arrays `left` and `right` and outputs the
+/// resulting array in left.
+///
+/// Returns the length of the intersection
+fn intersection(left: &mut [u32], right: &[u32]) -> usize {
+    let mut left_i = 0;
+    let mut right_i = 0;
+    let mut count = 0;
+    let left_len = left.len();
+    let right_len = right.len();
+    while left_i < left_len && right_i < right_len {
+        let left_val = left[left_i];
+        let right_val = right[right_i];
+        if left_val < right_val {
+            left_i += 1;
+        } else if right_val < left_val {
+            right_i += 1;
+        } else {
+            left[count] = left_val;
+            count += 1;
+            left_i += 1;
+            right_i += 1;
+        }
+    }
+    count
+}
+
+
+impl<TPostings: Postings> PhraseScorer<TPostings> {
+
+    pub fn new(term_postings: Vec<TPostings>) -> PhraseScorer<TPostings> {
+        let num_docsets = term_postings.len();
+        let postings_with_offsets = term_postings
             .into_iter()
             .enumerate()
-            .map(|(offset, postings)| PostingsWithOffset::new(postings, offset as u32))
-            .collect();
+            .map(|(offset, postings)| PostingsWithOffset::new(postings, (num_docsets - offset) as u32))
+            .collect::<Vec<_>>();
         PhraseScorer {
-            intersection_docset: Intersection::from(postings_with_offsets),
+            intersection_docset: Intersection::new(postings_with_offsets),
+            num_docsets,
+            left: Vec::with_capacity(100),
+            right: Vec::with_capacity(100)
         }
     }
 
-    fn phrase_match(&self) -> bool {
-        // TODO maybe we could avoid decoding positions lazily for all terms
-        // when there is > 2 terms.
-        //
-        // For instance for the query "A B C", the position of "C" do not need
-        // to be decoded if "A B" had no match.
-        let docsets = self.intersection_docset.docsets();
-        let mut positions_arr: Vec<&[u32]> = vec![&[]; docsets.len()];
-        for docset in docsets {
-            positions_arr[docset.offset as usize] = docset.positions();
+    fn phrase_match(&mut self) -> bool {
+        // TODO early exit when we don't care about the phrase frequency
+        {
+            self.intersection_docset
+                .docset_mut_specialized(0)
+                .positions(&mut self.left);
         }
-
-        let num_postings = positions_arr.len() as u32;
-
-        let mut ord = 1u32;
-        let mut pos_candidate = positions_arr[0][0];
-        positions_arr[0] = &(positions_arr[0])[1..];
-        let mut count_matching = 1;
-
-        #[cfg_attr(feature = "cargo-clippy", allow(never_loop))]
-        'outer: loop {
-            let target = pos_candidate + ord;
-            let positions = positions_arr[ord as usize];
-            for (i, pos_i) in positions.iter().cloned().enumerate() {
-                if pos_i < target {
-                    continue;
-                }
-                if pos_i == target {
-                    count_matching += 1;
-                    if count_matching == num_postings {
-                        return true;
-                    }
-                } else if pos_i > target {
-                    count_matching = 1;
-                    pos_candidate = positions[i] - ord;
-                    positions_arr[ord as usize] = &(positions_arr[ord as usize])[(i + 1)..];
-                }
-                ord += 1;
-                if ord == num_postings {
-                    ord = 0;
-                }
-                continue 'outer;
+        let mut intersection_len = self.left.len();
+        for i in 1..self.num_docsets - 1 {
+            {
+                self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
             }
-            return false;
+            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
+            if intersection_len == 0 {
+                return false;
+            }
         }
+
+        self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
+        intersection_len = intersection_count(&mut self.left[..intersection_len], &self.right[..]);
+        intersection_len > 0
     }
 }
 
-impl DocSet for PhraseScorer {
+impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     fn advance(&mut self) -> bool {
         while self.intersection_docset.advance() {
             if self.phrase_match() {
@@ -146,8 +174,57 @@ impl DocSet for PhraseScorer {
     }
 }
 
-impl Scorer for PhraseScorer {
+impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> f32 {
         1f32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use test::Bencher;
+    use super::{intersection_count, intersection};
+
+
+    fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
+        test_intersection_aux(left, right, expected);
+        test_intersection_aux(right, left, expected);
+    }
+
+    fn test_intersection_aux(left: &[u32], right: &[u32], expected: &[u32]) {
+        let mut left_vec = Vec::from(left);
+        let left_mut = &mut left_vec[..];
+        assert_eq!(intersection_count(left_mut, right), expected.len());
+        let count = intersection(left_mut, right);
+        assert_eq!(&left_mut[..count], expected);
+    }
+
+    #[test]
+    fn test_intersection() {
+        test_intersection_sym(&[1], &[1], &[1]);
+        test_intersection_sym(&[1], &[2], &[]);
+        test_intersection_sym(&[], &[2], &[]);
+        test_intersection_sym(&[5, 7], &[1, 5, 10, 12], &[5]);
+        test_intersection_sym(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12]);
+    }
+
+    #[bench]
+    fn bench_intersection_short(b: &mut Bencher) {
+        b.iter(|| {
+            let mut left = [1, 5, 10, 12];
+            let right = [5, 7];
+            intersection(&mut left, &right);
+        });
+    }
+
+
+    #[bench]
+    fn bench_intersection_count_short(b: &mut Bencher) {
+        b.iter(|| {
+            let left = [1, 5, 10, 12];
+            let right = [5, 7];
+            intersection_count(&left, &right);
+        });
     }
 }

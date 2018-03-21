@@ -151,6 +151,7 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate time;
 extern crate uuid;
+extern crate bitpacking;
 
 #[cfg(test)]
 #[macro_use]
@@ -158,9 +159,6 @@ extern crate matches;
 
 #[cfg(test)]
 extern crate env_logger;
-
-#[cfg(feature = "simdcompression")]
-extern crate libc;
 
 #[cfg(windows)]
 extern crate winapi;
@@ -647,6 +645,22 @@ mod tests {
     }
 
     #[test]
+    fn test_indexedfield_not_in_documents() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let absent_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"));
+        assert!(index_writer.commit().is_ok());
+        assert!(index.load_searchers().is_ok());
+        let searcher = index.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        segment_reader.inverted_index(absent_field); //< should not panic
+    }
+
+    #[test]
     fn test_delete_postings2() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -860,31 +874,26 @@ mod tests {
         let searcher = index.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
-            let fast_field_reader_res =
-                segment_reader.fast_field_reader::<u64>(text_field);
+            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(text_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res =
-                segment_reader.fast_field_reader::<u64>(stored_int_field);
+            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(stored_int_field);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res =
-                segment_reader.fast_field_reader::<u64>(fast_field_signed);
+            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(fast_field_signed);
             assert!(fast_field_reader_res.is_err());
         }
         {
-            let fast_field_reader_res =
-                segment_reader.fast_field_reader::<i64>(fast_field_signed);
+            let fast_field_reader_res = segment_reader.fast_field_reader::<i64>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
 
         {
-            let fast_field_reader_res =
-                segment_reader.fast_field_reader::<i64>(fast_field_signed);
+            let fast_field_reader_res = segment_reader.fast_field_reader::<i64>(fast_field_signed);
             assert!(fast_field_reader_res.is_ok());
             let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)

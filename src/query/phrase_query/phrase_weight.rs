@@ -26,17 +26,30 @@ impl PhraseWeight {
 
 impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
-        let mut term_postings_list = Vec::new();
-        for term in &self.phrase_terms {
-            if let Some(postings) = reader
-                .inverted_index(term.field())
-                .read_postings(term, IndexRecordOption::WithFreqsAndPositions)
-            {
-                term_postings_list.push(postings);
-            } else {
-                return Ok(box EmptyScorer);
+        if reader.has_deletes() {
+            let mut term_postings_list = Vec::new();
+            for term in &self.phrase_terms {
+                if let Some(postings) = reader
+                    .inverted_index(term.field())
+                    .read_postings(term, IndexRecordOption::WithFreqsAndPositions) {
+                    term_postings_list.push(postings);
+                } else {
+                    return Ok(box EmptyScorer);
+                }
             }
+            Ok(box PhraseScorer::new(term_postings_list))
+        } else {
+            let mut term_postings_list = Vec::new();
+            for term in &self.phrase_terms {
+                if let Some(postings) = reader
+                    .inverted_index(term.field())
+                    .read_postings_no_deletes(term, IndexRecordOption::WithFreqsAndPositions) {
+                    term_postings_list.push(postings);
+                } else {
+                    return Ok(box EmptyScorer);
+                }
+            }
+            Ok(box PhraseScorer::new(term_postings_list))
         }
-        Ok(box PhraseScorer::new(term_postings_list))
     }
 }

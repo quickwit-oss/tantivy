@@ -71,7 +71,7 @@ macro_rules! doc(
 
 #[cfg(test)]
 mod test {
-    use schema::{SchemaBuilder, TEXT, FAST};
+    use schema::{SchemaBuilder, FAST, TEXT};
 
     #[test]
     fn test_doc_basic() {

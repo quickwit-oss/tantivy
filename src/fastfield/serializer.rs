@@ -36,9 +36,7 @@ impl FastFieldSerializer {
     pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FastFieldSerializer {
-            composite_write
-        })
+        Ok(FastFieldSerializer { composite_write })
     }
 
     /// Start serializing a new u64 fast field

@@ -6,7 +6,6 @@ use core::SerializableSegment;
 use indexer::SegmentSerializer;
 use postings::InvertedIndexSerializer;
 use itertools::Itertools;
-use postings::Postings;
 use docset::DocSet;
 use fastfield::DeleteBitSet;
 use schema::{Field, Schema};
@@ -20,13 +19,15 @@ use termdict::TermStreamer;
 use fieldnorm::FieldNormsSerializer;
 use fieldnorm::FieldNormsWriter;
 use fieldnorm::FieldNormReader;
+use postings::DeleteSet;
+use postings::Postings;
 
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
     let mut count: [usize; 256] = [0; 256];
     for reader in readers {
-        if reader.delete_bitset().has_deletes() {
+        if reader.has_deletes() {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
             if let Some(fieldnorms_reader) = reader.get_fieldnorms_reader(field) {
@@ -49,6 +50,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
         .sum::<u64>()
 }
 
+
 pub struct IndexMerger {
     schema: Schema,
     readers: Vec<SegmentReader>,
@@ -58,22 +60,28 @@ pub struct IndexMerger {
 fn compute_min_max_val(
     u64_reader: &FastFieldReader<u64>,
     max_doc: DocId,
-    delete_bitset: &DeleteBitSet,
+    delete_bitset_opt: Option<&DeleteBitSet>,
 ) -> Option<(u64, u64)> {
     if max_doc == 0 {
         None
-    } else if !delete_bitset.has_deletes() {
-        // no deleted documents,
-        // we can use the previous min_val, max_val.
-        Some((u64_reader.min_value(), u64_reader.max_value()))
     } else {
-        // some deleted documents,
-        // we need to recompute the max / min
-        (0..max_doc)
-            .filter(|doc_id| !delete_bitset.is_deleted(*doc_id))
-            .map(|doc_id| u64_reader.get(doc_id))
-            .minmax()
-            .into_option()
+        match delete_bitset_opt {
+            Some(delete_bitset) => {
+                // some deleted documents,
+                // we need to recompute the max / min
+                (0..max_doc)
+                    .filter(|doc_id| !delete_bitset.is_deleted(*doc_id))
+                    .map(|doc_id| u64_reader.get(doc_id))
+                    .minmax()
+                    .into_option()
+
+            }
+            None => {
+                // no deleted documents,
+                // we can use the previous min_val, max_val.
+                Some((u64_reader.min_value(), u64_reader.max_value()))
+            }
+        }
     }
 }
 
@@ -161,7 +169,7 @@ impl IndexMerger {
                         if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
                             &u64_reader,
                             reader.max_doc(),
-                            reader.delete_bitset(),
+                            reader.delete_bitset()
                         ) {
                             // the segment has some non-deleted documents
                             min_val = min(min_val, seg_min_val);
@@ -193,12 +201,15 @@ impl IndexMerger {
 
             let mut fast_single_field_serializer =
                 fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
-            for (max_doc, u64_reader, delete_bitset) in u64_readers {
+            for (max_doc, u64_reader, delete_bitset_opt) in u64_readers {
                 for doc_id in 0..max_doc {
-                    if !delete_bitset.is_deleted(doc_id) {
-                        let val = u64_reader.get(doc_id);
-                        fast_single_field_serializer.add_val(val)?;
+                    if let Some(ref delete_bitset) = delete_bitset_opt {
+                        if delete_bitset.is_deleted(doc_id) {
+                            continue;
+                        }
                     }
+                    let val = u64_reader.get(doc_id);
+                    fast_single_field_serializer.add_val(val)?;
                 }
             }
 
@@ -208,6 +219,8 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
+
+        let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
         let mut indexed_fields = vec![];
@@ -286,7 +299,8 @@ impl IndexMerger {
                         let term_info = heap_item.streamer.value();
                         let segment_reader = &self.readers[heap_item.segment_ord];
                         let inverted_index = segment_reader.inverted_index(indexed_field);
-                        let mut segment_postings = inverted_index.read_postings_from_terminfo(term_info, segment_postings_option);
+                        let mut segment_postings = inverted_index
+                            .read_postings_from_terminfo::<DeleteBitSet>(term_info, segment_postings_option);
                         if segment_postings.advance() {
                             Some((segment_ord, segment_postings))
                         } else {
@@ -319,9 +333,10 @@ impl IndexMerger {
                             {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
-                                let positions: &[u32] = segment_postings.positions();
                                 let term_freq = segment_postings.term_freq();
-                                let delta_positions = delta_computer.compute_delta(positions);
+                                segment_postings.positions(&mut positions_buffer);
+
+                                let delta_positions = delta_computer.compute_delta(&positions_buffer);
                                 field_serializer.write_doc(
                                     remapped_doc_id,
                                     term_freq,

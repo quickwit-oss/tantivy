@@ -10,10 +10,15 @@ use docset::DocSet;
 /// Its main implementation is `SegmentPostings`,
 /// but other implementations mocking `SegmentPostings` exist,
 /// for merging segments or for testing.
-pub trait Postings: DocSet {
+pub trait Postings: DocSet + 'static {
     /// Returns the term frequency
     fn term_freq(&self) -> u32;
+
     /// Returns the list of positions of the term, expressed as a list of
     /// token ordinals.
-    fn positions(&self) -> &[u32];
+    fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>);
+
+    fn positions(&mut self, output: &mut Vec<u32>) {
+        self.positions_with_offset(0u32, output);
+    }
 }

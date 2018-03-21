@@ -122,6 +122,16 @@ impl SourceRead {
     pub fn advance(&mut self, len: usize) {
         self.cursor = &self.cursor[len..];
     }
+
+    pub fn slice_from(&self, start: usize) -> &[u8] {
+        &self.cursor[start..]
+
+    }
+
+    pub fn get(&self, idx: usize) -> u8 {
+        self.cursor[idx]
+    }
+
 }
 
 impl AsRef<[u8]> for SourceRead {

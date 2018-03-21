@@ -1,17 +1,19 @@
 use query::Weight;
 use core::SegmentReader;
-use query::{Intersection, Union};
+use query::Union;
 use std::collections::HashMap;
 use query::EmptyScorer;
 use query::Scorer;
 use downcast::Downcast;
-use query::term_query::TermScorer;
 use std::borrow::Borrow;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
+use query::intersect_scorers;
+use query::term_query::{TermScorerWithDeletes, TermScorerNoDeletes};
+
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -19,24 +21,41 @@ where
 {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
-        scorers.into_iter().next().unwrap() //< we checked the size beforehands
-    } else {
+        return scorers.into_iter().next().unwrap(); //< we checked the size beforehands
+    }
+
+    {
         let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorer>::is_type(scorer_ref)
+            Downcast::<TermScorerWithDeletes>::is_type(scorer_ref)
         });
         if is_all_term_queries {
-            let scorers: Vec<TermScorer> = scorers
+            let scorers: Vec<TermScorerWithDeletes> = scorers
                 .into_iter()
-                .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
+                .map(|scorer| *Downcast::<TermScorerWithDeletes>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
-            scorer
-        } else {
-            let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
-            scorer
+            let scorer: Box<Scorer> = box Union::<TermScorerWithDeletes, TScoreCombiner>::from(scorers);
+            return scorer;
         }
     }
+
+    {
+        let is_all_term_queries = scorers.iter().all(|scorer| {
+            let scorer_ref: &Scorer = scorer.borrow();
+            Downcast::<TermScorerNoDeletes>::is_type(scorer_ref)
+        });
+        if is_all_term_queries {
+            let scorers: Vec<TermScorerNoDeletes> = scorers
+                .into_iter()
+                .map(|scorer| *Downcast::<TermScorerNoDeletes>::downcast(scorer).unwrap())
+                .collect();
+            let scorer: Box<Scorer> = box Union::<TermScorerNoDeletes, TScoreCombiner>::from(scorers);
+            return scorer;
+        }
+    }
+    let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
+    return scorer;
+
 }
 
 pub struct BooleanWeight {
@@ -74,27 +93,8 @@ impl BooleanWeight {
             .map(scorer_union::<TScoreCombiner>);
 
         let must_scorer_opt: Option<Box<Scorer>> =
-            per_occur_scorers.remove(&Occur::Must).map(|scorers| {
-                if scorers.len() == 1 {
-                    scorers.into_iter().next().unwrap()
-                } else {
-                    let is_all_term_queries = scorers.iter().all(|scorer| {
-                        let scorer_ref: &Scorer = scorer.borrow();
-                        Downcast::<TermScorer>::is_type(scorer_ref)
-                    });
-                    if is_all_term_queries {
-                        let scorers: Vec<TermScorer> = scorers
-                            .into_iter()
-                            .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
-                            .collect();
-                        let scorer: Box<Scorer> = box Intersection::from(scorers);
-                        scorer
-                    } else {
-                        let scorer: Box<Scorer> = box Intersection::from(scorers);
-                        scorer
-                    }
-                }
-            });
+            per_occur_scorers.remove(&Occur::Must)
+                .map(intersect_scorers);
 
         let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {

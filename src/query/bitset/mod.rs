@@ -244,7 +244,7 @@ mod tests {
 
     #[bench]
     fn bench_bitset_1pct_clone_iterate(b: &mut test::Bencher) {
-        let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
+        let els = tests::sample(1_000_000u32, 0.01);
         let mut bitset = BitSet::with_max_value(1_000_000);
         for el in els {
             bitset.insert(el);
