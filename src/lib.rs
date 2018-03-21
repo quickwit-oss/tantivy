@@ -204,6 +204,7 @@ pub mod collector;
 pub mod postings;
 pub mod schema;
 pub mod fastfield;
+pub mod fieldnorm;
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
