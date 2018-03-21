@@ -57,6 +57,7 @@ pub mod tests {
     use indexer::operation::AddOperation;
     use tests;
     use rand::{Rng, SeedableRng, XorShiftRng};
+    use fieldnorm::FieldNormReader;
 
     #[test]
     pub fn test_position_write() {
@@ -196,10 +197,12 @@ pub mod tests {
             let segment_reader = SegmentReader::open(&segment).unwrap();
             {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field).unwrap();
-                assert_eq!(fieldnorm_reader.get(0), 8 + 5);
-                assert_eq!(fieldnorm_reader.get(1), 2);
+                assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {
-                    assert_eq!(fieldnorm_reader.get(i), (i + 1) as u64);
+                    assert_eq!(
+                        fieldnorm_reader.fieldnorm_id(i),
+                        FieldNormReader::fieldnorm_to_id(i + 1) );
                 }
             }
             {

@@ -5,10 +5,11 @@ use postings::SegmentPostings;
 use query::Scorer;
 use postings::Postings;
 use fastfield::FastFieldReader;
+use fieldnorm::FieldNormReader;
 
 pub struct TermScorer {
     pub idf: Score,
-    pub fieldnorm_reader_opt: Option<FastFieldReader<u64>>,
+    pub fieldnorm_reader_opt: Option<FieldNormReader>,
     pub postings: SegmentPostings,
 }
 
@@ -41,7 +42,7 @@ impl Scorer for TermScorer {
         let doc = self.postings.doc();
         let tf = match self.fieldnorm_reader_opt {
             Some(ref fieldnorm_reader) => {
-                let field_norm = fieldnorm_reader.get(doc);
+                let field_norm = fieldnorm_reader.fieldnorm(doc);
                 (self.postings.term_freq() as f32 / field_norm as f32)
             }
             None => self.postings.term_freq() as f32,

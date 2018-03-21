@@ -19,6 +19,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
 use tokenizer::{TokenStream, Tokenizer};
 use schema::Value;
+use fieldnorm::FieldNormsWriter;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -31,21 +32,11 @@ pub struct SegmentWriter<'a> {
     multifield_postings: MultiFieldPostingsWriter<'a>,
     segment_serializer: SegmentSerializer,
     fast_field_writers: FastFieldsWriter,
-    fieldnorms_writer: FastFieldsWriter,
+    fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<u64>,
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 
-fn create_fieldnorms_writer(schema: &Schema) -> FastFieldsWriter {
-    let u64_fields: Vec<Field> = schema
-        .fields()
-        .iter()
-        .enumerate()
-        .filter(|&(_, field_entry)| field_entry.is_indexed())
-        .map(|(field_id, _)| Field(field_id as u32))
-        .collect();
-    FastFieldsWriter::new(u64_fields)
-}
 
 impl<'a> SegmentWriter<'a> {
     /// Creates a new `SegmentWriter`
@@ -83,7 +74,7 @@ impl<'a> SegmentWriter<'a> {
             heap,
             max_doc: 0,
             multifield_postings,
-            fieldnorms_writer: create_fieldnorms_writer(schema),
+            fieldnorms_writer: FieldNormsWriter::for_schema(schema),
             segment_serializer,
             fast_field_writers: FastFieldsWriter::from_schema(schema),
             doc_opstamps: Vec::with_capacity(1_000),
@@ -95,7 +86,8 @@ impl<'a> SegmentWriter<'a> {
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
-    pub fn finalize(self) -> Result<Vec<u64>> {
+    pub fn finalize(mut self) -> Result<Vec<u64>> {
+        self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
@@ -190,10 +182,7 @@ impl<'a> SegmentWriter<'a> {
                         0
                     };
                     self.fieldnorms_writer
-                        .get_field_writer(field)
-                        .map(|field_norms_writer| {
-                            field_norms_writer.add_val(u64::from(num_tokens))
-                        });
+                        .record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(ref int_option) => {
                     if int_option.is_indexed() {
@@ -219,7 +208,6 @@ impl<'a> SegmentWriter<'a> {
                 }
             }
         }
-        self.fieldnorms_writer.fill_val_up_to(doc_id);
         doc.filter_fields(|field| schema.get_field_entry(field).is_stored());
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc)?;
@@ -252,14 +240,13 @@ impl<'a> SegmentWriter<'a> {
 fn write(
     multifield_postings: &MultiFieldPostingsWriter,
     fast_field_writers: &FastFieldsWriter,
-    fieldnorms_writer: &FastFieldsWriter,
+    fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
 ) -> Result<()> {
     let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer())?;
     fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
-    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer(), &HashMap::new())?;
+    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer())?;
     serializer.close()?;
-
     Ok(())
 }
 

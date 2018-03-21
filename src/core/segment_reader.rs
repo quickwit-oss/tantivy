@@ -26,6 +26,7 @@ use schema::Schema;
 use termdict::TermDictionary;
 use fastfield::{FastValue, MultiValueIntFastFieldReader};
 use schema::Cardinality;
+use fieldnorm::FieldNormReader;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -158,10 +159,10 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<FastFieldReader<u64>> {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<FieldNormReader> {
         self.fieldnorms_composite
             .open_read(field)
-            .map(FastFieldReader::open)
+            .map(FieldNormReader::open)
     }
 
     /// Accessor to the segment's `StoreReader`.

@@ -17,6 +17,7 @@ use store::StoreWriter;
 use std::cmp::{max, min};
 use termdict::TermDictionary;
 use termdict::TermStreamer;
+use fieldnorm::FieldNormsSerializer;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -46,12 +47,6 @@ fn compute_min_max_val(
     }
 }
 
-fn extract_fieldnorm_reader(
-    segment_reader: &SegmentReader,
-    field: Field,
-) -> Option<FastFieldReader<u64>> {
-    segment_reader.get_fieldnorms_reader(field)
-}
 
 fn extract_fast_field_reader(
     segment_reader: &SegmentReader,
@@ -102,19 +97,20 @@ impl IndexMerger {
         })
     }
 
-    fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
-        let fieldnorm_fastfields: Vec<Field> = self.schema
-            .fields()
-            .iter()
-            .enumerate()
-            .filter(|&(_, field_entry)| field_entry.is_indexed())
-            .map(|(field_id, _)| Field(field_id as u32))
-            .collect();
-        self.generic_write_fast_field(
-            fieldnorm_fastfields,
-            &extract_fieldnorm_reader,
-            fast_field_serializer,
-        )
+    fn write_fieldnorms(&self, fast_field_serializer: &mut FieldNormsSerializer) -> Result<()> {
+        unimplemented!("Not implemented yet");
+//        let fieldnorm_fastfields: Vec<Field> = self.schema
+//            .fields()
+//            .iter()
+//            .enumerate()
+//            .filter(|&(_, field_entry)| field_entry.is_indexed())
+//            .map(|(field_id, _)| Field(field_id as u32))
+//            .collect();
+//        self.generic_write_fast_field(
+//            fieldnorm_fastfields,
+//            &extract_fieldnorm_reader,
+//            fast_field_serializer,
+//        )
     }
 
     fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {

@@ -16,6 +16,7 @@ mod tests {
     use query::TermQuery;
     use Index;
     use schema::*;
+    use fieldnorm::FieldNormReader;
     use schema::IndexRecordOption;
     use fastfield::FastFieldReader;
 
@@ -55,9 +56,9 @@ mod tests {
 
     #[test]
     pub fn test_term_scorer() {
-        let left_fieldnorms = FastFieldReader::from(vec![10, 4]);
-        assert_eq!(left_fieldnorms.get(0), 10);
-        assert_eq!(left_fieldnorms.get(1), 4);
+        let left_fieldnorms = FieldNormReader::from(vec![10, 4]);
+        assert_eq!(left_fieldnorms.fieldnorm(0), 10);
+        assert_eq!(left_fieldnorms.fieldnorm(1), 4);
         let left = SegmentPostings::create_from_docs(&[1]);
         let mut left_scorer = TermScorer {
             idf: 0.30685282,

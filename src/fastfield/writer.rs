@@ -116,16 +116,6 @@ impl FastFieldsWriter {
         }
         Ok(())
     }
-
-    /// Ensures all of the fast field writers have
-    /// reached `doc`. (included)
-    ///
-    /// The missing values will be filled with 0.
-    pub fn fill_val_up_to(&mut self, doc: DocId) {
-        for field_writer in &mut self.single_value_writers {
-            field_writer.fill_val_up_to(doc);
-        }
-    }
 }
 
 /// Fast field writer for ints.
@@ -176,19 +166,6 @@ impl IntFastFieldWriter {
     /// a document does not have any value.
     fn set_val_if_missing(&mut self, val_if_missing: u64) {
         self.val_if_missing = val_if_missing;
-    }
-
-    /// Ensures all of the fast field writer have
-    /// reached `doc`. (included)
-    ///
-    /// The missing values will be filled with 0.
-    fn fill_val_up_to(&mut self, doc: DocId) {
-        let target = doc as usize + 1;
-        debug_assert!(self.val_count <= target);
-        let val_if_missing = self.val_if_missing;
-        while self.val_count < target {
-            self.add_val(val_if_missing);
-        }
     }
 
     /// Records a new value.
