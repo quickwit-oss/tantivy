@@ -4,7 +4,6 @@ use schema::Document;
 use collector::Collector;
 use common::TimerTree;
 use query::Query;
-use DocId;
 use DocAddress;
 use schema::{Field, Term};
 use termdict::{TermDictionary, TermMerger};
@@ -33,20 +32,20 @@ impl Searcher {
     }
 
     /// Returns the overall number of documents in the index.
-    pub fn num_docs(&self) -> DocId {
+    pub fn num_docs(&self) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.num_docs())
-            .sum::<u32>()
+            .map(|segment_reader| segment_reader.num_docs() as u64)
+            .sum::<u64>()
     }
 
     /// Return the overall number of documents containing
     /// the given term.
-    pub fn doc_freq(&self, term: &Term) -> u32 {
+    pub fn doc_freq(&self, term: &Term) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.inverted_index(term.field()).doc_freq(term))
-            .sum::<u32>()
+            .map(|segment_reader| segment_reader.inverted_index(term.field()).doc_freq(term) as u64)
+            .sum::<u64>()
     }
 
     /// Return the list of segment readers

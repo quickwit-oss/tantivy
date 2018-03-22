@@ -7,9 +7,10 @@ use postings::Postings;
 use fieldnorm::FieldNormReader;
 
 pub struct TermScorer<TPostings: Postings> {
-    pub idf: Score,
     pub fieldnorm_reader_opt: Option<FieldNormReader>,
     pub postings: TPostings,
+    pub weight: f32,
+    pub cache: [f32; 256],
 }
 
 impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
@@ -32,14 +33,16 @@ impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
 
 impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     fn score(&mut self) -> Score {
-        let doc = self.postings.doc();
-        let tf = match self.fieldnorm_reader_opt {
-            Some(ref fieldnorm_reader) => {
-                let field_norm = fieldnorm_reader.fieldnorm(doc);
-                (self.postings.term_freq() as f32 / field_norm as f32)
-            }
-            None => self.postings.term_freq() as f32,
-        };
-        self.idf * tf.sqrt()
+        let doc = self.doc();
+        let fieldnorm_id = self.fieldnorm_reader_opt
+            .as_ref()
+            .map(|fieldnorm_reader| {
+                fieldnorm_reader.fieldnorm_id(doc)
+            })
+            .unwrap_or(0u8);
+        let norm = self.cache[fieldnorm_id as usize];
+        let term_freq = self.postings.term_freq() as f32;
+        self.weight * term_freq / (term_freq + norm)
     }
 }
+
