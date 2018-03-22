@@ -9,15 +9,18 @@ use super::term_scorer::TermScorer;
 use fastfield::DeleteBitSet;
 use postings::NoDelete;
 use Result;
+use fieldnorm::FieldNormReader;
+use std::f32;
 
 pub struct TermWeight {
-    pub(crate) num_docs: u32,
-    pub(crate) doc_freq: u32,
-    pub(crate) term: Term,
-    pub(crate) index_record_option: IndexRecordOption,
+    term: Term,
+    index_record_option: IndexRecordOption,
+    weight: f32,
+    cache: [f32; 256],
 }
 
 impl Weight for TermWeight {
+
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
@@ -29,15 +32,17 @@ impl Weight for TermWeight {
             scorer =
                 if let Some(segment_postings) = postings_opt {
                     box TermScorer {
-                        idf: self.idf(),
                         fieldnorm_reader_opt,
                         postings: segment_postings,
+                        weight: self.weight,
+                        cache: self.cache
                     }
                 } else {
                     box TermScorer {
-                        idf: 1f32,
                         fieldnorm_reader_opt: None,
                         postings: SegmentPostings::<NoDelete>::empty(),
+                        weight: self.weight,
+                        cache: self.cache
                     }
                 };
         } else {
@@ -46,15 +51,17 @@ impl Weight for TermWeight {
             scorer =
                 if let Some(segment_postings) = postings_opt {
                     box TermScorer {
-                        idf: self.idf(),
                         fieldnorm_reader_opt,
                         postings: segment_postings,
+                        weight: self.weight,
+                        cache: self.cache
                     }
                 } else {
                     box TermScorer {
-                        idf: 1f32,
                         fieldnorm_reader_opt: None,
                         postings: SegmentPostings::<NoDelete>::empty(),
+                        weight: self.weight,
+                        cache: self.cache
                     }
                 };
         }
@@ -75,8 +82,55 @@ impl Weight for TermWeight {
     }
 }
 
-impl TermWeight {
-    fn idf(&self) -> f32 {
-        1.0 + (self.num_docs as f32 / (self.doc_freq as f32 + 1.0)).ln()
+const K1: f32 = 1.2;
+const B: f32 = 0.75;
+
+fn cached_tf_component(fieldnorm: u32, average_fieldnorm: f32) -> f32 {
+    K1 * (1f32 - B + B * fieldnorm as f32 / average_fieldnorm)
+}
+
+fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
+    let mut cache = [0f32; 256];
+    for fieldnorm_id in 0..256 {
+        let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
+        cache[fieldnorm_id] = cached_tf_component(fieldnorm, average_fieldnorm);
     }
+    cache
+}
+
+
+fn idf(doc_freq: u64, doc_count: u64) -> f32 {
+    let x = ((doc_count - doc_freq) as f32 + 0.5) / (doc_freq as f32 + 0.5);
+    (1f32 + x).ln()
+}
+
+
+impl TermWeight {
+
+    pub fn new(doc_freq: u64,
+               doc_count: u64,
+               average_fieldnorm: f32,
+               term: Term,
+               index_record_option: IndexRecordOption) -> TermWeight {
+        let idf = idf(doc_freq, doc_count);
+        TermWeight {
+            term,
+            index_record_option,
+            weight: idf * (1f32 + K1),
+            cache: compute_tf_cache(average_fieldnorm),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use tests::assert_nearly_equals;
+    use super::idf;
+
+    #[test]
+    fn test_idf() {
+        assert_nearly_equals(idf(1, 2),  0.6931472);
+    }
+
 }
