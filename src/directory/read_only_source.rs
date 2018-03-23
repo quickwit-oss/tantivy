@@ -63,6 +63,7 @@ impl ReadOnlySource {
     /// 1KB slice is remaining, the whole `500MBs`
     /// are retained in memory.
     pub fn slice(&self, from_offset: usize, to_offset: usize) -> ReadOnlySource {
+        assert!(from_offset <= to_offset, "Requested negative slice [{}..{}]", from_offset, to_offset);
         match *self {
             ReadOnlySource::Mmap(ref mmap_read_only) => {
                 let sliced_mmap = mmap_read_only.range(from_offset, to_offset - from_offset);

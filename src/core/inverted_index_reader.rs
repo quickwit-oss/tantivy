@@ -30,6 +30,7 @@ pub struct InvertedIndexReader {
     positions_source: ReadOnlySource,
     delete_bitset_opt: Option<DeleteBitSet>,
     record_option: IndexRecordOption,
+    total_num_tokens: u64
 }
 
 impl InvertedIndexReader {
@@ -40,12 +41,16 @@ impl InvertedIndexReader {
         delete_bitset_opt: Option<DeleteBitSet>,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
+        let total_num_tokens_data = postings_source.slice(0, 8);
+        let mut total_num_tokens_cursor = total_num_tokens_data.as_slice();
+        let total_num_tokens = u64::deserialize(&mut total_num_tokens_cursor).unwrap_or(0u64);
         InvertedIndexReader {
             termdict,
-            postings_source,
+            postings_source: postings_source.slice_from(8),
             positions_source,
             delete_bitset_opt,
             record_option,
+            total_num_tokens
         }
     }
 
@@ -55,13 +60,14 @@ impl InvertedIndexReader {
         let record_option = field_type
             .get_index_record_option()
             .unwrap_or(IndexRecordOption::Basic);
-        InvertedIndexReader::new(
-            TermDictionaryImpl::empty(field_type),
-            ReadOnlySource::empty(),
-            ReadOnlySource::empty(),
-            None,
+        InvertedIndexReader {
+            termdict:    TermDictionaryImpl::empty(field_type),
+            postings_source: ReadOnlySource::empty(),
+            positions_source: ReadOnlySource::empty(),
+            delete_bitset_opt: None,
             record_option,
-        )
+            total_num_tokens: 0u64
+        }
     }
 
     /// Returns the term info associated with the term.
@@ -149,10 +155,7 @@ impl InvertedIndexReader {
     /// Returns the total number of tokens recorded for all documents
     /// (including deleted documents).
     pub fn total_num_tokens(&self) -> u64 {
-        let total_num_tokens_data = self.postings_source.slice(0, 8);
-        let mut total_num_tokens_cursor = total_num_tokens_data.as_slice();
-        let result = u64::deserialize(&mut total_num_tokens_cursor).unwrap_or(0u64);
-        result
+        self.total_num_tokens
     }
 
 

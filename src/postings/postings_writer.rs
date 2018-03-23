@@ -240,6 +240,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
             recorder.new_doc(doc, heap);
         }
         recorder.record_position(position, heap);
+        self.add_num_tokens(1u32);
         term_ord
     }
 

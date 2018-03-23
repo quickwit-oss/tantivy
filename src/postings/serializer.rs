@@ -112,7 +112,7 @@ impl InvertedIndexSerializer {
 /// the serialization of a specific field.
 pub struct FieldSerializer<'a> {
     term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
-    postings_serializer: PostingsSerializer<'a, WritePtr>,
+    postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
@@ -235,8 +235,8 @@ impl<'a> FieldSerializer<'a> {
     }
 }
 
-pub struct PostingsSerializer<'a, W: 'a + Write> {
-    postings_write: &'a mut CountingWriter<W>,
+pub struct PostingsSerializer<W: Write> {
+    postings_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
@@ -246,10 +246,10 @@ pub struct PostingsSerializer<'a, W: 'a + Write> {
     termfreq_enabled: bool,
 }
 
-impl<'a, W: 'a + Write> PostingsSerializer<'a, W> {
-    pub fn new(write: &'a mut CountingWriter<W>, termfreq_enabled: bool) -> PostingsSerializer<W> {
+impl<W: Write> PostingsSerializer<W> {
+    pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
-            postings_write: write,
+            postings_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),
             doc_ids: vec![],
@@ -310,7 +310,7 @@ impl<'a, W: 'a + Write> PostingsSerializer<'a, W> {
         Ok(())
     }
 
-    fn close(self) -> io::Result<()> {
+    fn close(mut self) -> io::Result<()> {
         self.postings_write.flush()
     }
 
