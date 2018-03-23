@@ -188,11 +188,8 @@ pub trait PostingsWriter {
             };
             token_stream.process(&mut sink)
         };
-        self.add_num_tokens(num_tokens);
         num_tokens
     }
-
-    fn add_num_tokens(&mut self, num_tokens: u32);
 
     fn total_num_tokens(&self) -> u64;
 }
@@ -239,8 +236,8 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
             }
             recorder.new_doc(doc, heap);
         }
+        self.total_num_tokens += 1;
         recorder.record_position(position, heap);
-        self.add_num_tokens(1u32);
         term_ord
     }
 
@@ -257,10 +254,6 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
             serializer.close_term()?;
         }
         Ok(())
-    }
-
-    fn add_num_tokens(&mut self, num_tokens: u32) {
-        self.total_num_tokens += num_tokens as u64;
     }
 
     fn total_num_tokens(&self) -> u64 {
